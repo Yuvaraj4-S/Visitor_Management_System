@@ -8,6 +8,11 @@
     "field_order": [
         "section_break_q9pi",
         "visitor_type",
+        "linked_contractor",
+        "linked_customer",
+        "linked_candidate",
+        "linked_supplier",
+        "linked_vip",
         "visitor_full_name",
         "mobile_number",
         "email_id",

@@ -1,119 +1,114 @@
 {
- "actions": [],
- "allow_rename": 1,
- "creation": "2026-03-01 15:41:51.810478",
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "visitor_pass",
-  "contractor_company",
-  "worker_name",
-  "work_order_ref",
-  "safety_induction_done",
-  "nda_signed",
-  "ppe_provided",
-  "work_area__zone",
-  "tools_list",
-  "multi_day_pass",
-  "pass_valid_until"
- ],
- "fields": [
-  {
-   "fieldname": "visitor_pass",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Visitor Pass",
-   "options": "Visitor Pass",
-   "reqd": 1
-  },
-  {
-   "fieldname": "contractor_company",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Contractor Company",
-   "reqd": 1
-  },
-  {
-   "fieldname": "worker_name",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Worker Name",
-   "reqd": 1
-  },
-  {
-   "fieldname": "work_order_ref",
-   "fieldtype": "Link",
-   "label": "Work Order Ref",
-   "options": "Maintenance Visit"
-  },
-  {
-   "default": "0",
-   "fieldname": "safety_induction_done",
-   "fieldtype": "Check",
-   "label": "Safety Induction Done"
-  },
-  {
-   "default": "0",
-   "fieldname": "nda_signed",
-   "fieldtype": "Check",
-   "label": "NDA Signed"
-  },
-  {
-   "default": "0",
-   "fieldname": "ppe_provided",
-   "fieldtype": "Check",
-   "label": "PPE Provided"
-  },
-  {
-   "fieldname": "work_area__zone",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Work Area / Zone",
-   "reqd": 1
-  },
-  {
-   "fieldname": "tools_list",
-   "fieldtype": "Small Text",
-   "label": "Tools List",
-   "reqd": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "multi_day_pass",
-   "fieldtype": "Check",
-   "label": "Multi-Day Pass"
-  },
-  {
-   "fieldname": "pass_valid_until",
-   "fieldtype": "Date",
-   "label": "Pass Valid Until"
-  }
- ],
- "grid_page_length": 50,
- "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-03-01 15:51:33.210810",
- "modified_by": "Administrator",
- "module": "Visitor Management",
- "name": "Contractor Visit",
- "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  }
- ],
- "row_format": "Dynamic",
- "rows_threshold_for_grid_search": 20,
- "sort_field": "modified",
- "sort_order": "DESC",
- "states": []
+    "actions": [],
+    "allow_rename": 1,
+    "creation": "2026-03-01 15:41:51.810478",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "visitor_pass",
+        "worker_name",
+        "mobile_number",
+        "email_id",
+        "contractor_company",
+        "work_order_ref",
+        "safety_induction_done",
+        "nda_signed",
+        "ppe_provided",
+        "work_area__zone",
+        "tools_list",
+        "multi_day_pass",
+        "pass_valid_until"
+    ],
+    "fields": [
+        {
+            "fieldname": "visitor_pass",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Visitor Pass",
+            "options": "Visitor Pass",
+            "reqd": 0
+        },
+        {
+            "fieldname": "worker_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Worker Name",
+            "reqd": 1
+        },
+        {
+            "fieldname": "work_order_ref",
+            "fieldtype": "Link",
+            "label": "Work Order Ref",
+            "options": "Maintenance Visit"
+        },
+        {
+            "default": "0",
+            "fieldname": "safety_induction_done",
+            "fieldtype": "Check",
+            "label": "Safety Induction Done"
+        },
+        {
+            "default": "0",
+            "fieldname": "nda_signed",
+            "fieldtype": "Check",
+            "label": "NDA Signed"
+        },
+        {
+            "default": "0",
+            "fieldname": "ppe_provided",
+            "fieldtype": "Check",
+            "label": "PPE Provided"
+        },
+        {
+            "fieldname": "work_area__zone",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Work Area / Zone",
+            "reqd": 1
+        },
+        {
+            "fieldname": "tools_list",
+            "fieldtype": "Small Text",
+            "label": "Tools List",
+            "reqd": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "multi_day_pass",
+            "fieldtype": "Check",
+            "label": "Multi-Day Pass"
+        },
+        {
+            "fieldname": "pass_valid_until",
+            "fieldtype": "Date",
+            "label": "Pass Valid Until"
+        }
+    ],
+    "grid_page_length": 50,
+    "index_web_pages_for_search": 1,
+    "links": [],
+    "modified": "2026-03-01 15:51:33.210810",
+    "modified_by": "Administrator",
+    "module": "Visitor Management",
+    "name": "Contractor Visit",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        }
+    ],
+    "row_format": "Dynamic",
+    "rows_threshold_for_grid_search": 20,
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": []
 }

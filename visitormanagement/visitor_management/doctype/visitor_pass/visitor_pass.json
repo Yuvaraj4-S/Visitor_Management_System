@@ -33,7 +33,6 @@
   "status",
   "items_verification_status",
   "items_verified",
-  "amended_from",
   "section_break_khxo",
   "meal_required",
   "meal_type",
@@ -42,7 +41,11 @@
   "rest_area",
   "hospitality_notes",
   "food_dept_staff_assigned",
-  "food_status"
+  "food_status",
+  "section_break_gaxf",
+  "visitor_items",
+  "item_verification_status",
+  "all_items_verified"
  ],
  "fields": [
   {
@@ -209,16 +212,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "amended_from",
-   "fieldtype": "Link",
-   "label": "Amended From",
-   "no_copy": 1,
-   "options": "Visitor Pass",
-   "print_hide": 1,
-   "read_only": 1,
-   "search_index": 1
-  },
-  {
    "fieldname": "section_break_khxo",
    "fieldtype": "Section Break",
    "hidden": 1
@@ -267,13 +260,38 @@
    "fieldtype": "Select",
    "label": "Food Status",
    "options": "Pending\nOrdered\nServed\nCompleted"
+  },
+  {
+   "fieldname": "section_break_gaxf",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "visitor_items",
+   "fieldtype": "Table",
+   "label": "Visitor Items Table",
+   "options": "Visitor Item"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "item_verification_status",
+   "fieldtype": "Select",
+   "label": "Item Verification Status",
+   "options": "Pending\nPartial\nAll Verified",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "all_items_verified",
+   "fieldtype": "Check",
+   "label": "All Items Verified",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-03-01 15:11:48.632846",
+ "modified": "2026-03-02 16:15:12.053873",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Pass",

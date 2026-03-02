@@ -7,7 +7,15 @@
  "field_order": [
   "visitor_pass",
   "vip_category",
-  "personal_escort"
+  "personal_escort",
+  "priority_lane",
+  "protocol_notes",
+  "mdceo_notified",
+  "welcome_gift",
+  "dedicated_meeting_room",
+  "interpreter_required",
+  "interpreter_language",
+  "security_detail"
  ],
  "fields": [
   {
@@ -30,13 +38,57 @@
    "fieldname": "personal_escort",
    "fieldtype": "Link",
    "label": "Personal Escort",
-   "options": "Employee"
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "priority_lane",
+   "fieldtype": "Check",
+   "label": "Priority Lane"
+  },
+  {
+   "fieldname": "protocol_notes",
+   "fieldtype": "Text Editor",
+   "label": "Protocol Notes"
+  },
+  {
+   "default": "0",
+   "fieldname": "mdceo_notified",
+   "fieldtype": "Check",
+   "label": "MD/CEO Notified"
+  },
+  {
+   "fieldname": "welcome_gift",
+   "fieldtype": "Data",
+   "label": "Welcome Gift"
+  },
+  {
+   "fieldname": "dedicated_meeting_room",
+   "fieldtype": "Data",
+   "label": "Dedicated Meeting Room"
+  },
+  {
+   "default": "0",
+   "fieldname": "interpreter_required",
+   "fieldtype": "Check",
+   "label": "Interpreter Required"
+  },
+  {
+   "fieldname": "interpreter_language",
+   "fieldtype": "Data",
+   "label": "Interpreter Language"
+  },
+  {
+   "fieldname": "security_detail",
+   "fieldtype": "Data",
+   "label": "Security Detail"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-01 16:50:08.000152",
+ "modified": "2026-03-02 15:21:22.788916",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VIP Visit",

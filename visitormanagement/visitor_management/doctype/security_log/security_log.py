@@ -24,7 +24,7 @@ class SecurityLog(Document):
         # 1. Auto-fetch visitor info
         if vp and not self.visitor_name:
             self.badge_number = vp.badge_number
-            self.visitor_name = vp.visitor_name
+            self.visitor_name = vp.visitor_full_name
 
         # 2. Auto-assign gate
         if vp and not self.gate_name:
@@ -40,10 +40,10 @@ class SecurityLog(Document):
 
         # 3. Auto-stamp datetime
         now = now_datetime()
-        if self.event_type == 'Check-In' and not self.checkin_datetime:
-            self.checkin_datetime = now
-        elif self.event_type == 'Check-Out' and not self.checkout_datetime:
-            self.checkout_datetime = now
+        if self.event_type == 'Check-In' and not self.check_in_date_time:
+            self.check_in_date_time = now
+        elif self.event_type == 'Check-Out' and not self.check_out_date_time:
+            self.check_out_date_time = now
 
         # 4. Auto-set security officer
         if not self.security_officer:
@@ -55,33 +55,34 @@ class SecurityLog(Document):
             if emp:
                 self.security_officer = emp
 
-        # 5. Populate item table ONLY on new Check-In
         if (
             self.is_new()
             and self.event_type == 'Check-In'
             and vp
-            and not self.security_item_verify
+            and not self.items_verification
         ):
-            for vi in (vp.visitor_items or []):
-                self.append('security_item_verify', {
-                    'visitor_item_row': vi.name,
+            # Try to fetch from visitor_items if it exists
+            items = vp.get('visitor_items') or []
+            for vi in items:
+                self.append('items_verification', {
+                    'visitor_item_row_name': vi.name,
                     'item_name': vi.item_name,
                     'item_category': vi.item_category,
-                    'qty_declared': vi.qty,
-                    'uom': vi.uom,
-                    'serial_number': vi.serial_number,
-                    'qty_found': vi.qty,
+                    'quantity_declared': vi.quantity,
+                    'uom': vi.unit_of_measure,
+                    'serial__asset_number': vi.serial_number,
+                    'quantity_found': vi.quantity,
                     'item_verified': 0,
+                    'item_image': vi.get('item_image')
                 })
 
-        # 6. Detect discrepancy
-        for row in (self.security_item_verify or []):
-            if row.qty_found is not None and row.qty_declared is not None:
-                row.discrepancy = 1 if row.qty_found != row.qty_declared else 0
+        for row in (self.items_verification or []):
+            if row.quantity_found is not None and row.quantity_declared is not None:
+                row.discrepancy = 1 if row.quantity_found != row.quantity_declared else 0
 
         # 7. Check if all items confirmed
-        if self.security_item_verify:
-            all_ok = all(r.item_verified for r in self.security_item_verify)
+        if self.items_verification:
+            all_ok = all(r.item_verified for r in self.items_verification)
             self.all_items_confirmed = 1 if all_ok else 0
         else:
             self.all_items_confirmed = 1
@@ -115,9 +116,9 @@ class SecurityLog(Document):
 
         vp = frappe.get_doc('Visitor Pass', self.visitor_pass)
 
-        total_items = len(self.security_item_verify or [])
+        total_items = len(self.items_verification or [])
         verified_count = sum(
-            1 for r in (self.security_item_verify or [])
+            1 for r in (self.items_verification or [])
             if r.item_verified
         )
 
@@ -132,13 +133,13 @@ class SecurityLog(Document):
             items_verified_flag = 0
 
         # Update Visitor Item rows
-        for row in (self.security_item_verify or []):
-            if row.visitor_item_row:
+        for row in (self.items_verification or []):
+            if row.visitor_item_row_name:
                 frappe.db.set_value(
                     'Visitor Item',
-                    row.visitor_item_row,
+                    row.visitor_item_row_name,
                     {
-                        'is_verified': row.item_verified,
+                        'verified_by_security': row.item_verified,
                         'verification_remarks': row.security_remarks,
                     }
                 )

@@ -1,30 +1,30 @@
 {
- "attach_files": "",
- "attach_print": 0,
- "channel": "Email",
- "condition": "doc.meal_required == 1 and doc.status == 'Approved'",
- "creation": "2026-03-02 15:08:31.848485",
- "days_in_advance": 0,
- "docstatus": 0,
- "doctype": "Notification",
- "document_type": "Visitor Pass",
- "enabled": 1,
- "event": "Save",
- "idx": 0,
- "is_standard": 1,
- "message": "<p>Add your message here</p>\n",
- "message_type": "Markdown",
- "modified": "2026-03-02 15:13:29.333454",
- "modified_by": "Administrator",
- "module": "Visitor Management",
- "name": "VMS Food Dept Alert",
- "owner": "Administrator",
- "recipients": [
-  {
-   "receiver_by_document_field": "approved_by"
-  }
- ],
- "send_system_notification": 0,
- "send_to_all_assignees": 0,
- "subject": "doc.meal_required == 1 and doc.status == 'Approved'"
+    "attach_files": "",
+    "attach_print": 0,
+    "channel": "Email",
+    "condition": "doc.meal_required == 1 and doc.status == 'Approved'",
+    "creation": "2026-03-02 15:08:31.848485",
+    "days_in_advance": 0,
+    "docstatus": 0,
+    "doctype": "Notification",
+    "document_type": "Visitor Pass",
+    "enabled": 1,
+    "event": "Save",
+    "idx": 0,
+    "is_standard": 1,
+    "message": "<p>Add your message here</p>\n",
+    "message_type": "Markdown",
+    "modified": "2026-03-02 15:13:29.333454",
+    "modified_by": "Administrator",
+    "module": "Visitor Management",
+    "name": "VMS Food Dept Alert",
+    "owner": "Administrator",
+    "recipients": [
+        {
+            "receiver_by_document_field": "approved_by"
+        }
+    ],
+    "send_system_notification": 0,
+    "send_to_all_assignees": 0,
+    "subject": "MEAL REQUEST: {{ doc.visitor_full_name }} ({{ doc.meal_type }})"
 }

@@ -6,4 +6,10 @@ from frappe.model.document import Document
 
 
 class VisitorItem(Document):
-	pass
+    @property
+    def qty(self):
+        return self.quantity
+
+    @property
+    def uom(self):
+        return self.unit_of_measure

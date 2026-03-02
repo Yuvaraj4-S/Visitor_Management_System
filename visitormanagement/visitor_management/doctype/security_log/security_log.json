@@ -17,6 +17,7 @@
   "gate_auto_assigned",
   "security_officer",
   "photo_at_gate",
+  "capture_photo",
   "id_proof_type_verified",
   "id_last_4_digits",
   "qr_code_scanned",
@@ -30,15 +31,18 @@
  "fields": [
   {
    "fieldname": "visitor_pass",
-   "fieldtype": "Data",
-   "label": "Visitor Pass"
+   "fieldtype": "Link",
+   "label": "Visitor Pass",
+   "options": "Visitor Pass"
   },
   {
+   "fetch_from": "visitor_pass.badge_number",
    "fieldname": "badge_number",
    "fieldtype": "Data",
    "label": "Badge Number"
   },
   {
+   "fetch_from": "visitor_pass.visitor_full_name",
    "fieldname": "visitor_name",
    "fieldtype": "Data",
    "label": "Visitor Name"
@@ -81,6 +85,11 @@
    "fieldname": "photo_at_gate",
    "fieldtype": "Attach Image",
    "label": "Photo at Gate"
+  },
+  {
+   "fieldname": "capture_photo",
+   "fieldtype": "Button",
+   "label": "Capture Photo"
   },
   {
    "fieldname": "id_proof_type_verified",
@@ -144,7 +153,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-02 09:45:01.134870",
+ "modified": "2026-03-02 11:18:53.809252",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Security Log",

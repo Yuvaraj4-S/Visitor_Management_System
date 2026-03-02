@@ -57,7 +57,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Visitor Type",
-   "options": "Contractor\nCandidateCustomer Supplier VIP",
+   "options": "Contractor\nCandidate\nCustomer\nSupplier\nVIP",
    "reqd": 1
   },
   {
@@ -160,7 +160,8 @@
   },
   {
    "fieldname": "section_break_gqft",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "Badge "
   },
   {
    "fieldname": "badge_number",
@@ -214,7 +215,8 @@
   {
    "fieldname": "section_break_khxo",
    "fieldtype": "Section Break",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Hospitality"
   },
   {
    "default": "0",

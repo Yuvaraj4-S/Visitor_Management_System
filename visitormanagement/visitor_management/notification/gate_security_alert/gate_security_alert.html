@@ -1,0 +1,22 @@
+<b>NEW APPROVED VISITOR — ITEM VERIFICATION REQUIRED</b><br><br>
+
+Name    : {{ doc.visitor_name }}<br>
+Company : {{ doc.company or 'N/A' }}<br>
+Type    : {{ doc.visitor_type }}<br>
+Meets   : {{ doc.person_to_visit }} | Dept: {{ doc.host_department }}<br>
+Purpose : {{ doc.purpose_of_visit }}<br>
+Date    : {{ doc.visit_date }} | Arrival: {{ doc.expected_checkin }}<br>
+ID Type : {{ doc.id_proof_type }}<br><br>
+
+<b>Items Declared by Visitor:</b><br>
+
+{% if doc.visitor_items %}
+    {% for item in doc.visitor_items %}
+        - {{ item.item_name }} | Qty: {{ item.qty }} {{ item.uom or '' }}
+        {% if item.serial_number %} | S/N: {{ item.serial_number }}{% endif %}<br>
+    {% endfor %}
+{% else %}
+    No items declared.<br>
+{% endif %}
+
+<br><b>Please verify all declared items before issuing badge.</b>

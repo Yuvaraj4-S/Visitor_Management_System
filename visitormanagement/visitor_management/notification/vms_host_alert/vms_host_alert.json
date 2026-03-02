@@ -1,0 +1,30 @@
+{
+ "attach_files": "",
+ "attach_print": 0,
+ "channel": "Email",
+ "condition": "doc.status == 'Checked-In'",
+ "creation": "2026-03-02 15:06:54.442343",
+ "days_in_advance": 0,
+ "docstatus": 0,
+ "doctype": "Notification",
+ "document_type": "Visitor Pass",
+ "enabled": 1,
+ "event": "Save",
+ "idx": 0,
+ "is_standard": 1,
+ "message": "<p>Add your message here</p>\n",
+ "message_type": "Markdown",
+ "modified": "2026-03-02 15:14:07.623427",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "VMS Host Alert",
+ "owner": "Administrator",
+ "recipients": [
+  {
+   "receiver_by_document_field": "approved_by"
+  }
+ ],
+ "send_system_notification": 0,
+ "send_to_all_assignees": 0,
+ "subject": "{{ doc.visitor_name }} Has Arrived \u2014 All Items Verified!"
+}

@@ -1,0 +1,30 @@
+{
+ "attach_files": "",
+ "attach_print": 0,
+ "channel": "Email",
+ "condition": "doc.visitor_type == 'VIP' and doc.status == 'Approved'",
+ "creation": "2026-03-02 15:12:51.208533",
+ "days_in_advance": 0,
+ "docstatus": 0,
+ "doctype": "Notification",
+ "document_type": "Visitor Pass",
+ "enabled": 1,
+ "event": "Save",
+ "idx": 0,
+ "is_standard": 1,
+ "message": "\ud83d\udea8 VIP Visitor Alert\n\nName: {{ doc.visitor_name }}\nCompany: {{ doc.company_name }}\nVisit Date: {{ doc.visit_date }}\n\nPlease prepare:\n- Protocol team\n- Priority lane\n- Meeting room\n- Welcome gift\n\nThis is an automated alert.",
+ "message_type": "HTML",
+ "modified": "2026-03-02 15:22:59.920327",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "VMS VIP Alert",
+ "owner": "Administrator",
+ "recipients": [
+  {
+   "receiver_by_document_field": "owner"
+  }
+ ],
+ "send_system_notification": 0,
+ "send_to_all_assignees": 0,
+ "subject": "VIP ARRIVING: {{ doc.visitor_name }} \u2014 Prepare Protocol"
+}

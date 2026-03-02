@@ -1,0 +1,30 @@
+{
+ "attach_files": "",
+ "attach_print": 0,
+ "channel": "Email",
+ "condition": "doc.email",
+ "creation": "2026-03-02 14:59:00.208770",
+ "days_in_advance": 0,
+ "docstatus": 0,
+ "doctype": "Notification",
+ "document_type": "Visitor Pass",
+ "enabled": 1,
+ "event": "Submit",
+ "idx": 0,
+ "is_standard": 1,
+ "message": "<p>Dear {{ doc.visitor_name }},</p>\n\n<p>Your visit has been approved.</p>\n\n<p>Please carry your QR code.\nBadge will be issued after item verification at gate.</p>\n\n<p>Thank you.</p>\n",
+ "message_type": "HTML",
+ "modified": "2026-03-02 15:03:35.869206",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "VMS Approval Email",
+ "owner": "Administrator",
+ "recipients": [
+  {
+   "receiver_by_document_field": "approved_by"
+  }
+ ],
+ "send_system_notification": 0,
+ "send_to_all_assignees": 1,
+ "subject": "Visit APPROVED \u2014 QR Code Attached | Badge after item verification"
+}

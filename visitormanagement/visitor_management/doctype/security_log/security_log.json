@@ -1,211 +1,219 @@
 {
- "actions": [],
- "allow_rename": 1,
- "creation": "2026-02-28 17:28:20.094022",
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "qr_code_value",
-  "visitor_pass",
-  "badge_number",
-  "visitor_name",
-  "event_type",
-  "check_in_date_time",
-  "check_out_date_time",
-  "gate_name",
-  "column_break_werm",
-  "gate_auto_assigned",
-  "security_officer",
-  "photo_at_gate",
-  "capture_photo",
-  "id_proof_type_verified",
-  "id_last_4_digits",
-  "qr_code_scanned",
-  "temperature",
-  "section_break_uefr",
-  "remarks",
-  "items_verification",
-  "item_verification",
-  "all_items_confirmed"
- ],
- "fields": [
-  {
-   "fieldname": "visitor_pass",
-   "fieldtype": "Link",
-   "label": "Visitor Pass",
-   "options": "Visitor Pass"
-  },
-  {
-   "fetch_from": "visitor_pass.badge_number",
-   "fieldname": "badge_number",
-   "fieldtype": "Data",
-   "label": "Badge Number"
-  },
-  {
-   "fetch_from": "visitor_pass.visitor_full_name",
-   "fieldname": "visitor_name",
-   "fieldtype": "Data",
-   "label": "Visitor Name"
-  },
-  {
-   "fieldname": "event_type",
-   "fieldtype": "Select",
-   "label": "Event Type",
-   "options": "Check-In\nCheck-Out\nGate Transfer\nAlert\nBadge Collected"
-  },
-  {
-   "fieldname": "check_in_date_time",
-   "fieldtype": "Datetime",
-   "label": "Check In Date Time"
-  },
-  {
-   "fieldname": "check_out_date_time",
-   "fieldtype": "Datetime",
-   "label": "Check Out Date Time"
-  },
-  {
-   "fieldname": "gate_name",
-   "fieldtype": "Select",
-   "label": "Gate Name",
-   "options": "Main Gate\nBack Gate\nVIP Entrance\nLoading Dock\nEmergency Exit"
-  },
-  {
-   "default": "0",
-   "fieldname": "gate_auto_assigned",
-   "fieldtype": "Check",
-   "label": "Gate Auto Assigned"
-  },
-  {
-   "fieldname": "security_officer",
-   "fieldtype": "Link",
-   "label": "Security Officer",
-   "options": "Employee"
-  },
-  {
-   "fieldname": "photo_at_gate",
-   "fieldtype": "Attach Image",
-   "label": "Photo at Gate"
-  },
-  {
-   "fieldname": "capture_photo",
-   "fieldtype": "Button",
-   "label": "Capture Photo"
-  },
-  {
-   "fieldname": "id_proof_type_verified",
-   "fieldtype": "Select",
-   "label": "ID Proof Type Verified",
-   "options": "Aadhaar\nPAN Card\nPassport\nDriving License"
-  },
-  {
-   "fieldname": "id_last_4_digits",
-   "fieldtype": "Data",
-   "label": "ID Last 4 Digits"
-  },
-  {
-   "default": "0",
-   "fieldname": "qr_code_scanned",
-   "fieldtype": "Check",
-   "label": "QR Code Scanned"
-  },
-  {
-   "fieldname": "temperature",
-   "fieldtype": "Float",
-   "label": "Temperature"
-  },
-  {
-   "fieldname": "remarks",
-   "fieldtype": "Small Text",
-   "label": "Remarks",
-   "options": "Security notes"
-  },
-  {
-   "fieldname": "item_verification",
-   "fieldtype": "Data",
-   "label": "Item Verification"
-  },
-  {
-   "fieldname": "items_verification",
-   "fieldtype": "Table",
-   "label": "Items Verification",
-   "options": "Security Item Verify"
-  },
-  {
-   "default": "0",
-   "fieldname": "all_items_confirmed",
-   "fieldtype": "Check",
-   "label": "All Items Confirmed"
-  },
-  {
-   "fieldname": "column_break_werm",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "section_break_uefr",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "qr_code_value",
-   "fieldtype": "Button",
-   "label": "QR Code Value"
-  }
- ],
- "grid_page_length": 50,
- "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-03-02 11:18:53.809252",
- "modified_by": "Administrator",
- "module": "Visitor Management",
- "name": "Security Log",
- "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Gate Security",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Security Supervisor",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Manager",
-   "share": 1
-  }
- ],
- "row_format": "Dynamic",
- "rows_threshold_for_grid_search": 20,
- "sort_field": "modified",
- "sort_order": "DESC",
- "states": []
+    "actions": [],
+    "allow_rename": 1,
+    "creation": "2026-02-28 17:28:20.094022",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "qr_code_value",
+        "visitor_pass",
+        "badge_number",
+        "visitor_name",
+        "event_type",
+        "check_in_date_time",
+        "check_out_date_time",
+        "gate_name",
+        "column_break_werm",
+        "visitor_photo",
+        "gate_auto_assigned",
+        "security_officer",
+        "photo_at_gate",
+        "capture_photo",
+        "id_proof_type_verified",
+        "id_last_4_digits",
+        "qr_code_scanned",
+        "temperature",
+        "section_break_uefr",
+        "remarks",
+        "items_verification",
+        "item_verification",
+        "all_items_confirmed"
+    ],
+    "fields": [
+        {
+            "fieldname": "visitor_pass",
+            "fieldtype": "Link",
+            "label": "Visitor Pass",
+            "options": "Visitor Pass"
+        },
+        {
+            "fetch_from": "visitor_pass.badge_number",
+            "fieldname": "badge_number",
+            "fieldtype": "Data",
+            "label": "Badge Number"
+        },
+        {
+            "fetch_from": "visitor_pass.visitor_full_name",
+            "fieldname": "visitor_name",
+            "fieldtype": "Data",
+            "label": "Visitor Name"
+        },
+        {
+            "fieldname": "event_type",
+            "fieldtype": "Select",
+            "label": "Event Type",
+            "options": "Check-In\nCheck-Out\nGate Transfer\nAlert\nBadge Collected"
+        },
+        {
+            "fieldname": "check_in_date_time",
+            "fieldtype": "Datetime",
+            "label": "Check In Date Time"
+        },
+        {
+            "fieldname": "check_out_date_time",
+            "fieldtype": "Datetime",
+            "label": "Check Out Date Time"
+        },
+        {
+            "fieldname": "gate_name",
+            "fieldtype": "Select",
+            "label": "Gate Name",
+            "options": "Main Gate\nBack Gate\nVIP Entrance\nLoading Dock\nEmergency Exit"
+        },
+        {
+            "default": "0",
+            "fieldname": "gate_auto_assigned",
+            "fieldtype": "Check",
+            "label": "Gate Auto Assigned"
+        },
+        {
+            "fieldname": "security_officer",
+            "fieldtype": "Link",
+            "label": "Security Officer",
+            "options": "Employee"
+        },
+        {
+            "fieldname": "photo_at_gate",
+            "fieldtype": "Attach Image",
+            "label": "Photo at Gate"
+        },
+        {
+            "fieldname": "capture_photo",
+            "fieldtype": "Button",
+            "label": "Capture Photo"
+        },
+        {
+            "fieldname": "id_proof_type_verified",
+            "fieldtype": "Select",
+            "label": "ID Proof Type Verified",
+            "options": "Aadhaar\nPAN Card\nPassport\nDriving License"
+        },
+        {
+            "fieldname": "id_last_4_digits",
+            "fieldtype": "Data",
+            "label": "ID Last 4 Digits"
+        },
+        {
+            "default": "0",
+            "fieldname": "qr_code_scanned",
+            "fieldtype": "Check",
+            "label": "QR Code Scanned"
+        },
+        {
+            "fieldname": "temperature",
+            "fieldtype": "Float",
+            "label": "Temperature"
+        },
+        {
+            "fieldname": "remarks",
+            "fieldtype": "Small Text",
+            "label": "Remarks",
+            "options": "Security notes"
+        },
+        {
+            "fieldname": "item_verification",
+            "fieldtype": "Data",
+            "label": "Item Verification"
+        },
+        {
+            "fieldname": "items_verification",
+            "fieldtype": "Table",
+            "label": "Items Verification",
+            "options": "Security Item Verify"
+        },
+        {
+            "default": "0",
+            "fieldname": "all_items_confirmed",
+            "fieldtype": "Check",
+            "label": "All Items Confirmed"
+        },
+        {
+            "fieldname": "column_break_werm",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "visitor_photo",
+            "fieldtype": "Attach Image",
+            "fetch_from": "visitor_pass.visitor_photo",
+            "label": "Visitor Photo",
+            "read_only": 1
+        },
+        {
+            "fieldname": "section_break_uefr",
+            "fieldtype": "Section Break"
+        },
+        {
+            "fieldname": "qr_code_value",
+            "fieldtype": "Button",
+            "label": "QR Code Value"
+        }
+    ],
+    "grid_page_length": 50,
+    "index_web_pages_for_search": 1,
+    "links": [],
+    "modified": "2026-03-02 11:18:53.809252",
+    "modified_by": "Administrator",
+    "module": "Visitor Management",
+    "name": "Security Log",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Gate Security",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Security Supervisor",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Manager",
+            "share": 1
+        }
+    ],
+    "row_format": "Dynamic",
+    "rows_threshold_for_grid_search": 20,
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": []
 }

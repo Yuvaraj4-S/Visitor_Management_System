@@ -1,323 +1,332 @@
 {
- "actions": [],
- "allow_rename": 1,
- "autoname": "VP-.YYYY.-.#####",
- "creation": "2026-02-28 17:44:43.087151",
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "section_break_q9pi",
-  "visitor_type",
-  "visitor_full_name",
-  "mobile_number",
-  "email_id",
-  "company__organisation",
-  "id_proof_type",
-  "id_proof_number",
-  "id_proof_scan",
-  "visitor_photo",
-  "purpose_of_visit",
-  "person_to_visit",
-  "host_department",
-  "visit_date",
-  "expected_checkin",
-  "expected_checkout",
-  "vehicle_number",
-  "items_carried",
-  "section_break_gqft",
-  "badge_number",
-  "badge_colour",
-  "qr_code_image",
-  "approval_date",
-  "approved_by",
-  "status",
-  "items_verification_status",
-  "items_verified",
-  "section_break_khxo",
-  "meal_required",
-  "meal_type",
-  "number_of_people",
-  "special_diet",
-  "rest_area",
-  "hospitality_notes",
-  "food_dept_staff_assigned",
-  "food_status",
-  "section_break_gaxf",
-  "visitor_items",
-  "item_verification_status",
-  "all_items_verified"
- ],
- "fields": [
-  {
-   "fieldname": "section_break_q9pi",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "visitor_type",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Visitor Type",
-   "options": "Contractor\nCandidate\nCustomer\nSupplier\nVIP",
-   "reqd": 1
-  },
-  {
-   "fieldname": "visitor_full_name",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Visitor Full Name",
-   "reqd": 1
-  },
-  {
-   "fieldname": "mobile_number",
-   "fieldtype": "Phone",
-   "in_list_view": 1,
-   "label": "Mobile Number",
-   "reqd": 1
-  },
-  {
-   "fieldname": "email_id",
-   "fieldtype": "Data",
-   "label": "Email ID",
-   "reqd": 1
-  },
-  {
-   "fieldname": "company__organisation",
-   "fieldtype": "Data",
-   "label": "Company / Organisation"
-  },
-  {
-   "fieldname": "id_proof_type",
-   "fieldtype": "Select",
-   "label": "ID Proof Type",
-   "options": "Aadhaar\nPAN Card\nPassport\nDriving License",
-   "reqd": 1
-  },
-  {
-   "fieldname": "id_proof_number",
-   "fieldtype": "Data",
-   "label": "ID Proof Number",
-   "reqd": 1
-  },
-  {
-   "fieldname": "id_proof_scan",
-   "fieldtype": "Attach Image",
-   "label": "ID Proof Scan",
-   "reqd": 1
-  },
-  {
-   "fieldname": "visitor_photo",
-   "fieldtype": "Attach Image",
-   "label": "Visitor Photo",
-   "reqd": 1
-  },
-  {
-   "fieldname": "purpose_of_visit",
-   "fieldtype": "Small Text",
-   "label": "Purpose of Visit",
-   "reqd": 1
-  },
-  {
-   "fieldname": "person_to_visit",
-   "fieldtype": "Link",
-   "label": "Person to Visit",
-   "options": "Employee",
-   "reqd": 1
-  },
-  {
-   "fieldname": "host_department",
-   "fieldtype": "Data",
-   "label": "Host Department",
-   "read_only": 1
-  },
-  {
-   "default": "Today",
-   "fieldname": "visit_date",
-   "fieldtype": "Date",
-   "label": "Visit Date",
-   "reqd": 1
-  },
-  {
-   "fieldname": "expected_checkin",
-   "fieldtype": "Time",
-   "label": "Expected Check-In",
-   "reqd": 1
-  },
-  {
-   "fieldname": "expected_checkout",
-   "fieldtype": "Time",
-   "label": "Expected Check-Out",
-   "reqd": 1
-  },
-  {
-   "fieldname": "vehicle_number",
-   "fieldtype": "Data",
-   "label": "Vehicle Number"
-  },
-  {
-   "fieldname": "items_carried",
-   "fieldtype": "Small Text",
-   "label": "Items Carried"
-  },
-  {
-   "fieldname": "section_break_gqft",
-   "fieldtype": "Section Break",
-   "label": "Badge "
-  },
-  {
-   "fieldname": "badge_number",
-   "fieldtype": "Data",
-   "label": "Badge Number",
-   "read_only": 1
-  },
-  {
-   "fieldname": "badge_colour",
-   "fieldtype": "Select",
-   "label": "Badge Colour",
-   "options": "Orange\nPurple\nGreen\nTeal\nGold"
-  },
-  {
-   "fieldname": "qr_code_image",
-   "fieldtype": "Attach Image",
-   "label": "QR Code Image",
-   "read_only": 1
-  },
-  {
-   "fieldname": "approval_date",
-   "fieldtype": "Datetime",
-   "label": "Approval Date",
-   "read_only": 1
-  },
-  {
-   "fieldname": "approved_by",
-   "fieldtype": "Link",
-   "label": "Approved By",
-   "options": "User"
-  },
-  {
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "label": "Status",
-   "options": "Draft\nPending Approval\nApproved\nItems Verified\nChecked-In\nChecked-Out\nCancelled"
-  },
-  {
-   "fieldname": "items_verification_status",
-   "fieldtype": "Select",
-   "label": "Items Verification Status",
-   "options": "Pending\nPartial\nAll Verified"
-  },
-  {
-   "default": "0",
-   "fieldname": "items_verified",
-   "fieldtype": "Check",
-   "label": "Items Verified",
-   "read_only": 1
-  },
-  {
-   "fieldname": "section_break_khxo",
-   "fieldtype": "Section Break",
-   "hidden": 1,
-   "label": "Hospitality"
-  },
-  {
-   "default": "0",
-   "fieldname": "meal_required",
-   "fieldtype": "Check",
-   "label": "Meal Required"
-  },
-  {
-   "fieldname": "meal_type",
-   "fieldtype": "Select",
-   "label": "Meal Type",
-   "options": "Breakfast\nLunch\nDinner\nSnacks\nAll Day"
-  },
-  {
-   "fieldname": "number_of_people",
-   "fieldtype": "Int",
-   "label": "Number of People"
-  },
-  {
-   "fieldname": "special_diet",
-   "fieldtype": "Select",
-   "label": "Special Diet",
-   "options": "None\nVegetarian\nVegan\nGluten Free\nHalal\nJain"
-  },
-  {
-   "fieldname": "rest_area",
-   "fieldtype": "Data",
-   "label": "Rest / Waiting Room"
-  },
-  {
-   "fieldname": "hospitality_notes",
-   "fieldtype": "Text Editor",
-   "label": "Hospitality Notes"
-  },
-  {
-   "fieldname": "food_dept_staff_assigned",
-   "fieldtype": "Link",
-   "label": "Food Dept Staff Assigned",
-   "options": "Employee"
-  },
-  {
-   "fieldname": "food_status",
-   "fieldtype": "Select",
-   "label": "Food Status",
-   "options": "Pending\nOrdered\nServed\nCompleted"
-  },
-  {
-   "fieldname": "section_break_gaxf",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "visitor_items",
-   "fieldtype": "Table",
-   "label": "Visitor Items Table",
-   "options": "Visitor Item"
-  },
-  {
-   "default": "Pending",
-   "fieldname": "item_verification_status",
-   "fieldtype": "Select",
-   "label": "Item Verification Status",
-   "options": "Pending\nPartial\nAll Verified",
-   "read_only": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "all_items_verified",
-   "fieldtype": "Check",
-   "label": "All Items Verified",
-   "read_only": 1
-  }
- ],
- "grid_page_length": 50,
- "index_web_pages_for_search": 1,
- "is_submittable": 1,
- "links": [],
- "modified": "2026-03-02 16:15:12.053873",
- "modified_by": "Administrator",
- "module": "Visitor Management",
- "name": "Visitor Pass",
- "naming_rule": "Expression",
- "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "submit": 1,
-   "write": 1
-  }
- ],
- "row_format": "Dynamic",
- "rows_threshold_for_grid_search": 20,
- "sort_field": "modified",
- "sort_order": "DESC",
- "states": [],
- "track_changes": 1
+    "actions": [],
+    "allow_rename": 1,
+    "autoname": "VP-.YYYY.-.#####",
+    "creation": "2026-02-28 17:44:43.087151",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "section_break_q9pi",
+        "visitor_type",
+        "visitor_full_name",
+        "mobile_number",
+        "email_id",
+        "company__organisation",
+        "id_proof_type",
+        "id_proof_number",
+        "id_proof_scan",
+        "visitor_photo",
+        "purpose_of_visit",
+        "person_to_visit",
+        "host_department",
+        "visit_date",
+        "expected_checkin",
+        "expected_checkout",
+        "vehicle_number",
+        "items_carried",
+        "section_break_gqft",
+        "badge_number",
+        "badge_colour",
+        "qr_code_image",
+        "approval_date",
+        "approved_by",
+        "status",
+        "workflow_state",
+        "items_verification_status",
+        "items_verified",
+        "section_break_khxo",
+        "meal_required",
+        "meal_type",
+        "number_of_people",
+        "special_diet",
+        "rest_area",
+        "hospitality_notes",
+        "food_dept_staff_assigned",
+        "food_status",
+        "section_break_gaxf",
+        "visitor_items",
+        "item_verification_status",
+        "all_items_verified"
+    ],
+    "fields": [
+        {
+            "fieldname": "section_break_q9pi",
+            "fieldtype": "Section Break"
+        },
+        {
+            "fieldname": "visitor_type",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Visitor Type",
+            "options": "Contractor\nCandidate\nCustomer\nSupplier\nVIP",
+            "reqd": 1
+        },
+        {
+            "fieldname": "visitor_full_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Visitor Full Name",
+            "reqd": 1
+        },
+        {
+            "fieldname": "mobile_number",
+            "fieldtype": "Phone",
+            "in_list_view": 1,
+            "label": "Mobile Number",
+            "reqd": 1
+        },
+        {
+            "fieldname": "email_id",
+            "fieldtype": "Data",
+            "label": "Email ID",
+            "reqd": 1
+        },
+        {
+            "fieldname": "company__organisation",
+            "fieldtype": "Data",
+            "label": "Company / Organisation"
+        },
+        {
+            "fieldname": "id_proof_type",
+            "fieldtype": "Select",
+            "label": "ID Proof Type",
+            "options": "Aadhaar\nPAN Card\nPassport\nDriving License",
+            "reqd": 1
+        },
+        {
+            "fieldname": "id_proof_number",
+            "fieldtype": "Data",
+            "label": "ID Proof Number",
+            "reqd": 1
+        },
+        {
+            "fieldname": "id_proof_scan",
+            "fieldtype": "Attach Image",
+            "label": "ID Proof Scan",
+            "reqd": 1
+        },
+        {
+            "fieldname": "visitor_photo",
+            "fieldtype": "Attach Image",
+            "label": "Visitor Photo",
+            "reqd": 1
+        },
+        {
+            "fieldname": "purpose_of_visit",
+            "fieldtype": "Small Text",
+            "label": "Purpose of Visit",
+            "reqd": 1
+        },
+        {
+            "fieldname": "person_to_visit",
+            "fieldtype": "Link",
+            "label": "Person to Visit",
+            "options": "Employee",
+            "reqd": 1
+        },
+        {
+            "fieldname": "host_department",
+            "fieldtype": "Data",
+            "label": "Host Department",
+            "read_only": 1
+        },
+        {
+            "default": "Today",
+            "fieldname": "visit_date",
+            "fieldtype": "Date",
+            "label": "Visit Date",
+            "reqd": 1
+        },
+        {
+            "fieldname": "expected_checkin",
+            "fieldtype": "Time",
+            "label": "Expected Check-In",
+            "reqd": 1
+        },
+        {
+            "fieldname": "expected_checkout",
+            "fieldtype": "Time",
+            "label": "Expected Check-Out",
+            "reqd": 1
+        },
+        {
+            "fieldname": "vehicle_number",
+            "fieldtype": "Data",
+            "label": "Vehicle Number"
+        },
+        {
+            "fieldname": "items_carried",
+            "fieldtype": "Small Text",
+            "label": "Items Carried"
+        },
+        {
+            "fieldname": "section_break_gqft",
+            "fieldtype": "Section Break",
+            "label": "Badge "
+        },
+        {
+            "fieldname": "badge_number",
+            "fieldtype": "Data",
+            "label": "Badge Number",
+            "read_only": 1
+        },
+        {
+            "fieldname": "badge_colour",
+            "fieldtype": "Select",
+            "label": "Badge Colour",
+            "options": "Orange\nPurple\nGreen\nTeal\nGold"
+        },
+        {
+            "fieldname": "qr_code_image",
+            "fieldtype": "Attach Image",
+            "label": "QR Code Image",
+            "read_only": 1
+        },
+        {
+            "fieldname": "approval_date",
+            "fieldtype": "Datetime",
+            "label": "Approval Date",
+            "read_only": 1
+        },
+        {
+            "fieldname": "approved_by",
+            "fieldtype": "Link",
+            "label": "Approved By",
+            "options": "User"
+        },
+        {
+            "fieldname": "status",
+            "fieldtype": "Select",
+            "label": "Status",
+            "options": "Draft\nPending Approval\nApproved\nItems Verified\nChecked-In\nChecked-Out\nCancelled"
+        },
+        {
+            "fieldname": "workflow_state",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Workflow State",
+            "options": "Workflow State",
+            "read_only": 1
+        },
+        {
+            "fieldname": "items_verification_status",
+            "fieldtype": "Select",
+            "label": "Items Verification Status",
+            "options": "Pending\nPartial\nAll Verified"
+        },
+        {
+            "default": "0",
+            "fieldname": "items_verified",
+            "fieldtype": "Check",
+            "label": "Items Verified",
+            "read_only": 1
+        },
+        {
+            "fieldname": "section_break_khxo",
+            "fieldtype": "Section Break",
+            "hidden": 1,
+            "label": "Hospitality"
+        },
+        {
+            "default": "0",
+            "fieldname": "meal_required",
+            "fieldtype": "Check",
+            "label": "Meal Required"
+        },
+        {
+            "fieldname": "meal_type",
+            "fieldtype": "Select",
+            "label": "Meal Type",
+            "options": "Breakfast\nLunch\nDinner\nSnacks\nAll Day"
+        },
+        {
+            "fieldname": "number_of_people",
+            "fieldtype": "Int",
+            "label": "Number of People"
+        },
+        {
+            "fieldname": "special_diet",
+            "fieldtype": "Select",
+            "label": "Special Diet",
+            "options": "None\nVegetarian\nVegan\nGluten Free\nHalal\nJain"
+        },
+        {
+            "fieldname": "rest_area",
+            "fieldtype": "Data",
+            "label": "Rest / Waiting Room"
+        },
+        {
+            "fieldname": "hospitality_notes",
+            "fieldtype": "Text Editor",
+            "label": "Hospitality Notes"
+        },
+        {
+            "fieldname": "food_dept_staff_assigned",
+            "fieldtype": "Link",
+            "label": "Food Dept Staff Assigned",
+            "options": "Employee"
+        },
+        {
+            "fieldname": "food_status",
+            "fieldtype": "Select",
+            "label": "Food Status",
+            "options": "Pending\nOrdered\nServed\nCompleted"
+        },
+        {
+            "fieldname": "section_break_gaxf",
+            "fieldtype": "Section Break"
+        },
+        {
+            "fieldname": "visitor_items",
+            "fieldtype": "Table",
+            "label": "Visitor Items Table",
+            "options": "Visitor Item"
+        },
+        {
+            "default": "Pending",
+            "fieldname": "item_verification_status",
+            "fieldtype": "Select",
+            "label": "Item Verification Status",
+            "options": "Pending\nPartial\nAll Verified",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "all_items_verified",
+            "fieldtype": "Check",
+            "label": "All Items Verified",
+            "read_only": 1
+        }
+    ],
+    "grid_page_length": 50,
+    "index_web_pages_for_search": 1,
+    "is_submittable": 1,
+    "links": [],
+    "modified": "2026-03-02 16:15:12.053873",
+    "modified_by": "Administrator",
+    "module": "Visitor Management",
+    "name": "Visitor Pass",
+    "naming_rule": "Expression",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "submit": 1,
+            "write": 1
+        }
+    ],
+    "row_format": "Dynamic",
+    "rows_threshold_for_grid_search": 20,
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": [],
+    "track_changes": 1
 }

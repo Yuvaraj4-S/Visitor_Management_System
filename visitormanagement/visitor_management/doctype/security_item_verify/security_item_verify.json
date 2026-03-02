@@ -1,122 +1,138 @@
 {
- "actions": [],
- "allow_rename": 1,
- "creation": "2026-02-28 18:00:01.908261",
- "doctype": "DocType",
- "editable_grid": 1,
- "engine": "InnoDB",
- "field_order": [
-  "item_name",
-  "item_type",
-  "verified",
-  "remarks",
-  "visitor_item_row_name",
-  "item_category",
-  "quantity_declared",
-  "uom",
-  "serial__asset_number",
-  "quantity_found",
-  "item_verified",
-  "discrepancy",
-  "security_remarks"
- ],
- "fields": [
-  {
-   "fieldname": "item_name",
-   "fieldtype": "Data",
-   "label": "Item Name",
-   "read_only": 1
-  },
-  {
-   "fieldname": "item_type",
-   "fieldtype": "Select",
-   "label": "Item Type",
-   "options": "Electronic\nBag\nDocument\nOther"
-  },
-  {
-   "default": "0",
-   "fieldname": "verified",
-   "fieldtype": "Check",
-   "label": "Verified",
-   "options": "Tick if verified"
-  },
-  {
-   "fieldname": "remarks",
-   "fieldtype": "Small Text",
-   "label": "Remarks",
-   "options": "Optional notes"
-  },
-  {
-   "fieldname": "visitor_item_row_name",
-   "fieldtype": "Data",
-   "label": "Visitor Item Row Name",
-   "options": "Stores Visitor Pass child row reference",
-   "read_only": 1
-  },
-  {
-   "fieldname": "item_category",
-   "fieldtype": "Data",
-   "label": "Item Category",
-   "options": "Electronics \n Tool Document etc",
-   "read_only": 1
-  },
-  {
-   "fieldname": "quantity_declared",
-   "fieldtype": "Float",
-   "label": "Quantity Declared",
-   "options": "Visitor declared quantity",
-   "read_only": 1
-  },
-  {
-   "fieldname": "uom",
-   "fieldtype": "Data",
-   "label": "UOM",
-   "options": "Unit of Measure",
-   "read_only": 1
-  },
-  {
-   "fieldname": "serial__asset_number",
-   "fieldtype": "Data",
-   "label": "Serial / Asset Number",
-   "read_only": 1
-  },
-  {
-   "fieldname": "quantity_found",
-   "fieldtype": "Float",
-   "label": "Quantity Found"
-  },
-  {
-   "default": "0",
-   "fieldname": "item_verified",
-   "fieldtype": "Check",
-   "label": "Item Verified"
-  },
-  {
-   "default": "0",
-   "fieldname": "discrepancy",
-   "fieldtype": "Check",
-   "label": "Discrepancy",
-   "read_only": 1
-  },
-  {
-   "fieldname": "security_remarks",
-   "fieldtype": "Small Text",
-   "label": "Security Remarks"
-  }
- ],
- "grid_page_length": 50,
- "index_web_pages_for_search": 1,
- "istable": 1,
- "links": [],
- "modified": "2026-02-28 18:50:54.032529",
- "modified_by": "Administrator",
- "module": "Visitor Management",
- "name": "Security Item Verify",
- "owner": "Administrator",
- "permissions": [],
- "row_format": "Dynamic",
- "rows_threshold_for_grid_search": 20,
- "sort_field": "modified",
- "sort_order": "DESC",
- "states": []
+    "actions": [],
+    "allow_rename": 1,
+    "creation": "2026-02-28 18:00:01.908261",
+    "doctype": "DocType",
+    "editable_grid": 1,
+    "engine": "InnoDB",
+    "field_order": [
+        "item_name",
+        "item_type",
+        "verified",
+        "remarks",
+        "item_image",
+        "capture_item_image",
+        "visitor_item_row_name",
+        "item_category",
+        "quantity_declared",
+        "uom",
+        "serial__asset_number",
+        "quantity_found",
+        "item_verified",
+        "discrepancy",
+        "security_remarks"
+    ],
+    "fields": [
+        {
+            "fieldname": "item_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Item Name",
+            "read_only": 1
+        },
+        {
+            "fieldname": "item_type",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Item Type",
+            "options": "Electronic\nBag\nDocument\nOther"
+        },
+        {
+            "default": "0",
+            "fieldname": "verified",
+            "fieldtype": "Check",
+            "label": "Verified",
+            "options": "Tick if verified"
+        },
+        {
+            "fieldname": "remarks",
+            "fieldtype": "Small Text",
+            "label": "Remarks",
+            "options": "Optional notes"
+        },
+        {
+            "fieldname": "item_image",
+            "fieldtype": "Attach Image",
+            "in_list_view": 1,
+            "label": "Item Image"
+        },
+        {
+            "fieldname": "capture_item_image",
+            "fieldtype": "Button",
+            "label": "Capture Image"
+        },
+        {
+            "fieldname": "visitor_item_row_name",
+            "fieldtype": "Data",
+            "label": "Visitor Item Row Name",
+            "options": "Stores Visitor Pass child row reference",
+            "read_only": 1
+        },
+        {
+            "fieldname": "item_category",
+            "fieldtype": "Data",
+            "label": "Item Category",
+            "options": "Electronics \n Tool Document etc",
+            "read_only": 1
+        },
+        {
+            "fieldname": "quantity_declared",
+            "fieldtype": "Float",
+            "in_list_view": 1,
+            "label": "Qty Declared",
+            "options": "Visitor declared quantity",
+            "read_only": 1
+        },
+        {
+            "fieldname": "uom",
+            "fieldtype": "Data",
+            "label": "UOM",
+            "options": "Unit of Measure",
+            "read_only": 1
+        },
+        {
+            "fieldname": "serial__asset_number",
+            "fieldtype": "Data",
+            "label": "Serial / Asset Number",
+            "read_only": 1
+        },
+        {
+            "fieldname": "quantity_found",
+            "fieldtype": "Float",
+            "label": "Quantity Found"
+        },
+        {
+            "default": "0",
+            "fieldname": "item_verified",
+            "fieldtype": "Check",
+            "label": "Item Verified"
+        },
+        {
+            "default": "0",
+            "fieldname": "discrepancy",
+            "fieldtype": "Check",
+            "label": "Discrepancy",
+            "read_only": 1
+        },
+        {
+            "fieldname": "security_remarks",
+            "fieldtype": "Small Text",
+            "label": "Security Remarks"
+        }
+    ],
+    "grid_page_length": 50,
+    "index_web_pages_for_search": 1,
+    "istable": 1,
+    "links": [],
+    "modified": "2026-02-28 18:50:54.032529",
+    "modified_by": "Administrator",
+    "module": "Visitor Management",
+    "name": "Security Item Verify",
+    "owner": "Administrator",
+    "permissions": [],
+    "row_format": "Dynamic",
+    "rows_threshold_for_grid_search": 20,
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": []
 }

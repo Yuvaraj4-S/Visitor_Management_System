@@ -119,6 +119,16 @@ frappe.ui.form.on('Security Log', {
         });
     },
 
+    visitor_pass: function (frm) {
+        if (frm.doc.visitor_pass) {
+            frappe.db.get_value('Visitor Pass', frm.doc.visitor_pass, 'visitor_photo', (r) => {
+                if (r && r.visitor_photo) {
+                    frm.set_value('visitor_photo', r.visitor_photo);
+                }
+            });
+        }
+    },
+
     capture_photo: function (frm) {
         let capture_dialog = new frappe.ui.Dialog({
             title: __('Capture Photo'),
@@ -166,6 +176,83 @@ frappe.ui.form.on('Security Log', {
         capture_dialog.show();
 
         const video_id = 'capture-video';
+        capture_dialog.get_field('camera_html').$wrapper.html(`
+            <div style="width: 100%; background: #000; border-radius: 8px; overflow: hidden;">
+                <video id="${video_id}" width="100%" autoplay playsinline></video>
+            </div>
+        `);
+
+        const video = document.getElementById(video_id);
+
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+                .then(stream => {
+                    video.srcObject = stream;
+                    capture_dialog.on_hide = () => {
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+                })
+                .catch(err => {
+                    frappe.msgprint(__('Error accessing camera: {0}', [err]));
+                    capture_dialog.hide();
+                });
+        } else {
+            frappe.msgprint(__('Camera not supported on this browser.'));
+            capture_dialog.hide();
+        }
+    }
+});
+
+frappe.ui.form.on('Security Item Verify', {
+    capture_item_image: function (frm, cdt, cdn) {
+        const row = locals[cdt][cdn];
+
+        let capture_dialog = new frappe.ui.Dialog({
+            title: __('Capture Item Photo'),
+            fields: [
+                {
+                    fieldname: 'camera_html',
+                    fieldtype: 'HTML'
+                }
+            ],
+            primary_action_label: __('Capture'),
+            primary_action() {
+                const video = document.getElementById('item-capture-video');
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const context = canvas.getContext('2d');
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                canvas.toBlob((blob) => {
+                    const file_name = `item_photo_${frappe.datetime.now_datetime().replace(/[: -]/g, '_')}.png`;
+                    const file = new File([blob], file_name, { type: "image/png" });
+
+                    // Upload to Frappe
+                    const upload = new frappe.upload.Uploader({
+                        args: {
+                            from_form: 1,
+                            doctype: cdt,
+                            docname: cdn,
+                            fieldname: 'item_image'
+                        },
+                        files: [file],
+                        callback: (attachment) => {
+                            frappe.model.set_value(cdt, cdn, 'item_image', attachment.file_url);
+                            frappe.show_alert({
+                                message: __('Item photo captured and attached.'),
+                                indicator: 'green'
+                            });
+                            capture_dialog.hide();
+                        }
+                    });
+                }, 'image/png');
+            }
+        });
+
+        capture_dialog.show();
+
+        const video_id = 'item-capture-video';
         capture_dialog.get_field('camera_html').$wrapper.html(`
             <div style="width: 100%; background: #000; border-radius: 8px; overflow: hidden;">
                 <video id="${video_id}" width="100%" autoplay playsinline></video>

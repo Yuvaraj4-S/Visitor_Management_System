@@ -1,117 +1,117 @@
 {
- "actions": [],
- "allow_rename": 1,
- "creation": "2026-03-01 16:14:31.543176",
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "visitor_pass",
-  "supplier",
-  "purchase_order",
-  "delivery_note",
-  "goods_description",
-  "delivery_vehicle_no",
-  "driver_name",
-  "driver_id_number",
-  "dock__bay_assigned",
-  "store_officer",
-  "goods_received_by"
- ],
- "fields": [
-  {
-   "fieldname": "visitor_pass",
-   "fieldtype": "Link",
-   "label": "Visitor Pass",
-   "options": "Visitor Pass",
-   "reqd": 1
-  },
-  {
-   "fieldname": "supplier",
-   "fieldtype": "Link",
-   "label": "Supplier",
-   "options": "Supplier",
-   "reqd": 1
-  },
-  {
-   "fieldname": "purchase_order",
-   "fieldtype": "Link",
-   "label": "Purchase Order",
-   "options": "Purchase Order"
-  },
-  {
-   "fieldname": "delivery_note",
-   "fieldtype": "Link",
-   "label": "Delivery Note",
-   "options": "Delivery Note"
-  },
-  {
-   "fieldname": "goods_description",
-   "fieldtype": "Small Text",
-   "label": "Goods Description"
-  },
-  {
-   "fieldname": "delivery_vehicle_no",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Delivery Vehicle No",
-   "reqd": 1
-  },
-  {
-   "fieldname": "driver_name",
-   "fieldtype": "Data",
-   "label": "Driver Name",
-   "reqd": 1
-  },
-  {
-   "fieldname": "driver_id_number",
-   "fieldtype": "Data",
-   "label": "Driver ID Number"
-  },
-  {
-   "fieldname": "dock__bay_assigned",
-   "fieldtype": "Data",
-   "label": "Dock / Bay Assigned",
-   "reqd": 1
-  },
-  {
-   "fieldname": "store_officer",
-   "fieldtype": "Link",
-   "label": "Store Officer",
-   "options": "Employee",
-   "reqd": 1
-  },
-  {
-   "fieldname": "goods_received_by",
-   "fieldtype": "Link",
-   "label": "Goods Received By",
-   "options": "Employee"
-  }
- ],
- "grid_page_length": 50,
- "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-03-01 16:23:08.861544",
- "modified_by": "Administrator",
- "module": "Visitor Management",
- "name": "Supplier Visit",
- "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  }
- ],
- "row_format": "Dynamic",
- "rows_threshold_for_grid_search": 20,
- "sort_field": "modified",
- "sort_order": "DESC",
- "states": []
+    "actions": [],
+    "allow_rename": 1,
+    "creation": "2026-03-01 16:14:31.543176",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "visitor_pass",
+        "supplier",
+        "purchase_order",
+        "delivery_note",
+        "goods_description",
+        "delivery_vehicle_no",
+        "driver_name",
+        "driver_id_number",
+        "dock__bay_assigned",
+        "store_officer",
+        "goods_received_by"
+    ],
+    "fields": [
+        {
+            "fieldname": "visitor_pass",
+            "fieldtype": "Link",
+            "label": "Visitor Pass",
+            "options": "Visitor Pass",
+            "reqd": 0
+        },
+        {
+            "fieldname": "supplier",
+            "fieldtype": "Link",
+            "label": "Supplier",
+            "options": "Supplier",
+            "reqd": 1
+        },
+        {
+            "fieldname": "purchase_order",
+            "fieldtype": "Link",
+            "label": "Purchase Order",
+            "options": "Purchase Order"
+        },
+        {
+            "fieldname": "delivery_note",
+            "fieldtype": "Link",
+            "label": "Delivery Note",
+            "options": "Delivery Note"
+        },
+        {
+            "fieldname": "goods_description",
+            "fieldtype": "Small Text",
+            "label": "Goods Description"
+        },
+        {
+            "fieldname": "delivery_vehicle_no",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Delivery Vehicle No",
+            "reqd": 1
+        },
+        {
+            "fieldname": "driver_name",
+            "fieldtype": "Data",
+            "label": "Driver Name",
+            "reqd": 1
+        },
+        {
+            "fieldname": "driver_id_number",
+            "fieldtype": "Data",
+            "label": "Driver ID Number"
+        },
+        {
+            "fieldname": "dock__bay_assigned",
+            "fieldtype": "Data",
+            "label": "Dock / Bay Assigned",
+            "reqd": 1
+        },
+        {
+            "fieldname": "store_officer",
+            "fieldtype": "Link",
+            "label": "Store Officer",
+            "options": "Employee",
+            "reqd": 1
+        },
+        {
+            "fieldname": "goods_received_by",
+            "fieldtype": "Link",
+            "label": "Goods Received By",
+            "options": "Employee"
+        }
+    ],
+    "grid_page_length": 50,
+    "index_web_pages_for_search": 1,
+    "links": [],
+    "modified": "2026-03-01 16:23:08.861544",
+    "modified_by": "Administrator",
+    "module": "Visitor Management",
+    "name": "Supplier Visit",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        }
+    ],
+    "row_format": "Dynamic",
+    "rows_threshold_for_grid_search": 20,
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": []
 }

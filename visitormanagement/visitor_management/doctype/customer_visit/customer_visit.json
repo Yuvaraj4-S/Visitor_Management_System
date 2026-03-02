@@ -1,104 +1,104 @@
 {
- "actions": [],
- "allow_rename": 1,
- "creation": "2026-03-01 16:07:18.941979",
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "visitor_pass",
-  "customer",
-  "crm_lead__opportunity",
-  "visit_category",
-  "sales_executive",
-  "products_discussed",
-  "meeting_outcome",
-  "followup_date",
-  "meeting_minutes"
- ],
- "fields": [
-  {
-   "fieldname": "visitor_pass",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Visitor Pass",
-   "options": "Visitor Pass",
-   "reqd": 1
-  },
-  {
-   "fieldname": "customer",
-   "fieldtype": "Link",
-   "label": "Customer",
-   "options": "Customer"
-  },
-  {
-   "fieldname": "crm_lead__opportunity",
-   "fieldtype": "Link",
-   "label": "CRM Lead / Opportunity",
-   "options": "Lead"
-  },
-  {
-   "fieldname": "visit_category",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Visit Category",
-   "options": "Product Demo\nNegotiation\nSite Visit\nComplaint\nAudit",
-   "reqd": 1
-  },
-  {
-   "fieldname": "sales_executive",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Sales Executive",
-   "options": "Employee",
-   "reqd": 1
-  },
-  {
-   "fieldname": "products_discussed",
-   "fieldtype": "Text",
-   "label": "Products Discussed"
-  },
-  {
-   "fieldname": "meeting_outcome",
-   "fieldtype": "Select",
-   "label": "Meeting Outcome",
-   "options": "Pending\nDeal Closed\nFollow-Up Needed\nNo Interest"
-  },
-  {
-   "fieldname": "followup_date",
-   "fieldtype": "Date",
-   "label": "Follow-Up Date"
-  },
-  {
-   "fieldname": "meeting_minutes",
-   "fieldtype": "Text Editor",
-   "label": "Meeting Minutes"
-  }
- ],
- "grid_page_length": 50,
- "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-03-01 16:13:54.516263",
- "modified_by": "Administrator",
- "module": "Visitor Management",
- "name": "Customer Visit",
- "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  }
- ],
- "row_format": "Dynamic",
- "rows_threshold_for_grid_search": 20,
- "sort_field": "modified",
- "sort_order": "DESC",
- "states": []
+    "actions": [],
+    "allow_rename": 1,
+    "creation": "2026-03-01 16:07:18.941979",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "visitor_pass",
+        "customer",
+        "crm_lead__opportunity",
+        "visit_category",
+        "sales_executive",
+        "products_discussed",
+        "meeting_outcome",
+        "followup_date",
+        "meeting_minutes"
+    ],
+    "fields": [
+        {
+            "fieldname": "visitor_pass",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Visitor Pass",
+            "options": "Visitor Pass",
+            "reqd": 0
+        },
+        {
+            "fieldname": "customer",
+            "fieldtype": "Link",
+            "label": "Customer",
+            "options": "Customer"
+        },
+        {
+            "fieldname": "crm_lead__opportunity",
+            "fieldtype": "Link",
+            "label": "CRM Lead / Opportunity",
+            "options": "Lead"
+        },
+        {
+            "fieldname": "visit_category",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Visit Category",
+            "options": "Product Demo\nNegotiation\nSite Visit\nComplaint\nAudit",
+            "reqd": 1
+        },
+        {
+            "fieldname": "sales_executive",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Sales Executive",
+            "options": "Employee",
+            "reqd": 1
+        },
+        {
+            "fieldname": "products_discussed",
+            "fieldtype": "Text",
+            "label": "Products Discussed"
+        },
+        {
+            "fieldname": "meeting_outcome",
+            "fieldtype": "Select",
+            "label": "Meeting Outcome",
+            "options": "Pending\nDeal Closed\nFollow-Up Needed\nNo Interest"
+        },
+        {
+            "fieldname": "followup_date",
+            "fieldtype": "Date",
+            "label": "Follow-Up Date"
+        },
+        {
+            "fieldname": "meeting_minutes",
+            "fieldtype": "Text Editor",
+            "label": "Meeting Minutes"
+        }
+    ],
+    "grid_page_length": 50,
+    "index_web_pages_for_search": 1,
+    "links": [],
+    "modified": "2026-03-01 16:13:54.516263",
+    "modified_by": "Administrator",
+    "module": "Visitor Management",
+    "name": "Customer Visit",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        }
+    ],
+    "row_format": "Dynamic",
+    "rows_threshold_for_grid_search": 20,
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": []
 }

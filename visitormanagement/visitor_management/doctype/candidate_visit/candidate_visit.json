@@ -1,102 +1,102 @@
 {
- "actions": [],
- "allow_rename": 1,
- "creation": "2026-03-01 15:53:03.034796",
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "visitor_pass",
-  "job_applicant_link",
-  "position_applied",
-  "interview_type",
-  "interview_panel",
-  "nda_required",
-  "nda_signed",
-  "documents_submitted",
-  "interview_room"
- ],
- "fields": [
-  {
-   "fieldname": "visitor_pass",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Visitor Pass",
-   "options": "Visitor Pass",
-   "reqd": 1
-  },
-  {
-   "fieldname": "job_applicant_link",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Job Applicant Link",
-   "options": "Job Applicant",
-   "reqd": 1
-  },
-  {
-   "fieldname": "position_applied",
-   "fieldtype": "Data",
-   "label": "Position Applied"
-  },
-  {
-   "fieldname": "interview_type",
-   "fieldtype": "Select",
-   "label": "Interview Type",
-   "options": "Walk-In\nScheduled\nGroup Discussion\nTechnical Round"
-  },
-  {
-   "fieldname": "interview_panel",
-   "fieldtype": "Small Text",
-   "label": "Interview Panel"
-  },
-  {
-   "default": "0",
-   "fieldname": "nda_required",
-   "fieldtype": "Check",
-   "label": "NDA Required"
-  },
-  {
-   "default": "0",
-   "fieldname": "nda_signed",
-   "fieldtype": "Check",
-   "label": "NDA Signed"
-  },
-  {
-   "default": "0",
-   "fieldname": "documents_submitted",
-   "fieldtype": "Check",
-   "label": "Documents Submitted"
-  },
-  {
-   "fieldname": "interview_room",
-   "fieldtype": "Data",
-   "label": "Interview Room"
-  }
- ],
- "grid_page_length": 50,
- "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-03-01 16:00:42.144861",
- "modified_by": "Administrator",
- "module": "Visitor Management",
- "name": "Candidate Visit",
- "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  }
- ],
- "row_format": "Dynamic",
- "rows_threshold_for_grid_search": 20,
- "sort_field": "modified",
- "sort_order": "DESC",
- "states": []
+    "actions": [],
+    "allow_rename": 1,
+    "creation": "2026-03-01 15:53:03.034796",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "visitor_pass",
+        "job_applicant_link",
+        "position_applied",
+        "interview_type",
+        "interview_panel",
+        "nda_required",
+        "nda_signed",
+        "documents_submitted",
+        "interview_room"
+    ],
+    "fields": [
+        {
+            "fieldname": "visitor_pass",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Visitor Pass",
+            "options": "Visitor Pass",
+            "reqd": 0
+        },
+        {
+            "fieldname": "job_applicant_link",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Job Applicant Link",
+            "options": "Job Applicant",
+            "reqd": 1
+        },
+        {
+            "fieldname": "position_applied",
+            "fieldtype": "Data",
+            "label": "Position Applied"
+        },
+        {
+            "fieldname": "interview_type",
+            "fieldtype": "Select",
+            "label": "Interview Type",
+            "options": "Walk-In\nScheduled\nGroup Discussion\nTechnical Round"
+        },
+        {
+            "fieldname": "interview_panel",
+            "fieldtype": "Small Text",
+            "label": "Interview Panel"
+        },
+        {
+            "default": "0",
+            "fieldname": "nda_required",
+            "fieldtype": "Check",
+            "label": "NDA Required"
+        },
+        {
+            "default": "0",
+            "fieldname": "nda_signed",
+            "fieldtype": "Check",
+            "label": "NDA Signed"
+        },
+        {
+            "default": "0",
+            "fieldname": "documents_submitted",
+            "fieldtype": "Check",
+            "label": "Documents Submitted"
+        },
+        {
+            "fieldname": "interview_room",
+            "fieldtype": "Data",
+            "label": "Interview Room"
+        }
+    ],
+    "grid_page_length": 50,
+    "index_web_pages_for_search": 1,
+    "links": [],
+    "modified": "2026-03-01 16:00:42.144861",
+    "modified_by": "Administrator",
+    "module": "Visitor Management",
+    "name": "Candidate Visit",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        }
+    ],
+    "row_format": "Dynamic",
+    "rows_threshold_for_grid_search": 20,
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": []
 }

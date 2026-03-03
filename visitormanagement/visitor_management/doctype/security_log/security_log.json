@@ -1,6 +1,7 @@
 {
     "actions": [],
     "allow_rename": 1,
+    "autoname": "SL-.YYYY.-.#####",
     "creation": "2026-02-28 17:28:20.094022",
     "doctype": "DocType",
     "engine": "InnoDB",
@@ -21,6 +22,7 @@
         "photo_at_gate",
         "capture_photo",
         "id_proof_type_verified",
+        "id_proof_number",
         "id_last_4_digits",
         "qr_code_scanned",
         "temperature",
@@ -110,6 +112,12 @@
             "fieldname": "id_last_4_digits",
             "fieldtype": "Data",
             "label": "ID Last 4 Digits"
+        },
+        {
+            "fetch_from": "visitor_pass.id_proof_number",
+            "fieldname": "id_proof_number",
+            "fieldtype": "Data",
+            "label": "ID Proof Number"
         },
         {
             "default": "0",

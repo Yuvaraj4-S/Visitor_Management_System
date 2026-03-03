@@ -23,6 +23,52 @@ frappe.ui.form.on('Visitor Pass', {
         }, __('Actions'));
       }
     }
+
+    if (frm.doc.visitor_type === 'Supplier') {
+      frm.set_query('existing_visitor_pass', function () {
+        return {
+          filters: {
+            'visitor_type': 'Supplier'
+          }
+        };
+      });
+    }
+  },
+
+  entry_type: function (frm) {
+    if (frm.doc.entry_type === 'New') {
+      frm.set_value('existing_visitor_pass', '');
+      frm.set_value('visitor_full_name', '');
+      frm.set_value('mobile_number', '');
+      frm.set_value('email_id', '');
+      frm.set_value('company__organisation', '');
+    }
+  },
+
+  existing_visitor_pass: function (frm) {
+    if (frm.doc.existing_visitor_pass) {
+      frappe.db.get_doc('Visitor Pass', frm.doc.existing_visitor_pass).then(doc => {
+        frm.set_value('visitor_full_name', doc.visitor_full_name);
+        frm.set_value('mobile_number', doc.mobile_number);
+        frm.set_value('email_id', doc.email_id);
+        frm.set_value('company__organisation', doc.company__organisation);
+        frm.set_value('id_proof_type', doc.id_proof_type);
+        frm.set_value('id_proof_number', doc.id_proof_number);
+        // Optionally photos, but maybe not for new security check
+      });
+    }
+  },
+
+  visitor_type: function (frm) {
+    if (frm.doc.visitor_type === 'Supplier') {
+      frm.set_query('existing_visitor_pass', function () {
+        return {
+          filters: {
+            'visitor_type': 'Supplier'
+          }
+        };
+      });
+    }
   }
 });
 

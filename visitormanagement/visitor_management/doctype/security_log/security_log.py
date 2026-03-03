@@ -1,12 +1,6 @@
 # Copyright (c) 2026, Harthesh and contributors
 # For license information, please see license.txt
 
-# import frappe
-from frappe.model.document import Document
-
-
-class SecurityLog(Document):
-	pass
 import frappe
 from frappe.model.document import Document
 from frappe.utils import now_datetime
@@ -21,10 +15,27 @@ class SecurityLog(Document):
         if self.visitor_pass:
             vp = frappe.get_doc('Visitor Pass', self.visitor_pass)
 
-        # 1. Auto-fetch visitor info
-        if vp and not self.visitor_name:
-            self.badge_number = vp.badge_number
-            self.visitor_name = vp.visitor_full_name
+        # 1. Auto-fetch visitor info and ID details
+        if vp:
+            # Generate badge number if missing
+            if not vp.badge_number:
+                vp.generate_badge_number()
+                vp.reload()
+            
+            if not self.badge_number:
+                self.badge_number = vp.badge_number
+            if not self.visitor_name:
+                self.visitor_name = vp.visitor_full_name
+            if not self.id_proof_number:
+                self.id_proof_number = vp.id_proof_number
+            
+            # Auto-calculate last 4 digits if ID number is present
+            if self.id_proof_number and not self.id_last_4_digits:
+                id_str = str(self.id_proof_number).strip()
+                if len(id_str) >= 4:
+                    self.id_last_4_digits = id_str[-4:]
+                else:
+                    self.id_last_4_digits = id_str
 
         # 2. Auto-assign gate
         if vp and not self.gate_name:
@@ -38,12 +49,25 @@ class SecurityLog(Document):
             self.gate_name = gate_rules.get(vp.visitor_type, 'Main Gate')
             self.gate_auto_assigned = 1
 
-        # 3. Auto-stamp datetime
+        # 3. Auto-stamp datetime and validate status sequence
         now = now_datetime()
-        if self.event_type == 'Check-In' and not self.check_in_date_time:
-            self.check_in_date_time = now
-        elif self.event_type == 'Check-Out' and not self.check_out_date_time:
-            self.check_out_date_time = now
+        if vp:
+            current_status = vp.status
+            if self.event_type == 'Check-In':
+                if current_status == 'Checked-In':
+                    frappe.throw(f"Visitor {self.visitor_name} is already Checked-In.")
+                if current_status == 'Checked-Out':
+                    frappe.throw(f"Visitor {self.visitor_name} has already Checked-Out and the pass is now inactive.")
+                
+                if not self.check_in_date_time:
+                    self.check_in_date_time = now
+                    
+            elif self.event_type == 'Check-Out':
+                if current_status != 'Checked-In':
+                    frappe.throw(f"Visitor {self.visitor_name} must be 'Checked-In' before they can 'Check-Out'. (Current Status: {current_status})")
+                
+                if not self.check_out_date_time:
+                    self.check_out_date_time = now
 
         # 4. Auto-set security officer
         if not self.security_officer:
@@ -95,6 +119,13 @@ class SecurityLog(Document):
 
         if self.event_type == 'Check-In':
             self._sync_item_verification()
+            # Also update the Pass status to Checked-In
+            frappe.db.set_value(
+                'Visitor Pass',
+                self.visitor_pass,
+                'status',
+                'Checked-In'
+            )
 
         elif self.event_type == 'Check-Out':
             frappe.db.set_value(

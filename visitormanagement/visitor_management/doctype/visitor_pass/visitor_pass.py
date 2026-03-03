@@ -107,8 +107,11 @@ class VisitorPass(Document):
         self.db_set("approved_by", frappe.session.user)
         self.db_set("status", "Approved")
 
-        # Generate QR Code for the badge
-        qr_file_url, qr_content = self._generate_qr_code()
+        # Generate QR Code for the badge (Skip for VIP)
+        qr_file_url = None
+        qr_content = None
+        if self.visitor_type != "VIP":
+            qr_file_url, qr_content = self._generate_qr_code()
 
         # Notify the visitor via email
         self._send_approval_email(qr_file_url, qr_content)
@@ -223,15 +226,23 @@ class VisitorPass(Document):
                 "cid": qr_cid
             })
 
+        qr_section = ""
+        if qr_content:
+            qr_section = (
+                f"Please present the QR code below at the security gate:<br><br>"
+                f"<img src='cid:{qr_cid}' width='200' style='border: 1px solid #ddd; padding: 10px;' alt='QR Code'><br><br>"
+                f"<i>(If the image above is not visible, please use the attached QR code)</i><br><br>"
+            )
+        else:
+            qr_section = "Please present your ID proof at the security gate for verification.<br><br>"
+
         frappe.sendmail(
             recipients=[self.email_id],
             subject=f"Visit APPROVED — {self.name}",
             message=(
                 f"Dear {self.visitor_full_name},<br><br>"
                 f"Your visit request has been approved.<br>"
-                f"Please present the QR code below at the security gate:<br><br>"
-                f"<img src='cid:{qr_cid}' width='200' style='border: 1px solid #ddd; padding: 10px;' alt='QR Code'><br><br>"
-                f"<i>(If the image above is not visible, please use the attached QR code)</i><br><br>"
+                f"{qr_section}"
                 f"<b>Visit Details:</b><br>"
                 f"Pass ID: {self.name}<br>"
                 f"Host: {self.person_to_visit}<br>"

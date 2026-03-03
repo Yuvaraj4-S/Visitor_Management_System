@@ -6,6 +6,9 @@
     "engine": "InnoDB",
     "field_order": [
         "visitor_pass",
+        "candidate_name",
+        "mobile_number",
+        "email_id",
         "job_applicant_link",
         "position_applied",
         "interview_type",
@@ -23,6 +26,27 @@
             "label": "Visitor Pass",
             "options": "Visitor Pass",
             "reqd": 0
+        },
+        {
+            "fetch_from": "visitor_pass.visitor_full_name",
+            "fieldname": "candidate_name",
+            "fieldtype": "Data",
+            "label": "Candidate Name",
+            "read_only": 1
+        },
+        {
+            "fetch_from": "visitor_pass.mobile_number",
+            "fieldname": "mobile_number",
+            "fieldtype": "Phone",
+            "label": "Mobile Number",
+            "read_only": 1
+        },
+        {
+            "fetch_from": "visitor_pass.email_id",
+            "fieldname": "email_id",
+            "fieldtype": "Data",
+            "label": "Email ID",
+            "read_only": 1
         },
         {
             "fieldname": "job_applicant_link",

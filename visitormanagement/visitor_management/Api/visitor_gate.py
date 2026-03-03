@@ -25,9 +25,9 @@ def visitor_checkin(docname):
     if host_email:
         frappe.sendmail(
             recipients=[host_email],
-            subject=f"Your Visitor Arrived: {doc.visitor_name}",
+            subject=f"Your Visitor Arrived: {doc.visitor_full_name}",
             message=(
-                f"<b>{doc.visitor_name}</b> has arrived at the gate.<br>"
+                f"<b>{doc.visitor_full_name}</b> has arrived at the gate.<br>"
                 f"Badge: {doc.badge_number}<br>"
                 f"Purpose: {doc.purpose_of_visit}"
             ),
@@ -90,7 +90,7 @@ def scan_qr_checkin(qr_data):
         doc_name = frappe.db.get_value(
             "Visitor Pass",
             {
-                "visitor_name": visitor_name,
+                "visitor_full_name": visitor_name,
                 "visit_date": visit_date,
                 "status": "Items Verified",
             },

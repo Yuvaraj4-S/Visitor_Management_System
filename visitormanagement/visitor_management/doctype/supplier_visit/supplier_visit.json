@@ -7,6 +7,8 @@
     "field_order": [
         "visitor_pass",
         "supplier",
+        "mobile_number",
+        "email_id",
         "purchase_order",
         "delivery_note",
         "goods_description",
@@ -33,6 +35,20 @@
             "reqd": 1
         },
         {
+            "fetch_from": "visitor_pass.mobile_number",
+            "fieldname": "mobile_number",
+            "fieldtype": "Phone",
+            "label": "Mobile Number",
+            "read_only": 1
+        },
+        {
+            "fetch_from": "visitor_pass.email_id",
+            "fieldname": "email_id",
+            "fieldtype": "Data",
+            "label": "Email ID",
+            "read_only": 1
+        },
+        {
             "fieldname": "purchase_order",
             "fieldtype": "Link",
             "label": "Purchase Order",
@@ -57,9 +73,11 @@
             "reqd": 1
         },
         {
+            "fetch_from": "visitor_pass.visitor_full_name",
             "fieldname": "driver_name",
             "fieldtype": "Data",
             "label": "Driver Name",
+            "read_only": 1,
             "reqd": 1
         },
         {

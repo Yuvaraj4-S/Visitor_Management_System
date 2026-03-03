@@ -47,8 +47,8 @@ class VisitorPass(Document):
         # Sync item verification status from child table
         if self.visitor_items:
             total = len(self.visitor_items)
-            # Ensure 'is_verified' is the correct fieldname in Visitor Items Table
-            verified = sum(1 for i in self.visitor_items if getattr(i, 'is_verified', 0))
+            # Match fieldname from Visitor Item DocType
+            verified = sum(1 for i in self.visitor_items if getattr(i, 'verified_by_security', 0))
 
             if verified == 0:
                 self.item_verification_status = "Pending"
@@ -120,10 +120,10 @@ class VisitorPass(Document):
         self.db_set("status", "Approved")
 
         # Generate QR Code for the badge
-        qr_file_url = self._generate_qr_code()
+        qr_file_url, qr_content = self._generate_qr_code()
 
         # Notify the visitor via email
-        self._send_approval_email(qr_file_url)
+        self._send_approval_email(qr_file_url, qr_content)
 
         # Notify Food Dept if a meal was requested
         if getattr(self, "meal_required", 0):
@@ -166,18 +166,26 @@ class VisitorPass(Document):
     # PRIVATE: GENERATE QR CODE
     # ─────────────────────────────────────────────────────────
     def _generate_qr_code(self):
+        # Match keys used in visitor_gate.py (scan_qr_checkin)
         qr_data = (
-            f"PASS:{self.name}"
+            f"BADGE_NO:{self.name}"
             f"|VISITOR:{self.visitor_full_name}"
+            f"|VISIT_DATE:{self.visit_date}"
             f"|ID_NO:{self.id_proof_number}"
-            f"|DATE:{self.visit_date}"
             f"|HOST:{self.person_to_visit}"
         )
 
         qr_img = qrcode.make(qr_data)
         buffer = BytesIO()
         qr_img.save(buffer, format="PNG")
-        buffer.seek(0)
+        qr_content = buffer.getvalue()
+
+        # Cleanup existing QR files for this record
+        frappe.db.delete("File", {
+            "attached_to_doctype": "Visitor Pass",
+            "attached_to_name": self.name,
+            "attached_to_field": "qr_code_image"
+        })
 
         file_doc = frappe.get_doc({
             "doctype": "File",
@@ -185,18 +193,18 @@ class VisitorPass(Document):
             "attached_to_doctype": "Visitor Pass",
             "attached_to_name": self.name,
             "attached_to_field": "qr_code_image",
-            "content": buffer.read(),
+            "content": qr_content,
             "is_private": 0,
         })
 
         file_doc.insert(ignore_permissions=True)
         self.db_set("qr_code_image", file_doc.file_url)
-        return file_doc.file_url
+        return file_doc.file_url, qr_content
 
     # ─────────────────────────────────────────────────────────
     # PRIVATE: SEND EMAIL
     # ─────────────────────────────────────────────────────────
-    def _send_approval_email(self, qr_file_url):
+    def _send_approval_email(self, qr_file_url, qr_content=None):
         if not self.email_id:
             return
 
@@ -207,10 +215,16 @@ class VisitorPass(Document):
         if self.visitor_items:
             items_text = "<br><b>Items Declared:</b><ul>"
             for item in self.visitor_items:
-                # Ensure 'quantity' matches your Child DocType fieldname
                 qty = getattr(item, 'quantity', 1)
-                items_text += f"<li>{item.item_name} — Qty: {qty}</li>"
+                items_text += f"<li>{item.item_name} (Qty: {qty})</li>"
             items_text += "</ul>"
+
+        attachments = []
+        if qr_content:
+            attachments.append({
+                "fname": f"QR_{self.name}.png",
+                "fcontent": qr_content
+            })
 
         frappe.sendmail(
             recipients=[self.email_id],
@@ -219,9 +233,11 @@ class VisitorPass(Document):
                 f"Dear {self.visitor_full_name},<br><br>"
                 f"Your visit request has been approved.<br>"
                 f"Please present the QR code below at the security gate:<br><br>"
-                f"<img src='{qr_full_url}' width='180'><br><br>"
+                f"<img src='{qr_full_url}' width='180' alt='QR Code'><br><br>"
+                f"<i>(If the image above is not visible, please use the attached QR code)</i><br><br>"
                 f"{items_text}"
             ),
+            attachments=attachments
         )
 
     # ─────────────────────────────────────────────────────────

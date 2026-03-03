@@ -25,14 +25,15 @@
             "fieldtype": "Link",
             "in_list_view": 1,
             "label": "Visitor Pass",
-            "options": "Visitor Pass",
-            "reqd": 0
+            "options": "Visitor Pass"
         },
         {
+            "fetch_from": "visitor_pass.visitor_full_name",
             "fieldname": "worker_name",
             "fieldtype": "Data",
             "in_list_view": 1,
             "label": "Worker Name",
+            "read_only": 1,
             "reqd": 1
         },
         {
@@ -82,12 +83,30 @@
             "fieldname": "pass_valid_until",
             "fieldtype": "Date",
             "label": "Pass Valid Until"
+        },
+        {
+            "fetch_from": "visitor_pass.mobile_number",
+            "fieldname": "mobile_number",
+            "fieldtype": "Phone",
+            "label": "Mobile Number"
+        },
+        {
+            "fetch_from": "visitor_pass.email_id",
+            "fieldname": "email_id",
+            "fieldtype": "Data",
+            "label": "Email ID"
+        },
+        {
+            "fetch_from": "visitor_pass.company__organisation",
+            "fieldname": "contractor_company",
+            "fieldtype": "Data",
+            "label": "Contractor Company"
         }
     ],
     "grid_page_length": 50,
     "index_web_pages_for_search": 1,
     "links": [],
-    "modified": "2026-03-01 15:51:33.210810",
+    "modified": "2026-03-03 10:03:58.453398",
     "modified_by": "Administrator",
     "module": "Visitor Management",
     "name": "Contractor Visit",

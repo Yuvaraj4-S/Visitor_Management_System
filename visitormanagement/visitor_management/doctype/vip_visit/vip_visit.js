@@ -3,6 +3,7 @@
 
 frappe.ui.form.on("VIP Visit", {
     refresh(frm) {
+        // Filter Visitor Pass to only show VIPs
         frm.set_query("visitor_pass", function () {
             return {
                 filters: {
@@ -10,5 +11,5 @@ frappe.ui.form.on("VIP Visit", {
                 }
             };
         });
-    },
+    }
 });

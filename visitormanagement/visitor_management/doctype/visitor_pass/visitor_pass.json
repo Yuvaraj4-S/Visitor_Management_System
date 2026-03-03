@@ -130,6 +130,7 @@
             "reqd": 1
         },
         {
+            "fetch_from": "person_to_visit.department",
             "fieldname": "host_department",
             "fieldtype": "Data",
             "label": "Host Department",

@@ -8,11 +8,8 @@
     "field_order": [
         "section_break_q9pi",
         "visitor_type",
-        "linked_contractor",
-        "linked_customer",
-        "linked_candidate",
-        "linked_supplier",
-        "linked_vip",
+        "entry_type",
+        "existing_visitor_pass",
         "visitor_full_name",
         "mobile_number",
         "email_id",
@@ -29,6 +26,49 @@
         "expected_checkout",
         "vehicle_number",
         "items_carried",
+        "hr_interview",
+        "section_break_customer",
+        "crm_lead_opportunity",
+        "visit_category",
+        "sales_executive",
+        "products_discussed",
+        "meeting_outcome",
+        "followup_date",
+        "meeting_minutes",
+        "section_break_contractor",
+        "work_order_ref",
+        "safety_induction_done",
+        "contractor_nda_signed",
+        "ppe_provided",
+        "work_area_zone",
+        "tools_list",
+        "multi_day_pass",
+        "pass_valid_until",
+        "section_break_candidate",
+        "job_applicant_link",
+        "position_applied",
+        "candidate_interview_type",
+        "interview_panel",
+        "interview_room",
+        "section_break_supplier_details",
+        "supplier_link",
+        "purchase_order",
+        "delivery_note",
+        "goods_description",
+        "driver_id_number",
+        "dock_bay_assigned",
+        "store_officer",
+        "goods_received_by",
+        "section_break_vip_details",
+        "vip_category",
+        "priority_lane",
+        "protocol_notes",
+        "mdceo_notified",
+        "welcome_gift",
+        "dedicated_meeting_room",
+        "interpreter_required",
+        "interpreter_language",
+        "security_detail",
         "section_break_gqft",
         "badge_number",
         "badge_colour",
@@ -67,6 +107,21 @@
             "reqd": 1
         },
         {
+            "depends_on": "eval:doc.visitor_type == 'Supplier'",
+            "fieldname": "entry_type",
+            "fieldtype": "Select",
+            "label": "Entry Type",
+            "options": "New\nExisting",
+            "default": "New"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.entry_type == 'Existing'",
+            "fieldname": "existing_visitor_pass",
+            "fieldtype": "Link",
+            "label": "Existing Visitor Pass",
+            "options": "Visitor Pass"
+        },
+        {
             "fieldname": "visitor_full_name",
             "fieldtype": "Data",
             "in_list_view": 1,
@@ -87,9 +142,11 @@
             "reqd": 1
         },
         {
+            "depends_on": "eval:doc.visitor_type == 'Contractor' || doc.visitor_type == 'Supplier' || doc.visitor_type == 'Customer'",
             "fieldname": "company__organisation",
             "fieldtype": "Data",
-            "label": "Company / Organisation"
+            "label": "Company / Organisation",
+            "mandatory_depends_on": "eval:doc.visitor_type == 'Contractor' || doc.visitor_type == 'Supplier' || doc.visitor_type == 'Customer'"
         },
         {
             "fieldname": "id_proof_type",
@@ -166,6 +223,278 @@
             "label": "Items Carried"
         },
         {
+            "fieldname": "hr_interview",
+            "fieldtype": "Link",
+            "label": "HR Interview",
+            "options": "HR Interview",
+            "read_only": 1
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Customer'",
+            "fieldname": "section_break_customer",
+            "fieldtype": "Section Break",
+            "label": "Customer Visit Details"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Customer'",
+            "fieldname": "crm_lead_opportunity",
+            "fieldtype": "Link",
+            "label": "CRM Lead / Opportunity",
+            "options": "Lead"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Customer'",
+            "fieldname": "visit_category",
+            "fieldtype": "Select",
+            "label": "Visit Category",
+            "options": "Product Demo\nNegotiation\nSite Visit\nComplaint\nAudit"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Customer'",
+            "fieldname": "sales_executive",
+            "fieldtype": "Link",
+            "label": "Sales Executive",
+            "options": "Employee"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Customer'",
+            "fieldname": "products_discussed",
+            "fieldtype": "Small Text",
+            "label": "Products Discussed"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Customer'",
+            "fieldname": "meeting_outcome",
+            "fieldtype": "Select",
+            "label": "Meeting Outcome",
+            "options": "Pending\nDeal Closed\nFollow-Up Needed\nNo Interest"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Customer'",
+            "fieldname": "followup_date",
+            "fieldtype": "Date",
+            "label": "Follow-Up Date"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Customer'",
+            "fieldname": "meeting_minutes",
+            "fieldtype": "Text Editor",
+            "label": "Meeting Minutes"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Contractor'",
+            "fieldname": "section_break_contractor",
+            "fieldtype": "Section Break",
+            "label": "Contractor Details"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Contractor'",
+            "fieldname": "work_order_ref",
+            "fieldtype": "Link",
+            "label": "Work Order Ref",
+            "options": "Maintenance Visit"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Contractor'",
+            "fieldname": "safety_induction_done",
+            "fieldtype": "Check",
+            "label": "Safety Induction Done"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Contractor'",
+            "fieldname": "contractor_nda_signed",
+            "fieldtype": "Check",
+            "label": "NDA Signed"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Contractor'",
+            "fieldname": "ppe_provided",
+            "fieldtype": "Check",
+            "label": "PPE Provided"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Contractor'",
+            "fieldname": "work_area_zone",
+            "fieldtype": "Data",
+            "label": "Work Area / Zone"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Contractor'",
+            "fieldname": "tools_list",
+            "fieldtype": "Small Text",
+            "label": "Tools List"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Contractor'",
+            "fieldname": "multi_day_pass",
+            "fieldtype": "Check",
+            "label": "Multi-Day Pass"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Contractor'",
+            "fieldname": "pass_valid_until",
+            "fieldtype": "Date",
+            "label": "Pass Valid Until"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Candidate'",
+            "fieldname": "section_break_candidate",
+            "fieldtype": "Section Break",
+            "label": "Candidate Details"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Candidate'",
+            "fieldname": "job_applicant_link",
+            "fieldtype": "Link",
+            "label": "Job Applicant Link",
+            "options": "Job Applicant"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Candidate'",
+            "fieldname": "position_applied",
+            "fieldtype": "Data",
+            "label": "Position Applied"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Candidate'",
+            "fieldname": "candidate_interview_type",
+            "fieldtype": "Select",
+            "label": "Interview Type",
+            "options": "Walk-In\nScheduled\nGroup Discussion\nTechnical Round"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Candidate'",
+            "fieldname": "interview_panel",
+            "fieldtype": "Small Text",
+            "label": "Interview Panel"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Candidate'",
+            "fieldname": "interview_room",
+            "fieldtype": "Data",
+            "label": "Interview Room"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Supplier'",
+            "fieldname": "section_break_supplier_details",
+            "fieldtype": "Section Break",
+            "label": "Supplier Details"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Supplier'",
+            "fieldname": "supplier_link",
+            "fieldtype": "Link",
+            "label": "Supplier",
+            "options": "Supplier"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Supplier'",
+            "fieldname": "purchase_order",
+            "fieldtype": "Link",
+            "label": "Purchase Order",
+            "options": "Purchase Order"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Supplier'",
+            "fieldname": "delivery_note",
+            "fieldtype": "Link",
+            "label": "Delivery Note",
+            "options": "Delivery Note"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Supplier'",
+            "fieldname": "goods_description",
+            "fieldtype": "Small Text",
+            "label": "Goods Description"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Supplier'",
+            "fieldname": "driver_id_number",
+            "fieldtype": "Data",
+            "label": "Driver ID Number"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Supplier'",
+            "fieldname": "dock_bay_assigned",
+            "fieldtype": "Data",
+            "label": "Dock / Bay Assigned"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Supplier'",
+            "fieldname": "store_officer",
+            "fieldtype": "Link",
+            "label": "Store Officer",
+            "options": "Employee"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'Supplier'",
+            "fieldname": "goods_received_by",
+            "fieldtype": "Link",
+            "label": "Goods Received By",
+            "options": "Employee"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'VIP'",
+            "fieldname": "section_break_vip_details",
+            "fieldtype": "Section Break",
+            "label": "VIP Details"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'VIP'",
+            "fieldname": "vip_category",
+            "fieldtype": "Select",
+            "label": "VIP Category",
+            "options": "Board Member\nGovernment Official\nInvestor\nMedia\nGuest Speaker\nPartner"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'VIP'",
+            "fieldname": "priority_lane",
+            "fieldtype": "Check",
+            "label": "Priority Lane"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'VIP'",
+            "fieldname": "protocol_notes",
+            "fieldtype": "Text Editor",
+            "label": "Protocol Notes"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'VIP'",
+            "fieldname": "mdceo_notified",
+            "fieldtype": "Check",
+            "label": "MD/CEO Notified"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'VIP'",
+            "fieldname": "welcome_gift",
+            "fieldtype": "Data",
+            "label": "Welcome Gift"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'VIP'",
+            "fieldname": "dedicated_meeting_room",
+            "fieldtype": "Data",
+            "label": "Dedicated Meeting Room"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'VIP'",
+            "fieldname": "interpreter_required",
+            "fieldtype": "Check",
+            "label": "Interpreter Required"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'VIP'",
+            "fieldname": "interpreter_language",
+            "fieldtype": "Data",
+            "label": "Interpreter Language"
+        },
+        {
+            "depends_on": "eval:doc.visitor_type == 'VIP'",
+            "fieldname": "security_detail",
+            "fieldtype": "Data",
+            "label": "Security Detail"
+        },
+        {
             "fieldname": "section_break_gqft",
             "fieldtype": "Section Break",
             "label": "Badge "
@@ -230,49 +559,56 @@
         {
             "fieldname": "section_break_khxo",
             "fieldtype": "Section Break",
-            "hidden": 1,
             "label": "Hospitality"
         },
         {
+            "allow_on_submit": 1,
             "default": "0",
             "fieldname": "meal_required",
             "fieldtype": "Check",
             "label": "Meal Required"
         },
         {
+            "allow_on_submit": 1,
             "fieldname": "meal_type",
             "fieldtype": "Select",
             "label": "Meal Type",
             "options": "Breakfast\nLunch\nDinner\nSnacks\nAll Day"
         },
         {
+            "allow_on_submit": 1,
             "fieldname": "number_of_people",
             "fieldtype": "Int",
             "label": "Number of People"
         },
         {
+            "allow_on_submit": 1,
             "fieldname": "special_diet",
             "fieldtype": "Select",
             "label": "Special Diet",
             "options": "None\nVegetarian\nVegan\nGluten Free\nHalal\nJain"
         },
         {
+            "allow_on_submit": 1,
             "fieldname": "rest_area",
             "fieldtype": "Data",
             "label": "Rest / Waiting Room"
         },
         {
+            "allow_on_submit": 1,
             "fieldname": "hospitality_notes",
             "fieldtype": "Text Editor",
             "label": "Hospitality Notes"
         },
         {
+            "allow_on_submit": 1,
             "fieldname": "food_dept_staff_assigned",
             "fieldtype": "Link",
             "label": "Food Dept Staff Assigned",
             "options": "Employee"
         },
         {
+            "allow_on_submit": 1,
             "fieldname": "food_status",
             "fieldtype": "Select",
             "label": "Food Status",

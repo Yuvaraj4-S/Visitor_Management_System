@@ -17,83 +17,56 @@ frappe.ui.form.on('Visitor Pass', {
         frm.add_custom_button(__('Manage Supplier Details'), function () {
           open_related_visit_form(frm, 'Supplier Visit');
         }, __('Actions'));
+      } else if (frm.doc.visitor_type === 'Candidate') {
+        frm.add_custom_button(__('Manage Candidate Details'), function () {
+          open_related_visit_form(frm, 'Candidate Visit');
+        }, __('Actions'));
       }
+    }
+
+    if (frm.doc.visitor_type === 'Supplier') {
+      frm.set_query('existing_visitor_pass', function () {
+        return {
+          filters: {
+            'visitor_type': 'Supplier'
+          }
+        };
+      });
+    }
+  },
+
+  entry_type: function (frm) {
+    if (frm.doc.entry_type === 'New') {
+      frm.set_value('existing_visitor_pass', '');
+      frm.set_value('visitor_full_name', '');
+      frm.set_value('mobile_number', '');
+      frm.set_value('email_id', '');
+      frm.set_value('company__organisation', '');
+    }
+  },
+
+  existing_visitor_pass: function (frm) {
+    if (frm.doc.existing_visitor_pass) {
+      frappe.db.get_doc('Visitor Pass', frm.doc.existing_visitor_pass).then(doc => {
+        frm.set_value('visitor_full_name', doc.visitor_full_name);
+        frm.set_value('mobile_number', doc.mobile_number);
+        frm.set_value('email_id', doc.email_id);
+        frm.set_value('company__organisation', doc.company__organisation);
+        frm.set_value('id_proof_type', doc.id_proof_type);
+        frm.set_value('id_proof_number', doc.id_proof_number);
+        // Optionally photos, but maybe not for new security check
+      });
     }
   },
 
   visitor_type: function (frm) {
-    // Clear linked fields when type changes
-    frm.set_value('linked_contractor', '');
-    frm.set_value('linked_customer', '');
-    frm.set_value('linked_candidate', '');
-    frm.set_value('linked_supplier', '');
-    frm.set_value('linked_vip', '');
-  },
-
-  linked_contractor: function (frm) {
-    if (frm.doc.linked_contractor) {
-      frappe.db.get_doc('Contractor Visit', frm.doc.linked_contractor).then(doc => {
-        frm.set_value('visitor_full_name', doc.worker_name);
-        frm.set_value('mobile_number', doc.mobile_number);
-        frm.set_value('email_id', doc.email_id);
-        frm.set_value('company__organisation', doc.contractor_company);
-      });
-    }
-  },
-
-  linked_vip: function (frm) {
-    if (frm.doc.linked_vip) {
-      frappe.db.get_doc('VIP Visit', frm.doc.linked_vip).then(doc => {
-        frm.set_value('visitor_full_name', doc.vip_name);
-        frm.set_value('mobile_number', doc.mobile_number);
-        frm.set_value('email_id', doc.email_id);
-      });
-    }
-  },
-
-  linked_customer: function (frm) {
-    if (frm.doc.linked_customer) {
-      frappe.db.get_value('Customer Visit', frm.doc.linked_customer, ['customer', 'sales_executive'], (r) => {
-        if (r.customer) {
-          frappe.db.get_value('Customer', r.customer, ['customer_name', 'mobile_no', 'email_id'], (c) => {
-            frm.set_value('visitor_full_name', c.customer_name);
-            frm.set_value('mobile_number', c.mobile_no);
-            frm.set_value('email_id', c.email_id);
-            frm.set_value('company__organisation', r.customer);
-          });
-        }
-        if (r.sales_executive) {
-          frm.set_value('person_to_visit', r.sales_executive);
-        }
-      });
-    }
-  },
-
-  linked_supplier: function (frm) {
-    if (frm.doc.linked_supplier) {
-      frappe.db.get_value('Supplier Visit', frm.doc.linked_supplier, ['supplier', 'driver_name'], (r) => {
-        if (r.supplier) {
-          frappe.db.get_value('Supplier', r.supplier, ['supplier_name', 'mobile_no', 'email_id'], (s) => {
-            frm.set_value('visitor_full_name', r.driver_name || s.supplier_name);
-            frm.set_value('mobile_number', s.mobile_no);
-            frm.set_value('email_id', s.email_id);
-            frm.set_value('company__organisation', s.supplier_name);
-          });
-        }
-      });
-    }
-  },
-
-  linked_candidate: function (frm) {
-    if (frm.doc.linked_candidate) {
-      frappe.db.get_value('Candidate Visit', frm.doc.linked_candidate, 'job_applicant_link', (r) => {
-        if (r.job_applicant_link) {
-          frappe.db.get_value('Job Applicant', r.job_applicant_link, ['applicant_name', 'email_id', 'phone_number'], (a) => {
-            frm.set_value('visitor_full_name', a.applicant_name);
-            frm.set_value('mobile_number', a.phone_number);
-            frm.set_value('email_id', a.email_id);
-          });
-        }
+    if (frm.doc.visitor_type === 'Supplier') {
+      frm.set_query('existing_visitor_pass', function () {
+        return {
+          filters: {
+            'visitor_type': 'Supplier'
+          }
+        };
       });
     }
   }
@@ -117,6 +90,8 @@ function open_related_visit_form(frm, doctype) {
           new_doc.personal_escort = frm.doc.person_to_visit;
         } else if (doctype === 'Supplier Visit') {
           new_doc.supplier = frm.doc.company__organisation;
+        } else if (doctype === 'Candidate Visit') {
+          new_doc.candidate_name = frm.doc.visitor_full_name;
         }
 
         frappe.set_route('Form', doctype, new_doc.name);

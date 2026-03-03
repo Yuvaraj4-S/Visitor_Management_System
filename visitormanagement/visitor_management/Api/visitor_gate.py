@@ -66,7 +66,7 @@ def scan_qr_checkin(qr_data):
     Called when QR code is scanned.
 
     Example QR:
-    BADGE_NO:CUS-20250601-0001|VISITOR:John|VISIT_DATE:2026-06-01
+    PASS:VMS-VP-2026-00001|VISITOR:John|VISIT_DATE:2026-06-01
     """
 
     try:
@@ -80,31 +80,50 @@ def scan_qr_checkin(qr_data):
                 key, value = p.split(":", 1)
                 parts[key.strip()] = value.strip()
 
+        pass_id = parts.get("PASS")
         visitor_name = parts.get("VISITOR")
         visit_date = parts.get("VISIT_DATE")
 
-        if not visitor_name or not visit_date:
-            frappe.throw("QR Code missing required information.")
+        if not pass_id and (not visitor_name or not visit_date):
+            frappe.throw("QR Code missing required information (PASS or VISITOR+DATE).")
 
         # Find matching Visitor Pass
-        doc_name = frappe.db.get_value(
-            "Visitor Pass",
-            {
-                "visitor_full_name": visitor_name,
-                "visit_date": visit_date,
-                "status": "Items Verified",
-            },
-            "name",
-        )
+        if pass_id:
+            doc_name = frappe.db.exists("Visitor Pass", pass_id)
+        else:
+            doc_name = frappe.db.get_value(
+                "Visitor Pass",
+                {
+                    "visitor_full_name": visitor_name,
+                    "visit_date": visit_date,
+                    "status": "Items Verified",
+                },
+                "name",
+            )
 
         if not doc_name:
             frappe.throw(
-                "No valid Visitor Pass found for this QR code, "
-                "or visitor is not in 'Items Verified' state."
+                "No valid Visitor Pass found for this QR code."
             )
 
-        # Perform check-in
-        return visitor_checkin(doc_name)
+        # Determine action based on status
+        doc_status = frappe.db.get_value("Visitor Pass", doc_name, "status")
+        if doc_status in ["Approved", "Items Verified"]:
+            # Perform check-in
+            return visitor_checkin(doc_name)
+        elif doc_status == "Checked-In":
+            # Perform check-out
+            return visitor_checkout(doc_name)
+        elif doc_status == "Checked-Out":
+            frappe.throw(
+                f"Visitor Pass {doc_name} has already been used (Checked-Out). "
+                "This QR code is now inactive."
+            )
+        else:
+            frappe.throw(
+                f"Visitor Pass {doc_name} is in '{doc_status}' state. "
+                "Expected 'Approved', 'Items Verified', or 'Checked-In'."
+            )
 
     except Exception as e:
         frappe.throw(f"QR Scan Error: {str(e)}")

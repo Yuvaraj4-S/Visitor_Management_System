@@ -11,6 +11,7 @@ frappe.ui.form.on('Security Log', {
         frm.add_fetch('visitor_pass', 'visitor_full_name', 'visitor_name');
         frm.add_fetch('visitor_pass', 'badge_number', 'badge_number');
         frm.add_fetch('visitor_pass', 'visitor_photo', 'visitor_photo');
+        frm.add_fetch('visitor_pass', 'id_proof_number', 'id_proof_number');
     },
 
     qr_code_value: function (frm) {
@@ -90,19 +91,15 @@ frappe.ui.form.on('Security Log', {
                             frm.trigger('visitor_pass');
                         }, 300);
 
+                        // Mark as scanned to trigger photo capture in visitor_pass handler
+                        frm.__scanned = true;
+
                         frappe.show_alert({
                             message: __('QR Code scanned: {0}', [vp_id]),
                             indicator: 'green'
                         });
 
                         scanner_dialog.hide();
-
-                        // Automatically trigger photo capture after QR scan
-                        setTimeout(() => {
-                            if (!frm.doc.photo_at_gate) {
-                                frm.trigger('capture_photo');
-                            }
-                        }, 1000);
                     };
 
                     const config = {
@@ -146,22 +143,55 @@ frappe.ui.form.on('Security Log', {
 
     visitor_pass: function (frm) {
         if (frm.doc.visitor_pass) {
-            // First, fetch basic details
+            // First, fetch basic details including status
             frappe.db.get_value('Visitor Pass', frm.doc.visitor_pass,
-                ['visitor_photo', 'visitor_full_name', 'badge_number', 'id_proof_type', 'visitor_type'], (r) => {
+                ['visitor_photo', 'visitor_full_name', 'badge_number', 'id_proof_type', 'visitor_type', 'status', 'id_proof_number'], (r) => {
                     if (r) {
                         if (r.visitor_photo) frm.set_value('visitor_photo', r.visitor_photo);
                         frm.set_value('visitor_name', r.visitor_full_name);
                         frm.set_value('badge_number', r.badge_number);
+                        if (r.id_proof_number) {
+                            frm.set_value('id_proof_number', r.id_proof_number);
+                            if (r.id_proof_number.length >= 4) {
+                                frm.set_value('id_last_4_digits', r.id_proof_number.slice(-4));
+                            } else {
+                                frm.set_value('id_last_4_digits', r.id_proof_number);
+                            }
+                        }
                         if (r.id_proof_type && !frm.doc.id_proof_type_verified) {
                             frm.set_value('id_proof_type_verified', r.id_proof_type);
                         }
 
-                        // Set default gate and check-in time if it's a new log
+                        // Set default gate and event type based on Visitor Pass status
                         if (frm.is_new()) {
-                            if (!frm.doc.event_type) frm.set_value('event_type', 'Check-In');
-                            if (frm.doc.event_type === 'Check-In' && !frm.doc.check_in_date_time) {
+                            let event_type = '';
+                            if (r.status === 'Items Verified' || r.status === 'Approved') {
+                                event_type = 'Check-In';
+                            } else if (r.status === 'Checked-In') {
+                                event_type = 'Check-Out';
+                            } else if (r.status === 'Checked-Out') {
+                                frappe.msgprint({
+                                    title: __('Already Scanned'),
+                                    message: __('Visitor has already Checked-Out and the pass is now inactive.'),
+                                    indicator: 'orange'
+                                });
+                                frm.set_value('visitor_pass', '');
+                                return;
+                            } else {
+                                frappe.msgprint({
+                                    title: __('Invalid Status'),
+                                    message: __('Visitor Pass status is "{0}". Must be "Approved" or "Items Verified" to Check-In.', [r.status]),
+                                    indicator: 'red'
+                                });
+                                return;
+                            }
+
+                            frm.set_value('event_type', event_type);
+
+                            if (event_type === 'Check-In' && !frm.doc.check_in_date_time) {
                                 frm.set_value('check_in_date_time', frappe.datetime.now_datetime());
+                            } else if (event_type === 'Check-Out' && !frm.doc.check_out_date_time) {
+                                frm.set_value('check_out_date_time', frappe.datetime.now_datetime());
                             }
 
                             if (!frm.doc.gate_name) {
@@ -175,6 +205,16 @@ frappe.ui.form.on('Security Log', {
                                 let gate = gate_rules[r.visitor_type] || 'Main Gate';
                                 frm.set_value('gate_name', gate);
                             }
+                        }
+
+                        // Automatically trigger photo capture if it was scanned and is a Check-In
+                        if (frm.__scanned) {
+                            if (frm.doc.event_type === 'Check-In' && !frm.doc.photo_at_gate) {
+                                setTimeout(() => {
+                                    frm.trigger('capture_photo');
+                                }, 500);
+                            }
+                            delete frm.__scanned;
                         }
                     }
                 });

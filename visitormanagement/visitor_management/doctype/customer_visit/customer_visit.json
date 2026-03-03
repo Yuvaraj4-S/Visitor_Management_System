@@ -10,6 +10,7 @@
         "mobile_number",
         "email_id",
         "customer",
+        "company",
         "crm_lead__opportunity",
         "visit_category",
         "sales_executive",
@@ -53,6 +54,13 @@
             "fieldtype": "Link",
             "label": "Customer",
             "options": "Customer"
+        },
+        {
+            "fetch_from": "visitor_pass.company__organisation",
+            "fieldname": "company",
+            "fieldtype": "Data",
+            "label": "Company / Organisation",
+            "read_only": 1
         },
         {
             "fieldname": "crm_lead__opportunity",

@@ -21,7 +21,7 @@
     "owner": "Administrator",
     "recipients": [
         {
-            "receiver_by_document_field": "owner"
+            "receiver_by_role": "Security Supervisor"
         }
     ],
     "send_system_notification": 0,

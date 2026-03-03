@@ -9,6 +9,7 @@
         "visitor_pass",
         "badge_number",
         "visitor_name",
+        "visitor_company",
         "event_type",
         "check_in_date_time",
         "check_out_date_time",
@@ -47,6 +48,13 @@
             "fieldname": "visitor_name",
             "fieldtype": "Data",
             "label": "Visitor Name"
+        },
+        {
+            "fetch_from": "visitor_pass.company__organisation",
+            "fieldname": "visitor_company",
+            "fieldtype": "Data",
+            "label": "Visitor Company",
+            "read_only": 1
         },
         {
             "fieldname": "event_type",

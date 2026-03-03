@@ -7,6 +7,7 @@
     "field_order": [
         "visitor_pass",
         "supplier",
+        "company",
         "mobile_number",
         "email_id",
         "purchase_order",
@@ -33,6 +34,13 @@
             "label": "Supplier",
             "options": "Supplier",
             "reqd": 1
+        },
+        {
+            "fetch_from": "visitor_pass.company__organisation",
+            "fieldname": "company",
+            "fieldtype": "Data",
+            "label": "Company / Organisation",
+            "read_only": 1
         },
         {
             "fetch_from": "visitor_pass.mobile_number",

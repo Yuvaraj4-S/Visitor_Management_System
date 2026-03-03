@@ -21,11 +21,11 @@
     "owner": "Administrator",
     "recipients": [
         {
-            "receiver_by_document_field": "approved_by"
+            "receiver_by_role": "Gate Security"
         }
     ],
     "send_system_notification": 0,
     "send_to_all_assignees": 0,
-    "subject": "Approval",
+    "subject": "Visitor Approved: {{ doc.visitor_full_name }} — Verify Items Required",
     "value_changed": "approval_date"
 }

@@ -66,7 +66,7 @@ def scan_qr_checkin(qr_data):
     Called when QR code is scanned.
 
     Example QR:
-    BADGE_NO:CUS-20250601-0001|VISITOR:John|VISIT_DATE:2026-06-01
+    PASS:VMS-VP-2026-00001|VISITOR:John|VISIT_DATE:2026-06-01
     """
 
     try:
@@ -80,27 +80,38 @@ def scan_qr_checkin(qr_data):
                 key, value = p.split(":", 1)
                 parts[key.strip()] = value.strip()
 
+        pass_id = parts.get("PASS")
         visitor_name = parts.get("VISITOR")
         visit_date = parts.get("VISIT_DATE")
 
-        if not visitor_name or not visit_date:
-            frappe.throw("QR Code missing required information.")
+        if not pass_id and (not visitor_name or not visit_date):
+            frappe.throw("QR Code missing required information (PASS or VISITOR+DATE).")
 
         # Find matching Visitor Pass
-        doc_name = frappe.db.get_value(
-            "Visitor Pass",
-            {
-                "visitor_full_name": visitor_name,
-                "visit_date": visit_date,
-                "status": "Items Verified",
-            },
-            "name",
-        )
+        if pass_id:
+            doc_name = frappe.db.exists("Visitor Pass", pass_id)
+        else:
+            doc_name = frappe.db.get_value(
+                "Visitor Pass",
+                {
+                    "visitor_full_name": visitor_name,
+                    "visit_date": visit_date,
+                    "status": "Items Verified",
+                },
+                "name",
+            )
 
         if not doc_name:
             frappe.throw(
-                "No valid Visitor Pass found for this QR code, "
-                "or visitor is not in 'Items Verified' state."
+                "No valid Visitor Pass found for this QR code."
+            )
+
+        # Re-check status if found by name, or check it for the first time if found by ID
+        doc_status = frappe.db.get_value("Visitor Pass", doc_name, "status")
+        if doc_status != "Items Verified":
+             frappe.throw(
+                f"Visitor Pass {doc_name} is in '{doc_status}' state. "
+                "Must be 'Items Verified' to Check-In."
             )
 
         # Perform check-in

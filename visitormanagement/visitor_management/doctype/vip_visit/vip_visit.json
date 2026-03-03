@@ -30,20 +30,26 @@
             "reqd": 0
         },
         {
+            "fetch_from": "visitor_pass.visitor_full_name",
             "fieldname": "vip_name",
             "fieldtype": "Data",
             "label": "VIP Name",
+            "read_only": 1,
             "reqd": 1
         },
         {
+            "fetch_from": "visitor_pass.mobile_number",
             "fieldname": "mobile_number",
             "fieldtype": "Phone",
-            "label": "Mobile Number"
+            "label": "Mobile Number",
+            "read_only": 1
         },
         {
+            "fetch_from": "visitor_pass.email_id",
             "fieldname": "email_id",
             "fieldtype": "Data",
-            "label": "Email ID"
+            "label": "Email ID",
+            "read_only": 1
         },
         {
             "fieldname": "vip_category",

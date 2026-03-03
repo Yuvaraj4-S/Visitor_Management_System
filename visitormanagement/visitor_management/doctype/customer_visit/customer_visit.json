@@ -6,6 +6,9 @@
     "engine": "InnoDB",
     "field_order": [
         "visitor_pass",
+        "visitor_name",
+        "mobile_number",
+        "email_id",
         "customer",
         "crm_lead__opportunity",
         "visit_category",
@@ -23,6 +26,27 @@
             "label": "Visitor Pass",
             "options": "Visitor Pass",
             "reqd": 0
+        },
+        {
+            "fetch_from": "visitor_pass.visitor_full_name",
+            "fieldname": "visitor_name",
+            "fieldtype": "Data",
+            "label": "Visitor Name",
+            "read_only": 1
+        },
+        {
+            "fetch_from": "visitor_pass.mobile_number",
+            "fieldname": "mobile_number",
+            "fieldtype": "Phone",
+            "label": "Mobile Number",
+            "read_only": 1
+        },
+        {
+            "fetch_from": "visitor_pass.email_id",
+            "fieldname": "email_id",
+            "fieldtype": "Data",
+            "label": "Email ID",
+            "read_only": 1
         },
         {
             "fieldname": "customer",

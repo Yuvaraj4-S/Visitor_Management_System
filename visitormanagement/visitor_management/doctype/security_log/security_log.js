@@ -7,6 +7,12 @@
 // 	},
 // });
 frappe.ui.form.on('Security Log', {
+    setup: function (frm) {
+        frm.add_fetch('visitor_pass', 'visitor_full_name', 'visitor_name');
+        frm.add_fetch('visitor_pass', 'badge_number', 'badge_number');
+        frm.add_fetch('visitor_pass', 'visitor_photo', 'visitor_photo');
+    },
+
     qr_code_value: function (frm) {
         frappe.require('/assets/visitormanagement/js/libs/html5-qrcode.min.js', function () {
             if (typeof Html5Qrcode === "undefined") {
@@ -63,12 +69,29 @@ frappe.ui.form.on('Security Log', {
                     html5QrCode = new Html5Qrcode(scanner_id);
 
                     const qrCodeSuccessCallback = (decodedText, decodedResult) => {
-                        frm.set_value('visitor_pass', decodedText);
+                        let vp_id = decodedText;
+                        if (decodedText.includes('|') && decodedText.includes(':')) {
+                            // Parse "PASS:VP-2026-00001|VISITOR:John..." format
+                            const parts = decodedText.split('|');
+                            for (let part of parts) {
+                                if (part.startsWith('PASS:')) {
+                                    vp_id = part.split(':')[1].trim();
+                                    break;
+                                }
+                            }
+                        }
+
+                        frm.set_value('visitor_pass', vp_id);
                         frm.set_value('qr_code_scanned', 1);
-                        frm.trigger('visitor_pass');
+                        frm.refresh_field('visitor_pass');
+
+                        // Small delay to allow the Link field to process the change
+                        setTimeout(() => {
+                            frm.trigger('visitor_pass');
+                        }, 300);
 
                         frappe.show_alert({
-                            message: __('QR Code scanned: {0}. Now taking photo...', [decodedText]),
+                            message: __('QR Code scanned: {0}', [vp_id]),
                             indicator: 'green'
                         });
 
@@ -76,8 +99,10 @@ frappe.ui.form.on('Security Log', {
 
                         // Automatically trigger photo capture after QR scan
                         setTimeout(() => {
-                            frm.trigger('capture_photo');
-                        }, 600);
+                            if (!frm.doc.photo_at_gate) {
+                                frm.trigger('capture_photo');
+                            }
+                        }, 1000);
                     };
 
                     const config = {
@@ -121,11 +146,60 @@ frappe.ui.form.on('Security Log', {
 
     visitor_pass: function (frm) {
         if (frm.doc.visitor_pass) {
-            frappe.db.get_value('Visitor Pass', frm.doc.visitor_pass, 'visitor_photo', (r) => {
-                if (r && r.visitor_photo) {
-                    frm.set_value('visitor_photo', r.visitor_photo);
-                }
-            });
+            // First, fetch basic details
+            frappe.db.get_value('Visitor Pass', frm.doc.visitor_pass,
+                ['visitor_photo', 'visitor_full_name', 'badge_number', 'id_proof_type', 'visitor_type'], (r) => {
+                    if (r) {
+                        if (r.visitor_photo) frm.set_value('visitor_photo', r.visitor_photo);
+                        frm.set_value('visitor_name', r.visitor_full_name);
+                        frm.set_value('badge_number', r.badge_number);
+                        if (r.id_proof_type && !frm.doc.id_proof_type_verified) {
+                            frm.set_value('id_proof_type_verified', r.id_proof_type);
+                        }
+
+                        // Set default gate and check-in time if it's a new log
+                        if (frm.is_new()) {
+                            if (!frm.doc.event_type) frm.set_value('event_type', 'Check-In');
+                            if (frm.doc.event_type === 'Check-In' && !frm.doc.check_in_date_time) {
+                                frm.set_value('check_in_date_time', frappe.datetime.now_datetime());
+                            }
+
+                            if (!frm.doc.gate_name) {
+                                const gate_rules = {
+                                    'VIP': 'VIP Entrance',
+                                    'Supplier': 'Loading Dock',
+                                    'Contractor': 'Back Gate',
+                                    'Candidate': 'Main Gate',
+                                    'Customer': 'Main Gate',
+                                };
+                                let gate = gate_rules[r.visitor_type] || 'Main Gate';
+                                frm.set_value('gate_name', gate);
+                            }
+                        }
+                    }
+                });
+
+            // Second, fetch and populate visitor items if it's a new log
+            if (frm.is_new() && (!frm.doc.items_verification || frm.doc.items_verification.length === 0)) {
+                frappe.model.with_doc('Visitor Pass', frm.doc.visitor_pass, function () {
+                    let vp = frappe.model.get_doc('Visitor Pass', frm.doc.visitor_pass);
+                    if (vp.visitor_items && vp.visitor_items.length > 0) {
+                        frm.clear_table('items_verification');
+                        vp.visitor_items.forEach(item => {
+                            let row = frm.add_child('items_verification');
+                            row.item_name = item.item_name;
+                            row.item_category = item.item_category;
+                            row.quantity_declared = item.quantity;
+                            row.uom = item.unit_of_measure;
+                            row.serial__asset_number = item.serial_number;
+                            row.quantity_found = item.quantity; // Default to declared
+                            row.item_verified = 0;
+                            row.visitor_item_row_name = item.name;
+                        });
+                        frm.refresh_field('items_verification');
+                    }
+                });
+            }
         }
     },
 
@@ -182,15 +256,19 @@ frappe.ui.form.on('Security Log', {
             </div>
         `);
 
-        const video = document.getElementById(video_id);
-
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
                 .then(stream => {
-                    video.srcObject = stream;
-                    capture_dialog.on_hide = () => {
+                    const video = document.getElementById(video_id);
+                    if (video) {
+                        video.srcObject = stream;
+                        capture_dialog.on_hide = () => {
+                            stream.getTracks().forEach(track => track.stop());
+                        };
+                    } else {
                         stream.getTracks().forEach(track => track.stop());
-                    };
+                        frappe.msgprint(__('Video element not found. Please try again.'));
+                    }
                 })
                 .catch(err => {
                     frappe.msgprint(__('Error accessing camera: {0}', [err]));
@@ -259,15 +337,19 @@ frappe.ui.form.on('Security Item Verify', {
             </div>
         `);
 
-        const video = document.getElementById(video_id);
-
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
                 .then(stream => {
-                    video.srcObject = stream;
-                    capture_dialog.on_hide = () => {
+                    const video = document.getElementById(video_id);
+                    if (video) {
+                        video.srcObject = stream;
+                        capture_dialog.on_hide = () => {
+                            stream.getTracks().forEach(track => track.stop());
+                        };
+                    } else {
                         stream.getTracks().forEach(track => track.stop());
-                    };
+                        frappe.msgprint(__('Video element not found. Please try again.'));
+                    }
                 })
                 .catch(err => {
                     frappe.msgprint(__('Error accessing camera: {0}', [err]));

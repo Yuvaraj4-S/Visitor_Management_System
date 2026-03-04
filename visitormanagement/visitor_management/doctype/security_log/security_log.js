@@ -14,6 +14,38 @@ frappe.ui.form.on('Security Log', {
         frm.add_fetch('visitor_pass', 'id_proof_number', 'id_proof_number');
     },
 
+    refresh: function (frm) {
+        if (frm.doc.visitor_pass) {
+            frm.add_custom_button(__('Print Badge'), function () {
+                frm.trigger('print_visitor_badge');
+            }, __('Actions'));
+        }
+    },
+
+    after_save: function (frm) {
+        if (frm.doc.event_type === 'Check-In' && frm.doc.visitor_pass) {
+            frappe.show_alert({
+                message: __('Check-In Recorded. Opening Badge for printing...'),
+                indicator: 'green'
+            });
+            setTimeout(() => {
+                frm.trigger('print_visitor_badge');
+            }, 1000);
+        }
+    },
+
+    print_visitor_badge: function (frm) {
+        if (!frm.doc.visitor_pass) {
+            frappe.msgprint(__('Please select a Visitor Pass first.'));
+            return;
+        }
+
+        const url = frappe.urllib.get_full_url(
+            `/printview?doctype=Visitor%20Pass&name=${encodeURIComponent(frm.doc.visitor_pass)}&format=Visitor%20Badge&no_letterhead=1`
+        );
+        window.open(url, '_blank');
+    },
+
     qr_code_value: function (frm) {
         frappe.require('/assets/visitormanagement/js/libs/html5-qrcode.min.js', function () {
             if (typeof Html5Qrcode === "undefined") {
@@ -149,7 +181,22 @@ frappe.ui.form.on('Security Log', {
                     if (r) {
                         if (r.visitor_photo) frm.set_value('visitor_photo', r.visitor_photo);
                         frm.set_value('visitor_name', r.visitor_full_name);
-                        frm.set_value('badge_number', r.badge_number);
+
+                        if (r.badge_number) {
+                            frm.set_value('badge_number', r.badge_number);
+                        } else {
+                            // Generate it on the fly if missing
+                            frappe.call({
+                                method: 'visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.sync_badge_number',
+                                args: { visitor_pass: frm.doc.visitor_pass },
+                                callback: function (res) {
+                                    if (res.message) {
+                                        frm.set_value('badge_number', res.message);
+                                    }
+                                }
+                            });
+                        }
+
                         if (r.id_proof_number) {
                             frm.set_value('id_proof_number', r.id_proof_number);
                             if (r.id_proof_number.length >= 4) {
@@ -265,24 +312,39 @@ frappe.ui.form.on('Security Log', {
                     const file_name = `gate_photo_${frappe.datetime.now_datetime().replace(/[: -]/g, '_')}.png`;
                     const file = new File([blob], file_name, { type: "image/png" });
 
-                    // Upload to Frappe
-                    const upload = new frappe.upload.Uploader({
-                        args: {
-                            from_form: 1,
-                            doctype: frm.doc.doctype,
-                            docname: frm.doc.name,
-                            fieldname: 'photo_at_gate'
-                        },
-                        files: [file],
-                        callback: (attachment) => {
-                            frm.set_value('photo_at_gate', attachment.file_url);
-                            frappe.show_alert({
-                                message: __('Photo captured and attached.'),
-                                indicator: 'green'
-                            });
-                            capture_dialog.hide();
+                    // Upload to Frappe using standard frappe.call for better compatibility
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        const base64_data = e.target.result.split(',')[1];
+                        let upload_args = {
+                            "from_form": 1,
+                            "fieldname": 'photo_at_gate',
+                            "filedata": base64_data,
+                            "filename": file_name
+                        };
+
+                        // Only link if the document exists in the database
+                        if (frm.doc.name && !frm.doc.name.startsWith('new-')) {
+                            upload_args.doctype = frm.doc.doctype;
+                            upload_args.docname = frm.doc.name;
                         }
-                    });
+
+                        frappe.call({
+                            method: "frappe.handler.upload_file",
+                            args: upload_args,
+                            callback: function (r) {
+                                if (r.message && r.message.file_url) {
+                                    frm.set_value('photo_at_gate', r.message.file_url);
+                                    frappe.show_alert({
+                                        message: __('Photo captured and attached.'),
+                                        indicator: 'green'
+                                    });
+                                    capture_dialog.hide();
+                                }
+                            },
+                        });
+                    };
+                    reader.readAsDataURL(file);
                 }, 'image/png');
             }
         });
@@ -346,24 +408,43 @@ frappe.ui.form.on('Security Item Verify', {
                     const file_name = `item_photo_${frappe.datetime.now_datetime().replace(/[: -]/g, '_')}.png`;
                     const file = new File([blob], file_name, { type: "image/png" });
 
-                    // Upload to Frappe
-                    const upload = new frappe.upload.Uploader({
-                        args: {
-                            from_form: 1,
-                            doctype: cdt,
-                            docname: cdn,
-                            fieldname: 'item_image'
-                        },
-                        files: [file],
-                        callback: (attachment) => {
-                            frappe.model.set_value(cdt, cdn, 'item_image', attachment.file_url);
-                            frappe.show_alert({
-                                message: __('Item photo captured and attached.'),
-                                indicator: 'green'
-                            });
-                            capture_dialog.hide();
+                    // Upload to Frappe using standard frappe.call for better compatibility
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        const base64_data = e.target.result.split(',')[1];
+                        let upload_args = {
+                            "from_form": 1,
+                            "fieldname": 'item_image',
+                            "filedata": base64_data,
+                            "filename": file_name
+                        };
+
+                        // Only link if the document exists in the database
+                        if (cdn && !cdn.startsWith('new-')) {
+                            upload_args.doctype = cdt;
+                            upload_args.docname = cdn;
                         }
-                    });
+
+                        frappe.call({
+                            method: "frappe.handler.upload_file",
+                            args: upload_args,
+                            callback: function (r) {
+                                if (r.message && r.message.file_url) {
+                                    frappe.model.set_value(cdt, cdn, 'item_image', r.message.file_url);
+                                    frappe.show_alert({
+                                        message: __('Item photo captured and attached.'),
+                                        indicator: 'green'
+                                    });
+                                    capture_dialog.hide();
+                                }
+                            },
+                            error: function (err) {
+                                console.error("Item Upload error", err);
+                                frappe.msgprint(__('Could not upload item photo.'));
+                            }
+                        });
+                    };
+                    reader.readAsDataURL(file);
                 }, 'image/png');
             }
         });

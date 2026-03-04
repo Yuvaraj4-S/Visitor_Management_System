@@ -264,3 +264,12 @@ class VisitorPass(Document):
                 subject=f"Meal Required: {self.visitor_full_name}",
                 message=f"Meal Type: {self.meal_type}<br>Visitor Pass: {self.name}",
             )
+
+
+@frappe.whitelist()
+def sync_badge_number(visitor_pass):
+    doc = frappe.get_doc("Visitor Pass", visitor_pass)
+    if not doc.badge_number:
+        doc.generate_badge_number()
+        doc.reload()
+    return doc.badge_number

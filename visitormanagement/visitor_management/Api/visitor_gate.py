@@ -11,11 +11,14 @@ def visitor_checkin(docname):
 
     doc = frappe.get_doc("Visitor Pass", docname)
 
-    if doc.status != "Items Verified":
-        frappe.throw("Items must be verified by gate security before Check-In.")
+    if doc.status not in ["Approved", "Items Verified"]:
+        frappe.throw(f"Pass is in '{doc.status}' status. It must be 'Approved' or 'Items Verified' to Check-In.")
+
+    if not doc.badge_number:
+        doc.generate_badge_number()
+        doc.reload()
 
     doc.db_set("status", "Checked-In")
-    doc.db_set("actual_checkin", now_datetime())
 
     # Notify host employee
     host_email = frappe.db.get_value(
@@ -50,7 +53,6 @@ def visitor_checkout(docname):
         frappe.throw("Visitor is not currently checked in.")
 
     doc.db_set("status", "Checked-Out")
-    doc.db_set("actual_checkout", now_datetime())
 
     frappe.msgprint("Checked Out successfully!", alert=True)
     return "ok"

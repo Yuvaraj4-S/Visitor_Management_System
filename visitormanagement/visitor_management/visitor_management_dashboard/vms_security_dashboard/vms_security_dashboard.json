@@ -1,0 +1,42 @@
+{
+ "cards": [
+  {
+   "card": "Total Visitor Passes"
+  },
+  {
+   "card": "Pending Visitor Approvals"
+  },
+  {
+   "card": "Checked-In Visitors"
+  },
+  {
+   "card": "Security Alerts"
+  }
+ ],
+ "charts": [
+  {
+   "chart": "Visitor Pass Trend",
+   "width": "Full"
+  },
+  {
+   "chart": "Visitors by Type",
+   "width": "Half"
+  },
+  {
+   "chart": "Security Events by Gate",
+   "width": "Half"
+  }
+ ],
+ "creation": "2026-04-04 12:00:00.000000",
+ "dashboard_name": "VMS Security Dashboard",
+ "docstatus": 0,
+ "doctype": "Dashboard",
+ "idx": 0,
+ "is_default": 0,
+ "is_standard": 1,
+ "modified": "2026-04-04 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "VMS Security Dashboard",
+ "owner": "Administrator"
+}

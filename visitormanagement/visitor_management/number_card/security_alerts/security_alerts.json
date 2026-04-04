@@ -1,0 +1,22 @@
+{
+ "creation": "2026-04-04 12:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "document_type": "Security Log",
+ "dynamic_filters_json": "[]",
+ "filters_json": "[[\"Security Log\",\"event_type\",\"=\",\"Alert\",false]]",
+ "function": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Security Alerts",
+ "modified": "2026-04-04 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Security Alerts",
+ "owner": "Administrator",
+ "show_full_number": 0,
+ "show_percentage_stats": 1,
+ "stats_time_interval": "Daily",
+ "type": "Document Type"
+}

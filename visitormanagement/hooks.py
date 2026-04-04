@@ -255,13 +255,5 @@ fixtures = [
         ]
     },
     "Workflow State",
-    "Workflow Action",
-    {
-        "doctype": "Dashboard",
-        "filters": [
-            ["name", "=", "VMS Security Dashboard"]
-        ]
-    },
-    "Dashboard Chart",
-    "Number Card"
+    "Workflow Action"
 ]

@@ -1,0 +1,261 @@
+{
+ "charts": [
+  {
+   "chart_name": "Visitor Pass Trend",
+   "label": "Visitor Pass Trend"
+  },
+  {
+   "chart_name": "Visitors by Type",
+   "label": "Visitors by Type"
+  },
+  {
+   "chart_name": "Security Events by Gate",
+   "label": "Security Events by Gate"
+  }
+ ],
+ "content": "[{\"id\":\"vms-card-1\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Total Visitor Passes\",\"col\":3}},{\"id\":\"vms-card-2\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending Visitor Approvals\",\"col\":3}},{\"id\":\"vms-card-3\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Checked-In Visitors\",\"col\":3}},{\"id\":\"vms-card-4\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Security Alerts\",\"col\":3}},{\"id\":\"vms-chart-1\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Visitor Pass Trend\",\"col\":12}},{\"id\":\"vms-chart-2\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Visitors by Type\",\"col\":6}},{\"id\":\"vms-chart-3\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Security Events by Gate\",\"col\":6}},{\"id\":\"vms-spacer-1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vms-header-1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Access</b></span>\",\"col\":12}},{\"id\":\"vms-shortcut-1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Visitor Pass\",\"col\":3}},{\"id\":\"vms-shortcut-2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Security Log\",\"col\":3}},{\"id\":\"vms-shortcut-3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Daily Visitor Log\",\"col\":3}},{\"id\":\"vms-shortcut-4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Active Visitors\",\"col\":3}},{\"id\":\"vms-shortcut-5\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Dashboard\",\"col\":3}},{\"id\":\"vms-spacer-2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vms-header-2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Modules &amp; Reports</b></span>\",\"col\":12}},{\"id\":\"vms-link-card-1\",\"type\":\"card\",\"data\":{\"card_name\":\"Visit Intake\",\"col\":3}},{\"id\":\"vms-link-card-2\",\"type\":\"card\",\"data\":{\"card_name\":\"Security\",\"col\":3}},{\"id\":\"vms-link-card-3\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":3}},{\"id\":\"vms-link-card-4\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":3}}]",
+ "creation": "2026-04-04 12:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "users",
+ "idx": 0,
+ "is_hidden": 0,
+ "label": "Visitor Management",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Visit Intake",
+   "link_count": 0,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Visitor Pass",
+   "link_count": 0,
+   "link_to": "Visitor Pass",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "VIP Visit",
+   "link_count": 0,
+   "link_to": "VIP Visit",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Supplier Visit",
+   "link_count": 0,
+   "link_to": "Supplier Visit",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Customer Visit",
+   "link_count": 0,
+   "link_to": "Customer Visit",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Candidate Visit",
+   "link_count": 0,
+   "link_to": "Candidate Visit",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Contractor Visit",
+   "link_count": 0,
+   "link_to": "Contractor Visit",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "HR Interview",
+   "link_count": 0,
+   "link_to": "HR Interview",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Security",
+   "link_count": 0,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Security Log",
+   "link_count": 0,
+   "link_to": "Security Log",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Visitor Blacklist",
+   "link_count": 0,
+   "link_to": "Visitor Blacklist",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reports",
+   "link_count": 0,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Daily Visitor Log",
+   "link_count": 0,
+   "link_to": "Daily Visitor Log",
+   "link_type": "Report",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Active Visitors",
+   "link_count": 0,
+   "link_to": "Active Visitors",
+   "link_type": "Report",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Gate Wise Count",
+   "link_count": 0,
+   "link_to": "Gate Wise Count",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Setup",
+   "link_count": 0,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "VMS Settings",
+   "link_count": 0,
+   "link_to": "VMS Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-04-04 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Visitor Management",
+ "number_cards": [
+  {
+   "label": "Total Visitor Passes",
+   "number_card_name": "Total Visitor Passes"
+  },
+  {
+   "label": "Pending Approvals",
+   "number_card_name": "Pending Visitor Approvals"
+  },
+  {
+   "label": "Checked-In Visitors",
+   "number_card_name": "Checked-In Visitors"
+  },
+  {
+   "label": "Security Alerts",
+   "number_card_name": "Security Alerts"
+  }
+ ],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "restrict_to_domain": "",
+ "roles": [],
+ "sequence_id": 25.0,
+ "shortcuts": [
+  {
+   "label": "Visitor Pass",
+   "link_to": "Visitor Pass",
+   "type": "DocType"
+  },
+  {
+   "label": "Security Log",
+   "link_to": "Security Log",
+   "type": "DocType"
+  },
+  {
+   "label": "Daily Visitor Log",
+   "link_to": "Daily Visitor Log",
+   "type": "Report"
+  },
+  {
+   "label": "Active Visitors",
+   "link_to": "Active Visitors",
+   "type": "Report"
+  },
+  {
+   "label": "Dashboard",
+   "link_to": "VMS Security Dashboard",
+   "type": "Dashboard"
+  }
+ ],
+ "title": "Visitor Management"
+}

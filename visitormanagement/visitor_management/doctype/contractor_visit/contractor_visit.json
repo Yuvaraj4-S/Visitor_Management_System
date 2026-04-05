@@ -13,7 +13,9 @@
         "work_order_ref",
         "safety_induction_done",
         "nda_signed",
+        "nda_document",
         "ppe_provided",
+        "ppe_document",
         "work_area__zone",
         "tools_list",
         "multi_day_pass",
@@ -55,10 +57,22 @@
             "label": "NDA Signed"
         },
         {
+            "depends_on": "eval:doc.nda_signed",
+            "fieldname": "nda_document",
+            "fieldtype": "Attach",
+            "label": "NDA Document"
+        },
+        {
             "default": "0",
             "fieldname": "ppe_provided",
             "fieldtype": "Check",
             "label": "PPE Provided"
+        },
+        {
+            "depends_on": "eval:doc.ppe_provided",
+            "fieldname": "ppe_document",
+            "fieldtype": "Attach",
+            "label": "PPE Proof Document"
         },
         {
             "fieldname": "work_area__zone",

@@ -7,6 +7,7 @@
     "field_order": [
         "visitor_pass",
         "supplier",
+        "supplier_visit_mode",
         "company",
         "mobile_number",
         "email_id",
@@ -18,7 +19,17 @@
         "driver_id_number",
         "dock__bay_assigned",
         "store_officer",
-        "goods_received_by"
+        "goods_received_by",
+        "meeting_subject",
+        "meeting_start_time",
+        "meeting_end_time",
+        "meeting_room",
+        "attendees",
+        "refreshments_required",
+        "refreshment_notes",
+        "presentation_material",
+        "nda_required",
+        "documents_shared"
     ],
     "fields": [
         {
@@ -33,6 +44,15 @@
             "fieldtype": "Link",
             "label": "Supplier",
             "options": "Supplier",
+            "reqd": 1
+        },
+        {
+            "default": "Delivery",
+            "fieldname": "supplier_visit_mode",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Supplier Visit Mode",
+            "options": "Delivery\nMeeting\nAudit\nService",
             "reqd": 1
         },
         {
@@ -57,23 +77,27 @@
             "read_only": 1
         },
         {
+            "depends_on": "eval:doc.supplier_visit_mode == 'Delivery'",
             "fieldname": "purchase_order",
             "fieldtype": "Link",
             "label": "Purchase Order",
             "options": "Purchase Order"
         },
         {
+            "depends_on": "eval:doc.supplier_visit_mode == 'Delivery'",
             "fieldname": "delivery_note",
             "fieldtype": "Link",
             "label": "Delivery Note",
             "options": "Delivery Note"
         },
         {
+            "depends_on": "eval:doc.supplier_visit_mode == 'Delivery'",
             "fieldname": "goods_description",
             "fieldtype": "Small Text",
             "label": "Goods Description"
         },
         {
+            "depends_on": "eval:doc.supplier_visit_mode == 'Delivery'",
             "fieldname": "delivery_vehicle_no",
             "fieldtype": "Data",
             "in_list_view": 1,
@@ -89,17 +113,20 @@
             "reqd": 1
         },
         {
+            "depends_on": "eval:doc.supplier_visit_mode == 'Delivery'",
             "fieldname": "driver_id_number",
             "fieldtype": "Data",
             "label": "Driver ID Number"
         },
         {
+            "depends_on": "eval:doc.supplier_visit_mode == 'Delivery'",
             "fieldname": "dock__bay_assigned",
             "fieldtype": "Data",
             "label": "Dock / Bay Assigned",
             "reqd": 1
         },
         {
+            "depends_on": "eval:doc.supplier_visit_mode == 'Delivery'",
             "fieldname": "store_officer",
             "fieldtype": "Link",
             "label": "Store Officer",
@@ -107,10 +134,73 @@
             "reqd": 1
         },
         {
+            "depends_on": "eval:doc.supplier_visit_mode == 'Delivery'",
             "fieldname": "goods_received_by",
             "fieldtype": "Link",
             "label": "Goods Received By",
             "options": "Employee"
+        },
+        {
+            "depends_on": "eval:doc.supplier_visit_mode != 'Delivery'",
+            "fieldname": "meeting_subject",
+            "fieldtype": "Data",
+            "label": "Meeting Subject"
+        },
+        {
+            "depends_on": "eval:doc.supplier_visit_mode != 'Delivery'",
+            "fieldname": "meeting_start_time",
+            "fieldtype": "Datetime",
+            "label": "Meeting Start Time"
+        },
+        {
+            "depends_on": "eval:doc.supplier_visit_mode != 'Delivery'",
+            "fieldname": "meeting_end_time",
+            "fieldtype": "Datetime",
+            "label": "Meeting End Time"
+        },
+        {
+            "depends_on": "eval:doc.supplier_visit_mode != 'Delivery'",
+            "fieldname": "meeting_room",
+            "fieldtype": "Data",
+            "label": "Meeting Room"
+        },
+        {
+            "depends_on": "eval:doc.supplier_visit_mode != 'Delivery'",
+            "fieldname": "attendees",
+            "fieldtype": "Small Text",
+            "label": "Attendees"
+        },
+        {
+            "default": "0",
+            "depends_on": "eval:doc.supplier_visit_mode != 'Delivery'",
+            "fieldname": "refreshments_required",
+            "fieldtype": "Check",
+            "label": "Refreshments Required"
+        },
+        {
+            "depends_on": "eval:doc.supplier_visit_mode != 'Delivery'",
+            "fieldname": "refreshment_notes",
+            "fieldtype": "Small Text",
+            "label": "Refreshment Notes"
+        },
+        {
+            "depends_on": "eval:doc.supplier_visit_mode != 'Delivery'",
+            "fieldname": "presentation_material",
+            "fieldtype": "Attach",
+            "label": "Presentation Material"
+        },
+        {
+            "default": "0",
+            "depends_on": "eval:doc.supplier_visit_mode != 'Delivery'",
+            "fieldname": "nda_required",
+            "fieldtype": "Check",
+            "label": "NDA Required"
+        },
+        {
+            "depends_on": "eval:doc.supplier_visit_mode != 'Delivery'",
+            "fieldname": "documents_shared",
+            "fieldtype": "Small Text",
+            "label": "Documents Shared"
         }
     ],
     "grid_page_length": 50,

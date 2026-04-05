@@ -3,7 +3,12 @@
 
 import frappe
 from frappe.model.document import Document
-from frappe.utils import now_datetime
+from frappe.utils import now_datetime, time_diff_in_seconds
+
+from visitormanagement.visitor_management.lifecycle import (
+    log_visitor_event,
+    sync_compliance_check,
+)
 
 
 class SecurityLog(Document):
@@ -28,6 +33,10 @@ class SecurityLog(Document):
                 self.visitor_name = vp.visitor_full_name
             if not self.id_proof_number:
                 self.id_proof_number = vp.id_proof_number
+            if not self.visitor_photo:
+                self.visitor_photo = vp.visitor_photo
+            if not self.id_proof_scan:
+                self.id_proof_scan = vp.id_proof_scan
             
             # Auto-calculate last 4 digits if ID number is present
             if self.id_proof_number and not self.id_last_4_digits:
@@ -51,6 +60,9 @@ class SecurityLog(Document):
 
         # 3. Auto-stamp datetime and validate status sequence
         now = now_datetime()
+        if not self.verification_started_on:
+            self.verification_started_on = now
+
         if vp:
             current_status = vp.status
             if self.event_type == 'Check-In':
@@ -61,6 +73,12 @@ class SecurityLog(Document):
                 
                 if not self.check_in_date_time:
                     self.check_in_date_time = now
+
+                if self.verification_started_on and self.check_in_date_time:
+                    self.verification_duration = time_diff_in_seconds(
+                        self.check_in_date_time,
+                        self.verification_started_on,
+                    )
                     
             elif self.event_type == 'Check-Out':
                 if current_status != 'Checked-In':
@@ -78,6 +96,22 @@ class SecurityLog(Document):
             )
             if emp:
                 self.security_officer = emp
+
+        if self.event_type == 'Check-In':
+            if self.manual_override and not self.exception_reason:
+                frappe.throw("Provide an exception reason when manual override is used.")
+
+            if not self.photo_at_gate and not self.manual_override:
+                frappe.throw("Capture a live gate photo before saving the visitor check-in.")
+
+            if not self.id_proof_match and not self.manual_override:
+                frappe.throw("Confirm that the visitor matches the ID proof before saving the visitor check-in.")
+
+            if not self.pass_photo_match and not self.manual_override:
+                frappe.throw("Confirm that the visitor matches the pass creation photo before saving the visitor check-in.")
+
+            if self.manual_override and not self.alert_level:
+                self.alert_level = "Medium"
 
         if (
             self.is_new()
@@ -118,28 +152,58 @@ class SecurityLog(Document):
             return
 
         if self.event_type == 'Check-In':
+            self._sync_gate_verification()
             self._sync_item_verification()
             # Also update the Pass status to Checked-In
             frappe.db.set_value(
                 'Visitor Pass',
                 self.visitor_pass,
-                'status',
-                'Checked-In'
+                {
+                    'status': 'Checked-In',
+                    'actual_checkin': self.check_in_date_time or now_datetime(),
+                    'no_show': 0,
+                },
             )
 
         elif self.event_type == 'Check-Out':
             frappe.db.set_value(
                 'Visitor Pass',
                 self.visitor_pass,
-                'status',
-                'Checked-Out'
+                {
+                    'status': 'Checked-Out',
+                    'actual_checkout': self.check_out_date_time or now_datetime(),
+                },
             )
+
+        self._record_lifecycle_event()
+        sync_compliance_check(self.visitor_pass, self)
 
     # --------------------------------------------------
 
     def on_update(self):
         if self.event_type == 'Check-In' and self.visitor_pass:
+            self._sync_gate_verification()
             self._sync_item_verification()
+
+        if self.visitor_pass:
+            self._record_lifecycle_event()
+            sync_compliance_check(self.visitor_pass, self)
+
+    # --------------------------------------------------
+
+    def _sync_gate_verification(self):
+        if not self.visitor_pass or not self.photo_at_gate:
+            return
+
+        values = {
+            'gate_verified_photo': self.photo_at_gate,
+            'gate_verified_on': self.check_in_date_time or now_datetime(),
+        }
+
+        if self.security_officer:
+            values['gate_verified_by'] = self.security_officer
+
+        frappe.db.set_value('Visitor Pass', self.visitor_pass, values)
 
     # --------------------------------------------------
 
@@ -166,12 +230,20 @@ class SecurityLog(Document):
         # Update Visitor Item rows
         for row in (self.items_verification or []):
             if row.visitor_item_row_name:
+                verification_remarks = row.security_remarks
+                if not verification_remarks:
+                    verification_remarks = (
+                        'Verified at gate'
+                        if row.item_verified
+                        else 'Pending security verification'
+                    )
+
                 frappe.db.set_value(
                     'Visitor Item',
                     row.visitor_item_row_name,
                     {
                         'verified_by_security': row.item_verified,
-                        'verification_remarks': row.security_remarks,
+                        'verification_remarks': verification_remarks,
                     }
                 )
 
@@ -194,3 +266,21 @@ class SecurityLog(Document):
                 alert=True,
                 indicator='green'
             )
+
+    def _record_lifecycle_event(self):
+        if not self.visitor_pass:
+            return
+
+        log_visitor_event(
+            self.visitor_pass,
+            self.event_type,
+            event_status=self.alert_level or "Recorded",
+            source_doctype=self.doctype,
+            source_name=self.name,
+            details={
+                "gate_name": self.gate_name,
+                "security_officer": self.security_officer,
+                "manual_override": self.manual_override,
+                "exception_reason": self.exception_reason,
+            },
+        )

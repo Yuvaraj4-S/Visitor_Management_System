@@ -11,6 +11,15 @@
   },
   {
    "card": "Security Alerts"
+  },
+  {
+   "card": "Today's Visitors"
+  },
+  {
+   "card": "No-Show Passes"
+  },
+  {
+   "card": "Compliance Misses"
   }
  ],
  "charts": [
@@ -24,6 +33,10 @@
   },
   {
    "chart": "Security Events by Gate",
+   "width": "Half"
+  },
+  {
+   "chart": "Compliance Status Breakdown",
    "width": "Half"
   }
  ],

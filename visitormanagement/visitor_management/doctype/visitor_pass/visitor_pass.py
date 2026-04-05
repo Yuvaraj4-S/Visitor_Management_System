@@ -7,6 +7,13 @@ from frappe.model.document import Document
 from frappe.utils import now_datetime, today, get_url
 from io import BytesIO
 
+from visitormanagement.visitor_management.lifecycle import (
+	ensure_hospitality_request,
+	log_visitor_event,
+	normalize_visitor_pass,
+	sync_compliance_check,
+)
+
 class VisitorPass(Document):
 
     @property
@@ -21,11 +28,25 @@ class VisitorPass(Document):
     def visitor_name(self):
         return self.visitor_full_name
 
+    def after_insert(self):
+        log_visitor_event(
+            self.name,
+            "Pass Created",
+            event_status=self.status or "Draft",
+            source_doctype=self.doctype,
+            source_name=self.name,
+            details={
+                "visitor_type": self.visitor_type,
+                "request_channel": self.request_channel,
+            },
+        )
 
     # ─────────────────────────────────────────────────────────
     # BEFORE SAVE
     # ─────────────────────────────────────────────────────────
     def before_save(self):
+        normalize_visitor_pass(self)
+
         # Auto-fetch host department from Employee record
         if self.person_to_visit and not self.host_department:
             self.host_department = frappe.db.get_value(
@@ -120,6 +141,24 @@ class VisitorPass(Document):
         if getattr(self, "meal_required", 0):
             self._notify_food_dept()
 
+        ensure_hospitality_request(self)
+        log_visitor_event(
+            self.name,
+            "Approved",
+            event_status="Approved",
+            source_doctype=self.doctype,
+            source_name=self.name,
+            details={
+                "approved_by": frappe.session.user,
+                "visitor_type": self.visitor_type,
+            },
+        )
+        sync_compliance_check(self.name)
+
+    def on_update_after_submit(self):
+        ensure_hospitality_request(self)
+        sync_compliance_check(self.name)
+
     # ─────────────────────────────────────────────────────────
     # GENERATE BADGE NUMBER (Called by Security Log)
     # ─────────────────────────────────────────────────────────
@@ -151,6 +190,14 @@ class VisitorPass(Document):
             f"Badge Number Generated: {badge_no}",
             alert=True,
             indicator="green",
+        )
+        log_visitor_event(
+            self.name,
+            "Badge Issued",
+            event_status="Ready for Gate",
+            source_doctype=self.doctype,
+            source_name=self.name,
+            details={"badge_number": badge_no},
         )
 
     # ─────────────────────────────────────────────────────────

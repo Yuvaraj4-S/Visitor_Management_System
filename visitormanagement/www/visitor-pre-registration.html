@@ -1,0 +1,291 @@
+{% extends "templates/web.html" %}
+
+{% block page_content %}
+<section class="visitor-pre-reg-shell">
+	<div class="visitor-pre-reg-card">
+		<div class="visitor-pre-reg-header">
+			<p class="eyebrow">Visitor Management</p>
+			<h1>Pre-Register Your Visit</h1>
+			<p>Submit visit details, ID proof, and a live photo ahead of arrival so approval and gate processing are faster.</p>
+		</div>
+
+		<form id="visitor-pre-registration-form" class="visitor-pre-reg-form">
+			<div class="field-grid">
+				<label><span>Visitor Name</span><input type="text" name="visitor_name" required></label>
+				<label><span>Visitor Type</span>
+					<select name="visitor_type" required>
+						<option value="">Select</option>
+						<option>Customer</option>
+						<option>Supplier</option>
+						<option>Candidate</option>
+						<option>Contractor</option>
+						<option>VIP</option>
+					</select>
+				</label>
+				<label><span>Mobile Number</span><input type="tel" name="mobile_number" required></label>
+				<label><span>Email ID</span><input type="email" name="email_id" required></label>
+				<label><span>Company / Organisation</span><input type="text" name="company__organisation"></label>
+				<label><span>Visit Date</span><input type="date" name="visit_date" required></label>
+				<label><span>Expected Check-In</span><input type="time" name="expected_checkin" required></label>
+				<label><span>Expected Check-Out</span><input type="time" name="expected_checkout" required></label>
+				<label><span>Host</span>
+					<select name="person_to_visit" required>
+						<option value="">Select Host</option>
+						{% for host in host_options %}
+						<option value="{{ host.name }}">{{ host.employee_name }} ({{ host.name }})</option>
+						{% endfor %}
+					</select>
+				</label>
+				<label class="field-span-2"><span>Purpose of Visit</span><textarea name="purpose_of_visit" rows="3" required></textarea></label>
+			</div>
+
+			<div class="field-grid supplier-only" hidden>
+				<label><span>Supplier Visit Mode</span>
+					<select name="supplier_visit_mode">
+						<option value="">Select</option>
+						<option>Delivery</option>
+						<option>Meeting</option>
+						<option>Audit</option>
+						<option>Service</option>
+					</select>
+				</label>
+				<label class="meeting-only" hidden><span>Meeting Subject</span><input type="text" name="meeting_subject"></label>
+				<label class="delivery-only" hidden><span>Purchase Order</span><input type="text" name="purchase_order"></label>
+				<label class="delivery-only" hidden><span>Delivery Note</span><input type="text" name="delivery_note"></label>
+				<label class="delivery-only field-span-2" hidden><span>Goods Description</span><textarea name="goods_description" rows="2"></textarea></label>
+			</div>
+
+			<div class="field-grid">
+				<label><span>ID Proof Type</span>
+					<select name="id_proof_type" required>
+						<option value="">Select</option>
+						<option>Aadhaar</option>
+						<option>PAN Card</option>
+						<option>Passport</option>
+						<option>Driving License</option>
+					</select>
+				</label>
+				<label><span>ID Proof Number</span><input type="text" name="id_proof_number" required></label>
+				<label><span>ID Proof Scan</span><input type="file" name="id_proof_scan" accept="image/*"></label>
+				<label><span>Visitor Photo</span><input type="file" name="visitor_photo" accept="image/*"></label>
+			</div>
+
+			<div class="field-grid hospitality-grid">
+				<label class="check-row"><input type="checkbox" name="meal_required"><span>Meal Required</span></label>
+				<label><span>Meal Type</span>
+					<select name="meal_type">
+						<option value="">Select</option>
+						<option>Breakfast</option>
+						<option>Lunch</option>
+						<option>Dinner</option>
+						<option>Snacks</option>
+						<option>All Day</option>
+					</select>
+				</label>
+				<label class="check-row"><input type="checkbox" name="refreshments_required"><span>Refreshments Required</span></label>
+				<label><span>Conference Room</span><input type="text" name="conference_room"></label>
+			</div>
+
+			<div class="actions">
+				<button type="submit" class="primary-btn">Submit Pre-Registration</button>
+				<p id="visitor-pre-registration-message" class="status-text"></p>
+			</div>
+		</form>
+	</div>
+</section>
+
+<style>
+	.visitor-pre-reg-shell {
+		padding: 48px 16px 72px;
+		background:
+			radial-gradient(circle at top left, rgba(255, 199, 95, 0.22), transparent 26%),
+			linear-gradient(135deg, #f5efe3 0%, #ecf3f8 100%);
+		min-height: 100vh;
+	}
+
+	.visitor-pre-reg-card {
+		max-width: 1080px;
+		margin: 0 auto;
+		background: rgba(255, 255, 255, 0.92);
+		border: 1px solid rgba(16, 42, 67, 0.08);
+		border-radius: 28px;
+		padding: 32px;
+		box-shadow: 0 24px 80px rgba(16, 42, 67, 0.12);
+	}
+
+	.visitor-pre-reg-header h1 {
+		margin: 0;
+		font-family: Georgia, "Times New Roman", serif;
+		font-size: clamp(2rem, 4vw, 3.4rem);
+		color: #102a43;
+	}
+
+	.visitor-pre-reg-header p {
+		max-width: 720px;
+		color: #486581;
+	}
+
+	.eyebrow {
+		text-transform: uppercase;
+		letter-spacing: 0.18em;
+		font-size: 0.72rem;
+		color: #9c6b00;
+		margin-bottom: 8px;
+	}
+
+	.visitor-pre-reg-form {
+		margin-top: 28px;
+		display: grid;
+		gap: 22px;
+	}
+
+	.field-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 16px;
+	}
+
+	.field-grid label {
+		display: grid;
+		gap: 8px;
+		font-weight: 600;
+		color: #243b53;
+	}
+
+	.field-grid input,
+	.field-grid select,
+	.field-grid textarea {
+		width: 100%;
+		border: 1px solid #d9e2ec;
+		border-radius: 14px;
+		padding: 12px 14px;
+		background: #fff;
+		font-weight: 500;
+	}
+
+	.field-span-2 {
+		grid-column: span 2;
+	}
+
+	.check-row {
+		display: flex !important;
+		align-items: center;
+		gap: 10px;
+		padding: 12px 14px;
+		border: 1px solid #d9e2ec;
+		border-radius: 14px;
+		background: #f8fbfd;
+	}
+
+	.check-row input {
+		width: auto;
+	}
+
+	.actions {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 14px;
+	}
+
+	.primary-btn {
+		border: 0;
+		border-radius: 999px;
+		padding: 14px 22px;
+		background: linear-gradient(135deg, #9c6b00 0%, #d08b00 100%);
+		color: #fff;
+		font-weight: 700;
+	}
+
+	.status-text {
+		margin: 0;
+		font-weight: 600;
+		color: #486581;
+	}
+
+	@media (max-width: 768px) {
+		.visitor-pre-reg-card {
+			padding: 22px;
+		}
+
+		.field-grid {
+			grid-template-columns: 1fr;
+		}
+
+		.field-span-2 {
+			grid-column: span 1;
+		}
+	}
+</style>
+
+<script>
+	async function toBase64(file) {
+		if (!file) return null;
+		return new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = () => resolve(reader.result);
+			reader.onerror = reject;
+			reader.readAsDataURL(file);
+		});
+	}
+
+	(() => {
+		const form = document.getElementById("visitor-pre-registration-form");
+		const message = document.getElementById("visitor-pre-registration-message");
+		const visitorType = form.querySelector('[name="visitor_type"]');
+		const supplierMode = form.querySelector('[name="supplier_visit_mode"]');
+		const supplierBlock = form.querySelector(".supplier-only");
+		const meetingFields = form.querySelectorAll(".meeting-only");
+		const deliveryFields = form.querySelectorAll(".delivery-only");
+
+		function toggleSupplierFields() {
+			const isSupplier = visitorType.value === "Supplier";
+			supplierBlock.hidden = !isSupplier;
+			if (!isSupplier) return;
+
+			const isDelivery = supplierMode.value === "Delivery";
+			meetingFields.forEach((field) => field.hidden = isDelivery);
+			deliveryFields.forEach((field) => field.hidden = !isDelivery);
+		}
+
+		visitorType.addEventListener("change", toggleSupplierFields);
+		supplierMode.addEventListener("change", toggleSupplierFields);
+		toggleSupplierFields();
+
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault();
+			message.textContent = "Submitting...";
+
+			const formData = new FormData(form);
+			const payload = Object.fromEntries(formData.entries());
+			payload.meal_required = formData.get("meal_required") ? 1 : 0;
+			payload.refreshments_required = formData.get("refreshments_required") ? 1 : 0;
+
+			const idProofFile = form.querySelector('[name="id_proof_scan"]').files[0];
+			const visitorPhotoFile = form.querySelector('[name="visitor_photo"]').files[0];
+			payload.id_proof_scan = await toBase64(idProofFile);
+			payload.id_proof_scan_filename = idProofFile ? idProofFile.name : null;
+			payload.visitor_photo = await toBase64(visitorPhotoFile);
+			payload.visitor_photo_filename = visitorPhotoFile ? visitorPhotoFile.name : null;
+
+			frappe.call({
+				method: "visitormanagement.visitor_management.portal.submit_pre_registration",
+				args: {
+					payload: JSON.stringify(payload),
+				},
+				callback: (response) => {
+					const requestId = response.message && response.message.name;
+					message.textContent = requestId
+						? `Request submitted successfully. Reference: ${requestId}`
+						: "Request submitted successfully.";
+					form.reset();
+					toggleSupplierFields();
+				},
+				error: (error) => {
+					message.textContent = error?.message || "Could not submit the pre-registration request.";
+				},
+			});
+		});
+	})();
+</script>
+{% endblock %}

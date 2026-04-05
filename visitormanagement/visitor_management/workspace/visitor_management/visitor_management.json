@@ -48,6 +48,17 @@
    "dependencies": "",
    "hidden": 0,
    "is_query_report": 0,
+   "label": "Pre-Registration Request",
+   "link_count": 0,
+   "link_to": "Pre-Registration Request",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "VIP Visit",
    "link_count": 0,
    "link_to": "VIP Visit",
@@ -111,6 +122,17 @@
    "type": "Link"
   },
   {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hospitality Request",
+   "link_count": 0,
+   "link_to": "Hospitality Request",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
    "hidden": 0,
    "is_query_report": 0,
    "label": "Security",
@@ -136,6 +158,28 @@
    "label": "Visitor Blacklist",
    "link_count": 0,
    "link_to": "Visitor Blacklist",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Compliance Check",
+   "link_count": 0,
+   "link_to": "Compliance Check",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Visitor Event Log",
+   "link_count": 0,
+   "link_to": "Visitor Event Log",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -177,6 +221,17 @@
    "label": "Gate Wise Count",
    "link_count": 0,
    "link_to": "Gate Wise Count",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Compliance Overview",
+   "link_count": 0,
+   "link_to": "Compliance Overview",
    "link_type": "Report",
    "onboard": 0,
    "type": "Link"

@@ -1,0 +1,115 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-04-05 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "visitor_pass",
+  "meal_required",
+  "meal_type",
+  "snacks_required",
+  "tea_coffee_required",
+  "conference_room",
+  "seating_capacity",
+  "service_time",
+  "assigned_staff",
+  "status",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "visitor_pass",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Visitor Pass",
+   "options": "Visitor Pass",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "meal_required",
+   "fieldtype": "Check",
+   "label": "Meal Required"
+  },
+  {
+   "fieldname": "meal_type",
+   "fieldtype": "Select",
+   "label": "Meal Type",
+   "options": "Breakfast\nLunch\nDinner\nSnacks\nAll Day"
+  },
+  {
+   "default": "0",
+   "fieldname": "snacks_required",
+   "fieldtype": "Check",
+   "label": "Snacks Required"
+  },
+  {
+   "default": "0",
+   "fieldname": "tea_coffee_required",
+   "fieldtype": "Check",
+   "label": "Tea / Coffee Required"
+  },
+  {
+   "fieldname": "conference_room",
+   "fieldtype": "Data",
+   "label": "Conference Room"
+  },
+  {
+   "fieldname": "seating_capacity",
+   "fieldtype": "Int",
+   "label": "Seating Capacity"
+  },
+  {
+   "fieldname": "service_time",
+   "fieldtype": "Datetime",
+   "label": "Service Time"
+  },
+  {
+   "fieldname": "assigned_staff",
+   "fieldtype": "Link",
+   "label": "Assigned Staff",
+   "options": "Employee"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending\nConfirmed\nServed\nCompleted\nCancelled"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text Editor",
+   "label": "Notes"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-04-05 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Hospitality Request",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

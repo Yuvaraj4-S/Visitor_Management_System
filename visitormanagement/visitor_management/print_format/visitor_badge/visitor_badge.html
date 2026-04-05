@@ -1,14 +1,18 @@
 <div class="badge-container">
+    {% set badge_photo = doc.gate_verified_photo or doc.visitor_photo %}
     <div class="badge-header">
         <div class="photo-container">
-            {% if doc.visitor_photo %}
-            <img src="{{ doc.visitor_photo }}" class="visitor-photo">
+            {% if badge_photo %}
+            <img src="{{ badge_photo }}" class="visitor-photo">
             {% else %}
             <div class="photo-placeholder"></div>
             {% endif %}
         </div>
         <div class="header-right">
             <div class="visitor-label">VISITOR</div>
+            {% if doc.gate_verified_photo %}
+            <div class="verification-chip">Gate Verified Photo</div>
+            {% endif %}
             <div class="company-logo">
                 <img src="/assets/visitormanagement/images/logo.png" onerror="this.style.display='none'">
                 <span class="company-name">Visitor Management</span>
@@ -114,6 +118,19 @@
         align-items: center;
         justify-content: flex-end;
         margin-bottom: 5px;
+    }
+
+    .verification-chip {
+        display: inline-block;
+        margin-bottom: 6px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: #d9f3e4;
+        color: #0d6b3e;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
 
     .company-name {

@@ -1,0 +1,229 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "PRR-.YYYY.-.#####",
+ "creation": "2026-04-05 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "visitor_name",
+  "visitor_type",
+  "status",
+  "request_channel",
+  "mobile_number",
+  "email_id",
+  "company__organisation",
+  "visit_date",
+  "expected_checkin",
+  "expected_checkout",
+  "person_to_visit",
+  "purpose_of_visit",
+  "supplier_visit_mode",
+  "meeting_subject",
+  "purchase_order",
+  "delivery_note",
+  "goods_description",
+  "meal_required",
+  "meal_type",
+  "refreshments_required",
+  "conference_room",
+  "id_proof_type",
+  "id_proof_number",
+  "id_proof_scan",
+  "visitor_photo",
+  "visitor_pass"
+ ],
+ "fields": [
+  {
+   "fieldname": "visitor_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Visitor Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "visitor_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Visitor Type",
+   "options": "Contractor\nCandidate\nCustomer\nSupplier\nVIP",
+   "reqd": 1
+  },
+  {
+   "default": "Pending Approval",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending Approval\nApproved\nRejected\nConverted"
+  },
+  {
+   "default": "Portal",
+   "fieldname": "request_channel",
+   "fieldtype": "Select",
+   "label": "Request Channel",
+   "options": "Portal\nDesk\nKiosk\nPhone"
+  },
+  {
+   "fieldname": "mobile_number",
+   "fieldtype": "Phone",
+   "label": "Mobile Number",
+   "reqd": 1
+  },
+  {
+   "fieldname": "email_id",
+   "fieldtype": "Data",
+   "label": "Email ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "company__organisation",
+   "fieldtype": "Data",
+   "label": "Company / Organisation"
+  },
+  {
+   "fieldname": "visit_date",
+   "fieldtype": "Date",
+   "label": "Visit Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "expected_checkin",
+   "fieldtype": "Time",
+   "label": "Expected Check-In",
+   "reqd": 1
+  },
+  {
+   "fieldname": "expected_checkout",
+   "fieldtype": "Time",
+   "label": "Expected Check-Out",
+   "reqd": 1
+  },
+  {
+   "fieldname": "person_to_visit",
+   "fieldtype": "Link",
+   "label": "Person to Visit",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fieldname": "purpose_of_visit",
+   "fieldtype": "Small Text",
+   "label": "Purpose of Visit",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.visitor_type == 'Supplier'",
+   "fieldname": "supplier_visit_mode",
+   "fieldtype": "Select",
+   "label": "Supplier Visit Mode",
+   "options": "Delivery\nMeeting\nAudit\nService"
+  },
+  {
+   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode != 'Delivery'",
+   "fieldname": "meeting_subject",
+   "fieldtype": "Data",
+   "label": "Meeting Subject"
+  },
+  {
+   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode == 'Delivery'",
+   "fieldname": "purchase_order",
+   "fieldtype": "Link",
+   "label": "Purchase Order",
+   "options": "Purchase Order"
+  },
+  {
+   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode == 'Delivery'",
+   "fieldname": "delivery_note",
+   "fieldtype": "Link",
+   "label": "Delivery Note",
+   "options": "Delivery Note"
+  },
+  {
+   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode == 'Delivery'",
+   "fieldname": "goods_description",
+   "fieldtype": "Small Text",
+   "label": "Goods Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "meal_required",
+   "fieldtype": "Check",
+   "label": "Meal Required"
+  },
+  {
+   "fieldname": "meal_type",
+   "fieldtype": "Select",
+   "label": "Meal Type",
+   "options": "Breakfast\nLunch\nDinner\nSnacks\nAll Day"
+  },
+  {
+   "default": "0",
+   "fieldname": "refreshments_required",
+   "fieldtype": "Check",
+   "label": "Refreshments Required"
+  },
+  {
+   "fieldname": "conference_room",
+   "fieldtype": "Data",
+   "label": "Conference Room"
+  },
+  {
+   "fieldname": "id_proof_type",
+   "fieldtype": "Select",
+   "label": "ID Proof Type",
+   "options": "Aadhaar\nPAN Card\nPassport\nDriving License",
+   "reqd": 1
+  },
+  {
+   "fieldname": "id_proof_number",
+   "fieldtype": "Data",
+   "label": "ID Proof Number",
+   "reqd": 1
+  },
+  {
+   "fieldname": "id_proof_scan",
+   "fieldtype": "Attach Image",
+   "label": "ID Proof Scan"
+  },
+  {
+   "fieldname": "visitor_photo",
+   "fieldtype": "Attach Image",
+   "label": "Visitor Photo"
+  },
+  {
+   "fieldname": "visitor_pass",
+   "fieldtype": "Link",
+   "label": "Visitor Pass",
+   "options": "Visitor Pass",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-04-05 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Pre-Registration Request",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

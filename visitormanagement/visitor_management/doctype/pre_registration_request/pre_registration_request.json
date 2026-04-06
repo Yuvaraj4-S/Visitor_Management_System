@@ -55,7 +55,8 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Pending Approval\nApproved\nRejected\nConverted"
+   "options": "Pending Approval\nApproved\nRejected\nConverted",
+   "read_only": 1
   },
   {
    "default": "Portal",
@@ -207,7 +208,17 @@
  "module": "Visitor Management",
  "name": "Pre-Registration Request",
  "owner": "Administrator",
- "permissions": [
+  "permissions": [
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Visitor Manager",
+   "share": 1,
+   "write": 1
+  },
   {
    "create": 1,
    "delete": 1,

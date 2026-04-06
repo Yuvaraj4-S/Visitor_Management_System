@@ -22,6 +22,20 @@ COMPLIANCE_OK_STATUSES = {"Completed", "Served", "Closed", "Cancelled"}
 HEALTH_SCREENING_OK_STATUSES = {"Cleared"}
 HEALTH_REVIEW_TEMPERATURE = 37.5
 HEALTH_DENY_TEMPERATURE = 38.0
+VISITOR_PASS_FOOD_STATUS_FROM_REQUEST = {
+	"Pending": "Pending",
+	"Confirmed": "Ordered",
+	"Served": "Served",
+	"Completed": "Completed",
+	"Cancelled": "Cancelled",
+}
+HOSPITALITY_REQUEST_STATUS_FROM_PASS = {
+	"Pending": "Pending",
+	"Ordered": "Confirmed",
+	"Served": "Served",
+	"Completed": "Completed",
+	"Cancelled": "Cancelled",
+}
 
 
 def normalize_visitor_pass(doc):
@@ -100,7 +114,9 @@ def ensure_hospitality_request(visitor_pass):
 	doc.seating_capacity = getattr(visitor_pass, "number_of_people", None)
 	doc.service_time = getattr(visitor_pass, "service_time", None)
 	doc.assigned_staff = getattr(visitor_pass, "food_dept_staff_assigned", None)
-	doc.status = getattr(visitor_pass, "food_status", None) or "Pending"
+	doc.status = HOSPITALITY_REQUEST_STATUS_FROM_PASS.get(
+		getattr(visitor_pass, "food_status", None), "Pending"
+	)
 	doc.notes = "\n".join(
 		filter(
 			None,
@@ -131,7 +147,7 @@ def sync_hospitality_to_pass(request_doc):
 		request_doc.visitor_pass,
 		{
 			"hospitality_request": request_doc.name,
-			"food_status": request_doc.status,
+			"food_status": VISITOR_PASS_FOOD_STATUS_FROM_REQUEST.get(request_doc.status, "Pending"),
 			"food_dept_staff_assigned": request_doc.assigned_staff,
 			"conference_room": request_doc.conference_room,
 			"service_time": request_doc.service_time,

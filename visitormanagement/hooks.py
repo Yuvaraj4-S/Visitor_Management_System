@@ -251,7 +251,13 @@ fixtures = [
     {
         "doctype": "Workflow",
         "filters": [
-            ["name", "in", ["VIP FLOW", "CANDIDATE FLOW", "CUSTOMER FLOW", "VMS Contractor Approval"]]
+            ["name", "in", ["VIP FLOW", "CANDIDATE FLOW", "CUSTOMER FLOW", "VMS Contractor Approval", "Pre-Registration Request Approval"]]
+        ]
+    },
+    {
+        "doctype": "Role",
+        "filters": [
+            ["name", "in", ["Hospitality User"]]
         ]
     },
     "Workflow State",

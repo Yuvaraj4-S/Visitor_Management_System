@@ -953,7 +953,7 @@
    "fieldname": "food_status",
    "fieldtype": "Select",
    "label": "Food Status",
-   "options": "Pending\nOrdered\nServed\nCompleted"
+   "options": "Pending\nOrdered\nServed\nCompleted\nCancelled"
   },
   {
    "allow_on_submit": 1,

@@ -1,0 +1,4 @@
+// Copyright (c) 2026, Harthesh and contributors
+// For license information, please see license.txt
+
+frappe.ui.form.on("Evacuation Muster", {});

@@ -1,24 +1,28 @@
 // Copyright (c) 2026, Harthesh and contributors
 // For license information, please see license.txt
 
-const VISIT_DOCTYPE_BY_TYPE = {
-	Contractor: "Contractor Visit",
-	VIP: "VIP Visit",
-	Supplier: "Supplier Visit",
-	Candidate: "Candidate Visit",
-	Customer: "Customer Visit",
-};
-
 frappe.ui.form.on("Visitor Pass", {
 	refresh(frm) {
+		ensure_customer_crm_defaults(frm);
 		setup_supplier_pass_query(frm);
 		apply_visitor_pass_ui(frm);
-		add_visit_detail_button(frm);
+		add_action_buttons(frm);
 	},
 
 	visitor_type(frm) {
+		ensure_customer_crm_defaults(frm);
 		setup_supplier_pass_query(frm);
 		apply_visitor_pass_ui(frm);
+	},
+
+	crm_reference_type(frm) {
+		if (frm.doc.crm_lead_opportunity) {
+			frm.set_value("crm_lead_opportunity", "");
+		}
+	},
+
+	crm_lead_opportunity(frm) {
+		fetch_customer_crm_details(frm);
 	},
 
 	supplier_visit_mode(frm) {
@@ -89,6 +93,60 @@ function apply_visitor_pass_ui(frm) {
 	set_visitor_pass_headline(frm);
 }
 
+function ensure_customer_crm_defaults(frm) {
+	if (frm.doc.visitor_type === "Customer" && !frm.doc.crm_reference_type) {
+		frm.set_value("crm_reference_type", "Lead");
+		return;
+	}
+
+	if (frm.doc.visitor_type !== "Customer" && (frm.doc.crm_reference_type || frm.doc.crm_lead_opportunity)) {
+		frm.set_value({
+			crm_reference_type: "",
+			crm_lead_opportunity: "",
+		});
+	}
+}
+
+function fetch_customer_crm_details(frm) {
+	if (frm.doc.visitor_type !== "Customer" || !frm.doc.crm_reference_type || !frm.doc.crm_lead_opportunity) {
+		return;
+	}
+
+	frappe.call({
+		method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.get_customer_visit_details",
+		args: {
+			reference_type: frm.doc.crm_reference_type,
+			reference_name: frm.doc.crm_lead_opportunity,
+		},
+		callback: ({ message }) => {
+			if (!message) {
+				return;
+			}
+
+			frm.set_value({
+				visitor_full_name: message.visitor_full_name || "",
+				mobile_number: message.mobile_number || "",
+				email_id: message.email_id || "",
+				company__organisation: message.company__organisation || "",
+				sales_executive: message.sales_executive || "",
+			});
+
+			if (message.owner_user && !message.sales_executive) {
+				frappe.show_alert(
+					{
+						message: __(
+							"CRM owner {0} has no linked Employee, so Sales Executive was not auto-filled.",
+							[message.owner_user]
+						),
+						indicator: "orange",
+					},
+					7
+				);
+			}
+		},
+	});
+}
+
 function apply_visitor_pass_field_rules(frm) {
 	const is_supplier_existing = frm.doc.visitor_type === "Supplier" && frm.doc.entry_type === "Existing";
 	const is_supplier_delivery =
@@ -123,6 +181,9 @@ function apply_visitor_pass_field_rules(frm) {
 		"actual_checkin",
 		"actual_checkout",
 		"no_show",
+		"current_location",
+		"last_health_screening",
+		"health_screening_status",
 		"hospitality_request",
 	].forEach((fieldname) => frm.set_df_property(fieldname, "read_only", 1));
 
@@ -267,15 +328,8 @@ function set_visitor_pass_headline(frm) {
 	frm.dashboard.set_headline(headline, get_pass_stage_color(stage));
 }
 
-function add_visit_detail_button(frm) {
-	const linked_doctype = VISIT_DOCTYPE_BY_TYPE[frm.doc.visitor_type];
-	if (frm.is_new() || !linked_doctype) return;
-
-	frm.add_custom_button(
-		__("Manage {0} Details", [frm.doc.visitor_type]),
-		() => open_related_visit_form(frm, linked_doctype),
-		__("Actions")
-	);
+function add_action_buttons(frm) {
+	if (frm.is_new()) return;
 
 	if (frm.doc.hospitality_request) {
 		frm.add_custom_button(
@@ -318,75 +372,4 @@ function get_pass_stage_color(stage) {
 	if (["Rejected", "Cancelled"].includes(stage)) return "red";
 	if (["Items Verified", "Checked-Out"].includes(stage)) return "blue";
 	return "gray";
-}
-
-function open_related_visit_form(frm, doctype) {
-	frappe.db.get_value(doctype, { visitor_pass: frm.doc.name }, "name", (r) => {
-		if (r && r.name) {
-			frappe.set_route("Form", doctype, r.name);
-			return;
-		}
-
-		frappe.model.with_doctype(doctype, () => {
-			const new_doc = frappe.model.get_new_doc(doctype);
-			new_doc.visitor_pass = frm.doc.name;
-
-			const field_map = {
-				"Contractor Visit": {
-					contractor_company: frm.doc.company__organisation,
-					work_order_ref: frm.doc.work_order_ref,
-					safety_induction_done: frm.doc.safety_induction_done,
-					nda_signed: frm.doc.contractor_nda_signed,
-					nda_document: frm.doc.contractor_nda_document,
-					ppe_provided: frm.doc.ppe_provided,
-					ppe_document: frm.doc.ppe_provided_document,
-					work_area__zone: frm.doc.work_area_zone,
-					tools_list: frm.doc.tools_list,
-					multi_day_pass: frm.doc.multi_day_pass,
-					pass_valid_until: frm.doc.pass_valid_until,
-				},
-				"VIP Visit": {
-					personal_escort: frm.doc.person_to_visit,
-					vip_category: frm.doc.vip_category,
-					priority_lane: frm.doc.priority_lane,
-					protocol_notes: frm.doc.protocol_notes,
-					mdceo_notified: frm.doc.mdceo_notified,
-					welcome_gift: frm.doc.welcome_gift,
-					dedicated_meeting_room: frm.doc.dedicated_meeting_room,
-					interpreter_required: frm.doc.interpreter_required,
-					interpreter_language: frm.doc.interpreter_language,
-					security_detail: frm.doc.security_detail,
-				},
-				"Supplier Visit": {
-					supplier: frm.doc.supplier_link,
-					purchase_order: frm.doc.purchase_order,
-					delivery_note: frm.doc.delivery_note,
-					goods_description: frm.doc.goods_description,
-					driver_id_number: frm.doc.driver_id_number,
-					dock__bay_assigned: frm.doc.dock_bay_assigned,
-					store_officer: frm.doc.store_officer,
-					goods_received_by: frm.doc.goods_received_by,
-				},
-				"Candidate Visit": {
-					job_applicant_link: frm.doc.job_applicant_link,
-					position_applied: frm.doc.position_applied,
-					interview_type: frm.doc.candidate_interview_type,
-					interview_panel: frm.doc.interview_panel,
-					interview_room: frm.doc.interview_room,
-				},
-				"Customer Visit": {
-					crm_lead__opportunity: frm.doc.crm_lead_opportunity,
-					visit_category: frm.doc.visit_category,
-					sales_executive: frm.doc.sales_executive,
-					products_discussed: frm.doc.products_discussed,
-					meeting_outcome: frm.doc.meeting_outcome,
-					followup_date: frm.doc.followup_date,
-					meeting_minutes: frm.doc.meeting_minutes,
-				},
-			};
-
-			Object.assign(new_doc, field_map[doctype] || {});
-			frappe.set_route("Form", doctype, new_doc.name);
-		});
-	});
 }

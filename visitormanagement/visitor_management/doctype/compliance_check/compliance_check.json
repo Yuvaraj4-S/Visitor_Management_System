@@ -20,6 +20,8 @@
   "alert_level",
   "no_show",
   "verification_duration",
+  "health_screening_status",
+  "current_location",
   "exception_reason",
   "missing_requirements",
   "last_security_log",
@@ -114,6 +116,17 @@
    "fieldname": "verification_duration",
    "fieldtype": "Duration",
    "label": "Verification Duration"
+  },
+  {
+   "fieldname": "health_screening_status",
+   "fieldtype": "Select",
+   "label": "Health Screening Status",
+   "options": "Pending\nCleared\nNeeds Review\nDenied Entry"
+  },
+  {
+   "fieldname": "current_location",
+   "fieldtype": "Data",
+   "label": "Current Location"
   },
   {
    "fieldname": "exception_reason",

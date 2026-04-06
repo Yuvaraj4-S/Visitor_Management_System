@@ -33,6 +33,31 @@ def _attach_file(doctype, docname, fieldname, filename, content):
 	return file_doc.file_url
 
 
+def _normalize_mobile_number(number, country_code=None):
+	number = (number or "").strip()
+	country_code = (country_code or "").strip()
+	if not number:
+		return number
+
+	if number.startswith("+"):
+		return number
+
+	digits = "".join(char for char in number if char.isdigit())
+	if not digits:
+		return number
+
+	if country_code:
+		country_code_digits = "".join(char for char in country_code if char.isdigit())
+		if country_code_digits:
+			return f"+{country_code_digits}{digits}"
+
+	# The public portal currently targets an India-first visitor workflow.
+	if len(digits) == 10:
+		return f"+91{digits}"
+
+	return number
+
+
 @frappe.whitelist(allow_guest=True)
 def submit_pre_registration(payload=None):
 	data = payload or frappe.form_dict
@@ -57,11 +82,19 @@ def submit_pre_registration(payload=None):
 		if not data.get(fieldname):
 			frappe.throw(f"{frappe.unscrub(fieldname).title()} is required.")
 
+	if not data.get("id_proof_scan"):
+		frappe.throw("ID Proof Scan is required.")
+
+	if not data.get("visitor_photo"):
+		frappe.throw("Visitor Photo is required.")
+
 	doc = frappe.get_doc(
 		{
 			"doctype": "Pre-Registration Request",
 			"visitor_name": data.get("visitor_name"),
-			"mobile_number": data.get("mobile_number"),
+			"mobile_number": _normalize_mobile_number(
+				data.get("mobile_number"), data.get("mobile_country_code")
+			),
 			"email_id": data.get("email_id"),
 			"company__organisation": data.get("company__organisation"),
 			"visit_date": data.get("visit_date"),

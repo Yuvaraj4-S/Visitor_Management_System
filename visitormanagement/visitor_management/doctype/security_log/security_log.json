@@ -33,6 +33,9 @@
     "identity_comparison_html",
     "section_break_gate_capture",
     "temperature",
+    "symptoms_flag",
+    "symptoms_details",
+    "visited_area",
     "remarks",
     "photo_at_gate",
     "capture_photo",
@@ -42,6 +45,8 @@
     "alert_level",
     "manual_override",
     "exception_reason",
+    "health_screening_status",
+    "health_screening",
     "verification_notes",
     "all_items_confirmed",
     "item_verification",
@@ -213,6 +218,23 @@
       "label": "Temperature"
     },
     {
+      "default": "0",
+      "fieldname": "symptoms_flag",
+      "fieldtype": "Check",
+      "label": "Symptoms Flag"
+    },
+    {
+      "depends_on": "eval:doc.symptoms_flag",
+      "fieldname": "symptoms_details",
+      "fieldtype": "Small Text",
+      "label": "Symptoms Details"
+    },
+    {
+      "fieldname": "visited_area",
+      "fieldtype": "Data",
+      "label": "Visited Area"
+    },
+    {
       "fieldname": "remarks",
       "fieldtype": "Small Text",
       "label": "Remarks",
@@ -261,6 +283,20 @@
       "fieldname": "exception_reason",
       "fieldtype": "Small Text",
       "label": "Exception Reason"
+    },
+    {
+      "fieldname": "health_screening_status",
+      "fieldtype": "Select",
+      "label": "Health Screening Status",
+      "options": "Pending\nCleared\nNeeds Review\nDenied Entry",
+      "read_only": 1
+    },
+    {
+      "fieldname": "health_screening",
+      "fieldtype": "Link",
+      "label": "Health Screening",
+      "options": "Health Screening",
+      "read_only": 1
     },
     {
       "fieldname": "verification_notes",

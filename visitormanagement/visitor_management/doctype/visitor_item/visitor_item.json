@@ -82,15 +82,14 @@
   {
    "fieldname": "verification_remarks",
    "fieldtype": "Small Text",
-   "label": "Verification Remarks",
-   "reqd": 1
+   "label": "Verification Remarks"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-03-02 15:51:27.825826",
+ "modified": "2026-04-06 11:12:35.509592",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Item",

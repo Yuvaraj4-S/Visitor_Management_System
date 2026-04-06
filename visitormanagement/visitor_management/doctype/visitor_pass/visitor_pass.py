@@ -14,6 +14,112 @@ from visitormanagement.visitor_management.lifecycle import (
 	sync_compliance_check,
 )
 
+
+def _get_employee_for_user(user):
+    if not user:
+        return None
+
+    return frappe.db.get_value("Employee", {"user_id": user, "status": "Active"}, "name") or frappe.db.get_value(
+        "Employee", {"user_id": user}, "name"
+    )
+
+
+def _get_lead_visit_details(reference_name):
+    lead = frappe.db.get_value(
+        "Lead",
+        reference_name,
+        ["lead_name", "mobile_no", "email_id", "company_name", "lead_owner"],
+        as_dict=True,
+    )
+
+    if not lead:
+        frappe.throw(f"Lead {reference_name} was not found.")
+
+    return {
+        "visitor_full_name": lead.lead_name or "",
+        "mobile_number": lead.mobile_no or "",
+        "email_id": lead.email_id or "",
+        "company__organisation": lead.company_name or "",
+        "sales_executive": _get_employee_for_user(lead.lead_owner) or "",
+        "owner_user": lead.lead_owner or "",
+    }
+
+
+def _get_opportunity_visit_details(reference_name):
+    opportunity = frappe.db.get_value(
+        "Opportunity",
+        reference_name,
+        [
+            "customer_name",
+            "contact_person",
+            "contact_email",
+            "contact_mobile",
+            "opportunity_owner",
+            "opportunity_from",
+            "party_name",
+        ],
+        as_dict=True,
+    )
+
+    if not opportunity:
+        frappe.throw(f"Opportunity {reference_name} was not found.")
+
+    visitor_name = opportunity.customer_name or ""
+    company_name = opportunity.customer_name or ""
+    mobile_number = opportunity.contact_mobile or ""
+    email_id = opportunity.contact_email or ""
+
+    if opportunity.contact_person:
+        contact = frappe.db.get_value(
+            "Contact",
+            opportunity.contact_person,
+            ["full_name", "mobile_no", "email_id", "company_name"],
+            as_dict=True,
+        )
+        if contact:
+            visitor_name = contact.full_name or visitor_name
+            company_name = contact.company_name or company_name
+            mobile_number = mobile_number or contact.mobile_no or ""
+            email_id = email_id or contact.email_id or ""
+
+    if opportunity.opportunity_from == "Lead" and opportunity.party_name:
+        lead = frappe.db.get_value("Lead", opportunity.party_name, ["lead_name", "company_name"], as_dict=True)
+        if lead:
+            if not opportunity.contact_person:
+                visitor_name = lead.lead_name or visitor_name or ""
+            company_name = lead.company_name or company_name or ""
+    elif opportunity.opportunity_from == "Customer" and opportunity.party_name:
+        customer_name = frappe.db.get_value("Customer", opportunity.party_name, "customer_name")
+        company_name = company_name or customer_name or ""
+        visitor_name = visitor_name or customer_name or ""
+    elif opportunity.opportunity_from == "Prospect" and opportunity.party_name:
+        company_name = company_name or opportunity.party_name
+        visitor_name = visitor_name or opportunity.party_name
+
+    return {
+        "visitor_full_name": visitor_name,
+        "mobile_number": mobile_number,
+        "email_id": email_id,
+        "company__organisation": company_name,
+        "sales_executive": _get_employee_for_user(opportunity.opportunity_owner) or "",
+        "owner_user": opportunity.opportunity_owner or "",
+    }
+
+
+@frappe.whitelist()
+def get_customer_visit_details(reference_type, reference_name):
+    if reference_type not in {"Lead", "Opportunity"}:
+        frappe.throw("CRM Reference Type must be Lead or Opportunity.")
+
+    if not reference_name:
+        return {}
+
+    if reference_type == "Lead":
+        return _get_lead_visit_details(reference_name)
+
+    return _get_opportunity_visit_details(reference_name)
+
+
 class VisitorPass(Document):
 
     @property

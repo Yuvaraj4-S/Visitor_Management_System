@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import cint, getdate, now_datetime, nowdate
+from frappe.utils import cint, flt, get_datetime, getdate, now_datetime, nowdate
 
 
 DEFAULT_RISK_BY_TYPE = {
@@ -19,6 +19,9 @@ DEFAULT_SLA_BY_TYPE = {
 }
 
 COMPLIANCE_OK_STATUSES = {"Completed", "Served", "Closed", "Cancelled"}
+HEALTH_SCREENING_OK_STATUSES = {"Cleared"}
+HEALTH_REVIEW_TEMPERATURE = 37.5
+HEALTH_DENY_TEMPERATURE = 38.0
 
 
 def normalize_visitor_pass(doc):
@@ -41,6 +44,9 @@ def normalize_visitor_pass(doc):
 		doc.no_show = 0
 	elif should_mark_no_show(doc):
 		doc.no_show = 1
+
+	if doc.status != "Checked-In" and getattr(doc, "current_location", None):
+		doc.current_location = None
 
 
 def infer_risk_level(doc):
@@ -134,6 +140,21 @@ def sync_hospitality_to_pass(request_doc):
 	)
 
 
+def derive_health_screening_status(temperature=None, symptoms_flag=0, alert_level=None):
+	temperature = flt(temperature or 0)
+	if temperature >= HEALTH_DENY_TEMPERATURE:
+		return "Denied Entry"
+
+	if (
+		temperature >= HEALTH_REVIEW_TEMPERATURE
+		or cint(symptoms_flag)
+		or alert_level in {"High", "Critical"}
+	):
+		return "Needs Review"
+
+	return "Cleared"
+
+
 def log_visitor_event(
 	visitor_pass_name,
 	event_type,
@@ -179,6 +200,266 @@ def log_visitor_event(
 	return doc.name
 
 
+def sync_health_screening(visitor_pass_name, security_log=None):
+	if not visitor_pass_name or not security_log:
+		return None
+
+	if security_log.event_type != "Check-In":
+		return None
+
+	screening_status = derive_health_screening_status(
+		temperature=getattr(security_log, "temperature", None),
+		symptoms_flag=getattr(security_log, "symptoms_flag", 0),
+		alert_level=getattr(security_log, "alert_level", None),
+	)
+	screening_name = getattr(security_log, "health_screening", None) or frappe.db.get_value(
+		"Health Screening", {"security_log": security_log.name}, "name"
+	)
+	doc = (
+		frappe.get_doc("Health Screening", screening_name)
+		if screening_name
+		else frappe.new_doc("Health Screening")
+	)
+	doc.visitor_pass = visitor_pass_name
+	doc.security_log = security_log.name
+	doc.screened_on = (
+		getattr(security_log, "check_in_date_time", None)
+		or getattr(security_log, "modified", None)
+		or now_datetime()
+	)
+	doc.screened_by = getattr(security_log, "security_officer", None)
+	doc.temperature = getattr(security_log, "temperature", None)
+	doc.symptoms_flag = cint(getattr(security_log, "symptoms_flag", 0))
+	doc.symptoms_details = getattr(security_log, "symptoms_details", None)
+	doc.screening_status = screening_status
+	doc.screening_notes = "\n".join(
+		filter(
+			None,
+			[
+				getattr(security_log, "remarks", None),
+				getattr(security_log, "verification_notes", None),
+			],
+		)
+	)
+	doc.restricted_entry = cint(screening_status == "Denied Entry")
+	doc.location = getattr(security_log, "visited_area", None) or getattr(security_log, "gate_name", None)
+
+	if doc.is_new():
+		doc.insert(ignore_permissions=True)
+	else:
+		doc.save(ignore_permissions=True)
+
+	frappe.db.set_value(
+		"Visitor Pass",
+		visitor_pass_name,
+		{
+			"last_health_screening": doc.name,
+			"health_screening_status": doc.screening_status,
+		},
+		update_modified=False,
+	)
+	frappe.db.set_value(
+		"Security Log",
+		security_log.name,
+		{
+			"health_screening": doc.name,
+			"health_screening_status": doc.screening_status,
+		},
+		update_modified=False,
+	)
+	log_visitor_event(
+		visitor_pass_name,
+		"Health Screening",
+		event_status=doc.screening_status,
+		source_doctype="Health Screening",
+		source_name=doc.name,
+		details={
+			"temperature": doc.temperature,
+			"symptoms_flag": doc.symptoms_flag,
+		},
+	)
+	return doc.name
+
+
+def _get_active_contact_trace(visitor_pass_name):
+	records = frappe.get_all(
+		"Contact Trace Record",
+		filters={"visitor_pass": visitor_pass_name, "status": "Active"},
+		fields=["name"],
+		order_by="modified desc",
+		limit=1,
+	)
+	return records[0].name if records else None
+
+
+def _close_active_contact_trace(visitor_pass_name, event_time, notes=None):
+	active_name = _get_active_contact_trace(visitor_pass_name)
+	if not active_name:
+		return None
+
+	doc = frappe.get_doc("Contact Trace Record", active_name)
+	doc.time_out = event_time
+	doc.status = "Closed"
+	if notes:
+		doc.notes = "\n".join(filter(None, [doc.notes, notes]))
+	doc.save(ignore_permissions=True)
+	return doc.name
+
+
+def sync_contact_trace(visitor_pass_name, security_log=None):
+	if not visitor_pass_name or not security_log:
+		return None
+
+	if security_log.event_type not in {"Check-In", "Gate Transfer", "Check-Out"}:
+		return None
+
+	event_time = (
+		getattr(security_log, "check_in_date_time", None)
+		or getattr(security_log, "check_out_date_time", None)
+		or getattr(security_log, "modified", None)
+		or now_datetime()
+	)
+	event_time = get_datetime(event_time)
+
+	if security_log.event_type == "Check-Out":
+		_close_active_contact_trace(visitor_pass_name, event_time, notes="Visitor checked out")
+		frappe.db.set_value(
+			"Visitor Pass", visitor_pass_name, {"current_location": None}, update_modified=False
+		)
+		return None
+
+	visited_area = getattr(security_log, "visited_area", None) or getattr(security_log, "gate_name", None)
+	if security_log.event_type == "Gate Transfer":
+		_close_active_contact_trace(visitor_pass_name, event_time, notes="Gate transfer recorded")
+
+	if not visited_area:
+		return None
+
+	record_name = frappe.db.get_value(
+		"Contact Trace Record", {"security_log": security_log.name}, "name"
+	)
+	doc = (
+		frappe.get_doc("Contact Trace Record", record_name)
+		if record_name
+		else frappe.new_doc("Contact Trace Record")
+	)
+	doc.visitor_pass = visitor_pass_name
+	doc.security_log = security_log.name
+	doc.visited_area = visited_area
+	doc.time_in = doc.time_in or event_time
+	doc.status = "Active"
+	doc.exposure_risk = (
+		"High"
+		if getattr(security_log, "alert_level", None) in {"High", "Critical"}
+		else "Low"
+	)
+	doc.notes = "\n".join(
+		filter(
+			None,
+			[
+				getattr(security_log, "remarks", None),
+				getattr(security_log, "verification_notes", None),
+			],
+		)
+	)
+
+	if doc.is_new():
+		doc.insert(ignore_permissions=True)
+	else:
+		doc.save(ignore_permissions=True)
+
+	frappe.db.set_value(
+		"Visitor Pass",
+		visitor_pass_name,
+		{"current_location": visited_area},
+		update_modified=False,
+	)
+	return doc.name
+
+
+def get_last_known_location(visitor_pass_name):
+	active_name = _get_active_contact_trace(visitor_pass_name)
+	if active_name:
+		return frappe.db.get_value("Contact Trace Record", active_name, "visited_area")
+
+	record = frappe.get_all(
+		"Contact Trace Record",
+		filters={"visitor_pass": visitor_pass_name},
+		fields=["visited_area"],
+		order_by="modified desc",
+		limit=1,
+	)
+	if record:
+		return record[0].visited_area
+
+	return frappe.db.get_value("Visitor Pass", visitor_pass_name, "current_location")
+
+
+def _get_latest_security_log(visitor_pass_name, event_types=None):
+	filters = {"visitor_pass": visitor_pass_name}
+	if event_types:
+		filters["event_type"] = ["in", event_types]
+
+	names = frappe.get_all(
+		"Security Log",
+		filters=filters,
+		fields=["name"],
+		order_by="creation desc",
+		limit=1,
+	)
+	return frappe.get_doc("Security Log", names[0].name) if names else None
+
+
+def generate_emergency_muster_records(emergency_event):
+	if not emergency_event or emergency_event.status != "Active":
+		return 0
+
+	active_visitors = frappe.get_all(
+		"Visitor Pass",
+		filters={"status": "Checked-In"},
+		fields=["name", "person_to_visit", "last_health_screening"],
+	)
+
+	count = 0
+	for visitor in active_visitors:
+		muster_name = frappe.db.get_value(
+			"Evacuation Muster",
+			{"emergency_event": emergency_event.name, "visitor_pass": visitor.name},
+			"name",
+		)
+		doc = (
+			frappe.get_doc("Evacuation Muster", muster_name)
+			if muster_name
+			else frappe.new_doc("Evacuation Muster")
+		)
+		doc.emergency_event = emergency_event.name
+		doc.visitor_pass = visitor.name
+		doc.employee_host = visitor.person_to_visit
+		doc.assembly_point = emergency_event.assembly_point
+		doc.last_known_location = get_last_known_location(visitor.name)
+		doc.health_screening = visitor.last_health_screening
+		if not doc.accounted_status:
+			doc.accounted_status = "Pending"
+
+		if doc.is_new():
+			doc.insert(ignore_permissions=True)
+		else:
+			doc.save(ignore_permissions=True)
+
+		count += 1
+
+	frappe.db.set_value(
+		"Emergency Event",
+		emergency_event.name,
+		{
+			"muster_count": count,
+			"muster_generated_on": now_datetime(),
+		},
+		update_modified=False,
+	)
+	return count
+
+
 def sync_compliance_check(visitor_pass_name, security_log=None):
 	if not visitor_pass_name:
 		return None
@@ -189,21 +470,24 @@ def sync_compliance_check(visitor_pass_name, security_log=None):
 		hospitality_status = frappe.db.get_value(
 			"Hospitality Request", visitor_pass.hospitality_request, "status"
 		)
+	health_screening_status = None
+	if getattr(visitor_pass, "last_health_screening", None):
+		health_screening_status = frappe.db.get_value(
+			"Health Screening", visitor_pass.last_health_screening, "screening_status"
+		)
 
 	if not security_log:
-		names = frappe.get_all(
-			"Security Log",
-			filters={"visitor_pass": visitor_pass.name},
-			fields=["name"],
-			order_by="creation desc",
-			limit=1,
-		)
-		if names:
-			security_log = frappe.get_doc("Security Log", names[0].name)
+		security_log = _get_latest_security_log(visitor_pass.name)
 
-	id_verified = cint(getattr(security_log, "id_proof_match", 0)) if security_log else 0
-	pass_photo_verified = cint(getattr(security_log, "pass_photo_match", 0)) if security_log else 0
-	gate_photo_captured = 1 if security_log and getattr(security_log, "photo_at_gate", None) else 0
+	verification_log = (
+		security_log if security_log and security_log.event_type == "Check-In" else None
+	)
+	if not verification_log:
+		verification_log = _get_latest_security_log(visitor_pass.name, ["Check-In"])
+
+	id_verified = cint(getattr(verification_log, "id_proof_match", 0)) if verification_log else 0
+	pass_photo_verified = cint(getattr(verification_log, "pass_photo_match", 0)) if verification_log else 0
+	gate_photo_captured = 1 if verification_log and getattr(verification_log, "photo_at_gate", None) else 0
 	items_verified = cint(
 		getattr(visitor_pass, "items_verified", 0) or getattr(visitor_pass, "all_items_verified", 0)
 	)
@@ -214,7 +498,9 @@ def sync_compliance_check(visitor_pass_name, security_log=None):
 	manual_override = cint(getattr(security_log, "manual_override", 0)) if security_log else 0
 	alert_level = getattr(security_log, "alert_level", None) if security_log else None
 	no_show = cint(getattr(visitor_pass, "no_show", 0))
-	verification_duration = getattr(security_log, "verification_duration", 0) if security_log else 0
+	verification_duration = (
+		getattr(verification_log, "verification_duration", 0) if verification_log else 0
+	)
 
 	missing_requirements = []
 	if no_show:
@@ -229,6 +515,10 @@ def sync_compliance_check(visitor_pass_name, security_log=None):
 		missing_requirements.append("Declared items not fully verified")
 	if not hospitality_closed:
 		missing_requirements.append("Hospitality workflow still open")
+	if visitor_pass.actual_checkin and not getattr(visitor_pass, "last_health_screening", None):
+		missing_requirements.append("Health screening missing")
+	if health_screening_status and health_screening_status not in HEALTH_SCREENING_OK_STATUSES:
+		missing_requirements.append(f"Health screening status: {health_screening_status}")
 	if manual_override:
 		missing_requirements.append("Manual override used at security")
 	if alert_level in {"High", "Critical"}:
@@ -265,6 +555,8 @@ def sync_compliance_check(visitor_pass_name, security_log=None):
 	doc.alert_level = alert_level
 	doc.no_show = no_show
 	doc.verification_duration = verification_duration or 0
+	doc.health_screening_status = health_screening_status
+	doc.current_location = getattr(visitor_pass, "current_location", None)
 	doc.missing_requirements = "\n".join(missing_requirements)
 	doc.exception_reason = getattr(security_log, "exception_reason", None) if security_log else None
 	doc.last_security_log = getattr(security_log, "name", None) if security_log else None

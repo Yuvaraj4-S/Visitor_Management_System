@@ -6,8 +6,11 @@ from frappe.model.document import Document
 from frappe.utils import now_datetime, time_diff_in_seconds
 
 from visitormanagement.visitor_management.lifecycle import (
+    derive_health_screening_status,
     log_visitor_event,
+    sync_contact_trace,
     sync_compliance_check,
+    sync_health_screening,
 )
 
 
@@ -79,13 +82,18 @@ class SecurityLog(Document):
                         self.check_in_date_time,
                         self.verification_started_on,
                     )
-                    
+
             elif self.event_type == 'Check-Out':
                 if current_status != 'Checked-In':
                     frappe.throw(f"Visitor {self.visitor_name} must be 'Checked-In' before they can 'Check-Out'. (Current Status: {current_status})")
-                
+
                 if not self.check_out_date_time:
                     self.check_out_date_time = now
+
+            elif self.event_type == 'Gate Transfer' and current_status != 'Checked-In':
+                frappe.throw(
+                    f"Visitor {self.visitor_name} must be 'Checked-In' before a gate transfer can be logged."
+                )
 
         # 4. Auto-set security officer
         if not self.security_officer:
@@ -112,6 +120,19 @@ class SecurityLog(Document):
 
             if self.manual_override and not self.alert_level:
                 self.alert_level = "Medium"
+
+            health_status = derive_health_screening_status(
+                temperature=self.temperature,
+                symptoms_flag=self.symptoms_flag,
+                alert_level=self.alert_level,
+            )
+            if health_status == "Denied Entry" and not self.manual_override:
+                frappe.throw(
+                    "Health screening failed due to the recorded temperature. Use manual override with an exception reason if entry is still required."
+                )
+
+        if self.event_type == 'Gate Transfer' and not self.visited_area:
+            frappe.throw("Visited Area is required for gate transfer tracking.")
 
         if (
             self.is_new()
@@ -176,6 +197,8 @@ class SecurityLog(Document):
             )
 
         self._record_lifecycle_event()
+        sync_health_screening(self.visitor_pass, self)
+        sync_contact_trace(self.visitor_pass, self)
         sync_compliance_check(self.visitor_pass, self)
 
     # --------------------------------------------------
@@ -187,6 +210,8 @@ class SecurityLog(Document):
 
         if self.visitor_pass:
             self._record_lifecycle_event()
+            sync_health_screening(self.visitor_pass, self)
+            sync_contact_trace(self.visitor_pass, self)
             sync_compliance_check(self.visitor_pass, self)
 
     # --------------------------------------------------
@@ -279,8 +304,10 @@ class SecurityLog(Document):
             source_name=self.name,
             details={
                 "gate_name": self.gate_name,
+                "visited_area": self.visited_area,
                 "security_officer": self.security_officer,
                 "manual_override": self.manual_override,
                 "exception_reason": self.exception_reason,
+                "health_screening_status": self.health_screening_status,
             },
         )

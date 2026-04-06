@@ -22,7 +22,12 @@
 						<option>VIP</option>
 					</select>
 				</label>
-				<label><span>Mobile Number</span><input type="tel" name="mobile_number" required></label>
+				<label><span>Mobile Number</span>
+					<div class="phone-group">
+						<input type="text" name="mobile_country_code" value="+91" inputmode="tel" pattern="\+[0-9]{1,4}" aria-label="Country code" required>
+						<input type="tel" name="mobile_number" inputmode="numeric" pattern="[0-9]{6,15}" aria-label="Mobile number" required>
+					</div>
+				</label>
 				<label><span>Email ID</span><input type="email" name="email_id" required></label>
 				<label><span>Company / Organisation</span><input type="text" name="company__organisation"></label>
 				<label><span>Visit Date</span><input type="date" name="visit_date" required></label>
@@ -66,8 +71,8 @@
 					</select>
 				</label>
 				<label><span>ID Proof Number</span><input type="text" name="id_proof_number" required></label>
-				<label><span>ID Proof Scan</span><input type="file" name="id_proof_scan" accept="image/*"></label>
-				<label><span>Visitor Photo</span><input type="file" name="visitor_photo" accept="image/*"></label>
+				<label><span>ID Proof Scan</span><input type="file" name="id_proof_scan" accept="image/*" required></label>
+				<label><span>Visitor Photo</span><input type="file" name="visitor_photo" accept="image/*" required></label>
 			</div>
 
 			<div class="field-grid hospitality-grid">
@@ -161,6 +166,12 @@
 		padding: 12px 14px;
 		background: #fff;
 		font-weight: 500;
+	}
+
+	.phone-group {
+		display: grid;
+		grid-template-columns: 110px minmax(0, 1fr);
+		gap: 10px;
 	}
 
 	.field-span-2 {

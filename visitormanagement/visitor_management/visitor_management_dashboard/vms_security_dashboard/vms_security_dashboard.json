@@ -20,6 +20,12 @@
   },
   {
    "card": "Compliance Misses"
+  },
+  {
+   "card": "Health Screening Exceptions"
+  },
+  {
+   "card": "Active Emergency Events"
   }
  ],
  "charts": [
@@ -37,6 +43,10 @@
   },
   {
    "chart": "Compliance Status Breakdown",
+   "width": "Half"
+  },
+  {
+   "chart": "Health Screening Status Breakdown",
    "width": "Half"
   }
  ],

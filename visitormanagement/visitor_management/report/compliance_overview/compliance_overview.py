@@ -15,7 +15,6 @@ def execute(filters=None):
 		{"label": "Host", "fieldname": "host", "fieldtype": "Link", "options": "Employee", "width": 140},
 		{"label": "Status", "fieldname": "compliance_status", "fieldtype": "Data", "width": 120},
 		{"label": "Score", "fieldname": "score", "fieldtype": "Percent", "width": 90},
-		{"label": "Alert Level", "fieldname": "alert_level", "fieldtype": "Data", "width": 100},
 		{"label": "No Show", "fieldname": "no_show", "fieldtype": "Check", "width": 80},
 		{"label": "Verification", "fieldname": "verification_duration", "fieldtype": "Duration", "width": 120},
 		{"label": "Missing Requirements", "fieldname": "missing_requirements", "fieldtype": "Small Text", "width": 280},
@@ -51,7 +50,6 @@ def execute(filters=None):
 			cc.host,
 			cc.compliance_status,
 			cc.score,
-			cc.alert_level,
 			cc.no_show,
 			cc.verification_duration,
 			cc.missing_requirements

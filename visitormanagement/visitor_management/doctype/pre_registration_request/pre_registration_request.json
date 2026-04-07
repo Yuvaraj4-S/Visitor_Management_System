@@ -25,6 +25,8 @@
   "goods_description",
   "meal_required",
   "meal_type",
+  "assigned_meal_slots",
+  "hospitality_type",
   "refreshments_required",
   "conference_room",
   "id_proof_type",
@@ -156,7 +158,21 @@
    "fieldname": "meal_type",
    "fieldtype": "Select",
    "label": "Meal Type",
-   "options": "Breakfast\nLunch\nDinner\nSnacks\nAll Day"
+   "options": "Breakfast\nLunch\nDinner\nBreakfast + Lunch\nLunch + Dinner\nBreakfast + Dinner\nSnacks\nAll Day",
+   "read_only": 1
+  },
+  {
+   "fieldname": "assigned_meal_slots",
+   "fieldtype": "Small Text",
+   "label": "Assigned Meal Slots",
+   "read_only": 1
+  },
+  {
+   "fieldname": "hospitality_type",
+   "fieldtype": "Select",
+   "label": "Hospitality Type",
+   "options": "Single Meal\nTwo Meals\nFull Day",
+   "read_only": 1
   },
   {
    "default": "0",

@@ -251,7 +251,7 @@ fixtures = [
     {
         "doctype": "Workflow",
         "filters": [
-            ["name", "in", ["VIP FLOW", "CANDIDATE FLOW", "CUSTOMER FLOW", "VMS Contractor Approval", "Pre-Registration Request Approval"]]
+            ["name", "in", ["Visitor Pass Approval", "Pre-Registration Request Approval"]]
         ]
     },
     {
@@ -262,4 +262,8 @@ fixtures = [
     },
     "Workflow State",
     "Workflow Action"
+]
+
+after_migrate = [
+    "visitormanagement.patches.post_model_sync.sync_vip_alert_notification.execute",
 ]

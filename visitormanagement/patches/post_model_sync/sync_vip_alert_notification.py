@@ -1,4 +1,7 @@
-<div style="font-family: Arial, sans-serif; font-size: 13px; color: #1f2933; line-height: 1.5;">
+import frappe
+
+
+VIP_ALERT_MESSAGE = """<div style="font-family: Arial, sans-serif; font-size: 13px; color: #1f2933; line-height: 1.5;">
 <h3 style="margin: 0 0 12px; color: #102a43;">VIP Visitor Notification</h3>
 <p style="margin: 0 0 12px;"><strong>Current Stage:</strong> {{ doc.workflow_state or doc.status }}</p>
 <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
@@ -18,4 +21,38 @@
 </table>
 {% if doc.visitor_items %}<p style="margin: 0 0 6px;"><strong>Declared Items</strong></p><ul>{% for item in doc.visitor_items %}<li>{{ item.item_name }}{% if item.quantity %} | Qty: {{ item.quantity }}{% endif %}{% if item.serial_number %} | S/N: {{ item.serial_number }}{% endif %}</li>{% endfor %}</ul>{% endif %}
 <p style="margin: 12px 0 0;">This is a formal VIP notification for approval readiness and protocol planning.</p>
-</div>
+</div>"""
+
+
+def execute():
+	if not frappe.db.exists("Notification", "VMS VIP Alert"):
+		return
+
+	frappe.db.set_value(
+		"Notification",
+		"VMS VIP Alert",
+		{
+			"condition": "doc.visitor_type == 'VIP' and (doc.workflow_state in ['Pending HOD', 'Pending CEO', 'Approved'] or doc.status == 'Approved')",
+			"message": VIP_ALERT_MESSAGE,
+			"subject": "VIP {{ doc.workflow_state or doc.status }} | {{ doc.visitor_full_name }} | {{ doc.visit_date }}",
+			"send_system_notification": 0,
+			"enabled": 0,
+			"channel": "Email",
+			"message_type": "HTML",
+		},
+		update_modified=False,
+	)
+
+	frappe.db.delete("Notification Recipient", {"parent": "VMS VIP Alert", "parenttype": "Notification"})
+
+	for idx, role in enumerate(["HOD", "CEO"], start=1):
+		frappe.get_doc(
+			{
+				"doctype": "Notification Recipient",
+				"parent": "VMS VIP Alert",
+				"parenttype": "Notification",
+				"parentfield": "recipients",
+				"idx": idx,
+				"receiver_by_role": role,
+			}
+		).insert(ignore_permissions=True)

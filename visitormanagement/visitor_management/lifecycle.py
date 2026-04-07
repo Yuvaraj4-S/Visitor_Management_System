@@ -36,6 +36,17 @@ HOSPITALITY_REQUEST_STATUS_FROM_PASS = {
 	"Completed": "Completed",
 	"Cancelled": "Cancelled",
 }
+MEAL_WINDOWS = (
+	("Breakfast", "08:00:00", "09:00:00"),
+	("Lunch", "13:00:00", "14:00:00"),
+	("Dinner", "20:00:00", "21:30:00"),
+)
+MEAL_TYPE_SEQUENCE = ("Breakfast", "Lunch", "Dinner")
+DOUBLE_MEAL_TYPES = {
+	("Breakfast", "Lunch"): "Breakfast + Lunch",
+	("Breakfast", "Dinner"): "Breakfast + Dinner",
+	("Lunch", "Dinner"): "Lunch + Dinner",
+}
 
 
 def normalize_visitor_pass(doc):
@@ -45,8 +56,12 @@ def normalize_visitor_pass(doc):
 	if not doc.request_channel:
 		doc.request_channel = "Desk"
 
-	if not doc.risk_level:
-		doc.risk_level = infer_risk_level(doc)
+	expected_risk_level = infer_risk_level(doc)
+	if (
+		not doc.risk_level
+		or (doc.is_new() and doc.risk_level == "Low" and expected_risk_level != "Low")
+	):
+		doc.risk_level = expected_risk_level
 
 	if not doc.approval_sla_minutes:
 		doc.approval_sla_minutes = DEFAULT_SLA_BY_TYPE.get(doc.visitor_type, 120)
@@ -61,6 +76,8 @@ def normalize_visitor_pass(doc):
 
 	if doc.status != "Checked-In" and getattr(doc, "current_location", None):
 		doc.current_location = None
+
+	apply_hospitality_meal_plan(doc)
 
 
 def infer_risk_level(doc):
@@ -106,26 +123,7 @@ def ensure_hospitality_request(visitor_pass):
 		doc = frappe.new_doc("Hospitality Request")
 		doc.visitor_pass = visitor_pass.name
 
-	doc.meal_required = cint(getattr(visitor_pass, "meal_required", 0))
-	doc.meal_type = getattr(visitor_pass, "meal_type", None)
-	doc.snacks_required = cint(getattr(visitor_pass, "refreshments_required", 0))
-	doc.tea_coffee_required = cint(getattr(visitor_pass, "refreshments_required", 0))
-	doc.conference_room = getattr(visitor_pass, "conference_room", None)
-	doc.seating_capacity = getattr(visitor_pass, "number_of_people", None)
-	doc.service_time = getattr(visitor_pass, "service_time", None)
-	doc.assigned_staff = getattr(visitor_pass, "food_dept_staff_assigned", None)
-	doc.status = HOSPITALITY_REQUEST_STATUS_FROM_PASS.get(
-		getattr(visitor_pass, "food_status", None), "Pending"
-	)
-	doc.notes = "\n".join(
-		filter(
-			None,
-			[
-				getattr(visitor_pass, "hospitality_notes", None),
-				getattr(visitor_pass, "refreshment_notes", None),
-			],
-		)
-	)
+	populate_hospitality_request_from_pass(doc, visitor_pass=visitor_pass, sync_management_fields=True)
 
 	if doc.is_new():
 		doc.insert(ignore_permissions=True)
@@ -142,30 +140,158 @@ def sync_hospitality_to_pass(request_doc):
 	if not request_doc.visitor_pass:
 		return
 
+	pass_updates = {
+		"hospitality_request": request_doc.name,
+		"food_status": VISITOR_PASS_FOOD_STATUS_FROM_REQUEST.get(request_doc.status, "Pending"),
+		"food_dept_staff_assigned": request_doc.assigned_staff,
+		"conference_room": request_doc.conference_room,
+		"service_time": request_doc.service_time,
+	}
+	if hasattr(request_doc, "meal_required"):
+		pass_updates["meal_required"] = cint(request_doc.meal_required)
+	if hasattr(request_doc, "meal_type"):
+		pass_updates["meal_type"] = request_doc.meal_type
+	if hasattr(request_doc, "assigned_meal_slots"):
+		pass_updates["assigned_meal_slots"] = request_doc.assigned_meal_slots
+	if hasattr(request_doc, "hospitality_type"):
+		pass_updates["hospitality_type"] = request_doc.hospitality_type
+
 	frappe.db.set_value(
 		"Visitor Pass",
 		request_doc.visitor_pass,
-		{
-			"hospitality_request": request_doc.name,
-			"food_status": VISITOR_PASS_FOOD_STATUS_FROM_REQUEST.get(request_doc.status, "Pending"),
-			"food_dept_staff_assigned": request_doc.assigned_staff,
-			"conference_room": request_doc.conference_room,
-			"service_time": request_doc.service_time,
-		},
+		pass_updates,
 		update_modified=False,
 	)
 
 
-def derive_health_screening_status(temperature=None, symptoms_flag=0, alert_level=None):
+def _combine_visit_datetime(visit_date, visit_time):
+	if not visit_date or not visit_time:
+		return None
+
+	return get_datetime(f"{visit_date} {visit_time}")
+
+
+def _overlaps_time_window(start_dt, end_dt, window_start_dt, window_end_dt):
+	if not start_dt or not end_dt or not window_start_dt or not window_end_dt:
+		return False
+
+	return start_dt < window_end_dt and end_dt > window_start_dt
+
+
+def derive_hospitality_meal_plan(visitor_pass):
+	visit_date = getattr(visitor_pass, "visit_date", None)
+	start_dt = _combine_visit_datetime(visit_date, getattr(visitor_pass, "expected_checkin", None))
+	end_dt = _combine_visit_datetime(visit_date, getattr(visitor_pass, "expected_checkout", None))
+	if start_dt and end_dt and end_dt < start_dt:
+		end_dt = start_dt
+
+	applicable_meals = []
+	first_service_time = None
+	for meal_label, slot_start, slot_end in MEAL_WINDOWS:
+		slot_start_dt = _combine_visit_datetime(visit_date, slot_start)
+		slot_end_dt = _combine_visit_datetime(visit_date, slot_end)
+		if _overlaps_time_window(start_dt, end_dt, slot_start_dt, slot_end_dt):
+			applicable_meals.append(meal_label)
+			if not first_service_time:
+				first_service_time = slot_start_dt
+
+	meal_required = 1 if applicable_meals else 0
+	if len(applicable_meals) == 3:
+		derived_meal_type = "All Day"
+		hospitality_type = "Full Day"
+	elif len(applicable_meals) == 2:
+		derived_meal_type = DOUBLE_MEAL_TYPES.get(tuple(applicable_meals), " + ".join(applicable_meals))
+		hospitality_type = "Two Meals"
+	elif len(applicable_meals) == 1:
+		derived_meal_type = applicable_meals[0]
+		hospitality_type = "Single Meal"
+	else:
+		derived_meal_type = None
+		hospitality_type = None
+
+	return {
+		"meal_required": meal_required,
+		"visit_start_time": start_dt,
+		"visit_end_time": end_dt,
+		"assigned_meal_slots": ", ".join(applicable_meals),
+		"meal_type": derived_meal_type,
+		"hospitality_type": hospitality_type,
+		"service_time": first_service_time if meal_required else None,
+	}
+
+
+def apply_hospitality_meal_plan(doc):
+	meal_plan = derive_hospitality_meal_plan(doc)
+	doc.meal_required = meal_plan["meal_required"]
+	doc.meal_type = meal_plan["meal_type"]
+
+	if hasattr(doc, "assigned_meal_slots"):
+		doc.assigned_meal_slots = meal_plan["assigned_meal_slots"] if meal_plan["meal_required"] else None
+
+	if hasattr(doc, "hospitality_type"):
+		doc.hospitality_type = meal_plan["hospitality_type"] if meal_plan["meal_required"] else None
+
+	if hasattr(doc, "service_time"):
+		doc.service_time = meal_plan["service_time"]
+
+	return meal_plan
+
+
+def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_management_fields=False):
+	visitor_pass = visitor_pass or (
+		frappe.get_doc("Visitor Pass", doc.visitor_pass) if getattr(doc, "visitor_pass", None) else None
+	)
+	if not visitor_pass:
+		return doc
+
+	meal_plan = derive_hospitality_meal_plan(visitor_pass)
+	doc.meal_required = meal_plan["meal_required"]
+	doc.meal_type = meal_plan["meal_type"] if doc.meal_required else None
+	doc.visit_start_time = meal_plan["visit_start_time"]
+	doc.visit_end_time = meal_plan["visit_end_time"]
+	doc.assigned_meal_slots = meal_plan["assigned_meal_slots"] if doc.meal_required else None
+	doc.hospitality_type = meal_plan["hospitality_type"] if doc.meal_required else None
+	doc.snacks_required = cint(getattr(visitor_pass, "refreshments_required", 0))
+	doc.tea_coffee_required = cint(getattr(visitor_pass, "refreshments_required", 0))
+	doc.conference_room = getattr(visitor_pass, "conference_room", None)
+	doc.seating_capacity = getattr(visitor_pass, "number_of_people", None)
+	doc.service_time = meal_plan["service_time"]
+	if sync_management_fields:
+		doc.assigned_staff = getattr(visitor_pass, "food_dept_staff_assigned", None)
+		doc.status = HOSPITALITY_REQUEST_STATUS_FROM_PASS.get(
+			getattr(visitor_pass, "food_status", None), "Pending"
+		)
+		doc.notes = "\n".join(
+			filter(
+				None,
+				[
+					getattr(visitor_pass, "hospitality_notes", None),
+					getattr(visitor_pass, "refreshment_notes", None),
+				],
+			)
+		)
+	return doc
+
+
+@frappe.whitelist()
+def get_hospitality_meal_plan(visit_date=None, expected_checkin=None, expected_checkout=None):
+	return derive_hospitality_meal_plan(
+		frappe._dict(
+			{
+				"visit_date": visit_date,
+				"expected_checkin": expected_checkin,
+				"expected_checkout": expected_checkout,
+			}
+		)
+	)
+
+
+def derive_health_screening_status(temperature=None, symptoms_flag=0):
 	temperature = flt(temperature or 0)
 	if temperature >= HEALTH_DENY_TEMPERATURE:
 		return "Denied Entry"
 
-	if (
-		temperature >= HEALTH_REVIEW_TEMPERATURE
-		or cint(symptoms_flag)
-		or alert_level in {"High", "Critical"}
-	):
+	if temperature >= HEALTH_REVIEW_TEMPERATURE or cint(symptoms_flag):
 		return "Needs Review"
 
 	return "Cleared"
@@ -226,7 +352,6 @@ def sync_health_screening(visitor_pass_name, security_log=None):
 	screening_status = derive_health_screening_status(
 		temperature=getattr(security_log, "temperature", None),
 		symptoms_flag=getattr(security_log, "symptoms_flag", 0),
-		alert_level=getattr(security_log, "alert_level", None),
 	)
 	screening_name = getattr(security_log, "health_screening", None) or frappe.db.get_value(
 		"Health Screening", {"security_log": security_log.name}, "name"
@@ -366,7 +491,8 @@ def sync_contact_trace(visitor_pass_name, security_log=None):
 	doc.status = "Active"
 	doc.exposure_risk = (
 		"High"
-		if getattr(security_log, "alert_level", None) in {"High", "Critical"}
+		if flt(getattr(security_log, "temperature", 0) or 0) >= HEALTH_REVIEW_TEMPERATURE
+		or cint(getattr(security_log, "symptoms_flag", 0))
 		else "Low"
 	)
 	doc.notes = "\n".join(
@@ -511,8 +637,6 @@ def sync_compliance_check(visitor_pass_name, security_log=None):
 	if visitor_pass.hospitality_request:
 		hospitality_closed = cint((hospitality_status or "Pending") in COMPLIANCE_OK_STATUSES)
 
-	manual_override = cint(getattr(security_log, "manual_override", 0)) if security_log else 0
-	alert_level = getattr(security_log, "alert_level", None) if security_log else None
 	no_show = cint(getattr(visitor_pass, "no_show", 0))
 	verification_duration = (
 		getattr(verification_log, "verification_duration", 0) if verification_log else 0
@@ -535,15 +659,9 @@ def sync_compliance_check(visitor_pass_name, security_log=None):
 		missing_requirements.append("Health screening missing")
 	if health_screening_status and health_screening_status not in HEALTH_SCREENING_OK_STATUSES:
 		missing_requirements.append(f"Health screening status: {health_screening_status}")
-	if manual_override:
-		missing_requirements.append("Manual override used at security")
-	if alert_level in {"High", "Critical"}:
-		missing_requirements.append(f"Raised alert level: {alert_level}")
 
 	if no_show:
 		compliance_status = "No Show"
-	elif manual_override or alert_level in {"High", "Critical"}:
-		compliance_status = "Non-Compliant"
 	elif missing_requirements:
 		compliance_status = "Needs Review"
 	else:
@@ -567,8 +685,6 @@ def sync_compliance_check(visitor_pass_name, security_log=None):
 	doc.gate_photo_captured = gate_photo_captured
 	doc.items_verified = items_verified
 	doc.hospitality_closed = hospitality_closed
-	doc.manual_override = manual_override
-	doc.alert_level = alert_level
 	doc.no_show = no_show
 	doc.verification_duration = verification_duration or 0
 	doc.health_screening_status = health_screening_status

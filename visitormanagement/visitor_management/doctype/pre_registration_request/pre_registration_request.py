@@ -3,6 +3,7 @@
 
 import frappe
 from frappe.model.document import Document
+from visitormanagement.visitor_management.lifecycle import apply_hospitality_meal_plan
 
 
 class PreRegistrationRequest(Document):
@@ -12,6 +13,8 @@ class PreRegistrationRequest(Document):
 
 		if self.visitor_type == "Supplier" and not self.supplier_visit_mode:
 			self.supplier_visit_mode = "Meeting"
+
+		apply_hospitality_meal_plan(self)
 
 	@frappe.whitelist()
 	def create_visitor_pass(self):
@@ -49,6 +52,8 @@ class PreRegistrationRequest(Document):
 				"goods_description": self.goods_description,
 				"meal_required": self.meal_required,
 				"meal_type": self.meal_type,
+				"assigned_meal_slots": self.assigned_meal_slots,
+				"hospitality_type": self.hospitality_type,
 				"refreshments_required": self.refreshments_required,
 				"conference_room": self.conference_room,
 				"pre_registration_request": self.name,

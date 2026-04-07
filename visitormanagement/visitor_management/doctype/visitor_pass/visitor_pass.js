@@ -10,6 +10,7 @@ frappe.ui.form.on("Visitor Pass", {
 	},
 
 	visitor_type(frm) {
+		apply_visitor_type_defaults(frm, true);
 		ensure_customer_crm_defaults(frm);
 		setup_supplier_pass_query(frm);
 		apply_visitor_pass_ui(frm);
@@ -25,6 +26,93 @@ frappe.ui.form.on("Visitor Pass", {
 		fetch_customer_crm_details(frm);
 	},
 
+	supplier_link(frm) {
+		if (frm.doc.supplier_link) {
+			frappe.call({
+				method: 'frappe.client.get',
+				args: { doctype: 'Supplier', name: frm.doc.supplier_link },
+				callback: function(r) {
+					if (r.message) {
+						frm.set_value('visitor_full_name', r.message.supplier_name);
+						frm.set_value('mobile_number', r.message.mobile_no || '');
+						frm.set_value('email_id', r.message.email_id || '');
+						frm.set_value('company__organisation', r.message.supplier_name);
+					}
+				}
+			});
+		}
+	},
+
+	contractor_link(frm) {
+		if (frm.doc.contractor_link) {
+			frappe.call({
+				method: 'frappe.client.get',
+				args: { doctype: 'Supplier', name: frm.doc.contractor_link },
+				callback: function(r) {
+					if (r.message) {
+						frm.set_value('visitor_full_name', r.message.supplier_name);
+						frm.set_value('mobile_number', r.message.mobile_no || '');
+						frm.set_value('email_id', r.message.email_id || '');
+						frm.set_value('company__organisation', r.message.supplier_name);
+					}
+				}
+			});
+		}
+	},
+
+	job_applicant_link(frm) {
+		if (frm.doc.job_applicant_link) {
+			frappe.call({
+				method: 'frappe.client.get',
+				args: { doctype: 'Job Applicant', name: frm.doc.job_applicant_link },
+				callback: function(r) {
+					if (r.message) {
+						frm.set_value('visitor_full_name', r.message.applicant_name);
+						frm.set_value('mobile_number', r.message.phone_number || '');
+						frm.set_value('email_id', r.message.email_id || '');
+						frm.set_value('company__organisation', r.message.company_name || '');
+					}
+				}
+			});
+		}
+	},
+
+	mobile_number(frm) {
+		if (frm.doc.mobile_number) {
+			frappe.call({
+				method: 'visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.search_existing_by_phone',
+				args: { phone: frm.doc.mobile_number },
+				callback: function(r) {
+					if (r.message && r.message.length > 0) {
+						let msg = 'Existing visitors found with this phone number:<br>';
+						r.message.forEach(v => {
+							msg += `${v.name}: ${v.visitor_full_name} (${v.visitor_type})<br>`;
+						});
+						frappe.msgprint(msg, 'Existing Visitors');
+					}
+				}
+			});
+		}
+	},
+
+	id_proof_number(frm) {
+		if (frm.doc.id_proof_number) {
+			frappe.call({
+				method: 'visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.search_existing_by_id',
+				args: { id_number: frm.doc.id_proof_number },
+				callback: function(r) {
+					if (r.message && r.message.length > 0) {
+						let msg = 'Existing visitors found with this ID number:<br>';
+						r.message.forEach(v => {
+							msg += `${v.name}: ${v.visitor_full_name} (${v.visitor_type})<br>`;
+						});
+						frappe.msgprint(msg, 'Existing Visitors');
+					}
+				}
+			});
+		}
+	},
+
 	supplier_visit_mode(frm) {
 		apply_visitor_pass_ui(frm);
 	},
@@ -36,6 +124,20 @@ frappe.ui.form.on("Visitor Pass", {
 			frm.set_value("mobile_number", "");
 			frm.set_value("email_id", "");
 			frm.set_value("company__organisation", "");
+			frm.set_value("id_proof_type", "");
+			frm.set_value("id_proof_number", "");
+			// Clear type-specific links
+			if (frm.doc.visitor_type === "Supplier") {
+				frm.set_value("supplier_link", "");
+			} else if (frm.doc.visitor_type === "Customer") {
+				frm.set_value("crm_reference_type", "");
+				frm.set_value("crm_lead_opportunity", "");
+			} else if (frm.doc.visitor_type === "Contractor") {
+				frm.set_value("contractor_link", "");
+				frm.set_value("work_order_ref", "");
+			} else if (frm.doc.visitor_type === "Candidate") {
+				frm.set_value("job_applicant_link", "");
+			}
 		}
 
 		apply_visitor_pass_ui(frm);
@@ -70,6 +172,18 @@ frappe.ui.form.on("Visitor Pass", {
 		apply_visitor_pass_ui(frm);
 	},
 
+	visit_date(frm) {
+		refresh_hospitality_plan(frm);
+	},
+
+	expected_checkin(frm) {
+		refresh_hospitality_plan(frm);
+	},
+
+	expected_checkout(frm) {
+		refresh_hospitality_plan(frm);
+	},
+
 	interpreter_required(frm) {
 		apply_visitor_pass_ui(frm);
 	},
@@ -94,16 +208,53 @@ function apply_visitor_pass_ui(frm) {
 }
 
 function ensure_customer_crm_defaults(frm) {
-	if (frm.doc.visitor_type === "Customer" && !frm.doc.crm_reference_type) {
+	if (frm.doc.visitor_type === "Customer" && frm.doc.entry_type === "New" && !frm.doc.crm_reference_type) {
 		frm.set_value("crm_reference_type", "Lead");
 		return;
 	}
 
-	if (frm.doc.visitor_type !== "Customer" && (frm.doc.crm_reference_type || frm.doc.crm_lead_opportunity)) {
-		frm.set_value({
-			crm_reference_type: "",
-			crm_lead_opportunity: "",
-		});
+	if (frm.doc.visitor_type !== "Customer" || frm.doc.entry_type !== "New") {
+		if (frm.doc.crm_reference_type || frm.doc.crm_lead_opportunity) {
+			frm.set_value({
+				crm_reference_type: "",
+				crm_lead_opportunity: "",
+			});
+		}
+	}
+}
+
+function apply_visitor_type_defaults(frm, force = false) {
+	const defaults = {
+		Candidate: { risk_level: "Low", approval_sla_minutes: 180 },
+		Contractor: { risk_level: "High", approval_sla_minutes: 120 },
+		Customer: { risk_level: "Low", approval_sla_minutes: 90 },
+		Supplier: { risk_level: "Medium", approval_sla_minutes: 90 },
+		VIP: { risk_level: "Medium", approval_sla_minutes: 30 },
+	};
+
+	const visitor_defaults = defaults[frm.doc.visitor_type];
+	if (!visitor_defaults) {
+		return;
+	}
+
+	const updates = {};
+	if (force || !frm.doc.risk_level) {
+		updates.risk_level = visitor_defaults.risk_level;
+	}
+	if (force || !frm.doc.approval_sla_minutes) {
+		updates.approval_sla_minutes = visitor_defaults.approval_sla_minutes;
+	}
+	if (frm.doc.visitor_type === "VIP") {
+		if (!frm.doc.priority_lane) {
+			updates.priority_lane = 1;
+		}
+		if (frm.doc.interpreter_required && !frm.doc.interpreter_language) {
+			updates.interpreter_language = "English";
+		}
+	}
+
+	if (Object.keys(updates).length) {
+		frm.set_value(updates);
 	}
 }
 
@@ -112,23 +263,51 @@ function fetch_customer_crm_details(frm) {
 		return;
 	}
 
+	let doctype = frm.doc.crm_reference_type;
+	if (doctype === "Customer") {
+		doctype = "Customer";
+	}
+
 	frappe.call({
-		method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.get_customer_visit_details",
-		args: {
-			reference_type: frm.doc.crm_reference_type,
-			reference_name: frm.doc.crm_lead_opportunity,
-		},
+		method: "frappe.client.get",
+		args: { doctype: doctype, name: frm.doc.crm_lead_opportunity },
 		callback: ({ message }) => {
 			if (!message) {
 				return;
 			}
 
+			let visitor_full_name = "";
+			let mobile_number = "";
+			let email_id = "";
+			let company__organisation = "";
+			let sales_executive = "";
+
+			if (frm.doc.crm_reference_type === "Lead") {
+				visitor_full_name = message.lead_name || "";
+				mobile_number = message.mobile_no || "";
+				email_id = message.email_id || "";
+				company__organisation = message.company_name || "";
+				sales_executive = message.lead_owner || "";
+			} else if (frm.doc.crm_reference_type === "Opportunity") {
+				visitor_full_name = message.contact_display || message.customer_name || "";
+				mobile_number = message.contact_mobile || "";
+				email_id = message.contact_email || "";
+				company__organisation = message.customer_name || "";
+				sales_executive = message.opportunity_owner || "";
+			} else if (frm.doc.crm_reference_type === "Customer") {
+				visitor_full_name = message.customer_name || "";
+				mobile_number = message.mobile_no || "";
+				email_id = message.email_id || "";
+				company__organisation = message.customer_name || "";
+				// Sales executive might need to be fetched differently
+			}
+
 			frm.set_value({
-				visitor_full_name: message.visitor_full_name || "",
-				mobile_number: message.mobile_number || "",
-				email_id: message.email_id || "",
-				company__organisation: message.company__organisation || "",
-				sales_executive: message.sales_executive || "",
+				visitor_full_name: visitor_full_name,
+				mobile_number: mobile_number,
+				email_id: email_id,
+				company__organisation: company__organisation,
+				sales_executive: sales_executive,
 			});
 
 			if (message.owner_user && !message.sales_executive) {
@@ -149,6 +328,7 @@ function fetch_customer_crm_details(frm) {
 
 function apply_visitor_pass_field_rules(frm) {
 	const is_supplier_existing = frm.doc.visitor_type === "Supplier" && frm.doc.entry_type === "Existing";
+	const is_existing = ['Supplier','Customer','Contractor','Candidate'].includes(frm.doc.visitor_type) && frm.doc.entry_type === "Existing";
 	const is_supplier_delivery =
 		frm.doc.visitor_type === "Supplier" && frm.doc.supplier_visit_mode === "Delivery";
 	const is_supplier_business =
@@ -188,8 +368,14 @@ function apply_visitor_pass_field_rules(frm) {
 	].forEach((fieldname) => frm.set_df_property(fieldname, "read_only", 1));
 
 	frm.set_df_property("items_verification_status", "hidden", 1);
-	frm.toggle_display("existing_visitor_pass", is_supplier_existing);
-	frm.toggle_reqd("existing_visitor_pass", is_supplier_existing);
+	frm.toggle_display("existing_visitor_pass", is_existing);
+	frm.toggle_reqd("existing_visitor_pass", is_existing);
+	frm.toggle_display("supplier_link", frm.doc.visitor_type === "Supplier" && frm.doc.entry_type === "New");
+	frm.toggle_display("crm_reference_type", frm.doc.visitor_type === "Customer" && frm.doc.entry_type === "New");
+	frm.toggle_display("crm_lead_opportunity", frm.doc.visitor_type === "Customer" && frm.doc.entry_type === "New");
+	frm.toggle_display("contractor_link", frm.doc.visitor_type === "Contractor" && frm.doc.entry_type === "New");
+	frm.toggle_display("work_order_ref", frm.doc.visitor_type === "Contractor" && frm.doc.entry_type === "New");
+	frm.toggle_display("job_applicant_link", frm.doc.visitor_type === "Candidate" && frm.doc.entry_type === "New");
 	frm.toggle_display(
 		[
 			"purchase_order",
@@ -235,6 +421,8 @@ function apply_visitor_pass_field_rules(frm) {
 
 	[
 		"meal_type",
+		"assigned_meal_slots",
+		"hospitality_type",
 		"number_of_people",
 		"special_diet",
 		"food_dept_staff_assigned",
@@ -244,6 +432,43 @@ function apply_visitor_pass_field_rules(frm) {
 
 	frm.toggle_display(["conference_room", "service_time"], true);
 	frm.toggle_display(["rest_area", "hospitality_notes"], hospitality_recorded);
+}
+
+function refresh_hospitality_plan(frm) {
+	if (!frm.doc.visit_date || !frm.doc.expected_checkin || !frm.doc.expected_checkout) {
+		frm.set_value({
+			meal_required: 0,
+			meal_type: "",
+			assigned_meal_slots: "",
+			hospitality_type: "",
+			service_time: null,
+		});
+		apply_visitor_pass_ui(frm);
+		return;
+	}
+
+	frappe.call({
+		method: "visitormanagement.visitor_management.lifecycle.get_hospitality_meal_plan",
+		args: {
+			visit_date: frm.doc.visit_date,
+			expected_checkin: frm.doc.expected_checkin,
+			expected_checkout: frm.doc.expected_checkout,
+		},
+		callback: ({ message }) => {
+			if (!message) {
+				return;
+			}
+
+			frm.set_value({
+				meal_required: message.meal_required || 0,
+				meal_type: message.meal_type || "",
+				assigned_meal_slots: message.assigned_meal_slots || "",
+				hospitality_type: message.hospitality_type || "",
+				service_time: message.service_time || null,
+			});
+			apply_visitor_pass_ui(frm);
+		},
+	});
 }
 
 function set_visitor_pass_intro(frm) {
@@ -275,7 +500,9 @@ function set_visitor_pass_intro(frm) {
 	if (stage === "Approved") {
 		frm.set_intro(
 			__(
-				"Approved. Security can now verify declared items, issue the badge, and record the visitor check-in."
+				frm.doc.visitor_type === "VIP"
+					? "Approved. Security should use the VIP priority lane and issue the badge during gate check-in."
+					: "Approved. Security can now verify declared items, issue the badge, and record the visitor check-in."
 			),
 			"green"
 		);
@@ -341,11 +568,11 @@ function add_action_buttons(frm) {
 }
 
 function setup_supplier_pass_query(frm) {
-	if (frm.doc.visitor_type !== "Supplier") return;
+	if (!['Supplier','Customer','Contractor','Candidate'].includes(frm.doc.visitor_type)) return;
 
 	frm.set_query("existing_visitor_pass", () => ({
 		filters: {
-			visitor_type: "Supplier",
+			visitor_type: frm.doc.visitor_type,
 		},
 	}));
 }

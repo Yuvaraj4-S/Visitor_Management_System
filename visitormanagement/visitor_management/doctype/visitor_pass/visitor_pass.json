@@ -50,6 +50,7 @@
   "followup_date",
   "meeting_minutes",
   "section_break_contractor",
+  "contractor_link",
   "work_order_ref",
   "safety_induction_done",
   "contractor_nda_signed",
@@ -166,14 +167,14 @@
   },
   {
    "default": "New",
-   "depends_on": "eval:doc.visitor_type == 'Supplier'",
+   "depends_on": "eval:['Supplier','Customer','Contractor','Candidate'].includes(doc.visitor_type)",
    "fieldname": "entry_type",
    "fieldtype": "Select",
    "label": "Entry Type",
    "options": "New\nExisting"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.entry_type == 'Existing'",
+   "depends_on": "eval:['Supplier','Customer','Contractor','Candidate'].includes(doc.visitor_type) && doc.entry_type == 'Existing'",
    "fieldname": "existing_visitor_pass",
    "fieldtype": "Link",
    "label": "Existing Visitor Pass",
@@ -357,14 +358,14 @@
   },
   {
    "default": "Lead",
-   "depends_on": "eval:doc.visitor_type == 'Customer'",
+   "depends_on": "eval:doc.visitor_type == 'Customer' && doc.entry_type == 'New'",
    "fieldname": "crm_reference_type",
    "fieldtype": "Select",
    "label": "CRM Reference Type",
-   "options": "Lead\nOpportunity"
+   "options": "Lead\nOpportunity\nCustomer"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Customer'",
+   "depends_on": "eval:doc.visitor_type == 'Customer' && doc.entry_type == 'New'",
    "fieldname": "crm_lead_opportunity",
    "fieldtype": "Dynamic Link",
    "label": "CRM Lead / Opportunity",
@@ -422,7 +423,14 @@
    "label": "Contractor Details"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Contractor'",
+   "depends_on": "eval:doc.visitor_type == 'Contractor' && doc.entry_type == 'New'",
+   "fieldname": "contractor_link",
+   "fieldtype": "Link",
+   "label": "Contractor",
+   "options": "Supplier"
+  },
+  {
+   "depends_on": "eval:doc.visitor_type == 'Contractor' && doc.entry_type == 'New'",
    "fieldname": "work_order_ref",
    "fieldtype": "Link",
    "label": "Work Order Ref",
@@ -499,7 +507,7 @@
    "label": "Candidate Details"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Candidate'",
+   "depends_on": "eval:doc.visitor_type == 'Candidate' && doc.entry_type == 'New'",
    "fieldname": "job_applicant_link",
    "fieldtype": "Link",
    "label": "Job Applicant Link",

@@ -6,6 +6,10 @@
  "engine": "InnoDB",
  "field_order": [
   "visitor_pass",
+  "visit_start_time",
+  "visit_end_time",
+  "assigned_meal_slots",
+  "hospitality_type",
   "meal_required",
   "meal_type",
   "snacks_required",
@@ -27,6 +31,31 @@
    "reqd": 1
   },
   {
+   "fieldname": "visit_start_time",
+   "fieldtype": "Datetime",
+   "label": "Visit Start Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "visit_end_time",
+   "fieldtype": "Datetime",
+   "label": "Visit End Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "assigned_meal_slots",
+   "fieldtype": "Small Text",
+   "label": "Assigned Meal Slots",
+   "read_only": 1
+  },
+  {
+   "fieldname": "hospitality_type",
+   "fieldtype": "Select",
+   "label": "Hospitality Type",
+   "options": "Single Meal\nTwo Meals\nFull Day",
+   "read_only": 1
+  },
+  {
    "default": "0",
    "fieldname": "meal_required",
    "fieldtype": "Check",
@@ -36,7 +65,7 @@
    "fieldname": "meal_type",
    "fieldtype": "Select",
    "label": "Meal Type",
-   "options": "Breakfast\nLunch\nDinner\nSnacks\nAll Day"
+   "options": "Breakfast\nLunch\nDinner\nBreakfast + Lunch\nLunch + Dinner\nBreakfast + Dinner\nSnacks\nAll Day"
   },
   {
    "default": "0",

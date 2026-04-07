@@ -10,6 +10,7 @@ frappe.ui.form.on("Visitor Pass", {
 	},
 
 	visitor_type(frm) {
+		apply_visitor_type_defaults(frm, true);
 		ensure_customer_crm_defaults(frm);
 		setup_supplier_pass_query(frm);
 		apply_visitor_pass_ui(frm);
@@ -70,6 +71,18 @@ frappe.ui.form.on("Visitor Pass", {
 		apply_visitor_pass_ui(frm);
 	},
 
+	visit_date(frm) {
+		refresh_hospitality_plan(frm);
+	},
+
+	expected_checkin(frm) {
+		refresh_hospitality_plan(frm);
+	},
+
+	expected_checkout(frm) {
+		refresh_hospitality_plan(frm);
+	},
+
 	interpreter_required(frm) {
 		apply_visitor_pass_ui(frm);
 	},
@@ -104,6 +117,41 @@ function ensure_customer_crm_defaults(frm) {
 			crm_reference_type: "",
 			crm_lead_opportunity: "",
 		});
+	}
+}
+
+function apply_visitor_type_defaults(frm, force = false) {
+	const defaults = {
+		Candidate: { risk_level: "Low", approval_sla_minutes: 180 },
+		Contractor: { risk_level: "High", approval_sla_minutes: 120 },
+		Customer: { risk_level: "Low", approval_sla_minutes: 90 },
+		Supplier: { risk_level: "Medium", approval_sla_minutes: 90 },
+		VIP: { risk_level: "Medium", approval_sla_minutes: 30 },
+	};
+
+	const visitor_defaults = defaults[frm.doc.visitor_type];
+	if (!visitor_defaults) {
+		return;
+	}
+
+	const updates = {};
+	if (force || !frm.doc.risk_level) {
+		updates.risk_level = visitor_defaults.risk_level;
+	}
+	if (force || !frm.doc.approval_sla_minutes) {
+		updates.approval_sla_minutes = visitor_defaults.approval_sla_minutes;
+	}
+	if (frm.doc.visitor_type === "VIP") {
+		if (!frm.doc.priority_lane) {
+			updates.priority_lane = 1;
+		}
+		if (frm.doc.interpreter_required && !frm.doc.interpreter_language) {
+			updates.interpreter_language = "English";
+		}
+	}
+
+	if (Object.keys(updates).length) {
+		frm.set_value(updates);
 	}
 }
 
@@ -235,6 +283,8 @@ function apply_visitor_pass_field_rules(frm) {
 
 	[
 		"meal_type",
+		"assigned_meal_slots",
+		"hospitality_type",
 		"number_of_people",
 		"special_diet",
 		"food_dept_staff_assigned",
@@ -244,6 +294,43 @@ function apply_visitor_pass_field_rules(frm) {
 
 	frm.toggle_display(["conference_room", "service_time"], true);
 	frm.toggle_display(["rest_area", "hospitality_notes"], hospitality_recorded);
+}
+
+function refresh_hospitality_plan(frm) {
+	if (!frm.doc.visit_date || !frm.doc.expected_checkin || !frm.doc.expected_checkout) {
+		frm.set_value({
+			meal_required: 0,
+			meal_type: "",
+			assigned_meal_slots: "",
+			hospitality_type: "",
+			service_time: null,
+		});
+		apply_visitor_pass_ui(frm);
+		return;
+	}
+
+	frappe.call({
+		method: "visitormanagement.visitor_management.lifecycle.get_hospitality_meal_plan",
+		args: {
+			visit_date: frm.doc.visit_date,
+			expected_checkin: frm.doc.expected_checkin,
+			expected_checkout: frm.doc.expected_checkout,
+		},
+		callback: ({ message }) => {
+			if (!message) {
+				return;
+			}
+
+			frm.set_value({
+				meal_required: message.meal_required || 0,
+				meal_type: message.meal_type || "",
+				assigned_meal_slots: message.assigned_meal_slots || "",
+				hospitality_type: message.hospitality_type || "",
+				service_time: message.service_time || null,
+			});
+			apply_visitor_pass_ui(frm);
+		},
+	});
 }
 
 function set_visitor_pass_intro(frm) {
@@ -275,7 +362,9 @@ function set_visitor_pass_intro(frm) {
 	if (stage === "Approved") {
 		frm.set_intro(
 			__(
-				"Approved. Security can now verify declared items, issue the badge, and record the visitor check-in."
+				frm.doc.visitor_type === "VIP"
+					? "Approved. Security should use the VIP priority lane and issue the badge during gate check-in."
+					: "Approved. Security can now verify declared items, issue the badge, and record the visitor check-in."
 			),
 			"green"
 		);

@@ -3,8 +3,9 @@
 
 import frappe
 import qrcode
+from frappe.desk.doctype.notification_log.notification_log import make_notification_logs
 from frappe.model.document import Document
-from frappe.utils import now_datetime, today, get_url
+from frappe.utils import get_url, get_url_to_form, now_datetime, today
 from io import BytesIO
 
 from visitormanagement.visitor_management.lifecycle import (
@@ -106,6 +107,145 @@ def _get_opportunity_visit_details(reference_name):
     }
 
 
+def _get_users_with_role(role):
+    return frappe.db.sql(
+        """
+        select distinct u.name, u.email
+        from `tabHas Role` hr
+        join `tabUser` u on u.name = hr.parent
+        where hr.role = %s and ifnull(u.enabled, 0) = 1 and ifnull(u.user_type, '') = 'System User'
+        order by u.name
+        """,
+        (role,),
+        as_dict=True,
+    )
+
+
+def _get_workflow_notification_roles(doc, stage):
+    stage_map = {
+        "Pending Visitor Manager": ["Visitor Manager"],
+        "Pending Sales Manager": ["Sales Manager"],
+        "Pending HR Manager": ["HR Manager"],
+        "Pending HOD": ["HOD"],
+        "Pending CEO": ["CEO"],
+    }
+
+    if doc.visitor_type == "VIP" and stage == "Approved":
+        return ["HOD", "CEO"]
+
+    return stage_map.get(stage, [])
+
+
+def _render_vip_notification(doc):
+    try:
+        notification = frappe.get_doc("Notification", "VMS VIP Alert")
+        subject = frappe.render_template(notification.subject or "", {"doc": doc})
+        message = frappe.render_template(notification.message or "", {"doc": doc})
+        return subject, message
+    except frappe.DoesNotExistError:
+        stage = doc.workflow_state or doc.status or "VIP Update"
+        return (
+            f"VIP {stage} | {doc.visitor_full_name} | {doc.visit_date}",
+            f"<p>VIP visitor <b>{doc.visitor_full_name}</b> is now at stage <b>{stage}</b>.</p>",
+        )
+
+
+def _render_workflow_notification(doc, stage):
+    if doc.visitor_type == "VIP":
+        return _render_vip_notification(doc)
+
+    role_label = stage.replace("Pending ", "")
+    subject = f"{doc.visitor_type} Approval Required | {doc.visitor_full_name} | {doc.visit_date}"
+    message = (
+        "<div style='font-family: Arial, sans-serif; font-size: 13px; color: #1f2933; line-height: 1.5;'>"
+        f"<h3 style='margin: 0 0 12px; color: #102a43;'>{doc.visitor_type} Approval Pending</h3>"
+        f"<p style='margin: 0 0 12px;'>Approval is pending with <b>{role_label}</b>.</p>"
+        "<table style='width: 100%; border-collapse: collapse; margin-bottom: 16px;'>"
+        f"<tr><td style='padding: 6px; border: 1px solid #d9e2ec;'><strong>Visitor Name</strong></td><td style='padding: 6px; border: 1px solid #d9e2ec;'>{doc.visitor_full_name}</td></tr>"
+        f"<tr><td style='padding: 6px; border: 1px solid #d9e2ec;'><strong>Visitor Type</strong></td><td style='padding: 6px; border: 1px solid #d9e2ec;'>{doc.visitor_type}</td></tr>"
+        f"<tr><td style='padding: 6px; border: 1px solid #d9e2ec;'><strong>Company / Organisation</strong></td><td style='padding: 6px; border: 1px solid #d9e2ec;'>{doc.company__organisation or 'N/A'}</td></tr>"
+        f"<tr><td style='padding: 6px; border: 1px solid #d9e2ec;'><strong>Purpose of Visit</strong></td><td style='padding: 6px; border: 1px solid #d9e2ec;'>{doc.purpose_of_visit or 'N/A'}</td></tr>"
+        f"<tr><td style='padding: 6px; border: 1px solid #d9e2ec;'><strong>Host Person</strong></td><td style='padding: 6px; border: 1px solid #d9e2ec;'>{doc.person_to_visit or 'N/A'}</td></tr>"
+        f"<tr><td style='padding: 6px; border: 1px solid #d9e2ec;'><strong>Visit Date</strong></td><td style='padding: 6px; border: 1px solid #d9e2ec;'>{doc.visit_date} | {doc.expected_checkin or 'N/A'} - {doc.expected_checkout or 'N/A'}</td></tr>"
+        f"<tr><td style='padding: 6px; border: 1px solid #d9e2ec;'><strong>Risk / SLA</strong></td><td style='padding: 6px; border: 1px solid #d9e2ec;'>{doc.risk_level or 'N/A'} / {doc.approval_sla_minutes or 'N/A'} mins</td></tr>"
+        "</table>"
+        f"<p style='margin: 12px 0 0;'>Open the Visitor Pass to approve or reject this request.</p>"
+        "</div>"
+    )
+    return subject, message
+
+
+def _send_email_immediately(**kwargs):
+    email_queue = frappe.sendmail(delayed=False, now=True, **kwargs)
+    if email_queue:
+        email_queue.send(force_send=True)
+    return email_queue
+
+
+def _send_workflow_stage_notification(doc):
+    stage = doc.workflow_state or doc.status
+    target_roles = _get_workflow_notification_roles(doc, stage)
+    if not target_roles or getattr(doc, "last_workflow_notification_stage", None) == stage:
+        return
+
+    recipients = []
+    for role in target_roles:
+        recipients.extend(_get_users_with_role(role))
+
+    recipient_map = {}
+    for recipient in recipients:
+        if recipient.email:
+            recipient_map[recipient.email] = recipient
+
+    if not recipient_map:
+        return
+
+    subject, message = _render_workflow_notification(doc, stage)
+    existing_users = set(
+        frappe.db.get_all(
+            "Notification Log",
+            filters={
+                "document_type": doc.doctype,
+                "document_name": doc.name,
+                "subject": subject,
+            },
+            pluck="for_user",
+        )
+    )
+
+    fresh_recipients = {
+        email: recipient
+        for email, recipient in recipient_map.items()
+        if recipient.name not in existing_users
+    }
+
+    if not fresh_recipients:
+        doc.db_set("last_workflow_notification_stage", stage, update_modified=False)
+        return
+
+    notification_doc = frappe._dict({
+        "type": "Alert",
+        "subject": subject,
+        "email_content": message,
+        "document_type": doc.doctype,
+        "document_name": doc.name,
+        "from_user": frappe.session.user,
+        "link": get_url_to_form(doc.doctype, doc.name),
+    })
+
+    make_notification_logs(notification_doc, list(fresh_recipients.keys()))
+
+    _send_email_immediately(
+        recipients=list(fresh_recipients.keys()),
+        subject=subject,
+        message=message,
+        reference_doctype=doc.doctype,
+        reference_name=doc.name,
+    )
+
+    doc.db_set("last_workflow_notification_stage", stage, update_modified=False)
+
+
 @frappe.whitelist()
 def get_customer_visit_details(reference_type, reference_name):
     if reference_type not in {"Lead", "Opportunity"}:
@@ -147,6 +287,9 @@ class VisitorPass(Document):
             },
         )
 
+    def on_update(self):
+        _send_workflow_stage_notification(self)
+
     # ─────────────────────────────────────────────────────────
     # BEFORE SAVE
     # ─────────────────────────────────────────────────────────
@@ -170,6 +313,11 @@ class VisitorPass(Document):
 
         if self.visitor_type and not self.badge_colour:
             self.badge_colour = colour_map.get(self.visitor_type, "Blue")
+
+        if self.visitor_type == "VIP":
+            self.priority_lane = 1
+            if self.interpreter_required and not self.interpreter_language:
+                self.interpreter_language = "English"
 
         # Sync item verification status from child table
         if self.visitor_items:
@@ -233,6 +381,8 @@ class VisitorPass(Document):
         self.db_set("approval_date", now_datetime())
         self.db_set("approved_by", frappe.session.user)
         self.db_set("status", "Approved")
+        if self.visitor_type == "VIP":
+            self.db_set("mdceo_notified", 1)
 
         # Generate QR Code for the badge (Skip for VIP)
         qr_file_url = None
@@ -260,6 +410,7 @@ class VisitorPass(Document):
             },
         )
         sync_compliance_check(self.name)
+        _send_workflow_stage_notification(self)
 
     def on_update_after_submit(self):
         ensure_hospitality_request(self)
@@ -389,7 +540,7 @@ class VisitorPass(Document):
         else:
             qr_section = "Please present your ID proof at the security gate for verification.<br><br>"
 
-        frappe.sendmail(
+        _send_email_immediately(
             recipients=[self.email_id],
             subject=f"Visit APPROVED — {self.name}",
             message=(
@@ -403,7 +554,9 @@ class VisitorPass(Document):
                 f"{items_text}"
             ),
             attachments=attachments,
-            inline_images=inline_images
+            inline_images=inline_images,
+            reference_doctype=self.doctype,
+            reference_name=self.name,
         )
 
     # ─────────────────────────────────────────────────────────
@@ -412,10 +565,12 @@ class VisitorPass(Document):
     def _notify_food_dept(self):
         food_email = frappe.db.get_single_value("VMS Settings", "food_dept_email")
         if food_email:
-            frappe.sendmail(
+            _send_email_immediately(
                 recipients=[food_email],
                 subject=f"Meal Required: {self.visitor_full_name}",
                 message=f"Meal Type: {self.meal_type}<br>Visitor Pass: {self.name}",
+                reference_doctype=self.doctype,
+                reference_name=self.name,
             )
 
 

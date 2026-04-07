@@ -60,17 +60,6 @@
    "dependencies": "",
    "hidden": 0,
    "is_query_report": 0,
-   "label": "HR Interview",
-   "link_count": 0,
-   "link_to": "HR Interview",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "dependencies": "",
-   "hidden": 0,
-   "is_query_report": 0,
    "label": "Hospitality Request",
    "link_count": 0,
    "link_to": "Hospitality Request",
@@ -262,7 +251,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-04-06 11:15:01.453856",
+ "modified": "2026-04-06 19:26:05.019162",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Management",

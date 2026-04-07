@@ -20,6 +20,10 @@ frappe.ui.form.on("Security Log", {
 				__("Actions")
 			);
 		}
+
+		if (frm.is_new() && !frm.doc.visitor_pass) {
+			frm.add_custom_button(__("Approved VIP Queue"), () => open_vip_queue(frm), __("Actions"));
+		}
 	},
 
 	event_type(frm) {
@@ -29,14 +33,6 @@ frappe.ui.form.on("Security Log", {
 		if (!frm.doc.visited_area && frm.doc.gate_name) {
 			frm.set_value("visited_area", frm.doc.gate_name);
 		}
-		apply_security_log_ui(frm);
-	},
-
-	manual_override(frm) {
-		apply_security_log_ui(frm);
-	},
-
-	alert_level(frm) {
 		apply_security_log_ui(frm);
 	},
 
@@ -208,6 +204,7 @@ frappe.ui.form.on("Security Log", {
 
 	visitor_pass(frm) {
 		if (!frm.doc.visitor_pass) {
+			delete frm.__visitor_type;
 			apply_security_log_ui(frm);
 			return;
 		}
@@ -228,6 +225,10 @@ frappe.ui.form.on("Security Log", {
 				"visitor_type",
 				"status",
 				"id_proof_number",
+				"priority_lane",
+				"mdceo_notified",
+				"dedicated_meeting_room",
+				"protocol_notes",
 			],
 			(r) => {
 				if (!r) {
@@ -235,13 +236,15 @@ frappe.ui.form.on("Security Log", {
 					return;
 				}
 
+				frm.__visitor_type = r.visitor_type;
+
 				if (r.visitor_photo) frm.set_value("visitor_photo", r.visitor_photo);
 				if (r.id_proof_scan) frm.set_value("id_proof_scan", r.id_proof_scan);
 				frm.set_value("visitor_name", r.visitor_full_name);
 
 				if (r.badge_number) {
 					frm.set_value("badge_number", r.badge_number);
-				} else {
+				} else if (r.visitor_type !== "VIP") {
 					frappe.call({
 						method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.sync_badge_number",
 						args: { visitor_pass: frm.doc.visitor_pass },
@@ -251,6 +254,8 @@ frappe.ui.form.on("Security Log", {
 							}
 						},
 					});
+				} else {
+					frm.set_value("badge_number", "");
 				}
 
 				if (r.id_proof_number) {
@@ -603,6 +608,10 @@ function apply_security_log_ui(frm) {
 		"visitor_photo",
 		"qr_code_scanned",
 		"gate_auto_assigned",
+		"priority_lane",
+		"mdceo_notified",
+		"vip_meeting_room",
+		"vip_protocol_notes",
 		"all_items_confirmed",
 		"verification_duration",
 		"health_screening_status",
@@ -610,14 +619,15 @@ function apply_security_log_ui(frm) {
 	].forEach((fieldname) => frm.set_df_property(fieldname, "read_only", 1));
 
 	const has_pass = !!frm.doc.visitor_pass;
+	const is_vip = frm.__visitor_type === "VIP" || !!frm.doc.priority_lane;
 	const is_check_in = frm.doc.event_type === "Check-In";
 	const is_check_out = frm.doc.event_type === "Check-Out";
 	const is_gate_transfer = frm.doc.event_type === "Gate Transfer";
-	const is_exception_flow = !!frm.doc.manual_override || ["High", "Critical"].includes(frm.doc.alert_level);
 	const has_items = !!(frm.doc.items_verification && frm.doc.items_verification.length);
 	const show_items = is_check_in || has_items;
 	const show_gate_photo = ["Check-In", "Alert", "Gate Transfer", "Badge Collected"].includes(frm.doc.event_type);
 	const show_health_screening = is_check_in || frm.doc.event_type === "Alert" || !!frm.doc.health_screening;
+	const show_exception_reason = !frm.is_new() && !!frm.doc.exception_reason;
 
 	frm.toggle_display("check_in_date_time", is_check_in || (!frm.is_new() && !!frm.doc.check_in_date_time));
 	frm.toggle_display("check_out_date_time", is_check_out || (!frm.is_new() && !!frm.doc.check_out_date_time));
@@ -631,8 +641,6 @@ function apply_security_log_ui(frm) {
 	frm.toggle_display(["id_proof_match", "pass_photo_match", "verification_notes"], is_check_in);
 	frm.toggle_display(
 		[
-			"alert_level",
-			"manual_override",
 			"exception_reason",
 			"verification_duration",
 			"visited_area",
@@ -645,13 +653,15 @@ function apply_security_log_ui(frm) {
 		has_pass
 	);
 	frm.toggle_display(["section_break_items", "items_verification", "all_items_confirmed"], show_items);
-	frm.toggle_reqd("photo_at_gate", is_check_in && !frm.doc.manual_override);
-	frm.toggle_reqd("id_proof_match", is_check_in && !frm.doc.manual_override);
-	frm.toggle_reqd("pass_photo_match", is_check_in && !frm.doc.manual_override);
-	frm.toggle_reqd("exception_reason", is_exception_flow);
+	frm.toggle_reqd("photo_at_gate", is_check_in);
+	frm.toggle_reqd("id_proof_match", is_check_in);
+	frm.toggle_reqd("pass_photo_match", is_check_in);
+	frm.toggle_display("exception_reason", show_exception_reason);
+	frm.toggle_reqd("exception_reason", false);
 	frm.toggle_reqd("visited_area", is_gate_transfer);
 	frm.toggle_display(["temperature", "symptoms_flag", "symptoms_details", "health_screening_status", "health_screening"], show_health_screening);
 	frm.toggle_display("symptoms_details", !!frm.doc.symptoms_flag);
+	frm.toggle_display(["priority_lane", "mdceo_notified", "vip_meeting_room", "vip_protocol_notes"], has_pass && is_vip);
 
 	render_identity_comparison(frm);
 	set_security_log_intro(frm, is_check_in, is_check_out);
@@ -729,7 +739,7 @@ function get_identity_status_html(frm) {
 function set_security_log_intro(frm, is_check_in, is_check_out) {
 	if (!frm.doc.visitor_pass) {
 		frm.set_intro(
-			__("Scan the QR code or select a Visitor Pass to begin gate verification."),
+			__("Scan the QR code, select a Visitor Pass, or use Approved VIP Queue for priority visitors."),
 			"blue"
 		);
 		return;
@@ -738,7 +748,9 @@ function set_security_log_intro(frm, is_check_in, is_check_out) {
 	if (is_check_in) {
 		frm.set_intro(
 			__(
-				"Compare the ID proof, pass photo, and live gate capture, complete health screening, then save the check-in and print the badge."
+				frm.__visitor_type === "VIP"
+					? "VIP priority check-in. Review protocol notes, confirm MD/CEO notification, capture gate photo, then save and print the badge."
+					: "Compare the ID proof, pass photo, and live gate capture, complete health screening, then save the check-in and print the badge."
 			),
 			"green"
 		);
@@ -771,7 +783,11 @@ function set_security_log_headline(frm) {
 	if (!frm.dashboard) return;
 
 	const headline = frm.doc.visitor_name
-		? __("{0} | {1}", [frm.doc.event_type || __("Gate Event"), frm.doc.visitor_name])
+		? __("{0} | {1}{2}", [
+			frm.doc.event_type || __("Gate Event"),
+			frm.doc.visitor_name,
+			frm.__visitor_type === "VIP" ? " | VIP Priority" : "",
+		])
 		: frm.doc.event_type || __("Gate Event");
 
 	frm.dashboard.clear_headline();
@@ -784,4 +800,77 @@ function get_security_event_color(event_type) {
 	if (event_type === "Alert") return "red";
 	if (event_type === "Gate Transfer") return "blue";
 	return "gray";
+}
+
+function open_vip_queue(frm) {
+	frappe.call({
+		method: "visitormanagement.visitor_management.doctype.security_log.security_log.get_approved_vip_queue",
+		args: {
+			visit_date: frappe.datetime.get_today(),
+		},
+		callback: ({ message }) => {
+			const vip_queue = message || [];
+			if (!vip_queue.length) {
+				frappe.msgprint(__("No approved VIP visitors are scheduled for today."));
+				return;
+			}
+
+			const options = vip_queue.map((vip) => vip.name);
+			const dialog = new frappe.ui.Dialog({
+				title: __("Approved VIP Queue ({0})", [vip_queue.length]),
+				fields: [
+					{
+						fieldname: "visitor_pass",
+						fieldtype: "Select",
+						label: __("VIP Visitor"),
+						options: options.join("\n"),
+						reqd: 1,
+						change() {
+							render_vip_queue_preview(dialog, vip_queue);
+						},
+					},
+					{
+						fieldname: "vip_preview",
+						fieldtype: "HTML",
+					},
+				],
+				primary_action_label: __("Use VIP Pass"),
+				primary_action(values) {
+					frm.set_value("visitor_pass", values.visitor_pass);
+					dialog.hide();
+				},
+			});
+
+			dialog.show();
+			dialog.set_value("visitor_pass", options[0]);
+			render_vip_queue_preview(dialog, vip_queue);
+		},
+	});
+}
+
+function render_vip_queue_preview(dialog, vip_queue) {
+	const selected = vip_queue.find((vip) => vip.name === dialog.get_value("visitor_pass"));
+	if (!selected) {
+		dialog.get_field("vip_preview").$wrapper.empty();
+		return;
+	}
+
+	dialog.get_field("vip_preview").$wrapper.html(`
+		<div style="border: 1px solid #dbe3ea; border-radius: 12px; padding: 14px; background: #f8fafc; margin-top: 8px;">
+			<div style="font-weight: 700; color: #102a43; margin-bottom: 10px;">${selected.visitor_full_name}</div>
+			<div style="font-size: 12px; color: #334e68; line-height: 1.6;">
+				<div><strong>${__("Stage")}:</strong> ${selected.workflow_state || selected.status || "-"}</div>
+				<div><strong>${__("Visit Window")}:</strong> ${selected.visit_date || "-"} | ${selected.expected_checkin || "-"} - ${selected.expected_checkout || "-"}</div>
+				<div><strong>${__("Host")}:</strong> ${selected.person_to_visit || "-"}</div>
+				<div><strong>${__("Purpose")}:</strong> ${selected.purpose_of_visit || "-"}</div>
+				<div><strong>${__("Meeting Room")}:</strong> ${selected.dedicated_meeting_room || "-"}</div>
+				<div><strong>${__("Priority Lane")}:</strong> ${selected.priority_lane ? __("Yes") : __("No")}</div>
+				<div><strong>${__("MD/CEO Notified")}:</strong> ${selected.mdceo_notified ? __("Yes") : __("No")}</div>
+				<div><strong>${__("Meal / People")}:</strong> ${selected.meal_type || "-"} / ${selected.number_of_people || "-"}</div>
+				<div><strong>${__("Welcome Gift")}:</strong> ${selected.welcome_gift || "-"}</div>
+				<div><strong>${__("Items Carried")}:</strong> ${selected.items_carried || __("No items declared")}</div>
+				<div><strong>${__("Protocol Notes")}:</strong> ${selected.protocol_notes || "-"}</div>
+			</div>
+		</div>
+	`);
 }

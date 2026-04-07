@@ -68,7 +68,6 @@
   "column_break_candidate",
   "interview_panel",
   "interview_room",
-  "hr_interview",
   "section_break_supplier_details",
   "supplier_link",
   "supplier_visit_mode",
@@ -101,6 +100,8 @@
   "interpreter_language",
   "security_detail",
   "protocol_notes",
+  "last_vip_notification_stage",
+  "last_workflow_notification_stage",
   "gate_badge_tab",
   "section_break_gqft",
   "badge_number",
@@ -125,6 +126,8 @@
   "section_break_khxo",
   "meal_required",
   "meal_type",
+  "assigned_meal_slots",
+  "hospitality_type",
   "number_of_people",
   "special_diet",
   "column_break_hospitality",
@@ -533,13 +536,6 @@
    "label": "Interview Room"
   },
   {
-   "fieldname": "hr_interview",
-   "fieldtype": "Link",
-   "label": "HR Interview",
-   "options": "HR Interview",
-   "read_only": 1
-  },
-  {
    "collapsible": 1,
    "depends_on": "eval:doc.visitor_type == 'Supplier'",
    "fieldname": "section_break_supplier_details",
@@ -729,8 +725,9 @@
   {
    "depends_on": "eval:doc.visitor_type == 'VIP'",
    "fieldname": "interpreter_language",
-   "fieldtype": "Data",
-   "label": "Interpreter Language"
+   "fieldtype": "Select",
+   "label": "Interpreter Language",
+   "options": "Tamil\nEnglish"
   },
   {
    "depends_on": "eval:doc.visitor_type == 'VIP'",
@@ -743,6 +740,22 @@
    "fieldname": "protocol_notes",
    "fieldtype": "Text Editor",
    "label": "Protocol Notes"
+  },
+  {
+   "fieldname": "last_vip_notification_stage",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Last VIP Notification Stage",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_workflow_notification_stage",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Last Workflow Notification Stage",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "gate_badge_tab",
@@ -904,7 +917,22 @@
    "fieldname": "meal_type",
    "fieldtype": "Select",
    "label": "Meal Type",
-   "options": "Breakfast\nLunch\nDinner\nSnacks\nAll Day"
+   "options": "Breakfast\nLunch\nDinner\nBreakfast + Lunch\nLunch + Dinner\nBreakfast + Dinner\nSnacks\nAll Day"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "assigned_meal_slots",
+   "fieldtype": "Small Text",
+   "label": "Assigned Meal Slots",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "hospitality_type",
+   "fieldtype": "Select",
+   "label": "Hospitality Type",
+   "options": "Single Meal\nTwo Meals\nFull Day",
+   "read_only": 1
   },
   {
    "allow_on_submit": 1,

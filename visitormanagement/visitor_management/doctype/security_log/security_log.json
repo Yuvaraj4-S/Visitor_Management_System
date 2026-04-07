@@ -18,6 +18,10 @@
     "verification_duration",
     "qr_code_scanned",
     "gate_auto_assigned",
+    "priority_lane",
+    "mdceo_notified",
+    "vip_meeting_room",
+    "vip_protocol_notes",
     "section_break_snapshot",
     "visitor_name",
     "visitor_company",
@@ -42,8 +46,6 @@
     "column_break_gate_capture",
     "id_proof_match",
     "pass_photo_match",
-    "alert_level",
-    "manual_override",
     "exception_reason",
     "health_screening_status",
     "health_screening",
@@ -129,6 +131,34 @@
       "fieldname": "gate_auto_assigned",
       "fieldtype": "Check",
       "label": "Gate Auto Assigned",
+      "read_only": 1
+    },
+    {
+      "fetch_from": "visitor_pass.priority_lane",
+      "fieldname": "priority_lane",
+      "fieldtype": "Check",
+      "label": "Priority Lane",
+      "read_only": 1
+    },
+    {
+      "fetch_from": "visitor_pass.mdceo_notified",
+      "fieldname": "mdceo_notified",
+      "fieldtype": "Check",
+      "label": "MD/CEO Notified",
+      "read_only": 1
+    },
+    {
+      "fetch_from": "visitor_pass.dedicated_meeting_room",
+      "fieldname": "vip_meeting_room",
+      "fieldtype": "Data",
+      "label": "VIP Meeting Room",
+      "read_only": 1
+    },
+    {
+      "fetch_from": "visitor_pass.protocol_notes",
+      "fieldname": "vip_protocol_notes",
+      "fieldtype": "Small Text",
+      "label": "VIP Protocol Notes",
       "read_only": 1
     },
     {
@@ -267,19 +297,6 @@
       "label": "Matches Pass Photo"
     },
     {
-      "fieldname": "alert_level",
-      "fieldtype": "Select",
-      "label": "Alert Level",
-      "options": "Low\nMedium\nHigh\nCritical"
-    },
-    {
-      "default": "0",
-      "fieldname": "manual_override",
-      "fieldtype": "Check",
-      "label": "Manual Override"
-    },
-    {
-      "depends_on": "eval:doc.manual_override || ['High', 'Critical'].includes(doc.alert_level)",
       "fieldname": "exception_reason",
       "fieldtype": "Small Text",
       "label": "Exception Reason"

@@ -4,7 +4,10 @@
 import frappe
 from frappe.model.document import Document
 
-from visitormanagement.visitor_management.lifecycle import sync_hospitality_to_pass
+from visitormanagement.visitor_management.lifecycle import (
+	populate_hospitality_request_from_pass,
+	sync_hospitality_to_pass,
+)
 
 
 def _get_assigned_staff_email(employee_name):
@@ -36,6 +39,8 @@ def _send_hospitality_assignment_mail(doc):
 		f"Visitor: {visitor_name}",
 		f"Meal Required: {'Yes' if doc.meal_required else 'No'}",
 		f"Meal Type: {doc.meal_type or '-'}",
+		f"Meal Slots: {getattr(doc, 'assigned_meal_slots', None) or '-'}",
+		f"Hospitality Type: {getattr(doc, 'hospitality_type', None) or '-'}",
 		f"Conference Room: {doc.conference_room or '-'}",
 		f"Service Time: {doc.service_time or '-'}",
 	]
@@ -54,6 +59,8 @@ class HospitalityRequest(Document):
 	def validate(self):
 		if not self.status:
 			self.status = "Pending"
+		if self.visitor_pass:
+			populate_hospitality_request_from_pass(self)
 
 	def on_update(self):
 		sync_hospitality_to_pass(self)

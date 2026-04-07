@@ -16,8 +16,6 @@
   "gate_photo_captured",
   "items_verified",
   "hospitality_closed",
-  "manual_override",
-  "alert_level",
   "no_show",
   "verification_duration",
   "health_screening_status",
@@ -93,18 +91,6 @@
    "fieldname": "hospitality_closed",
    "fieldtype": "Check",
    "label": "Hospitality Closed"
-  },
-  {
-   "default": "0",
-   "fieldname": "manual_override",
-   "fieldtype": "Check",
-   "label": "Manual Override"
-  },
-  {
-   "fieldname": "alert_level",
-   "fieldtype": "Select",
-   "label": "Alert Level",
-   "options": "Low\nMedium\nHigh\nCritical"
   },
   {
    "default": "0",

@@ -78,39 +78,11 @@ frappe.ui.form.on("Visitor Pass", {
 	},
 
 	mobile_number(frm) {
-		if (frm.doc.mobile_number) {
-			frappe.call({
-				method: 'visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.search_existing_by_phone',
-				args: { phone: frm.doc.mobile_number },
-				callback: function(r) {
-					if (r.message && r.message.length > 0) {
-						let msg = 'Existing visitors found with this phone number:<br>';
-						r.message.forEach(v => {
-							msg += `${v.name}: ${v.visitor_full_name} (${v.visitor_type})<br>`;
-						});
-						frappe.msgprint(msg, 'Existing Visitors');
-					}
-				}
-			});
-		}
+		lookup_existing_visitor_match(frm, "mobile_number");
 	},
 
 	id_proof_number(frm) {
-		if (frm.doc.id_proof_number) {
-			frappe.call({
-				method: 'visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.search_existing_by_id',
-				args: { id_number: frm.doc.id_proof_number },
-				callback: function(r) {
-					if (r.message && r.message.length > 0) {
-						let msg = 'Existing visitors found with this ID number:<br>';
-						r.message.forEach(v => {
-							msg += `${v.name}: ${v.visitor_full_name} (${v.visitor_type})<br>`;
-						});
-						frappe.msgprint(msg, 'Existing Visitors');
-					}
-				}
-			});
-		}
+		lookup_existing_visitor_match(frm, "id_proof_number");
 	},
 
 	supplier_visit_mode(frm) {
@@ -149,14 +121,20 @@ frappe.ui.form.on("Visitor Pass", {
 			return;
 		}
 
-		frappe.db.get_doc("Visitor Pass", frm.doc.existing_visitor_pass).then((doc) => {
-			frm.set_value("visitor_full_name", doc.visitor_full_name);
-			frm.set_value("mobile_number", doc.mobile_number);
-			frm.set_value("email_id", doc.email_id);
-			frm.set_value("company__organisation", doc.company__organisation);
-			frm.set_value("id_proof_type", doc.id_proof_type);
-			frm.set_value("id_proof_number", doc.id_proof_number);
-			apply_visitor_pass_ui(frm);
+		frappe.call({
+			method:
+				"visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.get_existing_visitor_pass_details",
+			args: {
+				visitor_pass: frm.doc.existing_visitor_pass,
+				visitor_type: frm.doc.visitor_type,
+			},
+			callback: ({ message }) => {
+				if (!message) {
+					return;
+				}
+				apply_existing_pass_data(frm, message);
+				apply_visitor_pass_ui(frm);
+			},
 		});
 	},
 
@@ -565,6 +543,9 @@ function add_action_buttons(frm) {
 			__("Actions")
 		);
 	}
+
+	// Intentionally hidden on saved Draft forms.
+	// Web Submissions is exposed in List view near "Add Visitor Pass".
 }
 
 function setup_supplier_pass_query(frm) {
@@ -583,8 +564,8 @@ function get_pass_stage(frm) {
 
 function get_approval_lane(visitor_type) {
 	const lane = {
-		Contractor: __("Visitor Manager"),
-		Supplier: __("Visitor Manager"),
+		Contractor: __("System Manager"),
+		Supplier: __("System Manager"),
 		Customer: __("Sales Manager"),
 		Candidate: __("HR Manager"),
 		VIP: __("HOD / CEO"),
@@ -595,8 +576,232 @@ function get_approval_lane(visitor_type) {
 
 function get_pass_stage_color(stage) {
 	if (["Approved", "Checked-In"].includes(stage)) return "green";
-	if (["Pending Approval", "Pending Visitor Manager", "Pending Sales Manager", "Pending HR Manager", "Pending HOD", "Pending CEO"].includes(stage)) return "orange";
+	if (["Pending Approval", "Pending System Manager", "Pending Visitor Manager", "Pending Sales Manager", "Pending HR Manager", "Pending HOD", "Pending CEO"].includes(stage)) return "orange";
 	if (["Rejected", "Cancelled"].includes(stage)) return "red";
 	if (["Items Verified", "Checked-Out"].includes(stage)) return "blue";
 	return "gray";
+}
+
+function show_web_submissions_dialog(frm) {
+	frappe.call({
+		method: 'frappe.client.get_list',
+		args: {
+			doctype: 'Visitor Pass',
+			filters: [
+				['request_channel', '=', 'Portal'],
+				['workflow_state', 'in', ['Pending System Manager', 'Pending Visitor Manager', 'Pending Sales Manager', 'Pending HR Manager', 'Pending HOD', 'Pending CEO', 'Draft']]
+			],
+			fields: ['name', 'visitor_full_name', 'visitor_type', 'mobile_number', 'email_id', 'visit_date']
+		},
+		callback: function(r) {
+			if (r.message && r.message.length > 0) {
+				let dialog = new frappe.ui.Dialog({
+					title: __('Pending Web Submissions'),
+					fields: [
+						{
+							fieldtype: 'HTML',
+							fieldname: 'submissions',
+							options: generate_submissions_html(r.message, frm)
+						}
+					],
+					size: 'large'
+				});
+				dialog.show();
+			} else {
+				frappe.msgprint(__('No pending web visitor pass submissions found.'));
+			}
+		}
+	});
+}
+
+function generate_submissions_html(submissions, frm) {
+	let html = '<div class="row">';
+	submissions.forEach(sub => {
+		html += `
+			<div class="col-md-6 mb-3">
+				<div class="card">
+					<div class="card-body">
+						<h5 class="card-title">${sub.visitor_full_name} (${sub.visitor_type})</h5>
+						<p class="card-text">
+							Phone: ${sub.mobile_number}<br>
+							Email: ${sub.email_id}<br>
+							Date: ${sub.visit_date}
+						</p>
+						<button class="btn btn-primary btn-sm" onclick="select_submission('${sub.name}', '${frm.doc.name}')">Select & Auto-Fetch</button>
+					</div>
+				</div>
+			</div>
+		`;
+	});
+	html += '</div>';
+	return html;
+}
+
+window.select_submission = function(submission_name, frm_name) {
+	frappe.call({
+		method: 'frappe.client.get',
+		args: { doctype: 'Visitor Pass', name: submission_name },
+		callback: function(r) {
+			if (r.message) {
+				let data = r.message;
+				// Set values in Visitor Pass
+				frappe.set_route('Form', 'Visitor Pass', frm_name);
+				setTimeout(() => {
+					let frm = cur_frm;
+					frm.set_value('visitor_type', data.visitor_type);
+					frm.set_value('visitor_full_name', data.visitor_full_name);
+					frm.set_value('mobile_number', data.mobile_number);
+					frm.set_value('email_id', data.email_id);
+					frm.set_value('company__organisation', data.company__organisation);
+					frm.set_value('visit_date', data.visit_date);
+					frm.set_value('expected_checkin', data.expected_checkin);
+					frm.set_value('expected_checkout', data.expected_checkout);
+					frm.set_value('purpose_of_visit', resolve_purpose_of_visit(data));
+					frm.set_value('person_to_visit', data.person_to_visit);
+					frm.set_value('id_proof_type', data.id_proof_type);
+					frm.set_value('id_proof_number', data.id_proof_number);
+					frm.set_value('id_proof_scan', data.id_proof_scan);
+					frm.set_value('visitor_photo', data.visitor_photo);
+					frm.set_value('request_channel', 'Portal');
+					frm.save();
+				}, 500);
+			}
+		}
+	});
+};
+
+function resolve_purpose_of_visit(data) {
+	const explicit = (data.purpose_of_visit || "").trim();
+	if (explicit) {
+		return explicit;
+	}
+
+	if (data.visitor_type === "Supplier") {
+		if ((data.supplier_visit_mode || "") === "Delivery") {
+			return __("Supplier Delivery");
+		}
+		return __("Supplier Meeting");
+	}
+	if (data.visitor_type === "Customer") {
+		return __("Customer Meeting");
+	}
+	if (data.visitor_type === "Contractor") {
+		return __("Contract Work Visit");
+	}
+	if (data.visitor_type === "Candidate") {
+		return __("Interview Visit");
+	}
+	if (data.visitor_type === "VIP") {
+		return __("VIP Visit");
+	}
+	return "";
+}
+
+function apply_existing_pass_data(frm, data) {
+	const fields = [
+		"visitor_full_name",
+		"mobile_number",
+		"email_id",
+		"company__organisation",
+		"id_proof_type",
+		"id_proof_number",
+		"id_proof_scan",
+		"visitor_photo",
+		"purpose_of_visit",
+		"person_to_visit",
+		"host_department",
+		"visit_date",
+		"expected_checkin",
+		"expected_checkout",
+		"supplier_visit_mode",
+		"supplier_link",
+		"purchase_order",
+		"delivery_note",
+		"goods_description",
+		"meeting_subject",
+		"meeting_start_time",
+		"meeting_end_time",
+		"meeting_room",
+		"attendees",
+		"refreshments_required",
+		"refreshment_notes",
+		"presentation_material",
+		"nda_required",
+		"documents_shared",
+		"crm_reference_type",
+		"crm_lead_opportunity",
+		"visit_category",
+		"sales_executive",
+		"products_discussed",
+		"meeting_outcome",
+		"followup_date",
+		"meeting_minutes",
+		"contractor_link",
+		"work_order_ref",
+		"safety_induction_done",
+		"contractor_nda_signed",
+		"contractor_nda_document",
+		"ppe_provided",
+		"ppe_provided_document",
+		"work_area_zone",
+		"tools_list",
+		"multi_day_pass",
+		"pass_valid_until",
+		"job_applicant_link",
+		"position_applied",
+		"candidate_interview_type",
+		"interview_panel",
+		"interview_room",
+	];
+
+	const updates = {};
+	fields.forEach((fieldname) => {
+		if (Object.prototype.hasOwnProperty.call(data, fieldname)) {
+			updates[fieldname] = data[fieldname];
+		}
+	});
+	frm.set_value(updates);
+}
+
+function lookup_existing_visitor_match(frm, trigger_field) {
+	if (!frm.doc.visitor_type || !["Supplier", "Customer", "Contractor", "Candidate"].includes(frm.doc.visitor_type)) {
+		return;
+	}
+	if (!frm.doc.mobile_number && !frm.doc.id_proof_number) {
+		return;
+	}
+
+	frappe.call({
+		method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.get_existing_visitor_matches",
+		args: {
+			visitor_type: frm.doc.visitor_type,
+			id_proof_number: frm.doc.id_proof_number,
+			mobile_number: frm.doc.mobile_number,
+			exclude_name: frm.doc.name,
+		},
+		callback: ({ message }) => {
+			if (!message || !message.best_match) {
+				return;
+			}
+
+			const best = message.best_match;
+			const signature = `${best.name}:${trigger_field}:${frm.doc.id_proof_number || ""}:${frm.doc.mobile_number || ""}`;
+			if (frm.__last_existing_prompt_signature === signature) {
+				return;
+			}
+			frm.__last_existing_prompt_signature = signature;
+
+			const prompt = __(
+				"Existing {0} record found: {1} ({2}). Do you want to load this data?",
+				[best.visitor_type, best.name, best.visitor_full_name]
+			);
+
+			frappe.confirm(prompt, () => {
+				if (frm.doc.entry_type !== "Existing") {
+					frm.set_value("entry_type", "Existing");
+				}
+				frm.set_value("existing_visitor_pass", best.name);
+			});
+		},
+	});
 }

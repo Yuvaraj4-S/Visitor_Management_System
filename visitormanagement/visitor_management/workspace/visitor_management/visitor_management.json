@@ -13,7 +13,7 @@
    "label": "Security Events by Gate"
   }
  ],
- "content": "[{\"id\":\"vms-card-1\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Total Visitor Passes\",\"col\":3}},{\"id\":\"vms-card-2\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending Visitor Approvals\",\"col\":3}},{\"id\":\"vms-card-3\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Checked-In Visitors\",\"col\":3}},{\"id\":\"vms-card-4\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Security Alerts\",\"col\":3}},{\"id\":\"vms-chart-1\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Visitor Pass Trend\",\"col\":12}},{\"id\":\"vms-chart-2\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Visitors by Type\",\"col\":6}},{\"id\":\"vms-chart-3\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Security Events by Gate\",\"col\":6}},{\"id\":\"vms-spacer-1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vms-header-1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Access</b></span>\",\"col\":12}},{\"id\":\"vms-shortcut-1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Visitor Pass\",\"col\":3}},{\"id\":\"vms-shortcut-2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Security Log\",\"col\":3}},{\"id\":\"vms-shortcut-3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Daily Visitor Log\",\"col\":3}},{\"id\":\"vms-shortcut-4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Active Visitors\",\"col\":3}},{\"id\":\"vms-shortcut-5\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Dashboard\",\"col\":3}},{\"id\":\"vms-spacer-2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vms-header-2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Modules &amp; Reports</b></span>\",\"col\":12}},{\"id\":\"vms-link-card-1\",\"type\":\"card\",\"data\":{\"card_name\":\"Visit Intake\",\"col\":3}},{\"id\":\"vms-link-card-2\",\"type\":\"card\",\"data\":{\"card_name\":\"Security\",\"col\":3}},{\"id\":\"vms-link-card-3\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":3}},{\"id\":\"vms-link-card-4\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":3}}]",
+ "content": "[{\"id\":\"vms-card-1\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Total Visitor Passes\",\"col\":3}},{\"id\":\"vms-card-3\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Checked-In Visitors\",\"col\":3}},{\"id\":\"vms-card-4\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Security Alerts\",\"col\":3}},{\"id\":\"vms-chart-1\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Visitor Pass Trend\",\"col\":12}},{\"id\":\"vms-chart-2\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Visitors by Type\",\"col\":6}},{\"id\":\"vms-chart-3\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Security Events by Gate\",\"col\":6}},{\"id\":\"vms-spacer-1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vms-header-1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Access</b></span>\",\"col\":12}},{\"id\":\"vms-shortcut-1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Visitor Pass\",\"col\":3}},{\"id\":\"vms-shortcut-2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Security Log\",\"col\":3}},{\"id\":\"vms-shortcut-3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Daily Visitor Log\",\"col\":3}},{\"id\":\"vms-shortcut-4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Active Visitors\",\"col\":3}},{\"id\":\"vms-shortcut-5\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Dashboard\",\"col\":3}},{\"id\":\"vms-spacer-2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vms-header-2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Modules &amp; Reports</b></span>\",\"col\":12}},{\"id\":\"vms-link-card-1\",\"type\":\"card\",\"data\":{\"card_name\":\"Visit Intake\",\"col\":3}},{\"id\":\"vms-link-card-2\",\"type\":\"card\",\"data\":{\"card_name\":\"Security\",\"col\":3}},{\"id\":\"vms-link-card-3\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":3}},{\"id\":\"vms-link-card-4\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":3}}]",
  "creation": "2026-04-04 12:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -121,15 +121,6 @@
    "type": "Link"
   },
   {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Safety",
-   "link_count": 0,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
    "dependencies": "",
    "hidden": 0,
    "is_query_report": 0,
@@ -176,8 +167,28 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Reports",
+   "label": "Setup",
    "link_count": 0,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "VMS Settings",
+   "link_count": 0,
+   "link_to": "VMS Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reports",
+   "link_count": 5,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -231,27 +242,19 @@
    "type": "Link"
   },
   {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Setup",
-   "link_count": 0,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
    "dependencies": "",
    "hidden": 0,
    "is_query_report": 0,
-   "label": "VMS Settings",
+   "label": "Visitor Identity Match Report",
    "link_count": 0,
-   "link_to": "VMS Settings",
-   "link_type": "DocType",
+   "link_to": "Visitor Identity Match Report",
+   "link_type": "Report",
    "onboard": 0,
+   "report_ref_doctype": "Visitor Pass",
    "type": "Link"
   }
  ],
- "modified": "2026-04-06 19:26:05.019162",
+ "modified": "2026-04-08 11:10:06.888339",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Management",
@@ -259,10 +262,6 @@
   {
    "label": "Total Visitor Passes",
    "number_card_name": "Total Visitor Passes"
-  },
-  {
-   "label": "Pending Approvals",
-   "number_card_name": "Pending Visitor Approvals"
   },
   {
    "label": "Checked-In Visitors",

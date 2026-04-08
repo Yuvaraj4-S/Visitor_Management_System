@@ -124,6 +124,15 @@ app_license = "mit"
 # has_permission = {
 # 	"Event": "frappe.desk.doctype.event.event.has_permission",
 # }
+permission_query_conditions = {
+	"Pre-Registration Request": "visitormanagement.permissions.get_prr_permission_query_conditions",
+	"Visitor Pass": "visitormanagement.permissions.get_visitor_pass_permission_query_conditions",
+}
+
+has_permission = {
+	"Pre-Registration Request": "visitormanagement.permissions.has_prr_permission",
+	"Visitor Pass": "visitormanagement.permissions.has_visitor_pass_permission",
+}
 
 # DocType Class
 # ---------------

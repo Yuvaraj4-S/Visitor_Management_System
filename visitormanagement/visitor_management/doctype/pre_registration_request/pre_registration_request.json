@@ -52,12 +52,12 @@
    "reqd": 1
   },
   {
-   "default": "Pending Approval",
+   "default": "Draft",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Pending Approval\nApproved\nRejected\nConverted",
+   "options": "Draft\nPending System Manager\nPending HR Manager\nPending Sales Manager\nPending HOD\nPending CEO\nApproved\nConverted",
    "read_only": 1
   },
   {
@@ -224,14 +224,15 @@
  "module": "Visitor Management",
  "name": "Pre-Registration Request",
  "owner": "Administrator",
-  "permissions": [
+ "permissions": [
   {
+   "create": 1,
    "email": 1,
    "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "Visitor Manager",
+   "role": "Employee",
    "share": 1,
    "write": 1
   },
@@ -244,6 +245,46 @@
    "read": 1,
    "report": 1,
    "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HOD",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "CEO",
    "share": 1,
    "write": 1
   }

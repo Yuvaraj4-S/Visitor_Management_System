@@ -6,10 +6,27 @@ from frappe.model.document import Document
 from visitormanagement.visitor_management.lifecycle import apply_hospitality_meal_plan
 
 
+PENDING_APPROVAL_BY_TYPE = {
+	"Contractor": "Pending System Manager",
+	"Supplier": "Pending System Manager",
+	"Candidate": "Pending HR Manager",
+	"Customer": "Pending Sales Manager",
+	"VIP": "Pending HOD",
+}
+
+
+def get_pending_approval_state(visitor_type):
+	return PENDING_APPROVAL_BY_TYPE.get(visitor_type, "Pending System Manager")
+
+
 class PreRegistrationRequest(Document):
 	def validate(self):
 		if not self.status:
-			self.status = "Pending Approval"
+			self.status = "Draft"
+
+		# Portal submissions should directly enter approval queue.
+		if self.is_new() and self.request_channel == "Portal" and self.status == "Draft":
+			self.status = get_pending_approval_state(self.visitor_type)
 
 		if self.visitor_type == "Supplier" and not self.supplier_visit_mode:
 			self.supplier_visit_mode = "Meeting"

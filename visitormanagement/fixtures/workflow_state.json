@@ -139,9 +139,9 @@
   "doctype": "Workflow State",
   "icon": "",
   "modified": "2026-03-01 20:16:51.270540",
-  "name": "Pending Visitor Manager",
+  "name": "Pending System Manager",
   "style": "",
-  "workflow_state_name": "Pending Visitor Manager"
+  "workflow_state_name": "Pending System Manager"
  },
  {
   "docstatus": 0,

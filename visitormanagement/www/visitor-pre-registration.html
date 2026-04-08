@@ -1,302 +1,348 @@
-{% extends "templates/web.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visitor Pre-Registration</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at 20% 20%, rgba(37, 99, 235, 0.18), transparent 40%),
+                radial-gradient(circle at 80% 0%, rgba(20, 184, 166, 0.15), transparent 35%),
+                linear-gradient(180deg, #f3f7ff 0%, #eef3fb 45%, #f7fafc 100%);
+            color: #242424;
+            font-family: "Manrope", "Segoe UI", sans-serif;
+        }
+        .page-shell {
+            padding: 40px 0 80px;
+        }
+        .hero-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid rgba(37, 99, 235, 0.2);
+            color: #1d4ed8;
+            border-radius: 999px;
+            padding: 8px 14px;
+            background: rgba(255, 255, 255, 0.8);
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+        }
+        .form-card {
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            border-radius: 24px;
+            background: #ffffff;
+            box-shadow: 0 32px 80px rgba(15, 23, 42, 0.08);
+        }
+        .form-card .card-body {
+            padding: 2.5rem;
+        }
+        .form-section-title {
+            font-size: 0.95rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            color: #4b5563;
+        }
+        .form-control,
+        .form-select {
+            border-radius: 0.75rem;
+            padding: 0.95rem 1rem;
+            border: 1px solid #d6dce7;
+        }
+        .form-control:focus,
+        .form-select:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.15);
+        }
+        .form-label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .form-text {
+            color: #6b7280;
+        }
+        .btn-submit {
+            min-height: 56px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #1d4ed8, #0ea5e9);
+            border: none;
+        }
+        .toast-container {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            z-index: 1055;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 20px;
+        }
+        .info-pill {
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            border-radius: 12px;
+            padding: 10px 12px;
+            background: #f8fbff;
+            font-size: 0.85rem;
+            color: #334155;
+        }
+        @media (max-width: 768px) {
+            .form-card .card-body {
+                padding: 1.25rem;
+            }
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container page-shell">
+        <div class="row justify-content-center">
+            <div class="col-xl-8 col-lg-10">
+                <div class="text-center mb-5">
+                    <div class="hero-chip mb-3">Visitor Management</div>
+                    <h1 class="fw-bold">Pre-Registration Portal</h1>
+                    <p class="text-muted mx-auto" style="max-width: 720px;">
+                        Complete the request with accurate identity and host details. Submissions are routed for approval before gate entry.
+                    </p>
+                    <div class="info-grid">
+                        <div class="info-pill">Step 1: Fill visitor profile</div>
+                        <div class="info-pill">Step 2: Add visit + host details</div>
+                        <div class="info-pill">Step 3: Upload identity proof</div>
+                    </div>
+                </div>
+                <div class="card form-card">
+                    <div class="card-body">
+                        <div id="formStatus" class="alert d-none" role="alert"></div>
+                        <form id="preRegForm" class="row g-4" action="/api/method/visitormanagement.www.visitor_pre_registration.submit_form" method="post" enctype="multipart/form-data" novalidate>
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <div class="col-12">
+                                <div class="form-section-title">Visitor Profile</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="visitor_name" class="form-label">Visitor Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="visitor_name" name="visitor_name" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="visitor_type" class="form-label">Visitor Type <span class="text-danger">*</span></label>
+                                <select class="form-select" id="visitor_type" name="visitor_type" required>
+                                    <option value="" disabled selected>Select type</option>
+                                    <option value="Contractor">Contractor</option>
+                                    <option value="Candidate">Candidate</option>
+                                    <option value="Customer">Customer</option>
+                                    <option value="Supplier">Supplier</option>
+                                    <option value="VIP">VIP</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="mobile_country_code" class="form-label">Country Code</label>
+                                <select class="form-select" id="mobile_country_code" name="mobile_country_code">
+                                    <option value="+91" selected>India (+91)</option>
+                                    <option value="+1">United States (+1)</option>
+                                    <option value="+44">United Kingdom (+44)</option>
+                                    <option value="+65">Singapore (+65)</option>
+                                    <option value="+971">UAE (+971)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="mobile_number" class="form-label">Mobile Number <span class="text-danger">*</span></label>
+                                <input type="tel" class="form-control" id="mobile_number" name="mobile_number" pattern="^(\+?[0-9]{10,15})$" placeholder="9876543210 or +919876543210" required>
+                                <div class="form-text">Use 10-15 digits (with optional +country code).</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="email_id" class="form-label">Email ID <span class="text-danger">*</span></label>
+                                <input type="email" class="form-control" id="email_id" name="email_id" placeholder="name@example.com" required>
+                            </div>
+                            <div class="col-12">
+                                <label for="company__organisation" class="form-label">Company / Organisation</label>
+                                <input type="text" class="form-control" id="company__organisation" name="company__organisation" placeholder="Optional">
+                            </div>
 
-{% block page_content %}
-<section class="visitor-pre-reg-shell">
-	<div class="visitor-pre-reg-card">
-		<div class="visitor-pre-reg-header">
-			<p class="eyebrow">Visitor Management</p>
-			<h1>Pre-Register Your Visit</h1>
-			<p>Submit visit details, ID proof, and a live photo ahead of arrival so approval and gate processing are faster.</p>
-		</div>
+                            <div class="col-12 mt-4">
+                                <div class="form-section-title">Visit Details</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="visit_date" class="form-label">Visit Date <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="visit_date" name="visit_date" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="expected_checkin" class="form-label">Expected Check-In <span class="text-danger">*</span></label>
+                                <input type="time" class="form-control" id="expected_checkin" name="expected_checkin" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="expected_checkout" class="form-label">Expected Check-Out <span class="text-danger">*</span></label>
+                                <input type="time" class="form-control" id="expected_checkout" name="expected_checkout" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="person_to_visit" class="form-label">Person to Visit <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="person_to_visit" name="person_to_visit" placeholder="Employee ID (e.g., HR-EMP-00001)" required>
+                                <div class="form-text">Use valid Employee ID or exact Employee name.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="purpose_of_visit" class="form-label">Purpose of Visit <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="purpose_of_visit" name="purpose_of_visit" placeholder="Meeting, delivery, interview, etc." required>
+                            </div>
 
-		<form id="visitor-pre-registration-form" class="visitor-pre-reg-form">
-			<div class="field-grid">
-				<label><span>Visitor Name</span><input type="text" name="visitor_name" required></label>
-				<label><span>Visitor Type</span>
-					<select name="visitor_type" required>
-						<option value="">Select</option>
-						<option>Customer</option>
-						<option>Supplier</option>
-						<option>Candidate</option>
-						<option>Contractor</option>
-						<option>VIP</option>
-					</select>
-				</label>
-				<label><span>Mobile Number</span>
-					<div class="phone-group">
-						<input type="text" name="mobile_country_code" value="+91" inputmode="tel" pattern="\+[0-9]{1,4}" aria-label="Country code" required>
-						<input type="tel" name="mobile_number" inputmode="numeric" pattern="[0-9]{6,15}" aria-label="Mobile number" required>
-					</div>
-				</label>
-				<label><span>Email ID</span><input type="email" name="email_id" required></label>
-				<label><span>Company / Organisation</span><input type="text" name="company__organisation"></label>
-				<label><span>Visit Date</span><input type="date" name="visit_date" required></label>
-				<label><span>Expected Check-In</span><input type="time" name="expected_checkin" required></label>
-				<label><span>Expected Check-Out</span><input type="time" name="expected_checkout" required></label>
-				<label><span>Host</span>
-					<select name="person_to_visit" required>
-						<option value="">Select Host</option>
-						{% for host in host_options %}
-						<option value="{{ host.name }}">{{ host.employee_name }} ({{ host.name }})</option>
-						{% endfor %}
-					</select>
-				</label>
-				<label class="field-span-2"><span>Purpose of Visit</span><textarea name="purpose_of_visit" rows="3" required></textarea></label>
-			</div>
+                            <div class="col-12 mt-4">
+                                <div class="form-section-title">Identity Documents</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="id_proof_type" class="form-label">ID Proof Type <span class="text-danger">*</span></label>
+                                <select class="form-select" id="id_proof_type" name="id_proof_type" required>
+                                    <option value="Aadhaar">Aadhaar</option>
+                                    <option value="PAN">PAN</option>
+                                    <option value="Driving License">Driving License</option>
+                                    <option value="Passport">Passport</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="id_proof_number" class="form-label">ID Proof Number <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="id_proof_number" name="id_proof_number" placeholder="Enter proof number" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="id_proof_scan" class="form-label">ID Proof Scan <span class="text-danger">*</span></label>
+                                <input type="file" class="form-control" id="id_proof_scan" name="id_proof_scan" accept="image/*,.pdf" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="visitor_photo" class="form-label">Visitor Photo <span class="text-danger">*</span></label>
+                                <input type="file" class="form-control" id="visitor_photo" name="visitor_photo" accept="image/*" required>
+                            </div>
+                            <div class="col-12 text-end">
+                                <button type="submit" class="btn btn-primary btn-submit px-5">Submit Visitor Request</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="toast-container" id="toastContainer"></div>
+    </div>
 
-			<div class="field-grid supplier-only" hidden>
-				<label><span>Supplier Visit Mode</span>
-					<select name="supplier_visit_mode">
-						<option value="">Select</option>
-						<option>Delivery</option>
-						<option>Meeting</option>
-						<option>Audit</option>
-						<option>Service</option>
-					</select>
-				</label>
-				<label class="meeting-only" hidden><span>Meeting Subject</span><input type="text" name="meeting_subject"></label>
-				<label class="delivery-only" hidden><span>Purchase Order</span><input type="text" name="purchase_order"></label>
-				<label class="delivery-only" hidden><span>Delivery Note</span><input type="text" name="delivery_note"></label>
-				<label class="delivery-only field-span-2" hidden><span>Goods Description</span><textarea name="goods_description" rows="2"></textarea></label>
-			</div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const form = document.getElementById('preRegForm');
+        const statusEl = document.getElementById('formStatus');
+        const toastContainer = document.getElementById('toastContainer');
 
-			<div class="field-grid">
-				<label><span>ID Proof Type</span>
-					<select name="id_proof_type" required>
-						<option value="">Select</option>
-						<option>Aadhaar</option>
-						<option>PAN Card</option>
-						<option>Passport</option>
-						<option>Driving License</option>
-					</select>
-				</label>
-				<label><span>ID Proof Number</span><input type="text" name="id_proof_number" required></label>
-				<label><span>ID Proof Scan</span><input type="file" name="id_proof_scan" accept="image/*" required></label>
-				<label><span>Visitor Photo</span><input type="file" name="visitor_photo" accept="image/*" required></label>
-			</div>
+        function showStatus(message, type = 'success') {
+            statusEl.className = `alert alert-${type}`;
+            statusEl.textContent = message;
+            statusEl.classList.remove('d-none');
+        }
 
-			<div class="field-grid hospitality-grid">
-				<label class="check-row"><input type="checkbox" name="meal_required"><span>Meal Required</span></label>
-				<label><span>Meal Type</span>
-					<select name="meal_type">
-						<option value="">Select</option>
-						<option>Breakfast</option>
-						<option>Lunch</option>
-						<option>Dinner</option>
-						<option>Snacks</option>
-						<option>All Day</option>
-					</select>
-				</label>
-				<label class="check-row"><input type="checkbox" name="refreshments_required"><span>Refreshments Required</span></label>
-				<label><span>Conference Room</span><input type="text" name="conference_room"></label>
-			</div>
+        function clearStatus() {
+            statusEl.classList.add('d-none');
+            statusEl.textContent = '';
+        }
 
-			<div class="actions">
-				<button type="submit" class="primary-btn">Submit Pre-Registration</button>
-				<p id="visitor-pre-registration-message" class="status-text"></p>
-			</div>
-		</form>
-	</div>
-</section>
+        function normalizeMobile(value, countryCode) {
+            const raw = (value || '').trim();
+            if (!raw) return raw;
+            if (raw.startsWith('+')) {
+                const plusDigits = raw.replace(/[^\d+]/g, '');
+                const digitsOnly = plusDigits.replace(/\D/g, '');
+                if (digitsOnly.length >= 11 && digitsOnly.length <= 15) {
+                    return `+${digitsOnly}`;
+                }
+            }
 
-<style>
-	.visitor-pre-reg-shell {
-		padding: 48px 16px 72px;
-		background:
-			radial-gradient(circle at top left, rgba(255, 199, 95, 0.22), transparent 26%),
-			linear-gradient(135deg, #f5efe3 0%, #ecf3f8 100%);
-		min-height: 100vh;
-	}
+            const digits = raw.replace(/\D/g, '');
+            if (digits.length === 10) {
+                const ccDigits = String(countryCode || '+91').replace(/\D/g, '') || '91';
+                return `+${ccDigits}${digits}`;
+            }
+            if (digits.length >= 11 && digits.length <= 15) {
+                return `+${digits}`;
+            }
+            return raw;
+        }
 
-	.visitor-pre-reg-card {
-		max-width: 1080px;
-		margin: 0 auto;
-		background: rgba(255, 255, 255, 0.92);
-		border: 1px solid rgba(16, 42, 67, 0.08);
-		border-radius: 28px;
-		padding: 32px;
-		box-shadow: 0 24px 80px rgba(16, 42, 67, 0.12);
-	}
+        function showToast(message, type = 'success') {
+            const toastEl = document.createElement('div');
+            toastEl.className = `toast align-items-center text-bg-${type} border-0 show`;
+            toastEl.role = 'alert';
+            toastEl.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" aria-label="Close"></button>
+                </div>
+            `;
+            toastContainer.appendChild(toastEl);
+            toastEl.querySelector('.btn-close').addEventListener('click', () => toastEl.remove());
+            setTimeout(() => toastEl.remove(), 7000);
+        }
 
-	.visitor-pre-reg-header h1 {
-		margin: 0;
-		font-family: Georgia, "Times New Roman", serif;
-		font-size: clamp(2rem, 4vw, 3.4rem);
-		color: #102a43;
-	}
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            clearStatus();
 
-	.visitor-pre-reg-header p {
-		max-width: 720px;
-		color: #486581;
-	}
+            if (!form.checkValidity()) {
+                form.classList.add('was-validated');
+                showStatus('Please complete all required fields before submitting.', 'warning');
+                return;
+            }
 
-	.eyebrow {
-		text-transform: uppercase;
-		letter-spacing: 0.18em;
-		font-size: 0.72rem;
-		color: #9c6b00;
-		margin-bottom: 8px;
-	}
+            const submitButton = form.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Submitting...';
 
-	.visitor-pre-reg-form {
-		margin-top: 28px;
-		display: grid;
-		gap: 22px;
-	}
+            try {
+                const formData = new FormData(form);
+                const normalizedMobile = normalizeMobile(formData.get('mobile_number'), formData.get('mobile_country_code'));
+                formData.set('mobile_number', normalizedMobile);
+                const mobilePattern = /^\+\d{11,15}$/;
+                if (!mobilePattern.test(normalizedMobile)) {
+                    showStatus('Mobile Number must be valid with selected country code.', 'warning');
+                    showToast('Invalid mobile number format.', 'warning');
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Submit Pre-Registration';
+                    return;
+                }
 
-	.field-grid {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 16px;
-	}
+                const csrfToken = formData.get('csrf_token') || document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin',
+                    headers: csrfToken ? { 'X-Frappe-CSRF-Token': csrfToken } : {}
+                });
+                let data = {};
+                try {
+                    data = await response.json();
+                } catch (jsonError) {
+                    data = { message: 'Unable to parse server response.' };
+                }
 
-	.field-grid label {
-		display: grid;
-		gap: 8px;
-		font-weight: 600;
-		color: #243b53;
-	}
-
-	.field-grid input,
-	.field-grid select,
-	.field-grid textarea {
-		width: 100%;
-		border: 1px solid #d9e2ec;
-		border-radius: 14px;
-		padding: 12px 14px;
-		background: #fff;
-		font-weight: 500;
-	}
-
-	.phone-group {
-		display: grid;
-		grid-template-columns: 110px minmax(0, 1fr);
-		gap: 10px;
-	}
-
-	.field-span-2 {
-		grid-column: span 2;
-	}
-
-	.check-row {
-		display: flex !important;
-		align-items: center;
-		gap: 10px;
-		padding: 12px 14px;
-		border: 1px solid #d9e2ec;
-		border-radius: 14px;
-		background: #f8fbfd;
-	}
-
-	.check-row input {
-		width: auto;
-	}
-
-	.actions {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: 14px;
-	}
-
-	.primary-btn {
-		border: 0;
-		border-radius: 999px;
-		padding: 14px 22px;
-		background: linear-gradient(135deg, #9c6b00 0%, #d08b00 100%);
-		color: #fff;
-		font-weight: 700;
-	}
-
-	.status-text {
-		margin: 0;
-		font-weight: 600;
-		color: #486581;
-	}
-
-	@media (max-width: 768px) {
-		.visitor-pre-reg-card {
-			padding: 22px;
-		}
-
-		.field-grid {
-			grid-template-columns: 1fr;
-		}
-
-		.field-span-2 {
-			grid-column: span 1;
-		}
-	}
-</style>
-
-<script>
-	async function toBase64(file) {
-		if (!file) return null;
-		return new Promise((resolve, reject) => {
-			const reader = new FileReader();
-			reader.onload = () => resolve(reader.result);
-			reader.onerror = reject;
-			reader.readAsDataURL(file);
-		});
-	}
-
-	(() => {
-		const form = document.getElementById("visitor-pre-registration-form");
-		const message = document.getElementById("visitor-pre-registration-message");
-		const visitorType = form.querySelector('[name="visitor_type"]');
-		const supplierMode = form.querySelector('[name="supplier_visit_mode"]');
-		const supplierBlock = form.querySelector(".supplier-only");
-		const meetingFields = form.querySelectorAll(".meeting-only");
-		const deliveryFields = form.querySelectorAll(".delivery-only");
-
-		function toggleSupplierFields() {
-			const isSupplier = visitorType.value === "Supplier";
-			supplierBlock.hidden = !isSupplier;
-			if (!isSupplier) return;
-
-			const isDelivery = supplierMode.value === "Delivery";
-			meetingFields.forEach((field) => field.hidden = isDelivery);
-			deliveryFields.forEach((field) => field.hidden = !isDelivery);
-		}
-
-		visitorType.addEventListener("change", toggleSupplierFields);
-		supplierMode.addEventListener("change", toggleSupplierFields);
-		toggleSupplierFields();
-
-		form.addEventListener("submit", async (event) => {
-			event.preventDefault();
-			message.textContent = "Submitting...";
-
-			const formData = new FormData(form);
-			const payload = Object.fromEntries(formData.entries());
-			payload.meal_required = formData.get("meal_required") ? 1 : 0;
-			payload.refreshments_required = formData.get("refreshments_required") ? 1 : 0;
-
-			const idProofFile = form.querySelector('[name="id_proof_scan"]').files[0];
-			const visitorPhotoFile = form.querySelector('[name="visitor_photo"]').files[0];
-			payload.id_proof_scan = await toBase64(idProofFile);
-			payload.id_proof_scan_filename = idProofFile ? idProofFile.name : null;
-			payload.visitor_photo = await toBase64(visitorPhotoFile);
-			payload.visitor_photo_filename = visitorPhotoFile ? visitorPhotoFile.name : null;
-
-			frappe.call({
-				method: "visitormanagement.visitor_management.portal.submit_pre_registration",
-				args: {
-					payload: JSON.stringify(payload),
-				},
-				callback: (response) => {
-					const requestId = response.message && response.message.name;
-					message.textContent = requestId
-						? `Request submitted successfully. Reference: ${requestId}`
-						: "Request submitted successfully.";
-					form.reset();
-					toggleSupplierFields();
-				},
-				error: (error) => {
-					message.textContent = error?.message || "Could not submit the pre-registration request.";
-				},
-			});
-		});
-	})();
-</script>
-{% endblock %}
+                if (response.ok && data.message) {
+                    showStatus('Request submitted successfully. Reference: ' + data.message, 'success');
+                    showToast('Pre-registration submitted successfully.', 'success');
+                    form.reset();
+                    form.classList.remove('was-validated');
+                } else {
+                    const errorText = data.exc || data.message || 'Unable to submit request.';
+                    showStatus(errorText, 'danger');
+                    showToast('Submission failed. Check the form and try again.', 'danger');
+                }
+            } catch (error) {
+                showStatus('Network error. Please try again.', 'danger');
+                showToast('Network error while submitting the form.', 'danger');
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Submit Pre-Registration';
+            }
+        });
+    </script>
+</body>
+</html>

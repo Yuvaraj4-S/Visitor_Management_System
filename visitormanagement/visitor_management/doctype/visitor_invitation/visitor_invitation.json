@@ -1,0 +1,221 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "VINV-.YYYY.-.#####",
+ "creation": "2026-04-09 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "visitor_type",
+  "visitor_email",
+  "host_employee",
+  "visit_date",
+  "expected_checkin",
+  "expected_checkout",
+  "purpose_of_visit",
+  "meal_required",
+  "meal_type",
+  "assigned_meal_slots",
+  "hospitality_type",
+  "refreshments_required",
+  "conference_room",
+  "created_by_user",
+  "invitation_status",
+  "invitation_sent_on",
+  "invitation_expires_on",
+  "link_opened_on",
+  "form_saved_on",
+  "form_submitted_on",
+  "portal_submission_url",
+  "pre_registration_request",
+  "invitation_token"
+ ],
+ "fields": [
+  {
+   "fieldname": "visitor_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Visitor Type",
+   "options": "Contractor\nCandidate\nCustomer\nSupplier\nVIP",
+   "reqd": 1
+  },
+  {
+   "fieldname": "visitor_email",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Visitor Email",
+   "reqd": 1
+  },
+  {
+   "fieldname": "host_employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Host Employee",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fieldname": "visit_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Visit Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "expected_checkin",
+   "fieldtype": "Time",
+   "label": "Expected Check-In",
+   "reqd": 1
+  },
+  {
+   "fieldname": "expected_checkout",
+   "fieldtype": "Time",
+   "label": "Expected Check-Out",
+   "reqd": 1
+  },
+  {
+   "fieldname": "purpose_of_visit",
+   "fieldtype": "Small Text",
+   "label": "Purpose Of Visit"
+  },
+  {
+   "default": "0",
+   "fieldname": "meal_required",
+   "fieldtype": "Check",
+   "label": "Meal Required"
+  },
+  {
+   "fieldname": "meal_type",
+   "fieldtype": "Select",
+   "label": "Meal Type",
+   "options": "Breakfast\nLunch\nDinner\nBreakfast + Lunch\nLunch + Dinner\nBreakfast + Dinner\nSnacks\nAll Day",
+   "read_only": 1
+  },
+  {
+   "fieldname": "assigned_meal_slots",
+   "fieldtype": "Small Text",
+   "label": "Assigned Meal Slots",
+   "read_only": 1
+  },
+  {
+   "fieldname": "hospitality_type",
+   "fieldtype": "Select",
+   "label": "Hospitality Type",
+   "options": "Single Meal\nTwo Meals\nFull Day",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "refreshments_required",
+   "fieldtype": "Check",
+   "label": "Refreshments Required"
+  },
+  {
+   "fieldname": "conference_room",
+   "fieldtype": "Data",
+   "label": "Conference Room"
+  },
+  {
+   "fieldname": "created_by_user",
+   "fieldtype": "Data",
+   "label": "Created By User",
+   "read_only": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "invitation_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Invitation Status",
+   "options": "Draft\nSent\nOpened\nSaved\nSubmitted\nExpired",
+   "read_only": 1
+  },
+  {
+   "fieldname": "invitation_sent_on",
+   "fieldtype": "Datetime",
+   "label": "Invitation Sent On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "invitation_expires_on",
+   "fieldtype": "Datetime",
+   "label": "Invitation Expires On"
+  },
+  {
+   "fieldname": "link_opened_on",
+   "fieldtype": "Datetime",
+   "label": "Link Opened On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "form_saved_on",
+   "fieldtype": "Datetime",
+   "label": "Form Saved On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "form_submitted_on",
+   "fieldtype": "Datetime",
+   "label": "Form Submitted On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "portal_submission_url",
+   "fieldtype": "Small Text",
+   "label": "Portal Submission URL",
+   "read_only": 1
+  },
+  {
+   "fieldname": "pre_registration_request",
+   "fieldtype": "Link",
+   "label": "Pre-Registration Request",
+   "options": "Pre-Registration Request",
+   "read_only": 1
+  },
+  {
+   "fieldname": "invitation_token",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Invitation Token",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-04-10 10:42:40.104275",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Visitor Invitation",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Visitor Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

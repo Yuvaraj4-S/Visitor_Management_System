@@ -155,6 +155,8 @@ def sync_hospitality_to_pass(request_doc):
 		pass_updates["assigned_meal_slots"] = request_doc.assigned_meal_slots
 	if hasattr(request_doc, "hospitality_type"):
 		pass_updates["hospitality_type"] = request_doc.hospitality_type
+	if hasattr(request_doc, "special_diet"):
+		pass_updates["special_diet"] = request_doc.special_diet
 
 	frappe.db.set_value(
 		"Visitor Pass",
@@ -251,6 +253,7 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 	doc.visit_end_time = meal_plan["visit_end_time"]
 	doc.assigned_meal_slots = meal_plan["assigned_meal_slots"] if doc.meal_required else None
 	doc.hospitality_type = meal_plan["hospitality_type"] if doc.meal_required else None
+	doc.special_diet = getattr(visitor_pass, "special_diet", None)
 	doc.snacks_required = cint(getattr(visitor_pass, "refreshments_required", 0))
 	doc.tea_coffee_required = cint(getattr(visitor_pass, "refreshments_required", 0))
 	doc.conference_room = getattr(visitor_pass, "conference_room", None)

@@ -153,6 +153,11 @@ has_permission = {
 # 		"on_trash": "method"
 # 	}
 # }
+doc_events = {
+	"Pre-Registration Request": {
+		"validate": "visitormanagement.visitor_management.doctype.pre_registration_request.pre_registration_request.sync_invitation_context",
+	}
+}
 
 # Scheduled Tasks
 # ---------------

@@ -77,6 +77,46 @@
             background: linear-gradient(90deg, #1d4ed8, #0ea5e9);
             border: none;
         }
+        .btn-save {
+            min-height: 56px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            border-radius: 999px;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            color: #0f172a;
+        }
+        .context-panel {
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            border-radius: 18px;
+            background: linear-gradient(180deg, #f8fbff, #ffffff);
+            padding: 18px;
+            margin-bottom: 1.5rem;
+        }
+        .context-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .context-item {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 12px 14px;
+        }
+        .context-label {
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+        .context-value {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #0f172a;
+        }
         .toast-container {
             position: fixed;
             top: 1.5rem;
@@ -104,6 +144,9 @@
             .info-grid {
                 grid-template-columns: 1fr;
             }
+            .context-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -127,7 +170,39 @@
                     <div class="card-body">
                         <div id="formStatus" class="alert d-none" role="alert"></div>
                         <form id="preRegForm" class="row g-4" action="/api/method/visitormanagement.www.visitor_pre_registration.submit_form" method="post" enctype="multipart/form-data" novalidate>
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="csrf_token" value="{{ frappe.session.csrf_token }}">
+                            <input type="hidden" name="invitation_token" value="{{ invitation_token or '' }}">
+                            <input type="hidden" name="submission_action" id="submission_action" value="submit">
+                            {% if invitation_error %}
+                            <div class="col-12">
+                                <div class="alert alert-danger mb-0">This invitation link is invalid, expired, or already used.</div>
+                            </div>
+                            {% endif %}
+                            {% if invitation_token %}
+                            <div class="col-12">
+                                <div class="context-panel">
+                                    <div class="form-section-title mb-3">Invitation Context</div>
+                                    <div class="context-grid">
+                                        <div class="context-item">
+                                            <div class="context-label">Visitor Type</div>
+                                            <div class="context-value">{{ prefill.visitor_type or '-' }}</div>
+                                        </div>
+                                        <div class="context-item">
+                                            <div class="context-label">Visitor Email</div>
+                                            <div class="context-value">{{ prefill.email_id or '-' }}</div>
+                                        </div>
+                                        <div class="context-item">
+                                            <div class="context-label">Visit Date</div>
+                                            <div class="context-value">{{ prefill.visit_date or '-' }}</div>
+                                        </div>
+                                        <div class="context-item">
+                                            <div class="context-label">Host</div>
+                                            <div class="context-value">{{ prefill.person_to_visit or '-' }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
                             <div class="col-12">
                                 <div class="form-section-title">Visitor Profile</div>
                             </div>
@@ -137,7 +212,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label for="visitor_type" class="form-label">Visitor Type <span class="text-danger">*</span></label>
-                                <select class="form-select" id="visitor_type" name="visitor_type" required>
+                                <select class="form-select" id="visitor_type" name="visitor_type" {% if invitation_token %}disabled{% endif %} required>
                                     <option value="" disabled selected>Select type</option>
                                     <option value="Contractor">Contractor</option>
                                     <option value="Candidate">Candidate</option>
@@ -145,6 +220,9 @@
                                     <option value="Supplier">Supplier</option>
                                     <option value="VIP">VIP</option>
                                 </select>
+                                {% if invitation_token %}
+                                <input type="hidden" name="visitor_type" value="{{ prefill.visitor_type or '' }}">
+                                {% endif %}
                             </div>
                             <div class="col-md-6">
                                 <label for="mobile_country_code" class="form-label">Country Code</label>
@@ -163,7 +241,10 @@
                             </div>
                             <div class="col-md-6">
                                 <label for="email_id" class="form-label">Email ID <span class="text-danger">*</span></label>
-                                <input type="email" class="form-control" id="email_id" name="email_id" placeholder="name@example.com" required>
+                                <input type="email" class="form-control" id="email_id" name="email_id" value="{{ prefill.email_id or '' }}" {% if invitation_token %}disabled{% endif %} placeholder="name@example.com" required>
+                                {% if invitation_token %}
+                                <input type="hidden" name="email_id" value="{{ prefill.email_id or '' }}">
+                                {% endif %}
                             </div>
                             <div class="col-12">
                                 <label for="company__organisation" class="form-label">Company / Organisation</label>
@@ -175,24 +256,39 @@
                             </div>
                             <div class="col-md-4">
                                 <label for="visit_date" class="form-label">Visit Date <span class="text-danger">*</span></label>
-                                <input type="date" class="form-control" id="visit_date" name="visit_date" required>
+                                <input type="date" class="form-control" id="visit_date" name="visit_date" value="{{ prefill.visit_date or '' }}" {% if invitation_token %}disabled{% endif %} required>
+                                {% if invitation_token %}
+                                <input type="hidden" name="visit_date" value="{{ prefill.visit_date or '' }}">
+                                {% endif %}
                             </div>
                             <div class="col-md-4">
                                 <label for="expected_checkin" class="form-label">Expected Check-In <span class="text-danger">*</span></label>
-                                <input type="time" class="form-control" id="expected_checkin" name="expected_checkin" required>
+                                <input type="time" class="form-control" id="expected_checkin" name="expected_checkin" value="{{ prefill.expected_checkin or '' }}" {% if invitation_token %}disabled{% endif %} required>
+                                {% if invitation_token %}
+                                <input type="hidden" name="expected_checkin" value="{{ prefill.expected_checkin or '' }}">
+                                {% endif %}
                             </div>
                             <div class="col-md-4">
                                 <label for="expected_checkout" class="form-label">Expected Check-Out <span class="text-danger">*</span></label>
-                                <input type="time" class="form-control" id="expected_checkout" name="expected_checkout" required>
+                                <input type="time" class="form-control" id="expected_checkout" name="expected_checkout" value="{{ prefill.expected_checkout or '' }}" {% if invitation_token %}disabled{% endif %} required>
+                                {% if invitation_token %}
+                                <input type="hidden" name="expected_checkout" value="{{ prefill.expected_checkout or '' }}">
+                                {% endif %}
                             </div>
                             <div class="col-md-6">
                                 <label for="person_to_visit" class="form-label">Person to Visit <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="person_to_visit" name="person_to_visit" placeholder="Employee ID (e.g., HR-EMP-00001)" required>
+                                <input type="text" class="form-control" id="person_to_visit" name="person_to_visit" value="{{ prefill.person_to_visit or '' }}" {% if invitation_token %}disabled{% endif %} placeholder="Employee ID (e.g., HR-EMP-00001)" required>
+                                {% if invitation_token %}
+                                <input type="hidden" name="person_to_visit" value="{{ prefill.person_to_visit or '' }}">
+                                {% endif %}
                                 <div class="form-text">Use valid Employee ID or exact Employee name.</div>
                             </div>
                             <div class="col-md-6">
                                 <label for="purpose_of_visit" class="form-label">Purpose of Visit <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="purpose_of_visit" name="purpose_of_visit" placeholder="Meeting, delivery, interview, etc." required>
+                                <input type="text" class="form-control" id="purpose_of_visit" name="purpose_of_visit" value="{{ prefill.purpose_of_visit or '' }}" {% if invitation_token %}disabled{% endif %} placeholder="Meeting, delivery, interview, etc." required>
+                                {% if invitation_token %}
+                                <input type="hidden" name="purpose_of_visit" value="{{ prefill.purpose_of_visit or '' }}">
+                                {% endif %}
                             </div>
 
                             <div class="col-12 mt-4">
@@ -219,8 +315,9 @@
                                 <label for="visitor_photo" class="form-label">Visitor Photo <span class="text-danger">*</span></label>
                                 <input type="file" class="form-control" id="visitor_photo" name="visitor_photo" accept="image/*" required>
                             </div>
-                            <div class="col-12 text-end">
-                                <button type="submit" class="btn btn-primary btn-submit px-5">Submit Visitor Request</button>
+                            <div class="col-12 d-flex justify-content-end gap-3 flex-wrap">
+                                <button type="button" class="btn btn-save px-4" data-action="save">Save Draft</button>
+                                <button type="submit" class="btn btn-primary btn-submit px-5" data-action="submit">Submit Visitor Request</button>
                             </div>
                         </form>
                     </div>
@@ -235,6 +332,8 @@
         const form = document.getElementById('preRegForm');
         const statusEl = document.getElementById('formStatus');
         const toastContainer = document.getElementById('toastContainer');
+        const submissionActionInput = document.getElementById('submission_action');
+        const prefill = {{ prefill | tojson }};
 
         function showStatus(message, type = 'success') {
             statusEl.className = `alert alert-${type}`;
@@ -245,6 +344,13 @@
         function clearStatus() {
             statusEl.classList.add('d-none');
             statusEl.textContent = '';
+        }
+
+        function applyPrefill() {
+            const visitorType = document.getElementById('visitor_type');
+            if (visitorType && prefill && prefill.visitor_type) {
+                visitorType.value = prefill.visitor_type;
+            }
         }
 
         function normalizeMobile(value, countryCode) {
@@ -284,11 +390,22 @@
             setTimeout(() => toastEl.remove(), 7000);
         }
 
+        document.querySelectorAll('[data-action]').forEach((button) => {
+            button.addEventListener('click', () => {
+                submissionActionInput.value = button.getAttribute('data-action') || 'submit';
+                if (button.type === 'button') {
+                    form.requestSubmit();
+                }
+            });
+        });
+
         form.addEventListener('submit', async function(event) {
             event.preventDefault();
             clearStatus();
 
-            if (!form.checkValidity()) {
+            const action = submissionActionInput.value || 'submit';
+
+            if (action === 'submit' && !form.checkValidity()) {
                 form.classList.add('was-validated');
                 showStatus('Please complete all required fields before submitting.', 'warning');
                 return;
@@ -296,22 +413,26 @@
 
             const submitButton = form.querySelector('button[type="submit"]');
             submitButton.disabled = true;
-            submitButton.textContent = 'Submitting...';
+            submitButton.textContent = action === 'save' ? 'Saving...' : 'Submitting...';
 
             try {
                 const formData = new FormData(form);
                 const normalizedMobile = normalizeMobile(formData.get('mobile_number'), formData.get('mobile_country_code'));
                 formData.set('mobile_number', normalizedMobile);
                 const mobilePattern = /^\+\d{11,15}$/;
-                if (!mobilePattern.test(normalizedMobile)) {
+                if (action === 'submit' && !mobilePattern.test(normalizedMobile)) {
                     showStatus('Mobile Number must be valid with selected country code.', 'warning');
                     showToast('Invalid mobile number format.', 'warning');
                     submitButton.disabled = false;
-                    submitButton.textContent = 'Submit Pre-Registration';
+                    submitButton.textContent = 'Submit Visitor Request';
                     return;
                 }
 
-                const csrfToken = formData.get('csrf_token') || document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const csrfToken =
+                    formData.get('csrf_token')
+                    || window.frappe?.csrf_token
+                    || document.querySelector('meta[name="csrf-token"]')?.content
+                    || '';
                 const response = await fetch(form.action, {
                     method: 'POST',
                     body: formData,
@@ -326,10 +447,18 @@
                 }
 
                 if (response.ok && data.message) {
-                    showStatus('Request submitted successfully. Reference: ' + data.message, 'success');
-                    showToast('Pre-registration submitted successfully.', 'success');
-                    form.reset();
-                    form.classList.remove('was-validated');
+                    const successText = action === 'save'
+                        ? 'Draft saved successfully. Reference: ' + data.message
+                        : 'Request submitted successfully. Reference: ' + data.message;
+                    showStatus(successText, 'success');
+                    showToast(action === 'save' ? 'Draft saved successfully.' : 'Pre-registration submitted successfully.', 'success');
+                    if (action === 'save') {
+                        form.classList.remove('was-validated');
+                    } else {
+                        form.reset();
+                        form.classList.remove('was-validated');
+                        applyPrefill();
+                    }
                 } else {
                     const errorText = data.exc || data.message || 'Unable to submit request.';
                     showStatus(errorText, 'danger');
@@ -340,9 +469,12 @@
                 showToast('Network error while submitting the form.', 'danger');
             } finally {
                 submitButton.disabled = false;
-                submitButton.textContent = 'Submit Pre-Registration';
+                submitButton.textContent = 'Submit Visitor Request';
+                submissionActionInput.value = 'submit';
             }
         });
+
+        applyPrefill();
     </script>
 </body>
 </html>

@@ -266,7 +266,7 @@ fixtures = [
     {
         "doctype": "Role",
         "filters": [
-            ["name", "in", ["Hospitality User"]]
+            ["name", "in", ["Hospitality User", "Facility Manager"]]
         ]
     },
     "Workflow State",

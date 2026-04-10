@@ -1,0 +1,283 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-04-10 10:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "meeting_title",
+  "conference_room",
+  "room_capacity",
+  "column_break_basic",
+  "meeting_type",
+  "status",
+  "section_schedule",
+  "booking_date",
+  "start_time",
+  "end_time",
+  "column_break_schedule",
+  "duration_hours",
+  "section_organizer",
+  "booked_by",
+  "department",
+  "column_break_organizer",
+  "expected_attendees",
+  "section_services",
+  "room_cleaning_required",
+  "coffee_tea_required",
+  "water_required",
+  "column_break_services",
+  "snacks_required",
+  "special_instructions",
+  "section_system",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "no_copy": 1,
+   "options": "CRB-.YYYY.-.#####",
+   "print_hide": 1,
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "meeting_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Meeting Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "conference_room",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Conference Room",
+   "options": "Conference Room",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "conference_room.capacity",
+   "fieldname": "room_capacity",
+   "fieldtype": "Int",
+   "label": "Room Capacity",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_basic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Internal",
+   "fieldname": "meeting_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Meeting Type",
+   "options": "Internal\nExternal\nHybrid",
+   "reqd": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nApproved\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_schedule",
+   "fieldtype": "Section Break",
+   "label": "Schedule"
+  },
+  {
+   "fieldname": "booking_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Booking Date",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "start_time",
+   "fieldtype": "Time",
+   "label": "Start Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_time",
+   "fieldtype": "Time",
+   "label": "End Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_schedule",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "duration_hours",
+   "fieldtype": "Float",
+   "label": "Duration (hours)",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_organizer",
+   "fieldtype": "Section Break",
+   "label": "Organizer & Attendees"
+  },
+  {
+   "fieldname": "booked_by",
+   "fieldtype": "Link",
+   "label": "Booked By",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "booked_by.department",
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_organizer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "expected_attendees",
+   "fieldtype": "Int",
+   "label": "Expected Attendees",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_services",
+   "fieldtype": "Section Break",
+   "label": "Service Preparation"
+  },
+  {
+   "default": "0",
+   "fieldname": "room_cleaning_required",
+   "fieldtype": "Check",
+   "label": "Room Cleaning Required"
+  },
+  {
+   "default": "0",
+   "fieldname": "coffee_tea_required",
+   "fieldtype": "Check",
+   "label": "Coffee / Tea Required"
+  },
+  {
+   "default": "0",
+   "fieldname": "water_required",
+   "fieldtype": "Check",
+   "label": "Water / Beverages Required"
+  },
+  {
+   "fieldname": "column_break_services",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "snacks_required",
+   "fieldtype": "Check",
+   "label": "Snacks Required"
+  },
+  {
+   "fieldname": "special_instructions",
+   "fieldtype": "Small Text",
+   "label": "Special Instructions"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_system",
+   "fieldtype": "Section Break",
+   "label": "System Info"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Conference Room Booking",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "icon": "fa fa-calendar",
+ "is_calendar_and_gantt": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-04-10 16:30:22.838419",
+ "modified_by": "Administrator",
+ "module": "Conference Room",
+ "name": "Conference Room Booking",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Facility Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Employee",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "search_fields": "meeting_title,conference_room,booked_by,booking_date",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "meeting_title",
+ "track_changes": 1
+}

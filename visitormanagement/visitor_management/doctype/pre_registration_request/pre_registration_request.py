@@ -24,8 +24,8 @@ class PreRegistrationRequest(Document):
 		if not self.status:
 			self.status = "Draft"
 
-		# Portal submissions should directly enter approval queue.
-		if self.is_new() and self.request_channel == "Portal" and self.status == "Draft":
+		# Invitation-backed drafts should remain drafts until the visitor submits.
+		if self.is_new() and self.request_channel == "Portal" and self.status == "Draft" and not self.visitor_invitation:
 			self.status = get_pending_approval_state(self.visitor_type)
 
 		if self.visitor_type == "Supplier" and not self.supplier_visit_mode:
@@ -85,3 +85,34 @@ class PreRegistrationRequest(Document):
 			}
 		)
 		return visitor_pass.name
+
+
+def sync_invitation_context(doc, method=None):
+	if not doc.visitor_invitation:
+		return
+
+	if not (doc.is_new() or frappe.flags.in_web_form):
+		return
+
+	invitation = frappe.get_doc("Visitor Invitation", doc.visitor_invitation)
+	if invitation.invitation_status == "Expired":
+		frappe.throw("This invitation has expired.")
+
+	if invitation.pre_registration_request and invitation.pre_registration_request != doc.name:
+		frappe.throw("This invitation has already been used for another pre-registration request.")
+
+	doc.request_channel = "Portal"
+	doc.status = "Draft"
+	doc.visitor_type = invitation.visitor_type
+	doc.email_id = invitation.visitor_email
+	doc.visit_date = invitation.visit_date
+	doc.expected_checkin = invitation.expected_checkin
+	doc.expected_checkout = invitation.expected_checkout
+	doc.person_to_visit = invitation.host_employee
+	doc.purpose_of_visit = invitation.purpose_of_visit
+	doc.meal_required = invitation.meal_required
+	doc.meal_type = invitation.meal_type
+	doc.assigned_meal_slots = invitation.assigned_meal_slots
+	doc.hospitality_type = invitation.hospitality_type
+	doc.refreshments_required = invitation.refreshments_required
+	doc.conference_room = invitation.conference_room

@@ -10,6 +10,7 @@
   "visit_end_time",
   "assigned_meal_slots",
   "hospitality_type",
+  "special_diet",
   "meal_required",
   "meal_type",
   "snacks_required",
@@ -54,6 +55,12 @@
    "label": "Hospitality Type",
    "options": "Single Meal\nTwo Meals\nFull Day",
    "read_only": 1
+  },
+  {
+   "fieldname": "special_diet",
+   "fieldtype": "Select",
+   "label": "Special Diet",
+   "options": "None\nNon-vegetarian\nVegetarian\nVegan\nGluten Free\nHalal\nJain"
   },
   {
    "default": "0",

@@ -41,6 +41,7 @@ def _send_hospitality_assignment_mail(doc):
 		f"Meal Type: {doc.meal_type or '-'}",
 		f"Meal Slots: {getattr(doc, 'assigned_meal_slots', None) or '-'}",
 		f"Hospitality Type: {getattr(doc, 'hospitality_type', None) or '-'}",
+		f"Special Diet: {getattr(doc, 'special_diet', None) or '-'}",
 		f"Conference Room: {doc.conference_room or '-'}",
 		f"Service Time: {doc.service_time or '-'}",
 	]

@@ -33,6 +33,7 @@
   "id_proof_number",
   "id_proof_scan",
   "visitor_photo",
+  "visitor_invitation",
   "visitor_pass"
  ],
  "fields": [
@@ -207,6 +208,13 @@
    "fieldname": "visitor_photo",
    "fieldtype": "Attach Image",
    "label": "Visitor Photo"
+  },
+  {
+   "fieldname": "visitor_invitation",
+   "fieldtype": "Link",
+   "label": "Visitor Invitation",
+   "options": "Visitor Invitation",
+   "read_only": 1
   },
   {
    "fieldname": "visitor_pass",

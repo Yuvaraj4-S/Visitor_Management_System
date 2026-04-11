@@ -28,7 +28,6 @@
   "assigned_meal_slots",
   "hospitality_type",
   "refreshments_required",
-  "conference_room",
   "id_proof_type",
   "id_proof_number",
   "id_proof_scan",
@@ -180,11 +179,6 @@
    "fieldname": "refreshments_required",
    "fieldtype": "Check",
    "label": "Refreshments Required"
-  },
-  {
-   "fieldname": "conference_room",
-   "fieldtype": "Data",
-   "label": "Conference Room"
   },
   {
    "fieldname": "id_proof_type",

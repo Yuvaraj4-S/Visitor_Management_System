@@ -227,7 +227,7 @@ frappe.ui.form.on("Security Log", {
 				"id_proof_number",
 				"priority_lane",
 				"mdceo_notified",
-				"dedicated_meeting_room",
+				"conference_room",
 				"protocol_notes",
 			],
 			(r) => {
@@ -863,7 +863,7 @@ function render_vip_queue_preview(dialog, vip_queue) {
 				<div><strong>${__("Visit Window")}:</strong> ${selected.visit_date || "-"} | ${selected.expected_checkin || "-"} - ${selected.expected_checkout || "-"}</div>
 				<div><strong>${__("Host")}:</strong> ${selected.person_to_visit || "-"}</div>
 				<div><strong>${__("Purpose")}:</strong> ${selected.purpose_of_visit || "-"}</div>
-				<div><strong>${__("Meeting Room")}:</strong> ${selected.dedicated_meeting_room || "-"}</div>
+				<div><strong>${__("Meeting Room")}:</strong> ${selected.conference_room || "-"}</div>
 				<div><strong>${__("Priority Lane")}:</strong> ${selected.priority_lane ? __("Yes") : __("No")}</div>
 				<div><strong>${__("MD/CEO Notified")}:</strong> ${selected.mdceo_notified ? __("Yes") : __("No")}</div>
 				<div><strong>${__("Meal / People")}:</strong> ${selected.meal_type || "-"} / ${selected.number_of_people || "-"}</div>

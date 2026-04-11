@@ -91,7 +91,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Draft\nApproved\nCancelled",
+   "options": "Draft\nPending Approval\nApproved\nRejected\nCancelled",
    "read_only": 1
   },
   {

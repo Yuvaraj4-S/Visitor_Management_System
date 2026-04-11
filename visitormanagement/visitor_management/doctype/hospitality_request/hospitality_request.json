@@ -88,8 +88,9 @@
   },
   {
    "fieldname": "conference_room",
-   "fieldtype": "Data",
-   "label": "Conference Room"
+   "fieldtype": "Link",
+   "label": "Conference Room",
+   "options": "Conference Room"
   },
   {
    "fieldname": "seating_capacity",

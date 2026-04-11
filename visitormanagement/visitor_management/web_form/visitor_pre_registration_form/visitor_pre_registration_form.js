@@ -28,6 +28,9 @@ let hospitalityWatchState = {
 	started: false,
 	lastSignature: null,
 };
+let genericFormState = {
+	bound: false,
+};
 
 function escapeHtml(value) {
 	return frappe.utils.escape_html(value == null ? "" : String(value));
@@ -304,7 +307,7 @@ function areInvitationFieldsReady() {
 	return Boolean(
 		frappe.web_form &&
 			frappe.web_form.fields_dict &&
-			frappe.web_form.fields_dict.visitor_invitation &&
+			Object.keys(frappe.web_form.fields_dict).length > 0 &&
 			document.querySelector('.frappe-control[data-fieldname="visitor_type"]') &&
 			document.querySelector(".web-form-footer")
 	);
@@ -329,6 +332,50 @@ function getBootInvitationContext() {
 
 function setSubmitDisabled(disabled) {
 	$(".submit-btn").prop("disabled", disabled);
+}
+
+function bindGenericFormHandlers() {
+	if (genericFormState.bound || !frappe.web_form) {
+		return;
+	}
+
+	genericFormState.bound = true;
+
+	const $visitorTypeInput = frappe.web_form.get_input("visitor_type");
+	$visitorTypeInput.on("change", () => {
+		setTimeout(() => {
+			applyVisitorTypeSections(getFieldValue("visitor_type"));
+		}, 0);
+	});
+}
+
+function unlockDirectAccessFields() {
+	LOCKED_FIELDS.forEach((fieldname) => {
+		const field = frappe.web_form?.fields_dict?.[fieldname];
+		if (!field) {
+			return;
+		}
+
+		frappe.web_form.set_df_property(fieldname, "read_only", 0);
+		const $input = frappe.web_form.get_input(fieldname);
+		$input.prop("readonly", false).prop("disabled", false);
+		$input.removeAttr("tabindex");
+		$(field.wrapper).removeClass("vm-locked-field vm-host-field");
+		$(field.wrapper).find(".vm-locked-display").remove();
+		$(field.wrapper).find(".control-input").show();
+		$(field.wrapper).find(".control-value").hide();
+	});
+}
+
+function enableDirectAccessMode() {
+	unlockDirectAccessFields();
+	bindGenericFormHandlers();
+	attachHospitalityHandlers();
+	startHospitalityWatcher();
+	renderVisitorItems();
+	applyVisitorTypeSections(getFieldValue("visitor_type"));
+	setFormVisibility(true);
+	setSubmitDisabled(false);
 }
 
 function syncVisibleLockedField(fieldname, value) {
@@ -456,6 +503,7 @@ async function handleInvitationAfterLoad() {
 	renderLockedFieldValues(window.vmInvitationValues || {});
 
 	if (!token) {
+		enableDirectAccessMode();
 		return;
 	}
 
@@ -505,12 +553,13 @@ function setupInvitationHooks() {
 	frappe.web_form.after_load = handleInvitationAfterLoad;
 
 	frappe.web_form.validate = () => {
-		if (!invitationContextState.loaded || !invitationContextState.valid) {
+		const token = getInvitationToken();
+		if (token && (!invitationContextState.loaded || !invitationContextState.valid)) {
 			frappe.msgprint(__("Invitation details are still loading or invalid. Reopen the invitation link and try again."));
 			return false;
 		}
 
-		if (!ensureInvitationBinding()) {
+		if (token && !ensureInvitationBinding()) {
 			frappe.msgprint(__("A valid invitation is required to submit this form."));
 			return false;
 		}

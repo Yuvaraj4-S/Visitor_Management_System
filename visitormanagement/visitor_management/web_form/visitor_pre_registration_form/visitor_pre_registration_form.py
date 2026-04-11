@@ -103,11 +103,22 @@ def _visitor_type_badge(visitor_type):
 	)
 
 
+def _hide_internal_fields(context):
+	"""Hide internal/system fields that visitors should never see."""
+	if not getattr(context, "web_form_doc", None):
+		return
+
+	for field in context.web_form_doc.web_form_fields:
+		if field.fieldname in INTERNAL_HIDE_FIELDS:
+			field.hidden = 1
+
+
 def get_context(context):
 	context.no_cache = 1
 
 	token = (frappe.form_dict.get("token") or "").strip()
 	if not token:
+		_hide_internal_fields(context)
 		return
 
 	invitation_context = get_web_form_context(token)

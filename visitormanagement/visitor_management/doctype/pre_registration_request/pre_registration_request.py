@@ -31,7 +31,10 @@ class PreRegistrationRequest(Document):
 		if self.visitor_type == "Supplier" and not self.supplier_visit_mode:
 			self.supplier_visit_mode = "Meeting"
 
-		apply_hospitality_meal_plan(self)
+		preserve_hospitality_choices = bool(
+			self.request_channel == "Portal" or self.visitor_invitation
+		)
+		apply_hospitality_meal_plan(self, preserve_existing=preserve_hospitality_choices)
 
 	@frappe.whitelist()
 	def create_visitor_pass(self):
@@ -71,11 +74,30 @@ class PreRegistrationRequest(Document):
 				"meal_type": self.meal_type,
 				"assigned_meal_slots": self.assigned_meal_slots,
 				"hospitality_type": self.hospitality_type,
+				"special_diet": self.special_diet,
+				"service_time": self.service_time,
 				"refreshments_required": self.refreshments_required,
 				"conference_room": self.conference_room,
+				"items_carried": self.items_carried,
 				"pre_registration_request": self.name,
 			}
 		)
+		for item in self.get("visitor_items") or []:
+			visitor_pass.append(
+				"visitor_items",
+				{
+					"item_code": item.item_code,
+					"item_name": item.item_name,
+					"item_category": item.item_category,
+					"quantity": item.quantity,
+					"unit_of_measure": item.unit_of_measure,
+					"description": item.description,
+					"is_new_item": item.is_new_item,
+					"serial_number": item.serial_number,
+					"estimated_value": item.estimated_value,
+					"verification_remarks": item.verification_remarks,
+				},
+			)
 		visitor_pass.insert(ignore_permissions=True)
 
 		self.db_set(
@@ -110,9 +132,3 @@ def sync_invitation_context(doc, method=None):
 	doc.expected_checkout = invitation.expected_checkout
 	doc.person_to_visit = invitation.host_employee
 	doc.purpose_of_visit = invitation.purpose_of_visit
-	doc.meal_required = invitation.meal_required
-	doc.meal_type = invitation.meal_type
-	doc.assigned_meal_slots = invitation.assigned_meal_slots
-	doc.hospitality_type = invitation.hospitality_type
-	doc.refreshments_required = invitation.refreshments_required
-	doc.conference_room = invitation.conference_room

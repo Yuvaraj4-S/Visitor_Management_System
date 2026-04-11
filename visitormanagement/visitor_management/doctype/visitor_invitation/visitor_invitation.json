@@ -27,6 +27,7 @@
   "form_saved_on",
   "form_submitted_on",
   "portal_submission_url",
+  "visitor_pass",
   "pre_registration_request",
   "invitation_token"
  ],
@@ -82,11 +83,13 @@
    "default": "0",
    "fieldname": "meal_required",
    "fieldtype": "Check",
+   "hidden": 1,
    "label": "Meal Required"
   },
   {
    "fieldname": "meal_type",
    "fieldtype": "Select",
+   "hidden": 1,
    "label": "Meal Type",
    "options": "Breakfast\nLunch\nDinner\nBreakfast + Lunch\nLunch + Dinner\nBreakfast + Dinner\nSnacks\nAll Day",
    "read_only": 1
@@ -94,12 +97,14 @@
   {
    "fieldname": "assigned_meal_slots",
    "fieldtype": "Small Text",
+   "hidden": 1,
    "label": "Assigned Meal Slots",
    "read_only": 1
   },
   {
    "fieldname": "hospitality_type",
    "fieldtype": "Select",
+   "hidden": 1,
    "label": "Hospitality Type",
    "options": "Single Meal\nTwo Meals\nFull Day",
    "read_only": 1
@@ -108,11 +113,13 @@
    "default": "0",
    "fieldname": "refreshments_required",
    "fieldtype": "Check",
+   "hidden": 1,
    "label": "Refreshments Required"
   },
   {
    "fieldname": "conference_room",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Conference Room"
   },
   {
@@ -166,8 +173,16 @@
    "read_only": 1
   },
   {
+   "fieldname": "visitor_pass",
+   "fieldtype": "Link",
+   "label": "Visitor Pass",
+   "options": "Visitor Pass",
+   "read_only": 1
+  },
+  {
    "fieldname": "pre_registration_request",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Pre-Registration Request",
    "options": "Pre-Registration Request",
    "read_only": 1

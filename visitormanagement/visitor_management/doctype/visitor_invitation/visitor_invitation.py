@@ -52,6 +52,13 @@ def _format_time_for_web_form(value):
 	return get_time(value).strftime("%H:%M")
 
 
+def _format_datetime_for_web_form(value):
+	if not value:
+		return ""
+
+	return get_datetime(value).strftime("%Y-%m-%d %H:%M:%S")
+
+
 @frappe.whitelist(allow_guest=True)
 def get_web_form_context(token):
 	invitation = get_valid_invitation_by_token(token)
@@ -71,26 +78,93 @@ def get_web_form_context(token):
 		)
 
 	meal_plan = derive_hospitality_meal_plan(invitation)
+	existing_pass = None
+	if invitation.visitor_pass and frappe.db.exists("Visitor Pass", invitation.visitor_pass):
+		existing_pass = frappe.get_doc("Visitor Pass", invitation.visitor_pass)
+
+	values = {
+		"entry_type": "New",
+		"request_channel": "Portal",
+		"visitor_invitation": invitation.name,
+		"visitor_type": invitation.visitor_type,
+		"email_id": invitation.visitor_email,
+		"visit_date": str(invitation.visit_date) if invitation.visit_date else "",
+		"expected_checkin": _format_time_for_web_form(invitation.expected_checkin),
+		"expected_checkout": _format_time_for_web_form(invitation.expected_checkout),
+		"person_to_visit": invitation.host_employee,
+		"purpose_of_visit": invitation.purpose_of_visit,
+		"meal_required": invitation.meal_required,
+		"meal_type": meal_plan["meal_type"] if invitation.meal_required else "",
+		"assigned_meal_slots": meal_plan["assigned_meal_slots"] if invitation.meal_required else "",
+		"hospitality_type": meal_plan["hospitality_type"] if invitation.meal_required else "",
+		"service_time": _format_datetime_for_web_form(meal_plan["service_time"]) if invitation.meal_required else "",
+		"refreshments_required": invitation.refreshments_required,
+	}
+
+	if existing_pass:
+		values.update(
+			{
+				"visitor_full_name": existing_pass.visitor_full_name,
+				"mobile_number": existing_pass.mobile_number,
+				"company__organisation": existing_pass.company__organisation,
+				"supplier_link": existing_pass.supplier_link,
+				"supplier_visit_mode": existing_pass.supplier_visit_mode,
+				"purchase_order": existing_pass.purchase_order,
+				"delivery_note": existing_pass.delivery_note,
+				"goods_description": existing_pass.goods_description,
+				"visit_category": existing_pass.visit_category,
+				"products_discussed": existing_pass.products_discussed,
+				"meeting_outcome": existing_pass.meeting_outcome,
+				"followup_date": str(existing_pass.followup_date) if existing_pass.followup_date else "",
+				"contractor_link": existing_pass.contractor_link,
+				"work_order_ref": existing_pass.work_order_ref,
+				"safety_induction_done": existing_pass.safety_induction_done,
+				"contractor_nda_signed": existing_pass.contractor_nda_signed,
+				"ppe_provided": existing_pass.ppe_provided,
+				"tools_list": existing_pass.tools_list,
+				"multi_day_pass": existing_pass.multi_day_pass,
+				"pass_valid_until": str(existing_pass.pass_valid_until) if existing_pass.pass_valid_until else "",
+				"job_applicant_link": existing_pass.job_applicant_link,
+				"position_applied": existing_pass.position_applied,
+				"candidate_interview_type": existing_pass.candidate_interview_type,
+				"interview_panel": existing_pass.interview_panel,
+				"vip_category": existing_pass.vip_category,
+				"priority_lane": existing_pass.priority_lane,
+				"mdceo_notified": existing_pass.mdceo_notified,
+				"interpreter_required": existing_pass.interpreter_required,
+				"interpreter_language": existing_pass.interpreter_language,
+				"protocol_notes": existing_pass.protocol_notes,
+				"meal_required": existing_pass.meal_required,
+				"meal_type": existing_pass.meal_type or values.get("meal_type"),
+				"assigned_meal_slots": existing_pass.assigned_meal_slots or values.get("assigned_meal_slots"),
+				"hospitality_type": existing_pass.hospitality_type or values.get("hospitality_type"),
+				"special_diet": existing_pass.special_diet,
+				"service_time": _format_datetime_for_web_form(existing_pass.service_time)
+				if existing_pass.service_time
+				else values.get("service_time"),
+				"refreshments_required": existing_pass.refreshments_required,
+				"items_carried": existing_pass.items_carried,
+				"visitor_items": [
+					{
+						"item_code": row.item_code,
+						"item_name": row.item_name,
+						"item_category": row.item_category,
+						"quantity": row.quantity,
+						"unit_of_measure": row.unit_of_measure,
+						"description": row.description,
+						"is_new_item": row.is_new_item,
+						"serial_number": row.serial_number,
+						"estimated_value": row.estimated_value,
+					}
+					for row in (existing_pass.get("visitor_items") or [])
+				],
+			}
+		)
 
 	return {
 		"valid": True,
 		"invitation": invitation.name,
-		"values": {
-			"visitor_invitation": invitation.name,
-			"visitor_type": invitation.visitor_type,
-			"email_id": invitation.visitor_email,
-			"visit_date": str(invitation.visit_date) if invitation.visit_date else "",
-			"expected_checkin": _format_time_for_web_form(invitation.expected_checkin),
-			"expected_checkout": _format_time_for_web_form(invitation.expected_checkout),
-			"person_to_visit": invitation.host_employee,
-			"purpose_of_visit": invitation.purpose_of_visit,
-			"meal_required": invitation.meal_required,
-			"meal_type": meal_plan["meal_type"] if invitation.meal_required else "",
-			"assigned_meal_slots": meal_plan["assigned_meal_slots"] if invitation.meal_required else "",
-			"hospitality_type": meal_plan["hospitality_type"] if invitation.meal_required else "",
-			"refreshments_required": invitation.refreshments_required,
-			"conference_room": invitation.conference_room,
-		},
+		"values": values,
 	}
 
 
@@ -163,7 +237,6 @@ class VisitorInvitation(Document):
 			f"Meal Required: {'Yes' if self.meal_required else 'No'}",
 			f"Meal Type: {self.meal_type or '-'}",
 			f"Refreshments Required: {'Yes' if self.refreshments_required else 'No'}",
-			f"Conference Room: {self.conference_room or '-'}",
 			"",
 			"Please use the secure link below to fill your information before arrival:",
 			f"<a href=\"{link}\">{link}</a>",

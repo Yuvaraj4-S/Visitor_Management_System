@@ -77,7 +77,11 @@ def normalize_visitor_pass(doc):
 	if doc.status != "Checked-In" and getattr(doc, "current_location", None):
 		doc.current_location = None
 
-	apply_hospitality_meal_plan(doc)
+	preserve_hospitality_choices = bool(
+		getattr(doc, "request_channel", None) == "Portal"
+		and not doc.is_new()
+	)
+	apply_hospitality_meal_plan(doc, preserve_existing=preserve_hospitality_choices)
 
 
 def infer_risk_level(doc):
@@ -222,10 +226,14 @@ def derive_hospitality_meal_plan(visitor_pass):
 	}
 
 
-def apply_hospitality_meal_plan(doc):
+def apply_hospitality_meal_plan(doc, preserve_existing=False):
 	meal_plan = derive_hospitality_meal_plan(doc)
+	existing_meal_type = getattr(doc, "meal_type", None)
+	existing_service_time = getattr(doc, "service_time", None)
 	doc.meal_required = meal_plan["meal_required"]
-	doc.meal_type = meal_plan["meal_type"]
+	doc.meal_type = (
+		existing_meal_type if preserve_existing and meal_plan["meal_required"] and existing_meal_type else meal_plan["meal_type"]
+	)
 
 	if hasattr(doc, "assigned_meal_slots"):
 		doc.assigned_meal_slots = meal_plan["assigned_meal_slots"] if meal_plan["meal_required"] else None
@@ -234,7 +242,11 @@ def apply_hospitality_meal_plan(doc):
 		doc.hospitality_type = meal_plan["hospitality_type"] if meal_plan["meal_required"] else None
 
 	if hasattr(doc, "service_time"):
-		doc.service_time = meal_plan["service_time"]
+		doc.service_time = (
+			existing_service_time
+			if preserve_existing and meal_plan["meal_required"] and existing_service_time
+			else meal_plan["service_time"]
+		)
 
 	return meal_plan
 
@@ -276,7 +288,7 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 	return doc
 
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def get_hospitality_meal_plan(visit_date=None, expected_checkin=None, expected_checkout=None):
 	return derive_hospitality_meal_plan(
 		frappe._dict(

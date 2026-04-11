@@ -265,13 +265,13 @@ fixtures = [
     {
         "doctype": "Workflow",
         "filters": [
-            ["name", "in", ["Visitor Pass Approval", "Pre-Registration Request Approval"]]
+            ["name", "in", ["Visitor Pass Approval", "Pre-Registration Request Approval", "Conference Room Booking Approval"]]
         ]
     },
     {
         "doctype": "Role",
         "filters": [
-            ["name", "in", ["Hospitality User"]]
+            ["name", "in", ["Hospitality User", "Facility Manager"]]
         ]
     },
     "Workflow State",

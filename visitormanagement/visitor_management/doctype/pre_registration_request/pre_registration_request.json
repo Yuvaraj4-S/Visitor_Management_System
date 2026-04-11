@@ -30,9 +30,11 @@
   "special_diet",
   "service_time",
   "refreshments_required",
+
   "conference_room",
   "items_carried",
   "visitor_items",
+
   "id_proof_type",
   "id_proof_number",
   "id_proof_scan",
@@ -197,6 +199,7 @@
    "label": "Refreshments Required"
   },
   {
+
    "fieldname": "conference_room",
    "fieldtype": "Data",
    "label": "Conference Room"
@@ -213,6 +216,7 @@
    "options": "Visitor Item"
   },
   {
+
    "fieldname": "id_proof_type",
    "fieldtype": "Select",
    "label": "ID Proof Type",

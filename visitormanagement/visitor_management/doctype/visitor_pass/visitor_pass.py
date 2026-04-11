@@ -3,6 +3,7 @@
 
 import frappe
 import qrcode
+from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime, today, get_url
 from io import BytesIO
@@ -73,23 +74,21 @@ class VisitorPass(Document):
                 "Employee", self.person_to_visit, "department"
             )
 
-        # Auto-set badge colour based on visitor type
-        colour_map = {
-            "Contractor": "Orange",
-            "Candidate": "Purple",
-            "Customer": "Green",
-            "Supplier": "Teal",
-            "VIP": "Gold",
-        }
-
-        if self.visitor_type and not self.badge_colour:
-            self.badge_colour = colour_map.get(self.visitor_type, "Blue")
+        # Auto-set badge colour from VMS Settings (or defaults)
+        if self.visitor_type:
+            settings = frappe.get_cached_doc("VMS Settings")
+            colour_field = f"badge_colour_{self.visitor_type.lower()}"
+            colour = getattr(settings, colour_field, None)
+            if not colour:
+                colour = {"Contractor": "Orange", "Candidate": "Purple", "Customer": "Green",
+                           "Supplier": "Teal", "VIP": "Gold"}.get(self.visitor_type, "Orange")
+            self.badge_colour = colour
 
         # Sync item verification status from child table
         if self.visitor_items:
             total = len(self.visitor_items)
             # Match fieldname from Visitor Item DocType
-            verified = sum(1 for i in self.visitor_items if getattr(i, 'verified_by_security', 0))
+            verified = sum(1 for i in self.visitor_items if i.verified_by_security)
 
             if verified == 0:
                 self.item_verification_status = "Pending"
@@ -127,21 +126,19 @@ class VisitorPass(Document):
         # 2️⃣ Contractor Safety Check
         if self.visitor_type == "Contractor":
             if not getattr(self, "safety_induction_done", 0):
-                frappe.msgprint(
-                    "<b>Safety Warning:</b> Safety Induction is not yet completed for this contractor. "
-                    "Please ensure it is checked in the Contractor Details section.",
-                    indicator='orange',
-                    alert=True
+                frappe.throw(
+                    _("Safety Induction must be completed before submitting a Contractor Visitor Pass. "
+                      "Please check the Safety Induction field in the Contractor Details section."),
+                    title=_("Safety Induction Required"),
                 )
 
         # 3️⃣ VIP Approval Check
         if self.visitor_type == "VIP":
             if not getattr(self, "mdceo_notified", 0):
-                frappe.msgprint(
-                    "<b>VIP Notification:</b> MD/CEO has not been notified. "
-                    "Please check the MD/CEO Notified field in VIP Details section.",
-                    indicator='orange',
-                    alert=True
+                frappe.throw(
+                    _("MD/CEO must be notified before submitting a VIP Visitor Pass. "
+                      "Please check the MD/CEO Notified field in the VIP Details section."),
+                    title=_("VIP Notification Required"),
                 )
 
     # ─────────────────────────────────────────────────────────
@@ -170,15 +167,25 @@ class VisitorPass(Document):
         if self.badge_number:
             return
 
-        prefix_map = {
+        # Check VMS Settings — is badge enabled for this visitor type?
+        settings = frappe.get_cached_doc("VMS Settings")
+        if not getattr(settings, "enable_badge", 1):
+            return
+
+        badge_types = (getattr(settings, "badge_required_for", "") or "").strip()
+        if badge_types and self.visitor_type not in badge_types:
+            return
+
+        # Get prefix from settings or use defaults
+        prefix_field = f"badge_prefix_{self.visitor_type.lower()}"
+        p = getattr(settings, prefix_field, None) or {
             "Contractor": "CON",
             "Candidate": "CAN",
             "Customer": "CUS",
             "Supplier": "SUP",
             "VIP": "VIP",
-        }
+        }.get(self.visitor_type, "VIS")
 
-        p = prefix_map.get(self.visitor_type, "VIS")
         count = frappe.db.count(
             "Visitor Pass",
             {"visitor_type": self.visitor_type, "visit_date": today()},
@@ -191,7 +198,7 @@ class VisitorPass(Document):
         self.db_set("status", "Items Verified")
 
         frappe.msgprint(
-            f"Badge Number Generated: {badge_no}",
+            _("Badge Number Generated: {0}").format(badge_no),
             alert=True,
             indicator="green",
         )
@@ -487,3 +494,15 @@ def get_existing_visitor_pass_details(visitor_pass, visitor_type=None):
 
     fields = common_fields + type_fields.get(doc.visitor_type, [])
     return {field: doc.get(field) for field in fields}
+
+
+@frappe.whitelist()
+def sync_badge_number(visitor_pass):
+    """Generate badge number for a visitor pass if not already set."""
+    vp = frappe.get_doc("Visitor Pass", visitor_pass)
+    if vp.badge_number:
+        return vp.badge_number
+
+    vp.generate_badge_number()
+    vp.reload()
+    return vp.badge_number

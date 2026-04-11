@@ -2,6 +2,15 @@
  {
   "docstatus": 0,
   "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-03-01 20:16:51.270540",
+  "name": "Pending Visitor Manager",
+  "style": "",
+  "workflow_state_name": "Pending Visitor Manager"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
   "icon": "question-sign",
   "modified": "2026-02-26 09:53:04.826709",
   "name": "Pending",
@@ -21,7 +30,7 @@
   "docstatus": 0,
   "doctype": "Workflow State",
   "icon": "question-sign",
-  "modified": "2026-04-06 15:00:00.000000",
+  "modified": "2026-04-06 15:00:00",
   "name": "Pending Approval",
   "style": "Warning",
   "workflow_state_name": "Pending Approval"
@@ -30,7 +39,7 @@
   "docstatus": 0,
   "doctype": "Workflow State",
   "icon": "ok-sign",
-  "modified": "2026-04-06 15:00:00.000000",
+  "modified": "2026-04-06 15:00:00",
   "name": "Converted",
   "style": "Success",
   "workflow_state_name": "Converted"

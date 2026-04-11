@@ -1,12 +1,10 @@
 import base64
+import binascii
 import json
 
 import frappe
 from frappe.utils import now_datetime
 
-from visitormanagement.visitor_management.doctype.pre_registration_request.pre_registration_request import (
-	get_pending_approval_state,
-)
 from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation import (
 	get_valid_invitation_by_token,
 )
@@ -32,26 +30,10 @@ def _extract_file_payload(payload, fallback_filename=None):
 	if "," in data and data.split(",", 1)[0].startswith("data:"):
 		data = data.split(",", 1)[1]
 
-	return filename, base64.b64decode(data)
-
-
-def _attach_file(doctype, docname, fieldname, filename, content):
-	if not content:
-		return None
-
-	file_doc = frappe.get_doc(
-		{
-			"doctype": "File",
-			"file_name": filename,
-			"attached_to_doctype": doctype,
-			"attached_to_name": docname,
-			"attached_to_field": fieldname,
-			"is_private": 0,
-			"content": content,
-		}
-	)
-	file_doc.insert(ignore_permissions=True)
-	return file_doc.file_url
+	try:
+		return filename, base64.b64decode(data)
+	except (binascii.Error, ValueError):
+		frappe.throw("Uploaded file is corrupted or in an unsupported format. Please re-upload.")
 
 
 def _store_file(filename, content):
@@ -82,11 +64,9 @@ def _normalize_mobile_number(number, country_code=None):
 
 	if country_code:
 		country_code_digits = "".join(char for char in country_code if char.isdigit())
-		if country_code_digits:
-			if len(digits) == 10:
-				return f"+{country_code_digits}{digits}"
+		if country_code_digits and len(digits) == 10:
+			return f"+{country_code_digits}{digits}"
 
-	# The public portal currently targets an India-first visitor workflow.
 	if len(digits) == 10:
 		return f"+91{digits}"
 
@@ -119,7 +99,7 @@ def _resolve_employee_link(value):
 	return value
 
 
-def _map_prr_id_proof_type(id_proof_type):
+def _normalize_id_proof_type(id_proof_type):
 	value = (id_proof_type or "").strip()
 	mapper = {
 		"PAN": "PAN Card",
@@ -127,14 +107,100 @@ def _map_prr_id_proof_type(id_proof_type):
 	return mapper.get(value, value)
 
 
-def _update_invitation_status(invitation, status, time_field=None):
-	if not invitation:
-		return
+def _parse_visitor_items(items):
+	if not items:
+		return []
 
-	updates = {"invitation_status": status}
-	if time_field:
-		updates[time_field] = now_datetime()
-	invitation.db_set(updates, update_modified=False)
+	if isinstance(items, str):
+		items = json.loads(items)
+
+	parsed_items = []
+	for row in items:
+		if not isinstance(row, dict):
+			continue
+
+		item_name = (row.get("item_name") or "").strip()
+		if not item_name:
+			continue
+
+		parsed_items.append(
+			{
+				"item_code": row.get("item_code"),
+				"item_name": item_name,
+				"item_category": row.get("item_category"),
+				"quantity": row.get("quantity") or 1,
+				"unit_of_measure": row.get("unit_of_measure"),
+				"description": row.get("description"),
+				"is_new_item": row.get("is_new_item") or 0,
+				"serial_number": row.get("serial_number"),
+				"estimated_value": row.get("estimated_value"),
+				"verification_remarks": row.get("verification_remarks"),
+			}
+		)
+
+	return parsed_items
+
+
+def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_photo_url, invitation=None):
+	visitor_type = invitation.visitor_type if invitation else data.get("visitor_type")
+
+	return {
+		"entry_type": "New",
+		"visitor_full_name": data.get("visitor_full_name") or data.get("visitor_name"),
+		"mobile_number": _normalize_mobile_number(
+			data.get("mobile_number"), data.get("mobile_country_code")
+		),
+		"email_id": invitation.visitor_email if invitation else data.get("email_id"),
+		"company__organisation": data.get("company__organisation"),
+		"visit_date": invitation.visit_date if invitation else data.get("visit_date"),
+		"expected_checkin": invitation.expected_checkin if invitation else data.get("expected_checkin"),
+		"expected_checkout": invitation.expected_checkout if invitation else data.get("expected_checkout"),
+		"person_to_visit": person_to_visit,
+		"purpose_of_visit": invitation.purpose_of_visit if invitation else data.get("purpose_of_visit"),
+		"visitor_type": visitor_type,
+		"supplier_link": data.get("supplier_link"),
+		"supplier_visit_mode": data.get("supplier_visit_mode"),
+		"purchase_order": data.get("purchase_order"),
+		"delivery_note": data.get("delivery_note"),
+		"goods_description": data.get("goods_description"),
+		"visit_category": data.get("visit_category"),
+		"products_discussed": data.get("products_discussed"),
+		"meeting_outcome": data.get("meeting_outcome"),
+		"followup_date": data.get("followup_date"),
+		"contractor_link": data.get("contractor_link"),
+		"work_order_ref": data.get("work_order_ref"),
+		"safety_induction_done": data.get("safety_induction_done"),
+		"contractor_nda_signed": data.get("contractor_nda_signed"),
+		"ppe_provided": data.get("ppe_provided"),
+		"tools_list": data.get("tools_list"),
+		"multi_day_pass": data.get("multi_day_pass"),
+		"pass_valid_until": data.get("pass_valid_until"),
+		"job_applicant_link": data.get("job_applicant_link"),
+		"position_applied": data.get("position_applied"),
+		"candidate_interview_type": data.get("candidate_interview_type"),
+		"interview_panel": data.get("interview_panel"),
+		"vip_category": data.get("vip_category"),
+		"priority_lane": data.get("priority_lane"),
+		"mdceo_notified": data.get("mdceo_notified"),
+		"interpreter_required": data.get("interpreter_required"),
+		"interpreter_language": data.get("interpreter_language"),
+		"protocol_notes": data.get("protocol_notes"),
+		"meal_required": data.get("meal_required"),
+		"meal_type": data.get("meal_type"),
+		"assigned_meal_slots": data.get("assigned_meal_slots"),
+		"hospitality_type": data.get("hospitality_type"),
+		"special_diet": data.get("special_diet"),
+		"service_time": data.get("service_time"),
+		"refreshments_required": data.get("refreshments_required"),
+		"items_carried": data.get("items_carried"),
+		"id_proof_type": _normalize_id_proof_type(data.get("id_proof_type")),
+		"id_proof_number": data.get("id_proof_number"),
+		"id_proof_scan": id_proof_url,
+		"visitor_photo": visitor_photo_url,
+		"status": "Draft",
+		"request_channel": "Portal",
+		"visitor_invitation": invitation.name if invitation else None,
+	}
 
 
 @frappe.whitelist(allow_guest=True)
@@ -163,16 +229,10 @@ def submit_pre_registration(payload=None):
 			"person_to_visit": invitation.host_employee,
 			"purpose_of_visit": invitation.purpose_of_visit,
 			"visitor_type": invitation.visitor_type,
-			"meal_required": invitation.meal_required,
-			"meal_type": invitation.meal_type,
-			"assigned_meal_slots": invitation.assigned_meal_slots,
-			"hospitality_type": invitation.hospitality_type,
-			"refreshments_required": invitation.refreshments_required,
-			"conference_room": invitation.conference_room,
 		}
 
 	required_fields = [
-		"visitor_name",
+		"visitor_full_name",
 		"mobile_number",
 		"email_id",
 		"visit_date",
@@ -187,7 +247,8 @@ def submit_pre_registration(payload=None):
 
 	for fieldname in required_fields:
 		field_value = invitation_field_values.get(fieldname) if invitation else None
-		if require_full_submission and not (field_value or data.get(fieldname)):
+		form_value = data.get(fieldname) or (data.get("visitor_name") if fieldname == "visitor_full_name" else None)
+		if require_full_submission and not (field_value or form_value):
 			frappe.throw(f"{frappe.unscrub(fieldname).title()} is required.")
 
 	if require_full_submission and not data.get("id_proof_scan"):
@@ -205,79 +266,48 @@ def submit_pre_registration(payload=None):
 		data.get("visitor_photo_filename") or "visitor-photo.png",
 	)
 	person_to_visit = _resolve_employee_link(invitation.host_employee if invitation else data.get("person_to_visit"))
+	visitor_items = _parse_visitor_items(data.get("visitor_items"))
 
 	if person_to_visit and not frappe.db.exists("Employee", person_to_visit):
 		frappe.throw("Person to Visit must be a valid Employee (Employee ID or exact Employee Name).")
 
+	existing_doc = None
+	if invitation and invitation.visitor_pass and frappe.db.exists("Visitor Pass", invitation.visitor_pass):
+		existing_doc = frappe.get_doc("Visitor Pass", invitation.visitor_pass)
+
 	id_proof_url = _store_file(
 		id_proof_filename,
 		id_proof_content,
-	)
+	) or (existing_doc.id_proof_scan if existing_doc else None)
 	visitor_photo_url = _store_file(
 		visitor_photo_filename,
 		visitor_photo_content,
+	) or (existing_doc.visitor_photo if existing_doc else None)
+
+	doc_values = _build_visitor_pass_values(
+		data,
+		person_to_visit,
+		id_proof_url,
+		visitor_photo_url,
+		invitation=invitation,
 	)
 
+	visitor_pass = existing_doc or frappe.new_doc("Visitor Pass")
+	visitor_pass.update(doc_values)
+	visitor_pass.set("visitor_items", [])
+	for item in visitor_items:
+		visitor_pass.append("visitor_items", item)
+
+	if visitor_pass.is_new():
+		visitor_pass.insert(ignore_permissions=True, ignore_mandatory=not require_full_submission)
+	else:
+		visitor_pass.flags.ignore_mandatory = not require_full_submission
+		visitor_pass.save(ignore_permissions=True)
+
 	if invitation:
-		prr_name = invitation.pre_registration_request
-		if prr_name:
-			prr_doc = frappe.get_doc("Pre-Registration Request", prr_name)
-		else:
-			prr_doc = frappe.new_doc("Pre-Registration Request")
-
-		mobile_number = data.get("mobile_number")
-		existing_mobile = prr_doc.mobile_number
-		normalized_mobile = (
-			_normalize_mobile_number(mobile_number, data.get("mobile_country_code"))
-			if mobile_number
-			else existing_mobile
-		)
-		id_proof_scan_url = id_proof_url or prr_doc.id_proof_scan
-		visitor_photo_file_url = visitor_photo_url or prr_doc.visitor_photo
-
-		prr_doc.update(
-			{
-				"visitor_name": data.get("visitor_name"),
-				"mobile_number": normalized_mobile,
-				"email_id": invitation.visitor_email,
-				"company__organisation": data.get("company__organisation"),
-				"visit_date": invitation.visit_date,
-				"expected_checkin": invitation.expected_checkin,
-				"expected_checkout": invitation.expected_checkout,
-				"person_to_visit": person_to_visit,
-				"purpose_of_visit": invitation.purpose_of_visit,
-				"visitor_type": invitation.visitor_type,
-				"supplier_visit_mode": data.get("supplier_visit_mode"),
-				"meeting_subject": data.get("meeting_subject"),
-				"purchase_order": data.get("purchase_order"),
-				"delivery_note": data.get("delivery_note"),
-				"goods_description": data.get("goods_description"),
-				"meal_required": invitation.meal_required,
-				"meal_type": invitation.meal_type,
-				"assigned_meal_slots": invitation.assigned_meal_slots,
-				"hospitality_type": invitation.hospitality_type,
-				"refreshments_required": invitation.refreshments_required,
-				"conference_room": invitation.conference_room,
-				"id_proof_type": _map_prr_id_proof_type(data.get("id_proof_type")),
-				"id_proof_number": data.get("id_proof_number"),
-				"id_proof_scan": id_proof_scan_url,
-				"visitor_photo": visitor_photo_file_url,
-				"visitor_invitation": invitation.name,
-				"request_channel": "Portal",
-				# Public invitation submissions are held as desk-reviewable PRRs.
-				# Internal users can then pick them up from Web Submissions.
-				"status": "Draft",
-			}
-		)
-
-		if prr_doc.is_new():
-			prr_doc.insert(ignore_permissions=True, ignore_mandatory=not require_full_submission)
-		else:
-			prr_doc.flags.ignore_mandatory = not require_full_submission
-			prr_doc.save(ignore_permissions=True)
-
 		invitation_updates = {
-			"pre_registration_request": prr_doc.name,
+			"visitor_pass": visitor_pass.name,
+			"pre_registration_request": None,
 			"invitation_status": "Saved" if submission_action == "save" else "Submitted",
 		}
 		if not invitation.link_opened_on:
@@ -288,88 +318,15 @@ def submit_pre_registration(payload=None):
 			invitation_updates["form_submitted_on"] = now_datetime()
 		invitation.db_set(invitation_updates, update_modified=False)
 
-		return {
-			"name": prr_doc.name,
-			"status": prr_doc.status,
-			"pre_registration_request": prr_doc.name,
-			"action": submission_action,
-		}
-
-	doc = frappe.get_doc(
-		{
-			"doctype": "Visitor Pass",
-			"entry_type": "New",
-			"visitor_full_name": data.get("visitor_name"),
-			"mobile_number": _normalize_mobile_number(
-				data.get("mobile_number"), data.get("mobile_country_code")
-			),
-			"email_id": data.get("email_id"),
-			"company__organisation": data.get("company__organisation"),
-			"visit_date": data.get("visit_date"),
-			"expected_checkin": data.get("expected_checkin"),
-			"expected_checkout": data.get("expected_checkout"),
-			"person_to_visit": person_to_visit,
-			"purpose_of_visit": data.get("purpose_of_visit"),
-			"visitor_type": data.get("visitor_type"),
-			"supplier_visit_mode": data.get("supplier_visit_mode"),
-			"meeting_subject": data.get("meeting_subject"),
-			"purchase_order": data.get("purchase_order"),
-			"delivery_note": data.get("delivery_note"),
-			"goods_description": data.get("goods_description"),
-			"meal_required": data.get("meal_required"),
-			"meal_type": data.get("meal_type"),
-			"refreshments_required": data.get("refreshments_required"),
-			"conference_room": data.get("conference_room"),
-			"id_proof_type": data.get("id_proof_type"),
-			"id_proof_number": data.get("id_proof_number"),
-			"id_proof_scan": id_proof_url,
-			"visitor_photo": visitor_photo_url,
-			"status": "Draft",
-			"request_channel": "Portal",
-		}
+	saved_values = frappe.db.get_value(
+		"Visitor Pass",
+		visitor_pass.name,
+		["name", "status", "workflow_state"],
+		as_dict=True,
 	)
-	doc.insert(ignore_permissions=True)
-
-	prr_doc = frappe.get_doc(
-		{
-			"doctype": "Pre-Registration Request",
-			"visitor_name": data.get("visitor_name"),
-			"mobile_number": doc.mobile_number,
-			"email_id": data.get("email_id"),
-			"company__organisation": data.get("company__organisation"),
-			"visit_date": data.get("visit_date"),
-			"expected_checkin": data.get("expected_checkin"),
-			"expected_checkout": data.get("expected_checkout"),
-			"person_to_visit": person_to_visit,
-			"purpose_of_visit": data.get("purpose_of_visit"),
-			"visitor_type": data.get("visitor_type"),
-			"supplier_visit_mode": data.get("supplier_visit_mode"),
-			"meeting_subject": data.get("meeting_subject"),
-			"purchase_order": data.get("purchase_order"),
-			"delivery_note": data.get("delivery_note"),
-			"goods_description": data.get("goods_description"),
-			"meal_required": data.get("meal_required"),
-			"meal_type": data.get("meal_type"),
-			"refreshments_required": data.get("refreshments_required"),
-			"conference_room": data.get("conference_room"),
-			"id_proof_type": _map_prr_id_proof_type(data.get("id_proof_type")),
-			"id_proof_number": data.get("id_proof_number"),
-			"id_proof_scan": id_proof_url,
-			"visitor_photo": visitor_photo_url,
-			"status": "Draft" if submission_action == "save" else "Converted",
-			"request_channel": "Portal",
-			"visitor_pass": doc.name if submission_action == "submit" else None,
-		}
-	)
-	prr_doc.insert(ignore_permissions=True)
-	if submission_action == "submit":
-		doc.db_set("pre_registration_request", prr_doc.name, update_modified=False)
-
-	doc.reload()
 	return {
-		"name": prr_doc.name if submission_action == "save" else doc.name,
-		"status": prr_doc.status if submission_action == "save" else doc.status,
-		"workflow_state": doc.workflow_state if submission_action == "submit" else None,
-		"pre_registration_request": prr_doc.name,
+		"name": saved_values.name,
+		"status": saved_values.status,
+		"workflow_state": saved_values.workflow_state,
 		"action": submission_action,
 	}

@@ -100,6 +100,8 @@ class VisitorPass(Document):
                 self.all_items_verified = 1
 
     def on_update(self):
+        if self.docstatus == 0 and self.status == "Draft":
+            return
         ensure_hospitality_request(self)
 
     # ─────────────────────────────────────────────────────────

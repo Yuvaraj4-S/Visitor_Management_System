@@ -18,6 +18,7 @@
   "risk_level",
   "approval_sla_minutes",
   "pre_registration_request",
+  "visitor_invitation",
   "section_break_identity_details",
   "visitor_full_name",
   "mobile_number",
@@ -70,6 +71,10 @@
   "section_break_supplier_details",
   "supplier_link",
   "supplier_visit_mode",
+  "meeting_subject",
+  "purchase_order",
+  "delivery_note",
+  "goods_description",
   "column_break_supplier",
   "nda_required",
   "documents_shared",
@@ -113,6 +118,7 @@
   "hospitality_type",
   "number_of_people",
   "special_diet",
+  "refreshments_required",
   "column_break_hospitality",
   "conference_room",
   "service_time",
@@ -205,6 +211,14 @@
    "fieldtype": "Link",
    "label": "Pre-Registration Request",
    "options": "Pre-Registration Request",
+   "read_only": 1
+  },
+  {
+   "fieldname": "visitor_invitation",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Visitor Invitation",
+   "options": "Visitor Invitation",
    "read_only": 1
   },
   {
@@ -536,6 +550,32 @@
    "options": "Delivery\nMeeting\nAudit\nService"
   },
   {
+   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode != 'Delivery'",
+   "fieldname": "meeting_subject",
+   "fieldtype": "Data",
+   "label": "Meeting Subject"
+  },
+  {
+   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode == 'Delivery'",
+   "fieldname": "purchase_order",
+   "fieldtype": "Link",
+   "label": "Purchase Order",
+   "options": "Purchase Order"
+  },
+  {
+   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode == 'Delivery'",
+   "fieldname": "delivery_note",
+   "fieldtype": "Link",
+   "label": "Delivery Note",
+   "options": "Delivery Note"
+  },
+  {
+   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode == 'Delivery'",
+   "fieldname": "goods_description",
+   "fieldtype": "Small Text",
+   "label": "Goods Description"
+  },
+  {
    "depends_on": "eval:doc.visitor_type == 'Supplier'",
    "fieldname": "column_break_supplier",
    "fieldtype": "Column Break"
@@ -823,6 +863,13 @@
    "fieldtype": "Select",
    "label": "Special Diet",
    "options": "None\nNon-vegetarian\nVegetarian\nVegan\nGluten Free\nHalal\nJain"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "refreshments_required",
+   "fieldtype": "Check",
+   "label": "Refreshments Required"
   },
   {
    "fieldname": "column_break_hospitality",

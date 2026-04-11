@@ -27,8 +27,12 @@
   "meal_type",
   "assigned_meal_slots",
   "hospitality_type",
+  "special_diet",
+  "service_time",
   "refreshments_required",
   "conference_room",
+  "items_carried",
+  "visitor_items",
   "id_proof_type",
   "id_proof_number",
   "id_proof_scan",
@@ -176,6 +180,17 @@
    "read_only": 1
   },
   {
+   "fieldname": "special_diet",
+   "fieldtype": "Select",
+   "label": "Special Diet",
+   "options": "None\nNon-vegetarian\nVegetarian\nVegan\nGluten Free\nHalal\nJain"
+  },
+  {
+   "fieldname": "service_time",
+   "fieldtype": "Datetime",
+   "label": "Preferred Service Time"
+  },
+  {
    "default": "0",
    "fieldname": "refreshments_required",
    "fieldtype": "Check",
@@ -185,6 +200,17 @@
    "fieldname": "conference_room",
    "fieldtype": "Data",
    "label": "Conference Room"
+  },
+  {
+   "fieldname": "items_carried",
+   "fieldtype": "Small Text",
+   "label": "Items Carried"
+  },
+  {
+   "fieldname": "visitor_items",
+   "fieldtype": "Table",
+   "label": "Visitor Items",
+   "options": "Visitor Item"
   },
   {
    "fieldname": "id_proof_type",

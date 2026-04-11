@@ -29,7 +29,8 @@ class ConferenceRoomBooking(Document):
 			self.coffee_tea_required = 1
 
 	def on_submit(self):
-		self.db_set("status", "Approved")
+		if not self.status or self.status == "Draft":
+			self.db_set("status", "Approved")
 
 	def on_cancel(self):
 		self.db_set("status", "Cancelled")

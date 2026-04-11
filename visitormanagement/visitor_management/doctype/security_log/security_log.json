@@ -27,7 +27,6 @@
     "visitor_company",
     "id_proof_type_verified",
     "id_proof_number",
-    "id_last_4_digits",
     "column_break_snapshot",
     "check_in_date_time",
     "check_out_date_time",
@@ -148,7 +147,7 @@
       "read_only": 1
     },
     {
-      "fetch_from": "visitor_pass.dedicated_meeting_room",
+      "fetch_from": "visitor_pass.conference_room",
       "fieldname": "vip_meeting_room",
       "fieldtype": "Data",
       "label": "VIP Meeting Room",
@@ -187,21 +186,14 @@
       "options": "Aadhaar\nPAN Card\nPassport\nDriving License"
     },
     {
-      "fetch_from": "visitor_pass.id_proof_number",
       "fieldname": "id_proof_number",
       "fieldtype": "Data",
-      "label": "ID Proof Number",
+      "label": "ID Proof Number (Masked)",
       "read_only": 1
     },
     {
       "fieldname": "column_break_snapshot",
       "fieldtype": "Column Break"
-    },
-    {
-      "fieldname": "id_last_4_digits",
-      "fieldtype": "Data",
-      "label": "ID Last 4 Digits",
-      "read_only": 1
     },
     {
       "fieldname": "check_in_date_time",

@@ -5,79 +5,219 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "section_general",
   "admin_email",
   "food_dept_email",
+  "column_break_general",
   "default_checkout_time",
+  "max_visit_duration_hrs",
+  "section_gate",
   "require_visitor_photo",
   "qr_scan_required_at_gate",
-  "blacklist_action",
-  "max_visit_duration_hrs",
-  "gate_list",
   "require_item_declaration",
-  "block_check_in_without_verification"
+  "block_check_in_without_verification",
+  "column_break_gate",
+  "blacklist_action",
+  "gate_list",
+  "section_badge",
+  "enable_badge",
+  "badge_required_for",
+  "column_break_badge",
+  "badge_prefix_contractor",
+  "badge_colour_contractor",
+  "badge_prefix_candidate",
+  "badge_colour_candidate",
+  "badge_prefix_customer",
+  "badge_colour_customer",
+  "badge_prefix_supplier",
+  "badge_colour_supplier",
+  "badge_prefix_vip",
+  "badge_colour_vip"
  ],
  "fields": [
   {
+   "fieldname": "section_general",
+   "fieldtype": "Section Break",
+   "label": "General"
+  },
+  {
    "fieldname": "admin_email",
    "fieldtype": "Data",
-   "label": "Admin Email "
+   "label": "Admin Email",
+   "options": "Email"
   },
   {
    "fieldname": "food_dept_email",
    "fieldtype": "Data",
-   "label": "Food Dept Email "
+   "label": "Food Dept Email",
+   "options": "Email"
   },
   {
+   "fieldname": "column_break_general",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "18:00:00",
    "fieldname": "default_checkout_time",
    "fieldtype": "Time",
-   "label": "Default Checkout Time "
+   "label": "Default Checkout Time"
+  },
+  {
+   "default": "12",
+   "fieldname": "max_visit_duration_hrs",
+   "fieldtype": "Int",
+   "label": "Max Visit Duration (hrs)"
+  },
+  {
+   "fieldname": "section_gate",
+   "fieldtype": "Section Break",
+   "label": "Gate & Security"
   },
   {
    "default": "0",
    "fieldname": "require_visitor_photo",
    "fieldtype": "Check",
-   "label": "Require Visitor Photo "
+   "label": "Require Visitor Photo"
   },
   {
    "default": "0",
    "fieldname": "qr_scan_required_at_gate",
    "fieldtype": "Check",
-   "label": "QR Scan Required at Gate "
-  },
-  {
-   "fieldname": "blacklist_action",
-   "fieldtype": "Select",
-   "label": "Blacklist Action ",
-   "options": "Block Entry\nAlert Only\nLog Only"
-  },
-  {
-   "fieldname": "max_visit_duration_hrs",
-   "fieldtype": "Int",
-   "label": "Max Visit Duration (hrs) "
-  },
-  {
-   "fieldname": "gate_list",
-   "fieldtype": "Small Text",
-   "label": "Gate List "
+   "label": "QR Scan Required at Gate"
   },
   {
    "default": "0",
    "fieldname": "require_item_declaration",
    "fieldtype": "Check",
-   "label": "Require Item Declaration "
+   "label": "Require Item Declaration"
   },
   {
    "default": "0",
    "fieldname": "block_check_in_without_verification",
    "fieldtype": "Check",
-   "label": "Block Check In Without Verification "
+   "label": "Block Check-In Without Verification"
+  },
+  {
+   "fieldname": "column_break_gate",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Block Entry",
+   "fieldname": "blacklist_action",
+   "fieldtype": "Select",
+   "label": "Blacklist Action",
+   "options": "Block Entry\nAlert Only\nLog Only"
+  },
+  {
+   "fieldname": "gate_list",
+   "fieldtype": "Small Text",
+   "label": "Gate List"
+  },
+  {
+   "fieldname": "section_badge",
+   "fieldtype": "Section Break",
+   "label": "Badge Configuration"
+  },
+  {
+   "default": "1",
+   "description": "Enable physical badge issuance for visitors. If disabled, visitors will only get QR codes.",
+   "fieldname": "enable_badge",
+   "fieldtype": "Check",
+   "label": "Enable Badge"
+  },
+  {
+   "default": "Contractor\nCandidate\nCustomer\nSupplier\nVIP",
+   "depends_on": "eval:doc.enable_badge",
+   "description": "Select which visitor types require a physical badge. Unselected types will get QR-only access.",
+   "fieldname": "badge_required_for",
+   "fieldtype": "Small Text",
+   "label": "Badge Required For"
+  },
+  {
+   "fieldname": "column_break_badge",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "CON",
+   "depends_on": "eval:doc.enable_badge",
+   "fieldname": "badge_prefix_contractor",
+   "fieldtype": "Data",
+   "label": "Badge Prefix — Contractor"
+  },
+  {
+   "default": "Orange",
+   "depends_on": "eval:doc.enable_badge",
+   "fieldname": "badge_colour_contractor",
+   "fieldtype": "Select",
+   "label": "Badge Colour — Contractor",
+   "options": "Orange\nPurple\nGreen\nTeal\nGold\nBlue\nRed\nGrey"
+  },
+  {
+   "default": "CAN",
+   "depends_on": "eval:doc.enable_badge",
+   "fieldname": "badge_prefix_candidate",
+   "fieldtype": "Data",
+   "label": "Badge Prefix — Candidate"
+  },
+  {
+   "default": "Purple",
+   "depends_on": "eval:doc.enable_badge",
+   "fieldname": "badge_colour_candidate",
+   "fieldtype": "Select",
+   "label": "Badge Colour — Candidate",
+   "options": "Orange\nPurple\nGreen\nTeal\nGold\nBlue\nRed\nGrey"
+  },
+  {
+   "default": "CUS",
+   "depends_on": "eval:doc.enable_badge",
+   "fieldname": "badge_prefix_customer",
+   "fieldtype": "Data",
+   "label": "Badge Prefix — Customer"
+  },
+  {
+   "default": "Green",
+   "depends_on": "eval:doc.enable_badge",
+   "fieldname": "badge_colour_customer",
+   "fieldtype": "Select",
+   "label": "Badge Colour — Customer",
+   "options": "Orange\nPurple\nGreen\nTeal\nGold\nBlue\nRed\nGrey"
+  },
+  {
+   "default": "SUP",
+   "depends_on": "eval:doc.enable_badge",
+   "fieldname": "badge_prefix_supplier",
+   "fieldtype": "Data",
+   "label": "Badge Prefix — Supplier"
+  },
+  {
+   "default": "Teal",
+   "depends_on": "eval:doc.enable_badge",
+   "fieldname": "badge_colour_supplier",
+   "fieldtype": "Select",
+   "label": "Badge Colour — Supplier",
+   "options": "Orange\nPurple\nGreen\nTeal\nGold\nBlue\nRed\nGrey"
+  },
+  {
+   "default": "VIP",
+   "depends_on": "eval:doc.enable_badge",
+   "fieldname": "badge_prefix_vip",
+   "fieldtype": "Data",
+   "label": "Badge Prefix — VIP"
+  },
+  {
+   "default": "Gold",
+   "depends_on": "eval:doc.enable_badge",
+   "fieldname": "badge_colour_vip",
+   "fieldtype": "Select",
+   "label": "Badge Colour — VIP",
+   "options": "Orange\nPurple\nGreen\nTeal\nGold\nBlue\nRed\nGrey"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-03-01 17:09:38.413085",
+ "modified": "2026-04-11 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS Settings",

@@ -1,1 +1,1388 @@
-[]
+[
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:51.433834",
+  "name": "v0qtqr8bmd",
+  "permitted_roles": [
+   {
+    "parent": "v0qtqr8bmd",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00001",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:51.634803",
+  "name": "v0s5167168",
+  "permitted_roles": [
+   {
+    "parent": "v0s5167168",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00002",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:51.702614",
+  "name": "v0t8ibfplc",
+  "permitted_roles": [
+   {
+    "parent": "v0t8ibfplc",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00003",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:51.757536",
+  "name": "v0t106g0r7",
+  "permitted_roles": [
+   {
+    "parent": "v0t106g0r7",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00004",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:51.836286",
+  "name": "v0uh06aoit",
+  "permitted_roles": [
+   {
+    "parent": "v0uh06aoit",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00005",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:51.940772",
+  "name": "v0vhgb9dfa",
+  "permitted_roles": [
+   {
+    "parent": "v0vhgb9dfa",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00006",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:51.983888",
+  "name": "v0vo5t29r6",
+  "permitted_roles": [
+   {
+    "parent": "v0vo5t29r6",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00007",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.027005",
+  "name": "v1094eue2q",
+  "permitted_roles": [
+   {
+    "parent": "v1094eue2q",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00008",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.071699",
+  "name": "v1042ke8nj",
+  "permitted_roles": [
+   {
+    "parent": "v1042ke8nj",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00009",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.117272",
+  "name": "v11cubjnn2",
+  "permitted_roles": [
+   {
+    "parent": "v11cubjnn2",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00010",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.162402",
+  "name": "v11r3lvqd1",
+  "permitted_roles": [
+   {
+    "parent": "v11r3lvqd1",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00011",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.205781",
+  "name": "v12dc471ka",
+  "permitted_roles": [
+   {
+    "parent": "v12dc471ka",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00012",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.260879",
+  "name": "v128c93534",
+  "permitted_roles": [
+   {
+    "parent": "v128c93534",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00013",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.321895",
+  "name": "v133jd6i2o",
+  "permitted_roles": [
+   {
+    "parent": "v133jd6i2o",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00014",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.376597",
+  "name": "v132u2d758",
+  "permitted_roles": [
+   {
+    "parent": "v132u2d758",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00015",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.425852",
+  "name": "v14viobs90",
+  "permitted_roles": [
+   {
+    "parent": "v14viobs90",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00016",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.483313",
+  "name": "v148utsjrc",
+  "permitted_roles": [
+   {
+    "parent": "v148utsjrc",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00017",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.540667",
+  "name": "v15h4cgln3",
+  "permitted_roles": [
+   {
+    "parent": "v15h4cgln3",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00018",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.591252",
+  "name": "v15nun6mq1",
+  "permitted_roles": [
+   {
+    "parent": "v15nun6mq1",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00019",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.647830",
+  "name": "v16uidj17d",
+  "permitted_roles": [
+   {
+    "parent": "v16uidj17d",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00020",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.696297",
+  "name": "v16ksjsibs",
+  "permitted_roles": [
+   {
+    "parent": "v16ksjsibs",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00021",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.757297",
+  "name": "v17d9rpijp",
+  "permitted_roles": [
+   {
+    "parent": "v17d9rpijp",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00022",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.814262",
+  "name": "v18lbb3jde",
+  "permitted_roles": [
+   {
+    "parent": "v18lbb3jde",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00023",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.869780",
+  "name": "v186a3u7n0",
+  "permitted_roles": [
+   {
+    "parent": "v186a3u7n0",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00024",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.931350",
+  "name": "v19dce9deg",
+  "permitted_roles": [
+   {
+    "parent": "v19dce9deg",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00025",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:52.992058",
+  "name": "v19rprf75e",
+  "permitted_roles": [
+   {
+    "parent": "v19rprf75e",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00026",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:53.046715",
+  "name": "v1aq3a3o98",
+  "permitted_roles": [
+   {
+    "parent": "v1aq3a3o98",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00027",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:53.106661",
+  "name": "v1ble3lh3r",
+  "permitted_roles": [
+   {
+    "parent": "v1ble3lh3r",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00028",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:53.164493",
+  "name": "v1b56d96ah",
+  "permitted_roles": [
+   {
+    "parent": "v1b56d96ah",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00029",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Employee",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:53.220603",
+  "name": "v1cnc06ui5",
+  "permitted_roles": [
+   {
+    "parent": "v1cnc06ui5",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Employee"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00030",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Draft"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "System Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:53.368875",
+  "name": "v1dq872jsi",
+  "permitted_roles": [
+   {
+    "parent": "v1dq872jsi",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "System Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00001",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending System Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "System Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:53.891764",
+  "name": "v1ihs8834l",
+  "permitted_roles": [
+   {
+    "parent": "v1ihs8834l",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "System Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00002",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending System Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "System Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:54.031732",
+  "name": "v1kmglu8ej",
+  "permitted_roles": [
+   {
+    "parent": "v1kmglu8ej",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "System Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00003",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending System Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "System Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:54.197647",
+  "name": "v1lo8cumu1",
+  "permitted_roles": [
+   {
+    "parent": "v1lo8cumu1",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "System Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00004",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending System Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "System Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:54.370031",
+  "name": "v1naf0rlc6",
+  "permitted_roles": [
+   {
+    "parent": "v1naf0rlc6",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "System Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00005",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending System Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "System Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:54.545743",
+  "name": "v1pnls8r9h",
+  "permitted_roles": [
+   {
+    "parent": "v1pnls8r9h",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "System Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00006",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending System Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "HR Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:54.699245",
+  "name": "v1r47r6ts9",
+  "permitted_roles": [
+   {
+    "parent": "v1r47r6ts9",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "HR Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00007",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending HR Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "HR Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:54.828254",
+  "name": "v1su7jsutf",
+  "permitted_roles": [
+   {
+    "parent": "v1su7jsutf",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "HR Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00008",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending HR Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "HR Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:54.955370",
+  "name": "v1tobaseph",
+  "permitted_roles": [
+   {
+    "parent": "v1tobaseph",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "HR Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00009",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending HR Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "HR Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:55.081687",
+  "name": "v1udbag4la",
+  "permitted_roles": [
+   {
+    "parent": "v1udbag4la",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "HR Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00010",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending HR Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "HR Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:55.220074",
+  "name": "v20caln1ie",
+  "permitted_roles": [
+   {
+    "parent": "v20caln1ie",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "HR Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00011",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending HR Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "HR Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:55.347706",
+  "name": "v21i7k1o59",
+  "permitted_roles": [
+   {
+    "parent": "v21i7k1o59",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "HR Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00012",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending HR Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Sales Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:55.484073",
+  "name": "v22m7ldtsv",
+  "permitted_roles": [
+   {
+    "parent": "v22m7ldtsv",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Sales Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00013",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending Sales Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Sales Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:55.636530",
+  "name": "v24kdnaqne",
+  "permitted_roles": [
+   {
+    "parent": "v24kdnaqne",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Sales Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00014",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending Sales Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Sales Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:55.789066",
+  "name": "v25aq56am2",
+  "permitted_roles": [
+   {
+    "parent": "v25aq56am2",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Sales Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00015",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending Sales Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Sales Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:55.967717",
+  "name": "v277lg9bss",
+  "permitted_roles": [
+   {
+    "parent": "v277lg9bss",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Sales Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00016",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending Sales Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Sales Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:56.117738",
+  "name": "v29butq6o6",
+  "permitted_roles": [
+   {
+    "parent": "v29butq6o6",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Sales Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00017",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending Sales Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "Sales Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:56.324350",
+  "name": "v2bd0b2lg7",
+  "permitted_roles": [
+   {
+    "parent": "v2bd0b2lg7",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "Sales Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00018",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending Sales Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "System Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:56.456805",
+  "name": "v2cin0fhq9",
+  "permitted_roles": [
+   {
+    "parent": "v2cin0fhq9",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "System Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00019",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending System Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "System Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:56.590120",
+  "name": "v2d1h37d1a",
+  "permitted_roles": [
+   {
+    "parent": "v2d1h37d1a",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "System Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00020",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending System Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "System Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:56.729119",
+  "name": "v2fr9jvmn1",
+  "permitted_roles": [
+   {
+    "parent": "v2fr9jvmn1",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "System Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00021",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending System Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "System Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:56.873166",
+  "name": "v2ginao7lc",
+  "permitted_roles": [
+   {
+    "parent": "v2ginao7lc",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "System Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00022",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending System Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "System Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:57.048494",
+  "name": "v2i2815ulj",
+  "permitted_roles": [
+   {
+    "parent": "v2i2815ulj",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "System Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00023",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending System Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "System Manager",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:57.205585",
+  "name": "v2kfls4uoe",
+  "permitted_roles": [
+   {
+    "parent": "v2kfls4uoe",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "System Manager"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00024",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending System Manager"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "HOD",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:57.387491",
+  "name": "v2lgo15eeo",
+  "permitted_roles": [
+   {
+    "parent": "v2lgo15eeo",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "HOD"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00025",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending HOD"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "CEO",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:57.426897",
+  "name": "v2m5tkn8bc",
+  "permitted_roles": [
+   {
+    "parent": "v2m5tkn8bc",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "CEO"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00025",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending CEO"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "HOD",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:57.568843",
+  "name": "v2n8sea5tf",
+  "permitted_roles": [
+   {
+    "parent": "v2n8sea5tf",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "HOD"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00026",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending HOD"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "CEO",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:57.607650",
+  "name": "v2oa4vsq2i",
+  "permitted_roles": [
+   {
+    "parent": "v2oa4vsq2i",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "CEO"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00026",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending CEO"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "HOD",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:57.810495",
+  "name": "v2q0t40ht7",
+  "permitted_roles": [
+   {
+    "parent": "v2q0t40ht7",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "HOD"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00027",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending HOD"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "CEO",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:57.846617",
+  "name": "v2qg3h19g0",
+  "permitted_roles": [
+   {
+    "parent": "v2qg3h19g0",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "CEO"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00027",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending CEO"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "HOD",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:58.009471",
+  "name": "v2scs8l0qo",
+  "permitted_roles": [
+   {
+    "parent": "v2scs8l0qo",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "HOD"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00028",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending HOD"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "CEO",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:58.048414",
+  "name": "v2sf9rb60e",
+  "permitted_roles": [
+   {
+    "parent": "v2sf9rb60e",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "CEO"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00028",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending CEO"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "HOD",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:58.188500",
+  "name": "v2tm1j0s1g",
+  "permitted_roles": [
+   {
+    "parent": "v2tm1j0s1g",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "HOD"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00029",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending HOD"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "CEO",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:58.228450",
+  "name": "v2upcrupdi",
+  "permitted_roles": [
+   {
+    "parent": "v2upcrupdi",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "CEO"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00029",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending CEO"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "HOD",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:58.367222",
+  "name": "v2vjkhsmef",
+  "permitted_roles": [
+   {
+    "parent": "v2vjkhsmef",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "HOD"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00030",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending HOD"
+ },
+ {
+  "completed_by": "Administrator",
+  "completed_by_role": "CEO",
+  "docstatus": 0,
+  "doctype": "Workflow Action",
+  "modified": "2026-04-11 12:35:58.406154",
+  "name": "v30qomjubk",
+  "permitted_roles": [
+   {
+    "parent": "v30qomjubk",
+    "parentfield": "permitted_roles",
+    "parenttype": "Workflow Action",
+    "role": "CEO"
+   }
+  ],
+  "reference_doctype": "Visitor Pass",
+  "reference_name": "VP-2026-00030",
+  "status": "Completed",
+  "user": null,
+  "workflow_state": "Pending CEO"
+ }
+]

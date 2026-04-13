@@ -22,7 +22,7 @@
   }
  ],
  "content": "[{\"id\":\"vms-card-1\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Today's Visitors\",\"col\":3}},{\"id\":\"vms-card-2\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Checked-In Visitors\",\"col\":3}},{\"id\":\"vms-card-3\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending Visitor Approvals\",\"col\":3}},{\"id\":\"vms-card-4\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"VIPs Today\",\"col\":3}},{\"id\":\"vms-card-5\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"No-Show Passes\",\"col\":3}},{\"id\":\"vms-card-6\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Compliance Misses\",\"col\":3}},{\"id\":\"vms-card-7\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Security Alerts\",\"col\":3}},{\"id\":\"vms-card-8\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Active Emergency Events\",\"col\":3}},{\"id\":\"vms-chart-1\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Visitor Pass Trend\",\"col\":12}},{\"id\":\"vms-chart-2\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Visitors by Type\",\"col\":6}},{\"id\":\"vms-chart-3\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Security Events by Gate\",\"col\":6}},{\"id\":\"vms-chart-4\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Compliance Status Breakdown\",\"col\":6}},{\"id\":\"vms-chart-5\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Check-Ins by Day\",\"col\":6}},{\"id\":\"vms-spacer-1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vms-header-1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Access</b></span>\",\"col\":12}},{\"id\":\"vms-shortcut-1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Visitor Pass\",\"col\":3}},{\"id\":\"vms-shortcut-2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Security Log\",\"col\":3}},{\"id\":\"vms-shortcut-3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Pre-Registration Request\",\"col\":3}},{\"id\":\"vms-shortcut-4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Active Visitors\",\"col\":3}},{\"id\":\"vms-shortcut-5\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Daily Visitor Log\",\"col\":3}},{\"id\":\"vms-shortcut-6\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Gate Wise Count\",\"col\":3}},{\"id\":\"vms-shortcut-7\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Compliance Overview\",\"col\":3}},{\"id\":\"vms-shortcut-8\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"VMS Settings\",\"col\":3}},{\"id\":\"vms-spacer-2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vms-header-2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Modules &amp; Reports</b></span>\",\"col\":12}},{\"id\":\"vms-link-card-1\",\"type\":\"card\",\"data\":{\"card_name\":\"Visit Intake\",\"col\":3}},{\"id\":\"vms-link-card-2\",\"type\":\"card\",\"data\":{\"card_name\":\"Security\",\"col\":3}},{\"id\":\"vms-link-card-3\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":3}},{\"id\":\"vms-link-card-4\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":3}}]",
- "creation": "2026-04-04 12:00:00",
+ "creation": "2026-04-13 16:22:51.988967",
  "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
@@ -254,17 +254,6 @@
    "dependencies": "",
    "hidden": 0,
    "is_query_report": 0,
-   "label": "VMS Settings",
-   "link_count": 0,
-   "link_to": "VMS Settings",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "dependencies": "",
-   "hidden": 0,
-   "is_query_report": 0,
    "label": "Visitor Blacklist",
    "link_count": 0,
    "link_to": "Visitor Blacklist",
@@ -273,7 +262,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-04-13 12:00:00.000000",
+ "modified": "2026-04-13 16:35:26.037806",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Management",
@@ -360,8 +349,8 @@
   },
   {
    "label": "VMS Settings",
-   "link_to": "VMS Settings",
-   "type": "DocType"
+   "type": "URL",
+   "url": "/app/vms-settings"
   }
  ],
  "title": "Visitor Management"

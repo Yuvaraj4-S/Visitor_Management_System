@@ -1,0 +1,40 @@
+{
+    "attach_files": "",
+    "attach_print": 0,
+    "channel": "Email",
+    "condition": "doc.status == 'Active'",
+    "creation": "2026-04-13 12:00:00.000000",
+    "days_in_advance": 0,
+    "docstatus": 0,
+    "doctype": "Notification",
+    "document_type": "Emergency Event",
+    "enabled": 1,
+    "event": "Value Change",
+    "idx": 0,
+    "is_standard": 1,
+    "message": "<div style=\"font-family: Arial, sans-serif; font-size: 14px; color: #1f2933;\">\n<div style=\"background: #dc3545; color: white; padding: 12px; text-align: center; font-weight: bold; font-size: 16px;\">EMERGENCY ALERT — {{ doc.event_type|upper }}</div>\n\n<p style=\"margin-top: 16px;\">An emergency event has been activated. Please follow evacuation / response procedures immediately.</p>\n\n<table style=\"border-collapse: collapse; width: 100%; margin: 12px 0;\">\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Event</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.name }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Type</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\"><b style=\"color: #dc3545;\">{{ doc.event_type }}</b></td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Location</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.location }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Assembly Point</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>{{ doc.assembly_point }}</b></td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Triggered On</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.triggered_on }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Incident Commander</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.incident_commander }}</td></tr>\n</table>\n\n{% if doc.description %}\n<p style=\"background: #fff3cd; padding: 12px; border-left: 4px solid #ffc107; margin: 12px 0;\">\n<b>Incident Description:</b><br>{{ doc.description }}\n</p>\n{% endif %}\n\n<h3>Action Required</h3>\n<ul>\n<li><b>All hosts</b> must verify their checked-in visitors have reached the assembly point.</li>\n<li>Gate security: halt new check-ins immediately.</li>\n<li>Refer to the Evacuation Muster list for visitor headcount reconciliation.</li>\n</ul>\n\n<p style=\"margin-top: 16px;\"><a href=\"{{ frappe.utils.get_url() }}/app/emergency-event/{{ doc.name }}\" style=\"background: #dc3545; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px;\">View Emergency Event</a></p>\n</div>",
+    "message_type": "HTML",
+    "modified": "2026-04-13 12:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "Visitor Management",
+    "name": "VMS Emergency Alert",
+    "owner": "Administrator",
+    "recipients": [
+        {
+            "receiver_by_role": "Facility Manager"
+        },
+        {
+            "receiver_by_role": "Gate Security"
+        },
+        {
+            "receiver_by_role": "Security Supervisor"
+        },
+        {
+            "receiver_by_role": "Visitor Manager"
+        }
+    ],
+    "send_system_notification": 1,
+    "send_to_all_assignees": 0,
+    "subject": "EMERGENCY: {{ doc.event_type }} at {{ doc.location }} — Assembly: {{ doc.assembly_point }}",
+    "value_changed": "status"
+}

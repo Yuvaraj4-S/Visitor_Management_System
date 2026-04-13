@@ -2,8 +2,9 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.model.document import Document
-from frappe.utils import date_diff, get_datetime
+from frappe.utils import date_diff, get_datetime, getdate
 
 from visitormanagement.visitor_management.lifecycle import (
 	populate_hospitality_request_from_pass,
@@ -67,6 +68,50 @@ class HospitalityRequest(Document):
 		self._validate_cab_timing()
 		self._validate_tour_safety()
 		self._validate_buggy_conflict()
+		self._validate_seating_capacity()
+		self._validate_hotel_in_visit_window()
+
+	def _validate_seating_capacity(self):
+		# Only validate if seating_capacity was explicitly set to 0 or negative
+		if self.conference_room and self.seating_capacity and int(self.seating_capacity) < 0:
+			frappe.throw(
+				_("Seating Capacity cannot be negative."),
+				title=_("Invalid Seating"),
+			)
+
+	def _validate_hotel_in_visit_window(self):
+		"""Hotel check-in/out should fall within (or very close to) the visit window."""
+		if not (self.hotel_required and self.check_in and self.visitor_pass):
+			return
+
+		vp = frappe.db.get_value(
+			"Visitor Pass", self.visitor_pass,
+			["visit_date", "pass_valid_until"],
+			as_dict=True,
+		) or {}
+		visit_date = vp.get("visit_date")
+		valid_until = vp.get("pass_valid_until") or visit_date
+
+		if visit_date and getdate(self.check_in) < getdate(visit_date):
+			# Allow arriving up to 1 day earlier (for late evening/next-day meetings)
+			if date_diff(visit_date, self.check_in) > 1:
+				frappe.throw(
+					_("Hotel check-in ({0}) is before the visit date ({1}).").format(
+						self.check_in, visit_date
+					),
+					title=_("Invalid Hotel Dates"),
+				)
+
+		if self.check_out and valid_until:
+			if getdate(self.check_out) > getdate(valid_until):
+				# Allow departing up to 1 day after
+				if date_diff(self.check_out, valid_until) > 1:
+					frappe.throw(
+						_("Hotel check-out ({0}) is after the visit ends ({1}).").format(
+							self.check_out, valid_until
+						),
+						title=_("Invalid Hotel Dates"),
+					)
 
 	def _compute_hotel_nights(self):
 		if self.hotel_required and self.check_in and self.check_out:

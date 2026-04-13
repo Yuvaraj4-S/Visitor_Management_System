@@ -3,7 +3,7 @@
 
 import frappe
 from frappe.model.document import Document
-from frappe.utils import getdate, now_datetime, time_diff_in_seconds
+from frappe.utils import get_datetime, getdate, now_datetime, time_diff_in_seconds
 
 import re
 
@@ -158,6 +158,20 @@ class SecurityLog(Document):
                 if not self.check_in_date_time:
                     self.check_in_date_time = now
 
+                # Validate check-in is within reasonable window of expected visit
+                if vp.visit_date and self.check_in_date_time:
+                    from frappe.utils import getdate, get_datetime as _get_dt
+                    checkin_date = getdate(self.check_in_date_time)
+                    expected_date = getdate(vp.visit_date)
+                    if checkin_date < expected_date:
+                        frappe.throw(
+                            f"Check-in date ({checkin_date}) is before the scheduled visit date ({expected_date}). Cannot check in early."
+                        )
+                    if checkin_date > expected_date:
+                        frappe.throw(
+                            f"Check-in date ({checkin_date}) is after the scheduled visit date ({expected_date}). Pass is no longer valid for this date."
+                        )
+
                 if self.verification_started_on and self.check_in_date_time:
                     self.verification_duration = time_diff_in_seconds(
                         self.check_in_date_time,
@@ -170,6 +184,17 @@ class SecurityLog(Document):
 
                 if not self.check_out_date_time:
                     self.check_out_date_time = now
+
+                # Check-out must be after check-in
+                prior_checkin = frappe.db.get_value(
+                    "Security Log",
+                    {"visitor_pass": self.visitor_pass, "event_type": "Check-In", "docstatus": ["<", 2]},
+                    "check_in_date_time",
+                )
+                if prior_checkin and get_datetime(self.check_out_date_time) <= get_datetime(prior_checkin):
+                    frappe.throw(
+                        f"Check-out time ({self.check_out_date_time}) must be after check-in time ({prior_checkin})."
+                    )
 
             elif self.event_type == 'Gate Transfer' and current_status != 'Checked-In':
                 frappe.throw(

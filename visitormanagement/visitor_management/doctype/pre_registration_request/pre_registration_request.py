@@ -1,8 +1,11 @@
 # Copyright (c) 2026, Harthesh and contributors
 # For license information, please see license.txt
 
+import re
 import frappe
+from frappe import _
 from frappe.model.document import Document
+from frappe.utils import getdate, get_time, today, date_diff
 from visitormanagement.visitor_management.lifecycle import apply_hospitality_meal_plan
 
 
@@ -24,6 +27,9 @@ class PreRegistrationRequest(Document):
 		if not self.status:
 			self.status = "Draft"
 
+		self._validate_schedule()
+		self._validate_email()
+
 		# Invitation-backed drafts should remain drafts until the visitor submits.
 		if self.is_new() and self.request_channel == "Portal" and self.status == "Draft" and not self.visitor_invitation:
 			self.status = get_pending_approval_state(self.visitor_type)
@@ -35,6 +41,41 @@ class PreRegistrationRequest(Document):
 			self.request_channel == "Portal" or self.visitor_invitation
 		)
 		apply_hospitality_meal_plan(self, preserve_existing=preserve_hospitality_choices)
+
+	def _validate_schedule(self):
+		if not self.visit_date:
+			return
+
+		today_date = getdate(today())
+		visit_date = getdate(self.visit_date)
+
+		if visit_date < today_date:
+			frappe.throw(
+				_("Visit date {0} is in the past. Pre-registrations must be for today or a future date.").format(self.visit_date),
+				title=_("Invalid Visit Date"),
+			)
+
+		if date_diff(visit_date, today_date) > 90:
+			frappe.throw(
+				_("Visit date cannot be more than 90 days in the future."),
+				title=_("Invalid Visit Date"),
+			)
+
+		if self.expected_checkin and self.expected_checkout:
+			if get_time(self.expected_checkin) >= get_time(self.expected_checkout):
+				frappe.throw(
+					_("Expected Check-In ({0}) must be before Expected Check-Out ({1}).").format(
+						self.expected_checkin, self.expected_checkout
+					),
+					title=_("Invalid Time Range"),
+				)
+
+	def _validate_email(self):
+		if self.email_id and not re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", self.email_id):
+			frappe.throw(
+				_("Email ID '{0}' is not a valid email address.").format(self.email_id),
+				title=_("Invalid Email"),
+			)
 
 	@frappe.whitelist()
 	def create_visitor_pass(self):

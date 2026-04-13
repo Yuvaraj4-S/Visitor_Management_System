@@ -1,11 +1,12 @@
 # Copyright (c) 2026, Harthesh
 # For license information, please see license.txt
 
+import re
 import frappe
 import qrcode
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import now_datetime, today, get_url
+from frappe.utils import now_datetime, today, get_url, getdate, get_time, date_diff, cint
 from io import BytesIO
 from visitormanagement.visitor_management.lifecycle import (
     ensure_hospitality_request,
@@ -46,6 +47,142 @@ class VisitorPass(Document):
     def validate(self):
         normalize_visitor_pass(self)
         self._align_workflow_lane_with_visitor_type()
+        self._validate_schedule()
+        self._validate_formats()
+        self._validate_host_active()
+        self._validate_duplicate_pass()
+        self._validate_visit_duration()
+
+    # ─────────────────────────────────────────────────────────
+    # BUSINESS VALIDATIONS
+    # ─────────────────────────────────────────────────────────
+    def _validate_schedule(self):
+        """Block past dates, enforce check-in < check-out, enforce future-date ceiling."""
+        if not self.visit_date:
+            return
+
+        today_date = getdate(today())
+        visit_date = getdate(self.visit_date)
+
+        # Past date blocked — allow only if the pass is already checked-in/out (historical edits OK)
+        if visit_date < today_date and self.status in (None, "", "Draft", "Approved"):
+            if not (self.docstatus == 1 and self.status in ("Checked-In", "Checked-Out", "Cancelled")):
+                frappe.throw(
+                    _("Visit date {0} is in the past. Pick today or a future date.").format(self.visit_date),
+                    title=_("Invalid Visit Date"),
+                )
+
+        # Future date ceiling — 90 days ahead max
+        if date_diff(visit_date, today_date) > 90:
+            frappe.throw(
+                _("Visit date cannot be more than 90 days in the future."),
+                title=_("Invalid Visit Date"),
+            )
+
+        # Check-in before check-out
+        if self.expected_checkin and self.expected_checkout:
+            if get_time(self.expected_checkin) >= get_time(self.expected_checkout):
+                frappe.throw(
+                    _("Expected Check-In ({0}) must be before Expected Check-Out ({1}).").format(
+                        self.expected_checkin, self.expected_checkout
+                    ),
+                    title=_("Invalid Time Range"),
+                )
+
+    def _validate_formats(self):
+        """Validate email and ID proof number format per type."""
+        if self.email_id:
+            if not re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", self.email_id):
+                frappe.throw(
+                    _("Email ID '{0}' is not a valid email address.").format(self.email_id),
+                    title=_("Invalid Email"),
+                )
+
+        if self.id_proof_type and self.id_proof_number:
+            raw = str(self.id_proof_number).strip()
+            # Strip non-alphanumeric for length/format check
+            clean = re.sub(r"[\s\-]", "", raw)
+
+            if self.id_proof_type == "Aadhaar":
+                if not re.match(r"^\d{12}$", clean):
+                    frappe.throw(
+                        _("Aadhaar must be exactly 12 digits. Got: {0}").format(raw),
+                        title=_("Invalid Aadhaar"),
+                    )
+            elif self.id_proof_type == "PAN Card":
+                if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]$", clean.upper()):
+                    frappe.throw(
+                        _("PAN Card format is 5 letters + 4 digits + 1 letter (e.g., ABCDE1234F). Got: {0}").format(raw),
+                        title=_("Invalid PAN"),
+                    )
+            # Passport: 1 letter + 7 digits (Indian) — skip strict check, just length
+            elif self.id_proof_type == "Passport":
+                if len(clean) < 6 or len(clean) > 12:
+                    frappe.throw(
+                        _("Passport number should be 6-12 characters. Got: {0}").format(raw),
+                        title=_("Invalid Passport"),
+                    )
+
+    def _validate_host_active(self):
+        """Host must be an Active employee."""
+        if not self.person_to_visit:
+            return
+        status = frappe.db.get_value("Employee", self.person_to_visit, "status")
+        if status != "Active":
+            frappe.throw(
+                _("Host {0} is not an Active employee (status: {1}). Cannot assign pass.").format(
+                    self.person_to_visit, status or "Unknown"
+                ),
+                title=_("Invalid Host"),
+            )
+
+    def _validate_duplicate_pass(self):
+        """Same visitor (by ID proof) cannot have multiple active passes on the same date."""
+        if not self.id_proof_number or not self.visit_date:
+            return
+        existing = frappe.db.sql(
+            """
+            SELECT name FROM `tabVisitor Pass`
+            WHERE id_proof_number = %(id)s
+              AND visit_date = %(date)s
+              AND name != %(self_name)s
+              AND docstatus < 2
+              AND status NOT IN ('Cancelled', 'Rejected')
+            LIMIT 1
+            """,
+            {
+                "id": self.id_proof_number,
+                "date": self.visit_date,
+                "self_name": self.name or "NEW",
+            },
+        )
+        if existing:
+            frappe.throw(
+                _("A visitor pass ({0}) already exists for this ID Proof on {1}. Duplicate passes are not allowed.").format(
+                    existing[0][0], self.visit_date
+                ),
+                title=_("Duplicate Pass"),
+            )
+
+    def _validate_visit_duration(self):
+        """Enforce max visit duration from VMS Settings."""
+        if not (self.expected_checkin and self.expected_checkout):
+            return
+        settings = frappe.get_cached_doc("VMS Settings")
+        max_hours = cint(getattr(settings, "max_visit_duration_hrs", 0))
+        if not max_hours:
+            return
+
+        ci = get_time(self.expected_checkin)
+        co = get_time(self.expected_checkout)
+        duration_hours = (co.hour * 60 + co.minute - ci.hour * 60 - ci.minute) / 60
+        if duration_hours > max_hours:
+            frappe.throw(
+                _("Visit duration ({0:.1f} hrs) exceeds the maximum allowed ({1} hrs). "
+                  "Adjust the expected check-in/out times.").format(duration_hours, max_hours),
+                title=_("Visit Too Long"),
+            )
+
 
     def _align_workflow_lane_with_visitor_type(self):
         if not self.visitor_type or not self.workflow_state:
@@ -107,6 +244,18 @@ class VisitorPass(Document):
     # BEFORE SUBMIT
     # ─────────────────────────────────────────────────────────
     def before_submit(self):
+        # 0️⃣ REQUIRED DOCUMENTS
+        if not self.visitor_photo:
+            frappe.throw(
+                _("Visitor Photo is required before submitting the pass."),
+                title=_("Missing Visitor Photo"),
+            )
+        if not self.id_proof_scan:
+            frappe.throw(
+                _("ID Proof Scan is required before submitting the pass."),
+                title=_("Missing ID Proof Scan"),
+            )
+
         # 1️⃣ BLACKLIST CHECK
         if self.id_proof_number:
             blacklist_name = frappe.db.exists(

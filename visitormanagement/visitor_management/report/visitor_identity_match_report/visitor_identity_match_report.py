@@ -20,21 +20,19 @@ def execute(filters=None):
 
 def get_columns():
 	return [
-		{"label": "Primary Pass", "fieldname": "primary_pass", "fieldtype": "Link", "options": "Visitor Pass", "width": 140},
-		{"label": "Primary Type", "fieldname": "primary_type", "fieldtype": "Data", "width": 110},
-		{"label": "Primary Visitor", "fieldname": "primary_visitor", "fieldtype": "Data", "width": 180},
-		{"label": "Primary Visit Date", "fieldname": "primary_visit_date", "fieldtype": "Date", "width": 115},
-		{"label": "Matched Pass", "fieldname": "matched_pass", "fieldtype": "Link", "options": "Visitor Pass", "width": 140},
-		{"label": "Matched Type", "fieldname": "matched_type", "fieldtype": "Data", "width": 110},
-		{"label": "Matched Visitor", "fieldname": "matched_visitor", "fieldtype": "Data", "width": 180},
-		{"label": "Matched Visit Date", "fieldname": "matched_visit_date", "fieldtype": "Date", "width": 115},
-		{"label": "Match Scope", "fieldname": "match_scope", "fieldtype": "Data", "width": 110},
-		{"label": "Match Basis", "fieldname": "match_basis", "fieldtype": "Data", "width": 160},
+		{"label": "Match Scope", "fieldname": "match_scope", "fieldtype": "Data", "width": 115},
+		{"label": "Match Basis", "fieldname": "match_basis", "fieldtype": "Data", "width": 150},
+		{"label": "Primary Pass", "fieldname": "primary_pass", "fieldtype": "Link", "options": "Visitor Pass", "width": 130},
+		{"label": "Primary Visitor", "fieldname": "primary_visitor", "fieldtype": "Data", "width": 170},
+		{"label": "Primary Type", "fieldname": "primary_type", "fieldtype": "Data", "width": 105},
+		{"label": "Primary Visit", "fieldname": "primary_visit_date", "fieldtype": "Date", "width": 105},
+		{"label": "Matched Pass", "fieldname": "matched_pass", "fieldtype": "Link", "options": "Visitor Pass", "width": 130},
+		{"label": "Matched Visitor", "fieldname": "matched_visitor", "fieldtype": "Data", "width": 170},
+		{"label": "Matched Type", "fieldname": "matched_type", "fieldtype": "Data", "width": 105},
+		{"label": "Matched Visit", "fieldname": "matched_visit_date", "fieldtype": "Date", "width": 105},
 		{"label": "ID Proof", "fieldname": "id_proof_number", "fieldtype": "Data", "width": 140},
 		{"label": "Mobile", "fieldname": "mobile_number", "fieldtype": "Data", "width": 130},
-		{"label": "Email", "fieldname": "email_id", "fieldtype": "Data", "width": 180},
-		{"label": "Primary Status", "fieldname": "primary_status", "fieldtype": "Data", "width": 120},
-		{"label": "Matched Status", "fieldname": "matched_status", "fieldtype": "Data", "width": 120},
+		{"label": "Email", "fieldname": "email_id", "fieldtype": "Data", "width": 200},
 	]
 
 

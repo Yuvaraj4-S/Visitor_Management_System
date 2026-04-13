@@ -1,0 +1,23 @@
+<div style="font-family: Arial, sans-serif; font-size: 13px; color: #1f2933;">
+<h3>Meal Request for Visitor</h3>
+<p>Please arrange meal service for the following visitor.</p>
+
+<table style="border-collapse: collapse; width: 100%; margin: 12px 0;">
+<tr style="background: #f4f5f7;"><td style="padding: 8px; border: 1px solid #ddd;"><b>Visitor</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.visitor_full_name }}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><b>Company</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.company__organisation or 'N/A' }}</td></tr>
+<tr style="background: #f4f5f7;"><td style="padding: 8px; border: 1px solid #ddd;"><b>Visit Date</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.visit_date }}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><b>Meal Type</b></td><td style="padding: 8px; border: 1px solid #ddd;"><b>{{ doc.meal_type }}</b></td></tr>
+<tr style="background: #f4f5f7;"><td style="padding: 8px; border: 1px solid #ddd;"><b>Number of People</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.number_of_people or 1 }}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><b>Dietary Preference</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.special_diet or 'None' }}</td></tr>
+<tr style="background: #f4f5f7;"><td style="padding: 8px; border: 1px solid #ddd;"><b>Service Time</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.service_time or doc.expected_checkin }}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><b>Location / Room</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.conference_room or doc.rest_area or 'TBD' }}</td></tr>
+<tr style="background: #f4f5f7;"><td style="padding: 8px; border: 1px solid #ddd;"><b>Host</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.person_to_visit }}</td></tr>
+</table>
+
+{% if doc.hospitality_notes %}
+<p><b>Notes:</b></p>
+<p style="background: #fffbe6; padding: 8px; border-left: 3px solid #f0c000;">{{ doc.hospitality_notes }}</p>
+{% endif %}
+
+<p style="margin-top: 16px;"><a href="{{ frappe.utils.get_url() }}/app/visitor-pass/{{ doc.name }}">View Pass</a></p>
+</div>

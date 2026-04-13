@@ -265,13 +265,33 @@ fixtures = [
     {
         "doctype": "Workflow",
         "filters": [
+<<<<<<< HEAD
             ["name", "in", ["Visitor Pass Approval", "Pre-Registration Request Approval", "Conference Room Booking Approval"]]
+=======
+            ["name", "in", [
+                "Visitor Pass Approval",
+                "Pre-Registration Request Approval",
+                "Hospitality Request Approval",
+            ]]
+>>>>>>> a2861a8 (hospitality changes)
         ]
     },
     {
         "doctype": "Role",
         "filters": [
+<<<<<<< HEAD
             ["name", "in", ["Hospitality User", "Facility Manager"]]
+=======
+            ["name", "in", [
+                "Hospitality User",
+                "Host Employee",
+                "Hospitality Manager",
+                "Transport Coordinator",
+                "Front Office Executive",
+                "Factory Tour Coordinator",
+                "Greeting Staff",
+            ]]
+>>>>>>> a2861a8 (hospitality changes)
         ]
     },
     "Workflow State",

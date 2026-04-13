@@ -1,12 +1,15 @@
-const LOCKED_FIELDS = [
+const ALWAYS_LOCKED_FIELDS = [
 	"visitor_type",
 	"email_id",
 	"visit_date",
 	"expected_checkin",
 	"expected_checkout",
 	"person_to_visit",
+];
+const CONDITIONALLY_LOCKED_FIELDS = [
 	"purpose_of_visit",
 ];
+let LOCKED_FIELDS = [...ALWAYS_LOCKED_FIELDS];
 
 const TYPE_SECTION_LABELS = {
 	Contractor: "Contractor Details",
@@ -518,6 +521,8 @@ async function handleInvitationAfterLoad() {
 		}
 
 		if (!context.valid) {
+			setFormVisibility(true);
+			setSubmitDisabled(true);
 			return;
 		}
 
@@ -528,6 +533,15 @@ async function handleInvitationAfterLoad() {
 			invitation: context.invitation,
 			values: context.values || {},
 		};
+		// Lock conditional fields only if host filled them
+		LOCKED_FIELDS = [...ALWAYS_LOCKED_FIELDS];
+		for (const fieldname of CONDITIONALLY_LOCKED_FIELDS) {
+			const val = context.values?.[fieldname];
+			if (val && String(val).trim()) {
+				LOCKED_FIELDS.push(fieldname);
+			}
+		}
+
 		renderLockedFieldValues(context.values || {});
 		await applyInvitationValuesWithRetry(context.values || {});
 		ensureInvitationBinding();
@@ -541,6 +555,8 @@ async function handleInvitationAfterLoad() {
 		setSubmitDisabled(false);
 	} catch (error) {
 		console.error("Failed to load invitation context", error);
+		setFormVisibility(true);
+		setSubmitDisabled(false);
 	}
 }
 

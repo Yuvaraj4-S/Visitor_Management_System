@@ -141,6 +141,16 @@ def _parse_visitor_items(items):
 	return parsed_items
 
 
+def _normalize_time(value):
+	value = (value or "").strip()
+	if not value:
+		return value
+	# "13:30" → "13:30:00"
+	if len(value) == 5 and value[2] == ":":
+		return value + ":00"
+	return value
+
+
 def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_photo_url, invitation=None):
 	visitor_type = invitation.visitor_type if invitation else data.get("visitor_type")
 
@@ -153,8 +163,8 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"email_id": invitation.visitor_email if invitation else data.get("email_id"),
 		"company__organisation": data.get("company__organisation"),
 		"visit_date": invitation.visit_date if invitation else data.get("visit_date"),
-		"expected_checkin": invitation.expected_checkin if invitation else data.get("expected_checkin"),
-		"expected_checkout": invitation.expected_checkout if invitation else data.get("expected_checkout"),
+		"expected_checkin": _normalize_time(str(invitation.expected_checkin) if invitation else data.get("expected_checkin")),
+		"expected_checkout": _normalize_time(str(invitation.expected_checkout) if invitation else data.get("expected_checkout")),
 		"person_to_visit": person_to_visit,
 		"purpose_of_visit": invitation.purpose_of_visit if invitation else data.get("purpose_of_visit"),
 		"visitor_type": visitor_type,

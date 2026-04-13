@@ -6,13 +6,16 @@ from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_inv
 )
 
 
-LOCKED_HOST_FIELDS = {
+ALWAYS_LOCKED_FIELDS = {
 	"visitor_type",
 	"email_id",
 	"visit_date",
 	"expected_checkin",
 	"expected_checkout",
 	"person_to_visit",
+}
+
+CONDITIONALLY_LOCKED_FIELDS = {
 	"purpose_of_visit",
 }
 
@@ -144,6 +147,22 @@ def get_context(context):
 	host_display = _host_name(values.get("person_to_visit"))
 	visitor_type = values.get("visitor_type", "")
 	type_badge = _visitor_type_badge(visitor_type)
+	purpose = (values.get("purpose_of_visit") or "").strip()
+
+	# Build locked fields set — only lock purpose_of_visit if host filled it
+	locked_host_fields = set(ALWAYS_LOCKED_FIELDS)
+	for fn in CONDITIONALLY_LOCKED_FIELDS:
+		if (values.get(fn) or "").strip():
+			locked_host_fields.add(fn)
+
+	purpose_card = ""
+	if purpose:
+		purpose_card = f"""
+			<div style="margin-top:10px; padding:8px 14px; border-radius:8px; background:#fff; border:1px solid #e2e8f0;">
+				<div class="vm-locked-label">Purpose of Visit</div>
+				<div class="vm-locked-value">{_safe(purpose)}</div>
+			</div>
+		"""
 
 	context.introduction_text = f"""
 		{boot}
@@ -166,10 +185,7 @@ def get_context(context):
 					{_locked_card("Check-Out", _format_visit_time(values.get("expected_checkout")))}
 					{_locked_card("Host", host_display)}
 				</div>
-				<div style="margin-top:10px; padding:8px 14px; border-radius:8px; background:#fff; border:1px solid #e2e8f0;">
-					<div class="vm-locked-label">Purpose of Visit</div>
-					<div class="vm-locked-value">{_safe(values.get("purpose_of_visit"))}</div>
-				</div>
+				{purpose_card}
 			</div>
 		</div>
 	"""
@@ -183,7 +199,7 @@ def get_context(context):
 
 		hiding_section = False
 		for field in context.web_form_doc.web_form_fields:
-			if field.fieldname in INTERNAL_HIDE_FIELDS | LOCKED_HOST_FIELDS:
+			if field.fieldname in INTERNAL_HIDE_FIELDS | locked_host_fields:
 				field.hidden = 1
 
 			if field.fieldtype == "Section Break":

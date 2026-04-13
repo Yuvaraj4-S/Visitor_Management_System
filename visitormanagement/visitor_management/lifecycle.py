@@ -36,6 +36,14 @@ HOSPITALITY_REQUEST_STATUS_FROM_PASS = {
 	"Completed": "Completed",
 	"Cancelled": "Cancelled",
 }
+ARRANGEMENT_REQUIRED_FIELDS = (
+	"cab_required",
+	"hotel_required",
+	"factory_tour_required",
+	"buggy_required",
+	"greeting_required",
+)
+ARRANGEMENT_TERMINAL_STATUSES = {"Completed", "Delivered", "Checked Out", "Cancelled"}
 MEAL_WINDOWS = (
 	("Breakfast", "08:00:00", "09:00:00"),
 	("Lunch", "13:00:00", "14:00:00"),
@@ -114,6 +122,7 @@ def ensure_hospitality_request(visitor_pass):
 			cint(getattr(visitor_pass, "refreshments_required", 0)),
 			getattr(visitor_pass, "conference_room", None),
 		]
+		+ [cint(getattr(visitor_pass, f, 0)) for f in ARRANGEMENT_REQUIRED_FIELDS]
 	)
 	if not requires_service:
 		return None
@@ -150,6 +159,17 @@ def sync_hospitality_to_pass(request_doc):
 		"food_dept_staff_assigned": request_doc.assigned_staff,
 		"conference_room": request_doc.conference_room,
 		"service_time": request_doc.service_time,
+		"cab_required": cint(getattr(request_doc, "cab_required", 0)),
+		"hotel_required": cint(getattr(request_doc, "hotel_required", 0)),
+		"factory_tour_required": cint(getattr(request_doc, "factory_tour_required", 0)),
+		"buggy_required": cint(getattr(request_doc, "buggy_required", 0)),
+		"greeting_required": cint(getattr(request_doc, "greeting_required", 0)),
+		"cab_status_display": getattr(request_doc, "cab_status", None),
+		"hotel_status_display": getattr(request_doc, "hotel_status", None),
+		"tour_status_display": getattr(request_doc, "tour_status", None),
+		"buggy_status_display": getattr(request_doc, "buggy_status", None),
+		"greeting_status_display": getattr(request_doc, "greeting_status", None),
+		"hospitality_overall_status": _compute_overall_hospitality_status(request_doc),
 	}
 	if hasattr(request_doc, "meal_required"):
 		pass_updates["meal_required"] = cint(request_doc.meal_required)
@@ -285,7 +305,35 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 				],
 			)
 		)
+	# Mirror arrangement request flags from Visitor Pass (host-entered intent)
+	for flag in ARRANGEMENT_REQUIRED_FIELDS:
+		if hasattr(visitor_pass, flag):
+			setattr(doc, flag, cint(getattr(visitor_pass, flag, 0)))
 	return doc
+
+
+def _compute_overall_hospitality_status(request_doc):
+	flag_status_pairs = [
+		("cab_required", "cab_status"),
+		("hotel_required", "hotel_status"),
+		("factory_tour_required", "tour_status"),
+		("buggy_required", "buggy_status"),
+		("greeting_required", "greeting_status"),
+	]
+	active = [s for f, s in flag_status_pairs if cint(getattr(request_doc, f, 0))]
+	if not active:
+		# Fall back to food flow status if arrangement flags all zero
+		if cint(getattr(request_doc, "meal_required", 0)) or getattr(request_doc, "conference_room", None):
+			return "Completed" if request_doc.status == "Completed" else "In Progress"
+		return "Not Required"
+	statuses = [getattr(request_doc, s, None) or "Pending" for s in active]
+	if all(st in ARRANGEMENT_TERMINAL_STATUSES and st != "Cancelled" for st in statuses):
+		return "Completed"
+	if all(st == "Cancelled" for st in statuses):
+		return "Cancelled"
+	if any(st not in ("Pending",) for st in statuses):
+		return "In Progress"
+	return "Pending"
 
 
 @frappe.whitelist(allow_guest=True)

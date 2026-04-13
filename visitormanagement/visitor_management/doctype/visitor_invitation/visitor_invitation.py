@@ -49,7 +49,7 @@ def _format_time_for_web_form(value):
 	if not value:
 		return ""
 
-	return get_time(value).strftime("%H:%M")
+	return get_time(value).strftime("%H:%M:%S")
 
 
 def _format_datetime_for_web_form(value):

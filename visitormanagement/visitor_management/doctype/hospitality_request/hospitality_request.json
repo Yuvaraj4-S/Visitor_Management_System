@@ -189,25 +189,25 @@
    "options": "\nPickup\nDrop\nBoth"
   },
   {
-   "depends_on": "eval:doc.cab_required",
+   "depends_on": "eval:doc.cab_required && (doc.cab_type=='Pickup' || doc.cab_type=='Both')",
    "fieldname": "pickup_location",
    "fieldtype": "Data",
    "label": "Pickup Location"
   },
   {
-   "depends_on": "eval:doc.cab_required",
+   "depends_on": "eval:doc.cab_required && (doc.cab_type=='Pickup' || doc.cab_type=='Both')",
    "fieldname": "pickup_datetime",
    "fieldtype": "Datetime",
    "label": "Pickup Datetime"
   },
   {
-   "depends_on": "eval:doc.cab_required",
+   "depends_on": "eval:doc.cab_required && (doc.cab_type=='Drop' || doc.cab_type=='Both')",
    "fieldname": "drop_location",
    "fieldtype": "Data",
    "label": "Drop Location"
   },
   {
-   "depends_on": "eval:doc.cab_required",
+   "depends_on": "eval:doc.cab_required && (doc.cab_type=='Drop' || doc.cab_type=='Both')",
    "fieldname": "drop_datetime",
    "fieldtype": "Datetime",
    "label": "Drop Datetime"
@@ -217,7 +217,7 @@
    "fieldtype": "Column Break"
   },
   {
-   "depends_on": "eval:doc.cab_required",
+   "depends_on": "eval:doc.cab_required && (doc.cab_type=='Pickup' || doc.cab_type=='Both')",
    "fieldname": "flight_train_no",
    "fieldtype": "Data",
    "label": "Flight / Train No"
@@ -226,8 +226,8 @@
    "depends_on": "eval:doc.cab_required",
    "fieldname": "cab_vendor",
    "fieldtype": "Link",
-   "label": "Cab Vendor",
-   "options": "Supplier"
+   "label": "Cab Vendor / Driver",
+   "options": "Employee"
   },
   {
    "depends_on": "eval:doc.cab_required",
@@ -272,8 +272,8 @@
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "hotel_name",
    "fieldtype": "Link",
-   "label": "Hotel",
-   "options": "Supplier"
+   "label": "Hotel Contact",
+   "options": "Employee"
   },
   {
    "depends_on": "eval:doc.hotel_required",

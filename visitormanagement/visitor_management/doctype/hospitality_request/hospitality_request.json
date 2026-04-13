@@ -19,6 +19,67 @@
   "seating_capacity",
   "service_time",
   "assigned_staff",
+  "cab_section",
+  "cab_required",
+  "cab_type",
+  "pickup_location",
+  "pickup_datetime",
+  "drop_location",
+  "drop_datetime",
+  "cab_col_break",
+  "flight_train_no",
+  "cab_vendor",
+  "driver_name",
+  "driver_phone",
+  "vehicle_number",
+  "cab_status",
+  "hotel_section",
+  "hotel_required",
+  "hotel_name",
+  "check_in",
+  "check_out",
+  "nights",
+  "hotel_col_break",
+  "room_type",
+  "no_of_rooms",
+  "no_of_guests",
+  "booking_reference",
+  "hotel_cost",
+  "hotel_status",
+  "factory_tour_section",
+  "factory_tour_required",
+  "tour_date",
+  "tour_start_time",
+  "tour_end_time",
+  "tour_guide",
+  "tour_col_break",
+  "safety_briefing_done",
+  "ppe_issued",
+  "nda_signed",
+  "tour_status",
+  "tour_areas",
+  "buggy_section",
+  "buggy_required",
+  "buggy_pickup_point",
+  "buggy_drop_point",
+  "buggy_datetime",
+  "buggy_col_break",
+  "buggy_number",
+  "buggy_driver",
+  "buggy_passenger_count",
+  "buggy_status",
+  "greeting_section",
+  "greeting_required",
+  "greeting_type",
+  "greeting_occasion",
+  "greeting_delivery_time",
+  "greeting_delivery_point",
+  "greeting_col_break",
+  "greeting_assigned_to",
+  "greeting_vendor",
+  "greeting_cost",
+  "greeting_photo",
+  "greeting_status",
   "status",
   "notes"
  ],
@@ -109,6 +170,390 @@
    "options": "Employee"
   },
   {
+   "fieldname": "cab_section",
+   "fieldtype": "Section Break",
+   "label": "Cab / Transport",
+   "collapsible": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "cab_required",
+   "fieldtype": "Check",
+   "label": "Cab Required"
+  },
+  {
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "cab_type",
+   "fieldtype": "Select",
+   "label": "Cab Type",
+   "options": "\nPickup\nDrop\nBoth"
+  },
+  {
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "pickup_location",
+   "fieldtype": "Data",
+   "label": "Pickup Location"
+  },
+  {
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "pickup_datetime",
+   "fieldtype": "Datetime",
+   "label": "Pickup Datetime"
+  },
+  {
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "drop_location",
+   "fieldtype": "Data",
+   "label": "Drop Location"
+  },
+  {
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "drop_datetime",
+   "fieldtype": "Datetime",
+   "label": "Drop Datetime"
+  },
+  {
+   "fieldname": "cab_col_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "flight_train_no",
+   "fieldtype": "Data",
+   "label": "Flight / Train No"
+  },
+  {
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "cab_vendor",
+   "fieldtype": "Link",
+   "label": "Cab Vendor",
+   "options": "Supplier"
+  },
+  {
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "driver_name",
+   "fieldtype": "Data",
+   "label": "Driver Name"
+  },
+  {
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "driver_phone",
+   "fieldtype": "Data",
+   "label": "Driver Phone",
+   "options": "Phone"
+  },
+  {
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "vehicle_number",
+   "fieldtype": "Data",
+   "label": "Vehicle Number"
+  },
+  {
+   "default": "Pending",
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "cab_status",
+   "fieldtype": "Select",
+   "label": "Cab Status",
+   "options": "Pending\nAssigned\nIn Transit\nCompleted\nCancelled"
+  },
+  {
+   "fieldname": "hotel_section",
+   "fieldtype": "Section Break",
+   "label": "Hotel Booking",
+   "collapsible": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "hotel_required",
+   "fieldtype": "Check",
+   "label": "Hotel Required"
+  },
+  {
+   "depends_on": "eval:doc.hotel_required",
+   "fieldname": "hotel_name",
+   "fieldtype": "Link",
+   "label": "Hotel",
+   "options": "Supplier"
+  },
+  {
+   "depends_on": "eval:doc.hotel_required",
+   "fieldname": "check_in",
+   "fieldtype": "Date",
+   "label": "Check-in Date"
+  },
+  {
+   "depends_on": "eval:doc.hotel_required",
+   "fieldname": "check_out",
+   "fieldtype": "Date",
+   "label": "Check-out Date"
+  },
+  {
+   "depends_on": "eval:doc.hotel_required",
+   "fieldname": "nights",
+   "fieldtype": "Int",
+   "label": "Nights",
+   "read_only": 1
+  },
+  {
+   "fieldname": "hotel_col_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.hotel_required",
+   "fieldname": "room_type",
+   "fieldtype": "Select",
+   "label": "Room Type",
+   "options": "\nStandard\nDeluxe\nSuite\nExecutive"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.hotel_required",
+   "fieldname": "no_of_rooms",
+   "fieldtype": "Int",
+   "label": "No of Rooms"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.hotel_required",
+   "fieldname": "no_of_guests",
+   "fieldtype": "Int",
+   "label": "No of Guests"
+  },
+  {
+   "depends_on": "eval:doc.hotel_required",
+   "fieldname": "booking_reference",
+   "fieldtype": "Data",
+   "label": "Booking Reference"
+  },
+  {
+   "depends_on": "eval:doc.hotel_required",
+   "fieldname": "hotel_cost",
+   "fieldtype": "Currency",
+   "label": "Hotel Cost"
+  },
+  {
+   "default": "Pending",
+   "depends_on": "eval:doc.hotel_required",
+   "fieldname": "hotel_status",
+   "fieldtype": "Select",
+   "label": "Hotel Status",
+   "options": "Pending\nConfirmed\nChecked In\nChecked Out\nCancelled"
+  },
+  {
+   "fieldname": "factory_tour_section",
+   "fieldtype": "Section Break",
+   "label": "Factory Tour",
+   "collapsible": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "factory_tour_required",
+   "fieldtype": "Check",
+   "label": "Factory Tour Required"
+  },
+  {
+   "depends_on": "eval:doc.factory_tour_required",
+   "fieldname": "tour_date",
+   "fieldtype": "Date",
+   "label": "Tour Date"
+  },
+  {
+   "depends_on": "eval:doc.factory_tour_required",
+   "fieldname": "tour_start_time",
+   "fieldtype": "Time",
+   "label": "Tour Start Time"
+  },
+  {
+   "depends_on": "eval:doc.factory_tour_required",
+   "fieldname": "tour_end_time",
+   "fieldtype": "Time",
+   "label": "Tour End Time"
+  },
+  {
+   "depends_on": "eval:doc.factory_tour_required",
+   "fieldname": "tour_guide",
+   "fieldtype": "Link",
+   "label": "Tour Guide",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "tour_col_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.factory_tour_required",
+   "fieldname": "safety_briefing_done",
+   "fieldtype": "Check",
+   "label": "Safety Briefing Done"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.factory_tour_required",
+   "fieldname": "ppe_issued",
+   "fieldtype": "Check",
+   "label": "PPE Issued"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.factory_tour_required",
+   "fieldname": "nda_signed",
+   "fieldtype": "Check",
+   "label": "NDA Signed"
+  },
+  {
+   "default": "Pending",
+   "depends_on": "eval:doc.factory_tour_required",
+   "fieldname": "tour_status",
+   "fieldtype": "Select",
+   "label": "Tour Status",
+   "options": "Pending\nScheduled\nIn Progress\nCompleted\nCancelled"
+  },
+  {
+   "depends_on": "eval:doc.factory_tour_required",
+   "fieldname": "tour_areas",
+   "fieldtype": "Table",
+   "label": "Tour Areas",
+   "options": "Factory Tour Area"
+  },
+  {
+   "fieldname": "buggy_section",
+   "fieldtype": "Section Break",
+   "label": "Buggy Vehicle",
+   "collapsible": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "buggy_required",
+   "fieldtype": "Check",
+   "label": "Buggy Required"
+  },
+  {
+   "depends_on": "eval:doc.buggy_required",
+   "fieldname": "buggy_pickup_point",
+   "fieldtype": "Data",
+   "label": "Buggy Pickup Point"
+  },
+  {
+   "depends_on": "eval:doc.buggy_required",
+   "fieldname": "buggy_drop_point",
+   "fieldtype": "Data",
+   "label": "Buggy Drop Point"
+  },
+  {
+   "depends_on": "eval:doc.buggy_required",
+   "fieldname": "buggy_datetime",
+   "fieldtype": "Datetime",
+   "label": "Buggy Datetime"
+  },
+  {
+   "fieldname": "buggy_col_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.buggy_required",
+   "fieldname": "buggy_number",
+   "fieldtype": "Data",
+   "label": "Buggy Number"
+  },
+  {
+   "depends_on": "eval:doc.buggy_required",
+   "fieldname": "buggy_driver",
+   "fieldtype": "Link",
+   "label": "Buggy Driver",
+   "options": "Employee"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.buggy_required",
+   "fieldname": "buggy_passenger_count",
+   "fieldtype": "Int",
+   "label": "Passenger Count"
+  },
+  {
+   "default": "Pending",
+   "depends_on": "eval:doc.buggy_required",
+   "fieldname": "buggy_status",
+   "fieldtype": "Select",
+   "label": "Buggy Status",
+   "options": "Pending\nAssigned\nCompleted\nCancelled"
+  },
+  {
+   "fieldname": "greeting_section",
+   "fieldtype": "Section Break",
+   "label": "Greeting Arrangement",
+   "collapsible": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "greeting_required",
+   "fieldtype": "Check",
+   "label": "Greeting Required"
+  },
+  {
+   "depends_on": "eval:doc.greeting_required",
+   "fieldname": "greeting_type",
+   "fieldtype": "Select",
+   "label": "Greeting Type",
+   "options": "\nBouquet\nGift\nWelcome Board\nCake\nTraditional Welcome"
+  },
+  {
+   "depends_on": "eval:doc.greeting_required",
+   "fieldname": "greeting_occasion",
+   "fieldtype": "Data",
+   "label": "Occasion"
+  },
+  {
+   "depends_on": "eval:doc.greeting_required",
+   "fieldname": "greeting_delivery_time",
+   "fieldtype": "Datetime",
+   "label": "Delivery Time"
+  },
+  {
+   "depends_on": "eval:doc.greeting_required",
+   "fieldname": "greeting_delivery_point",
+   "fieldtype": "Data",
+   "label": "Delivery Point"
+  },
+  {
+   "fieldname": "greeting_col_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.greeting_required",
+   "fieldname": "greeting_assigned_to",
+   "fieldtype": "Link",
+   "label": "Assigned To",
+   "options": "Employee"
+  },
+  {
+   "depends_on": "eval:doc.greeting_required",
+   "fieldname": "greeting_vendor",
+   "fieldtype": "Link",
+   "label": "Greeting Vendor",
+   "options": "Supplier"
+  },
+  {
+   "depends_on": "eval:doc.greeting_required",
+   "fieldname": "greeting_cost",
+   "fieldtype": "Currency",
+   "label": "Greeting Cost"
+  },
+  {
+   "depends_on": "eval:doc.greeting_required",
+   "fieldname": "greeting_photo",
+   "fieldtype": "Attach Image",
+   "label": "Greeting Photo"
+  },
+  {
+   "default": "Planned",
+   "depends_on": "eval:doc.greeting_required",
+   "fieldname": "greeting_status",
+   "fieldtype": "Select",
+   "label": "Greeting Status",
+   "options": "Planned\nArranged\nDelivered\nCancelled"
+  },
+  {
    "default": "Pending",
    "fieldname": "status",
    "fieldtype": "Select",
@@ -138,6 +583,66 @@
    "read": 1,
    "report": 1,
    "role": "Hospitality User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Host Employee",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Hospitality Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Transport Coordinator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Front Office Executive",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Factory Tour Coordinator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Greeting Staff",
    "share": 1,
    "write": 1
   },

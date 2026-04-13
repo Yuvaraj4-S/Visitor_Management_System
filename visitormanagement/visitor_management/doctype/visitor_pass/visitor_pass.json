@@ -122,11 +122,23 @@
   "column_break_hospitality",
   "conference_room",
   "service_time",
-  "rest_area",
   "food_dept_staff_assigned",
   "food_status",
   "hospitality_notes",
   "hospitality_request",
+  "arrangements_section",
+  "cab_required",
+  "hotel_required",
+  "factory_tour_required",
+  "buggy_required",
+  "greeting_required",
+  "arrangements_col_break",
+  "hospitality_overall_status",
+  "cab_status_display",
+  "hotel_status_display",
+  "tour_status_display",
+  "buggy_status_display",
+  "greeting_status_display",
   "items_tab",
   "section_break_items_summary",
   "items_carried",
@@ -890,12 +902,6 @@
   },
   {
    "allow_on_submit": 1,
-   "fieldname": "rest_area",
-   "fieldtype": "Data",
-   "label": "Rest / Waiting Room"
-  },
-  {
-   "allow_on_submit": 1,
    "fieldname": "food_dept_staff_assigned",
    "fieldtype": "Link",
    "label": "Food Dept Staff Assigned",
@@ -920,6 +926,89 @@
    "fieldtype": "Link",
    "label": "Hospitality Request",
    "options": "Hospitality Request",
+   "read_only": 1
+  },
+  {
+   "fieldname": "arrangements_section",
+   "fieldtype": "Section Break",
+   "label": "Additional Arrangements",
+   "collapsible": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "cab_required",
+   "fieldtype": "Check",
+   "label": "Cab Required"
+  },
+  {
+   "default": "0",
+   "fieldname": "hotel_required",
+   "fieldtype": "Check",
+   "label": "Hotel Required"
+  },
+  {
+   "default": "0",
+   "fieldname": "factory_tour_required",
+   "fieldtype": "Check",
+   "label": "Factory Tour Required"
+  },
+  {
+   "default": "0",
+   "fieldname": "buggy_required",
+   "fieldtype": "Check",
+   "label": "Buggy Required"
+  },
+  {
+   "default": "0",
+   "fieldname": "greeting_required",
+   "fieldtype": "Check",
+   "label": "Greeting Required"
+  },
+  {
+   "fieldname": "arrangements_col_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Not Required",
+   "fieldname": "hospitality_overall_status",
+   "fieldtype": "Select",
+   "label": "Hospitality Overall Status",
+   "options": "Not Required\nPending\nIn Progress\nCompleted\nCancelled",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "cab_status_display",
+   "fieldtype": "Data",
+   "label": "Cab Status",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.hotel_required",
+   "fieldname": "hotel_status_display",
+   "fieldtype": "Data",
+   "label": "Hotel Status",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.factory_tour_required",
+   "fieldname": "tour_status_display",
+   "fieldtype": "Data",
+   "label": "Factory Tour Status",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.buggy_required",
+   "fieldname": "buggy_status_display",
+   "fieldtype": "Data",
+   "label": "Buggy Status",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.greeting_required",
+   "fieldname": "greeting_status_display",
+   "fieldtype": "Data",
+   "label": "Greeting Status",
    "read_only": 1
   },
   {
@@ -963,7 +1052,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-10 16:11:44.546509",
+ "modified": "2026-04-13 10:19:35.538461",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Pass",

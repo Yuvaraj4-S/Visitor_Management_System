@@ -3,6 +3,7 @@
 
 import frappe
 from frappe.model.document import Document
+from frappe.utils import date_diff, get_datetime
 
 from visitormanagement.visitor_management.lifecycle import (
 	populate_hospitality_request_from_pass,
@@ -62,6 +63,55 @@ class HospitalityRequest(Document):
 			self.status = "Pending"
 		if self.visitor_pass:
 			populate_hospitality_request_from_pass(self)
+		self._compute_hotel_nights()
+		self._validate_cab_timing()
+		self._validate_tour_safety()
+		self._validate_buggy_conflict()
+
+	def _compute_hotel_nights(self):
+		if self.hotel_required and self.check_in and self.check_out:
+			nights = date_diff(self.check_out, self.check_in)
+			if nights < 1:
+				frappe.throw("Hotel check-out must be after check-in")
+			self.nights = nights
+		else:
+			self.nights = 0
+
+	def _validate_cab_timing(self):
+		if not self.cab_required:
+			return
+		if self.cab_type in ("Pickup", "Both") and not self.pickup_datetime:
+			frappe.throw("Pickup datetime required when cab type includes Pickup")
+		if self.cab_type in ("Drop", "Both") and not self.drop_datetime:
+			frappe.throw("Drop datetime required when cab type includes Drop")
+		if self.pickup_datetime and self.drop_datetime:
+			if get_datetime(self.drop_datetime) < get_datetime(self.pickup_datetime):
+				frappe.throw("Drop datetime cannot be before pickup datetime")
+
+	def _validate_tour_safety(self):
+		if not self.factory_tour_required:
+			return
+		if self.tour_status == "Scheduled" and not self.safety_briefing_done:
+			frappe.throw("Safety briefing must be completed before scheduling a factory tour")
+		if self.tour_start_time and self.tour_end_time:
+			if self.tour_end_time <= self.tour_start_time:
+				frappe.throw("Tour end time must be after start time")
+
+	def _validate_buggy_conflict(self):
+		if not (self.buggy_required and self.buggy_number and self.buggy_datetime):
+			return
+		conflict = frappe.db.exists(
+			"Hospitality Request",
+			{
+				"name": ("!=", self.name),
+				"buggy_required": 1,
+				"buggy_number": self.buggy_number,
+				"buggy_datetime": self.buggy_datetime,
+				"buggy_status": ("not in", ("Cancelled", "Completed")),
+			},
+		)
+		if conflict:
+			frappe.throw(f"Buggy {self.buggy_number} already booked at {self.buggy_datetime} ({conflict})")
 
 	def on_update(self):
 		sync_hospitality_to_pass(self)

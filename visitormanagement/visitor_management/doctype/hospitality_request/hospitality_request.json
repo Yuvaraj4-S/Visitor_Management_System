@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "formet:HOSP-.YYYY.-.MM.-.#####",
+ "autoname": "hash",
  "creation": "2026-04-05 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -639,7 +639,7 @@
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Hospitality Request",
- "naming_rule": "Expression",
+ "naming_rule": "By script",
  "owner": "Administrator",
  "permissions": [
   {

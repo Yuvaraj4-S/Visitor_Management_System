@@ -102,10 +102,7 @@ frappe.ui.form.on("Hospitality Request", {
 	},
 
 	factory_tour_required(frm) {
-		frm.toggle_reqd(
-			["tour_date", "tour_guide"],
-			frm.doc.factory_tour_required
-		);
+		frm.toggle_reqd(["tour_guide"], frm.doc.factory_tour_required);
 		if (frm.doc.factory_tour_required && !frm.doc.buggy_required) {
 			frm.set_value("buggy_required", 1);
 		}

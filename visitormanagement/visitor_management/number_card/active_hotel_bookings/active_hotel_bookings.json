@@ -1,0 +1,22 @@
+{
+ "creation": "2026-04-13 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "document_type": "Hospitality Request",
+ "dynamic_filters_json": "[]",
+ "filters_json": "[[\"Hospitality Request\",\"hotel_required\",\"=\",1,false],[\"Hospitality Request\",\"hotel_status\",\"in\",[\"Confirmed\",\"Checked In\"],false]]",
+ "function": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Active Hotel Bookings",
+ "modified": "2026-04-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Active Hotel Bookings",
+ "owner": "Administrator",
+ "show_full_number": 0,
+ "show_percentage_stats": 1,
+ "stats_time_interval": "Daily",
+ "type": "Document Type"
+}

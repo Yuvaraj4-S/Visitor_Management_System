@@ -1,0 +1,212 @@
+{%- set vp = frappe.get_doc("Visitor Pass", doc.visitor_pass) if doc.visitor_pass else None -%}
+<div style="font-family: Arial, sans-serif; color: #1f2933; font-size: 12px; line-height: 1.5;">
+	<div style="border-bottom: 3px solid #102a43; padding-bottom: 10px; margin-bottom: 15px;">
+		<h2 style="margin: 0; color: #102a43;">Visitor Itinerary</h2>
+		<p style="margin: 4px 0 0; color: #486581;">Hospitality Request: <strong>{{ doc.name }}</strong></p>
+	</div>
+
+	{% if vp %}
+	<table style="width: 100%; border-collapse: collapse; margin-bottom: 18px;">
+		<tr>
+			<td style="padding: 6px 10px; border: 1px solid #d9e2ec; background: #f0f4f8; width: 25%;"><strong>Visitor</strong></td>
+			<td style="padding: 6px 10px; border: 1px solid #d9e2ec;">{{ vp.visitor_full_name or '-' }}</td>
+			<td style="padding: 6px 10px; border: 1px solid #d9e2ec; background: #f0f4f8; width: 20%;"><strong>Company</strong></td>
+			<td style="padding: 6px 10px; border: 1px solid #d9e2ec;">{{ vp.company__organisation or '-' }}</td>
+		</tr>
+		<tr>
+			<td style="padding: 6px 10px; border: 1px solid #d9e2ec; background: #f0f4f8;"><strong>Visit Date</strong></td>
+			<td style="padding: 6px 10px; border: 1px solid #d9e2ec;">{{ vp.visit_date or '-' }}</td>
+			<td style="padding: 6px 10px; border: 1px solid #d9e2ec; background: #f0f4f8;"><strong>Host</strong></td>
+			<td style="padding: 6px 10px; border: 1px solid #d9e2ec;">{{ vp.person_to_visit or '-' }}</td>
+		</tr>
+		<tr>
+			<td style="padding: 6px 10px; border: 1px solid #d9e2ec; background: #f0f4f8;"><strong>Check-in</strong></td>
+			<td style="padding: 6px 10px; border: 1px solid #d9e2ec;">{{ vp.expected_checkin or '-' }}</td>
+			<td style="padding: 6px 10px; border: 1px solid #d9e2ec; background: #f0f4f8;"><strong>Check-out</strong></td>
+			<td style="padding: 6px 10px; border: 1px solid #d9e2ec;">{{ vp.expected_checkout or '-' }}</td>
+		</tr>
+	</table>
+	{% endif %}
+
+	<div style="margin-bottom: 15px; padding: 10px; background: #f0f9ff; border-left: 4px solid #2bb0ed;">
+		<strong>Overall Status:</strong>
+		<span style="padding: 3px 10px; background: #fff; border-radius: 3px; font-weight: bold;">
+			{{ vp.hospitality_overall_status if vp else (doc.status or 'Pending') }}
+		</span>
+	</div>
+
+	{% if doc.cab_required %}
+	<h3 style="background: #102a43; color: #fff; padding: 8px 12px; margin: 15px 0 8px;">🚗 Cab / Transport</h3>
+	<table style="width: 100%; border-collapse: collapse;">
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc; width: 25%;"><strong>Cab Type</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.cab_type or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc; width: 20%;"><strong>Status</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.cab_status or 'Pending' }}</td>
+		</tr>
+		{% if doc.cab_type in ('Pickup', 'Both') %}
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Pickup Location</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.pickup_location or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Pickup Time</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.pickup_datetime or '-' }}</td>
+		</tr>
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Flight/Train</strong></td>
+			<td colspan="3" style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.flight_train_no or '-' }}</td>
+		</tr>
+		{% endif %}
+		{% if doc.cab_type in ('Drop', 'Both') %}
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Drop Location</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.drop_location or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Drop Time</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.drop_datetime or '-' }}</td>
+		</tr>
+		{% endif %}
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Driver</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.driver_name or '-' }} ({{ doc.driver_phone or '-' }})</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Vehicle</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.vehicle_number or '-' }}</td>
+		</tr>
+	</table>
+	{% endif %}
+
+	{% if doc.hotel_required %}
+	<h3 style="background: #102a43; color: #fff; padding: 8px 12px; margin: 15px 0 8px;">🏨 Hotel Booking</h3>
+	<table style="width: 100%; border-collapse: collapse;">
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc; width: 25%;"><strong>Hotel</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.hotel_name or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc; width: 20%;"><strong>Status</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.hotel_status or 'Pending' }}</td>
+		</tr>
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Check-in</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.check_in or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Check-out</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.check_out or '-' }} ({{ doc.nights or 0 }} nights)</td>
+		</tr>
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Room Type</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.room_type or '-' }} x {{ doc.no_of_rooms or 1 }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Booking Ref</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.booking_reference or '-' }}</td>
+		</tr>
+	</table>
+	{% endif %}
+
+	{% if doc.factory_tour_required %}
+	<h3 style="background: #102a43; color: #fff; padding: 8px 12px; margin: 15px 0 8px;">🏭 Factory Tour</h3>
+	<table style="width: 100%; border-collapse: collapse;">
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc; width: 25%;"><strong>Date</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.tour_date or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc; width: 20%;"><strong>Status</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.tour_status or 'Pending' }}</td>
+		</tr>
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Time</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.tour_start_time or '-' }} - {{ doc.tour_end_time or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Tour Guide</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.tour_guide or '-' }}</td>
+		</tr>
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Compliance</strong></td>
+			<td colspan="3" style="padding: 5px 10px; border: 1px solid #d9e2ec;">
+				Safety Briefing: {{ '✓' if doc.safety_briefing_done else '✗' }} &nbsp;&nbsp;
+				PPE Issued: {{ '✓' if doc.ppe_issued else '✗' }} &nbsp;&nbsp;
+				NDA Signed: {{ '✓' if doc.nda_signed else '✗' }}
+			</td>
+		</tr>
+		{% if doc.tour_areas %}
+		<tr>
+			<td colspan="4" style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #e6f4ff;"><strong>Tour Areas</strong></td>
+		</tr>
+		{% for area in doc.tour_areas %}
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ loop.index }}. {{ area.area_name }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ area.from_time or '-' }} - {{ area.to_time or '-' }}</td>
+			<td colspan="2" style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ area.responsible_person or '-' }}</td>
+		</tr>
+		{% endfor %}
+		{% endif %}
+	</table>
+	{% endif %}
+
+	{% if doc.buggy_required %}
+	<h3 style="background: #102a43; color: #fff; padding: 8px 12px; margin: 15px 0 8px;">🛺 Buggy Vehicle</h3>
+	<table style="width: 100%; border-collapse: collapse;">
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc; width: 25%;"><strong>Pickup</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.buggy_pickup_point or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc; width: 20%;"><strong>Drop</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.buggy_drop_point or '-' }}</td>
+		</tr>
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Time</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.buggy_datetime or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Status</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.buggy_status or 'Pending' }}</td>
+		</tr>
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Buggy No</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.buggy_number or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Driver</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.buggy_driver or '-' }}</td>
+		</tr>
+	</table>
+	{% endif %}
+
+	{% if doc.greeting_required %}
+	<h3 style="background: #102a43; color: #fff; padding: 8px 12px; margin: 15px 0 8px;">🎁 Greeting Arrangement</h3>
+	<table style="width: 100%; border-collapse: collapse;">
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc; width: 25%;"><strong>Type</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.greeting_type or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc; width: 20%;"><strong>Status</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.greeting_status or 'Planned' }}</td>
+		</tr>
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Occasion</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.greeting_occasion or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Delivery Time</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.greeting_delivery_time or '-' }}</td>
+		</tr>
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Delivery Point</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.greeting_delivery_point or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Assigned</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.greeting_assigned_to or '-' }}</td>
+		</tr>
+	</table>
+	{% endif %}
+
+	{% if doc.meal_required or doc.conference_room %}
+	<h3 style="background: #102a43; color: #fff; padding: 8px 12px; margin: 15px 0 8px;">🍽️ Meal / Conference</h3>
+	<table style="width: 100%; border-collapse: collapse;">
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc; width: 25%;"><strong>Meal Type</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.meal_type or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc; width: 20%;"><strong>Diet</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.special_diet or '-' }}</td>
+		</tr>
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Conference Room</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.conference_room or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Service Time</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.service_time or '-' }}</td>
+		</tr>
+	</table>
+	{% endif %}
+
+	{% if doc.notes %}
+	<h3 style="background: #102a43; color: #fff; padding: 8px 12px; margin: 15px 0 8px;">📝 Notes</h3>
+	<div style="padding: 10px; border: 1px solid #d9e2ec;">{{ doc.notes }}</div>
+	{% endif %}
+
+	<div style="margin-top: 30px; padding-top: 10px; border-top: 1px solid #d9e2ec; text-align: center; color: #829ab1; font-size: 10px;">
+		Generated: {{ frappe.utils.now() }} | Hospitality Request: {{ doc.name }}
+	</div>
+</div>

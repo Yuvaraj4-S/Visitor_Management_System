@@ -21,6 +21,7 @@
   "visitor_invitation",
   "section_break_identity_details",
   "visitor_full_name",
+  "visitor_summary",
   "mobile_number",
   "email_id",
   "company__organisation",
@@ -244,6 +245,13 @@
    "in_list_view": 1,
    "label": "Visitor Full Name",
    "reqd": 1
+  },
+  {
+   "fieldname": "visitor_summary",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Visitor Summary",
+   "read_only": 1
   },
   {
    "fieldname": "mobile_number",
@@ -1146,6 +1154,6 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "title_field": "visitor_full_name",
+ "title_field": "visitor_summary",
  "track_changes": 1
 }

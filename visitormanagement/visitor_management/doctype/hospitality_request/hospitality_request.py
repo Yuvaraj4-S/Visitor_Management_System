@@ -1,9 +1,11 @@
 # Copyright (c) 2026, Harthesh and contributors
 # For license information, please see license.txt
 
+import re
+
 import frappe
 from frappe.model.document import Document
-from frappe.utils import date_diff, get_datetime
+from frappe.utils import date_diff, get_datetime, getdate, nowdate
 
 from visitormanagement.visitor_management.lifecycle import (
 	populate_hospitality_request_from_pass,
@@ -58,6 +60,26 @@ def _send_hospitality_assignment_mail(doc):
 
 
 class HospitalityRequest(Document):
+	def autoname(self):
+		visitor_name = None
+		visit_date = None
+		if self.visitor_pass:
+			visitor_name, visit_date = frappe.db.get_value(
+				"Visitor Pass", self.visitor_pass, ["visitor_full_name", "visit_date"]
+			) or (None, None)
+
+		letters = re.sub(r"[^A-Za-z]", "", visitor_name or "").upper()[:3] or "XXX"
+		letters = letters.ljust(3, "X")
+		date_part = getdate(visit_date or nowdate()).strftime("%d%m%y")
+
+		base = f"HOSP-{letters}-{date_part}"
+		candidate = base
+		suffix = 2
+		while frappe.db.exists("Hospitality Request", candidate):
+			candidate = f"{base}-{suffix}"
+			suffix += 1
+		self.name = candidate
+
 	def validate(self):
 		if not self.status:
 			self.status = "Pending"

@@ -17,21 +17,13 @@ frappe.ui.form.on("Visitor Pass", {
 		apply_visitor_pass_ui(frm);
 	},
 
-	cab_required(frm) {
-		if (frm.doc.cab_required && !frm.doc.buggy_required) {
-			frm.set_value("buggy_required", 1);
-		}
-	},
-
-	hotel_required(frm) {
-		if (frm.doc.hotel_required && !frm.doc.buggy_required) {
-			frm.set_value("buggy_required", 1);
-		}
-	},
-
 	factory_tour_required(frm) {
-		if (frm.doc.factory_tour_required && !frm.doc.buggy_required) {
-			frm.set_value("buggy_required", 1);
+		if (frm.doc.factory_tour_required) {
+			if (!frm.doc.buggy_required) {
+				frm.set_value("buggy_required", 1);
+			}
+		} else if (frm.doc.buggy_required) {
+			frm.set_value("buggy_required", 0);
 		}
 	},
 

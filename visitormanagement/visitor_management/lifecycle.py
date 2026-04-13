@@ -341,8 +341,8 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 			doc.no_of_guests = vp_people
 
 	if cint(doc.factory_tour_required):
-		if vp_date:
-			doc.tour_date = vp_date
+		if not doc.tour_date:
+			doc.tour_date = vp_date or nowdate()
 		if not doc.tour_start_time and getattr(visitor_pass, "expected_checkin", None):
 			doc.tour_start_time = getattr(visitor_pass, "expected_checkin", None)
 

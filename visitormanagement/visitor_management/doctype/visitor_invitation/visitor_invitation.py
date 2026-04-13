@@ -3,9 +3,11 @@
 
 import secrets
 
+import re
 import frappe
+from frappe import _
 from frappe.model.document import Document
-from frappe.utils import add_days, get_datetime, get_time, get_url, now_datetime
+from frappe.utils import add_days, get_datetime, get_time, get_url, now_datetime, getdate, today, date_diff
 
 from visitormanagement.visitor_management.lifecycle import derive_hospitality_meal_plan
 
@@ -176,15 +178,61 @@ class VisitorInvitation(Document):
 		if not self.invitation_status:
 			self.invitation_status = "Draft"
 
+		self._validate_visit_date()
+		self._validate_email()
+		self._validate_time_range()
+		self._validate_host_active()
+
 		if not self.invitation_expires_on and self.visit_date:
 			self.invitation_expires_on = get_datetime(f"{self.visit_date} 23:59:59")
 
 		self.invitation_expires_on = _coerce_datetime(self.invitation_expires_on)
 
 		if self.invitation_expires_on and self.invitation_expires_on < now_datetime():
-			frappe.throw("Invitation Expiry must be a future date and time.")
+			frappe.throw(_("Invitation Expiry must be a future date and time."))
 
 		self._apply_hospitality_defaults()
+
+	def _validate_visit_date(self):
+		if not self.visit_date:
+			return
+		today_date = getdate(today())
+		visit_date = getdate(self.visit_date)
+		if visit_date < today_date:
+			frappe.throw(
+				_("Visit date {0} is in the past. Cannot send an invitation for a past date.").format(self.visit_date),
+				title=_("Invalid Visit Date"),
+			)
+		if date_diff(visit_date, today_date) > 90:
+			frappe.throw(
+				_("Visit date cannot be more than 90 days in the future."),
+				title=_("Invalid Visit Date"),
+			)
+
+	def _validate_email(self):
+		if self.visitor_email and not re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", self.visitor_email):
+			frappe.throw(
+				_("Visitor Email '{0}' is not a valid email address.").format(self.visitor_email),
+				title=_("Invalid Email"),
+			)
+
+	def _validate_time_range(self):
+		if self.expected_checkin and self.expected_checkout:
+			if get_time(self.expected_checkin) >= get_time(self.expected_checkout):
+				frappe.throw(
+					_("Expected Check-In must be before Expected Check-Out."),
+					title=_("Invalid Time Range"),
+				)
+
+	def _validate_host_active(self):
+		if not self.host_employee:
+			return
+		status = frappe.db.get_value("Employee", self.host_employee, "status")
+		if status != "Active":
+			frappe.throw(
+				_("Host employee {0} is not Active (status: {1}).").format(self.host_employee, status or "Unknown"),
+				title=_("Invalid Host"),
+			)
 
 	def _apply_hospitality_defaults(self):
 		self.meal_required = frappe.utils.cint(self.meal_required)

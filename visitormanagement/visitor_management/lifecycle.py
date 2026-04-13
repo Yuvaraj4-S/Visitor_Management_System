@@ -64,6 +64,13 @@ def normalize_visitor_pass(doc):
 	if not doc.request_channel:
 		doc.request_channel = "Desk"
 
+	parts = [
+		doc.visitor_full_name or "Unnamed",
+		f"({doc.visitor_type})" if doc.visitor_type else None,
+		doc.mobile_number,
+	]
+	doc.visitor_summary = " • ".join([p for p in parts if p])
+
 	expected_risk_level = infer_risk_level(doc)
 	if (
 		not doc.risk_level
@@ -334,7 +341,7 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 			doc.no_of_guests = vp_people
 
 	if cint(doc.factory_tour_required):
-		if not doc.tour_date and vp_date:
+		if vp_date:
 			doc.tour_date = vp_date
 		if not doc.tour_start_time and getattr(visitor_pass, "expected_checkin", None):
 			doc.tour_start_time = getattr(visitor_pass, "expected_checkin", None)

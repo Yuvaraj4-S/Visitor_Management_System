@@ -64,6 +64,13 @@ def normalize_visitor_pass(doc):
 	if not doc.request_channel:
 		doc.request_channel = "Desk"
 
+	parts = [
+		doc.visitor_full_name or "Unnamed",
+		f"({doc.visitor_type})" if doc.visitor_type else None,
+		doc.mobile_number,
+	]
+	doc.visitor_summary = " • ".join([p for p in parts if p])
+
 	expected_risk_level = infer_risk_level(doc)
 	if (
 		not doc.risk_level
@@ -309,6 +316,43 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 	for flag in ARRANGEMENT_REQUIRED_FIELDS:
 		if hasattr(visitor_pass, flag):
 			setattr(doc, flag, cint(getattr(visitor_pass, flag, 0)))
+
+	# Auto-fetch dates/times from Visitor Pass (only when HR fields empty)
+	vp_date = getattr(visitor_pass, "visit_date", None)
+	vp_checkin = _combine_visit_datetime(vp_date, getattr(visitor_pass, "expected_checkin", None))
+	vp_checkout = _combine_visit_datetime(vp_date, getattr(visitor_pass, "expected_checkout", None))
+	vp_valid_until = getattr(visitor_pass, "pass_valid_until", None)
+	vp_people = getattr(visitor_pass, "number_of_people", None)
+
+	if cint(doc.cab_required):
+		if not doc.cab_type:
+			doc.cab_type = "Both"
+		if doc.cab_type in ("Pickup", "Both") and not doc.pickup_datetime and vp_checkin:
+			doc.pickup_datetime = vp_checkin
+		if doc.cab_type in ("Drop", "Both") and not doc.drop_datetime and vp_checkout:
+			doc.drop_datetime = vp_checkout
+
+	if cint(doc.hotel_required):
+		if not doc.check_in and vp_date:
+			doc.check_in = vp_date
+		if not doc.check_out:
+			doc.check_out = vp_valid_until or vp_date
+		if not doc.no_of_guests and vp_people:
+			doc.no_of_guests = vp_people
+
+	if cint(doc.factory_tour_required):
+		if not doc.tour_date:
+			doc.tour_date = vp_date or nowdate()
+		if not doc.tour_start_time and getattr(visitor_pass, "expected_checkin", None):
+			doc.tour_start_time = getattr(visitor_pass, "expected_checkin", None)
+
+	if cint(doc.buggy_required) and not doc.buggy_datetime:
+		doc.buggy_datetime = vp_checkin
+
+	if cint(doc.greeting_required) and not doc.greeting_delivery_time and vp_checkin:
+		from frappe.utils import add_to_date
+		doc.greeting_delivery_time = add_to_date(vp_checkin, minutes=-30)
+
 	return doc
 
 

@@ -1,10 +1,4 @@
-frappe.listview_settings["Visitor Pass"] = {
-	onload(listview) {
-		listview.page.add_inner_button(__("Web Submissions"), () => {
-			open_web_submissions_dialog();
-		});
-	},
-};
+frappe.listview_settings["Visitor Pass"] = {};
 
 function open_web_submissions_dialog() {
 	frappe.call({

@@ -7,6 +7,7 @@ frappe.ui.form.on("Visitor Pass", {
 		setup_supplier_pass_query(frm);
 		apply_visitor_pass_ui(frm);
 		add_action_buttons(frm);
+		add_hospitality_buttons(frm);
 	},
 
 	visitor_type(frm) {
@@ -14,6 +15,16 @@ frappe.ui.form.on("Visitor Pass", {
 		ensure_customer_crm_defaults(frm);
 		setup_supplier_pass_query(frm);
 		apply_visitor_pass_ui(frm);
+	},
+
+	factory_tour_required(frm) {
+		if (frm.doc.factory_tour_required) {
+			if (!frm.doc.buggy_required) {
+				frm.set_value("buggy_required", 1);
+			}
+		} else if (frm.doc.buggy_required) {
+			frm.set_value("buggy_required", 0);
+		}
 	},
 
 	crm_reference_type(frm) {
@@ -804,4 +815,51 @@ function lookup_existing_visitor_match(frm, trigger_field) {
 			});
 		},
 	});
+}
+
+function add_hospitality_buttons(frm) {
+	if (frm.is_new()) return;
+
+	if (frm.doc.hospitality_request) {
+		frm.add_custom_button(
+			__("View Itinerary"),
+			() => {
+				const url = `/printview?doctype=${encodeURIComponent("Hospitality Request")}`
+					+ `&name=${encodeURIComponent(frm.doc.hospitality_request)}`
+					+ `&format=${encodeURIComponent("Visitor Itinerary")}`
+					+ `&no_letterhead=0`;
+				window.open(url, "_blank");
+			},
+			__("Hospitality")
+		);
+
+		frm.add_custom_button(
+			__("Open Hospitality Request"),
+			() => {
+				frappe.set_route("Form", "Hospitality Request", frm.doc.hospitality_request);
+			},
+			__("Hospitality")
+		);
+	} else {
+		const any_arrangement = (
+			frm.doc.cab_required
+			|| frm.doc.hotel_required
+			|| frm.doc.factory_tour_required
+			|| frm.doc.buggy_required
+			|| frm.doc.greeting_required
+			|| frm.doc.meal_required
+			|| frm.doc.conference_room
+		);
+		if (any_arrangement) {
+			frm.add_custom_button(
+				__("Create Hospitality Request"),
+				() => {
+					frappe.new_doc("Hospitality Request", {
+						visitor_pass: frm.doc.name,
+					});
+				},
+				__("Hospitality")
+			);
+		}
+	}
 }

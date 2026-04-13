@@ -162,23 +162,13 @@ doc_events = {
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"visitormanagement.tasks.all"
-# 	],
-# 	"daily": [
-# 		"visitormanagement.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"visitormanagement.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"visitormanagement.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"visitormanagement.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"cron": {
+		"0 7 * * *": [
+			"visitormanagement.visitor_management.tasks.send_daily_hospitality_digest"
+		]
+	}
+}
 
 # Testing
 # -------

@@ -18,10 +18,27 @@ frappe.ui.form.on("Hospitality Request", {
 	},
 
 	cab_required(frm) {
-		frm.toggle_reqd(
-			["cab_type", "pickup_location"],
-			frm.doc.cab_required
-		);
+		frm.toggle_reqd(["cab_type"], frm.doc.cab_required);
+		if (frm.doc.cab_required && !frm.doc.cab_type) {
+			frm.set_value("cab_type", "Both");
+		}
+	},
+
+	cab_type(frm) {
+		const t = frm.doc.cab_type;
+		const needs_pickup = t === "Pickup" || t === "Both";
+		const needs_drop = t === "Drop" || t === "Both";
+		frm.toggle_reqd(["pickup_location", "pickup_datetime"], needs_pickup);
+		frm.toggle_reqd(["drop_location", "drop_datetime"], needs_drop);
+		if (!needs_pickup) {
+			frm.set_value("pickup_location", null);
+			frm.set_value("pickup_datetime", null);
+			frm.set_value("flight_train_no", null);
+		}
+		if (!needs_drop) {
+			frm.set_value("drop_location", null);
+			frm.set_value("drop_datetime", null);
+		}
 	},
 
 	hotel_required(frm) {
@@ -48,6 +65,29 @@ frappe.ui.form.on("Hospitality Request", {
 			["tour_date", "tour_guide"],
 			frm.doc.factory_tour_required
 		);
+		if (frm.doc.factory_tour_required && !frm.doc.buggy_required) {
+			frm.set_value("buggy_required", 1);
+		}
+	},
+
+	tour_date(frm) {
+		if (
+			frm.doc.tour_date
+			&& frm.doc.buggy_required
+			&& !frm.doc.buggy_datetime
+		) {
+			const time = frm.doc.tour_start_time || "09:00:00";
+			frm.set_value("buggy_datetime", `${frm.doc.tour_date} ${time}`);
+		}
+	},
+
+	tour_start_time(frm) {
+		if (frm.doc.tour_date && frm.doc.tour_start_time && frm.doc.buggy_required) {
+			frm.set_value(
+				"buggy_datetime",
+				`${frm.doc.tour_date} ${frm.doc.tour_start_time}`
+			);
+		}
 	},
 
 	buggy_required(frm) {

@@ -106,6 +106,23 @@ class SecurityLog(Document):
         if self.visitor_pass:
             vp = frappe.get_doc('Visitor Pass', self.visitor_pass)
 
+        # 0. Re-check blacklist at gate — blacklisting could have happened AFTER pass approval
+        if vp and self.event_type == 'Check-In' and vp.id_proof_number:
+            blacklist_name = frappe.db.exists(
+                'Visitor Blacklist',
+                {'id_proof_number': vp.id_proof_number, 'is_active': 1},
+            )
+            if blacklist_name:
+                bl = frappe.get_doc('Visitor Blacklist', blacklist_name)
+                frappe.throw(
+                    f"<b>ACCESS DENIED AT GATE</b><br>"
+                    f"Visitor: {vp.visitor_full_name}<br>"
+                    f"ID Proof matches active blacklist entry.<br>"
+                    f"Reason: {bl.reason or 'Not specified'}<br>"
+                    f"Blocked by: {bl.blocked_by or 'System'}",
+                    title='BLACKLISTED VISITOR',
+                )
+
         # 1. Auto-fetch visitor info and ID details
         if vp:
             # VIP badges are issued only during the gate check-in flow.
@@ -251,7 +268,7 @@ class SecurityLog(Document):
                     'serial__asset_number': vi.serial_number,
                     'quantity_found': vi.quantity,
                     'item_verified': 0,
-                    'item_image': vi.get('item_image')
+                    # item_image is captured by the gate officer at scan time, not copied from Visitor Item.
                 })
 
         for row in (self.items_verification or []):
@@ -295,6 +312,24 @@ class SecurityLog(Document):
                     'actual_checkout': self.check_out_date_time or now_datetime(),
                 },
             )
+
+            # Auto-close any pending Evacuation Muster records for this visitor —
+            # they've left the premises, so they're no longer at risk.
+            pending_musters = frappe.get_all(
+                'Evacuation Muster',
+                filters={'visitor_pass': self.visitor_pass, 'accounted_status': ['in', ['Pending', 'Missing']]},
+                pluck='name',
+            )
+            for muster_name in pending_musters:
+                frappe.db.set_value(
+                    'Evacuation Muster', muster_name,
+                    {
+                        'accounted_status': 'Excused',
+                        'accounted_time': now_datetime(),
+                        'notes': (frappe.db.get_value('Evacuation Muster', muster_name, 'notes') or '') +
+                                 f"\nAuto-closed: visitor checked out at {now_datetime()}.",
+                    },
+                )
 
         self._record_lifecycle_event()
         sync_health_screening(self.visitor_pass, self)

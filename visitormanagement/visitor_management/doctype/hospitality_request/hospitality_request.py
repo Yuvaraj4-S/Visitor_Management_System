@@ -7,8 +7,6 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-from frappe.utils import date_diff, get_datetime, getdate
-
 from frappe.utils import date_diff, get_datetime, getdate, nowdate
 
 

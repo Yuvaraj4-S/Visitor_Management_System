@@ -32,17 +32,16 @@ ALL_PENDING_LANES = {
 
 class VisitorPass(Document):
 
+    # Aliases used by notification templates and external references.
+    # `visitor_name` is referenced by gate_security_alert.html and vms_prr_submitted notification.
+    # `company` is referenced by gate_security_alert.html as {{ doc.company }}.
     @property
-    def email(self):
-        return self.email_id
+    def visitor_name(self):
+        return self.visitor_full_name
 
     @property
     def company(self):
         return self.company__organisation
-
-    @property
-    def visitor_name(self):
-        return self.visitor_full_name
 
     def validate(self):
         normalize_visitor_pass(self)
@@ -183,7 +182,6 @@ class VisitorPass(Document):
                 title=_("Visit Too Long"),
             )
 
-
     def _align_workflow_lane_with_visitor_type(self):
         if not self.visitor_type or not self.workflow_state:
             return
@@ -199,7 +197,6 @@ class VisitorPass(Document):
             return
 
         self.workflow_state = allowed_lanes[0]
-
 
     # ─────────────────────────────────────────────────────────
     # BEFORE SAVE
@@ -299,6 +296,12 @@ class VisitorPass(Document):
         self.db_set("approved_by", frappe.session.user)
         self.db_set("status", "Approved")
 
+        # Generate badge number for all approved visitors (non-VIP).
+        # VIPs get badge at gate check-in (handled in security_log.py).
+        # Only skip if badge disabled in settings or visitor_type not in badge_required_for.
+        if self.visitor_type != "VIP":
+            self.generate_badge_number(update_status=False)
+
         # Generate QR Code for the badge
         qr_file_url, qr_content = self._generate_qr_code()
 
@@ -312,7 +315,13 @@ class VisitorPass(Document):
     # ─────────────────────────────────────────────────────────
     # GENERATE BADGE NUMBER (Called by Security Log)
     # ─────────────────────────────────────────────────────────
-    def generate_badge_number(self):
+    def generate_badge_number(self, update_status=True):
+        """Generate a badge number if enabled in VMS Settings.
+
+        `update_status=True` means this was called from the items-verification flow
+        (Security Log) — move the pass to "Items Verified".
+        `update_status=False` means called from on_submit — keep status as "Approved".
+        """
         if self.badge_number:
             return
 
@@ -344,7 +353,8 @@ class VisitorPass(Document):
         badge_no = f"{p}-{date_str}-{str(count + 1).zfill(4)}"
 
         self.db_set("badge_number", badge_no)
-        self.db_set("status", "Items Verified")
+        if update_status:
+            self.db_set("status", "Items Verified")
 
         frappe.msgprint(
             _("Badge Number Generated: {0}").format(badge_no),
@@ -593,51 +603,42 @@ def get_existing_visitor_pass_details(visitor_pass, visitor_type=None):
 
     type_fields = {
         "Supplier": [
-        "supplier_visit_mode",
-        "supplier_link",
-        "purchase_order",
-        "delivery_note",
-        "goods_description",
-        "meeting_subject",
-        "meeting_start_time",
-        "meeting_end_time",
-        "meeting_room",
-        "attendees",
-        "refreshments_required",
-        "refreshment_notes",
-        "presentation_material",
-        "nda_required",
-        "documents_shared",
+            "supplier_visit_mode",
+            "supplier_link",
+            "purchase_order",
+            "delivery_note",
+            "goods_description",
+            "meeting_subject",
+            "nda_required",
+            "documents_shared",
         ],
         "Customer": [
-        "crm_reference_type",
-        "crm_lead_opportunity",
-        "visit_category",
-        "sales_executive",
-        "products_discussed",
-        "meeting_outcome",
-        "followup_date",
-        "meeting_minutes",
+            "crm_reference_type",
+            "crm_lead_opportunity",
+            "visit_category",
+            "sales_executive",
+            "products_discussed",
+            "meeting_outcome",
+            "followup_date",
+            "meeting_minutes",
         ],
         "Contractor": [
-        "contractor_link",
-        "work_order_ref",
-        "safety_induction_done",
-        "contractor_nda_signed",
-        "contractor_nda_document",
-        "ppe_provided",
-        "ppe_provided_document",
-        "work_area_zone",
-        "tools_list",
-        "multi_day_pass",
-        "pass_valid_until",
+            "contractor_link",
+            "work_order_ref",
+            "safety_induction_done",
+            "contractor_nda_signed",
+            "contractor_nda_document",
+            "ppe_provided",
+            "ppe_provided_document",
+            "tools_list",
+            "multi_day_pass",
+            "pass_valid_until",
         ],
         "Candidate": [
-        "job_applicant_link",
-        "position_applied",
-        "candidate_interview_type",
-        "interview_panel",
-        "interview_room",
+            "job_applicant_link",
+            "position_applied",
+            "candidate_interview_type",
+            "interview_panel",
         ],
     }
 

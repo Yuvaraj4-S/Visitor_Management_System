@@ -108,8 +108,35 @@ def scan_qr_checkin(qr_data):
     if not doc_name:
         frappe.throw(_("No valid Visitor Pass found for this QR code."))
 
-    # Route based on current status
-    doc_status = frappe.db.get_value("Visitor Pass", doc_name, "status")
+    # Fetch status + visit_date for early validation
+    vp_info = frappe.db.get_value(
+        "Visitor Pass", doc_name,
+        ["status", "visit_date", "id_proof_number"],
+        as_dict=True,
+    )
+    doc_status = vp_info.status
+
+    # Visit date must match today (or checkout allowed for already Checked-In)
+    from frappe.utils import getdate, today as _today
+    if vp_info.visit_date and doc_status != "Checked-In":
+        if getdate(vp_info.visit_date) != getdate(_today()):
+            frappe.throw(
+                _("Visitor Pass {0} is for {1}, not today. QR code not valid for this date.").format(
+                    doc_name, vp_info.visit_date
+                )
+            )
+
+    # Re-check blacklist at the gate — person may have been blacklisted since pass approval
+    if vp_info.id_proof_number:
+        blocked = frappe.db.exists(
+            "Visitor Blacklist",
+            {"id_proof_number": vp_info.id_proof_number, "is_active": 1},
+        )
+        if blocked:
+            frappe.throw(
+                _("ACCESS DENIED: Visitor Pass {0} matches an active blacklist entry.").format(doc_name),
+                title=_("Blacklisted"),
+            )
 
     if doc_status in ("Approved", "Items Verified"):
         return visitor_checkin(doc_name)

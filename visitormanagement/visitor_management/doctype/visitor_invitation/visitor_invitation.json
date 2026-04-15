@@ -28,7 +28,6 @@
   "form_submitted_on",
   "portal_submission_url",
   "visitor_pass",
-  "pre_registration_request",
   "invitation_token"
  ],
  "fields": [
@@ -177,14 +176,6 @@
    "fieldtype": "Link",
    "label": "Visitor Pass",
    "options": "Visitor Pass",
-   "read_only": 1
-  },
-  {
-   "fieldname": "pre_registration_request",
-   "fieldtype": "Link",
-   "hidden": 1,
-   "label": "Pre-Registration Request",
-   "options": "Pre-Registration Request",
    "read_only": 1
   },
   {

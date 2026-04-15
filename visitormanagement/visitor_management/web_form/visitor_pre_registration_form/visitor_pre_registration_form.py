@@ -24,7 +24,6 @@ INTERNAL_HIDE_FIELDS = {
 	"status",
 	"request_channel",
 	"visitor_invitation",
-	"pre_registration_request",
 	"workflow_state",
 	"host_department",
 }

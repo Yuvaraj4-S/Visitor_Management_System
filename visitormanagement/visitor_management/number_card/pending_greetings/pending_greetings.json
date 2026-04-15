@@ -4,7 +4,7 @@
  "doctype": "Number Card",
  "document_type": "Hospitality Request",
  "dynamic_filters_json": "[]",
- "filters_json": "[[\"Hospitality Request\",\"greeting_required\",\"=\",1,false],[\"Hospitality Request\",\"greeting_status\",\"in\",[\"Planned\",\"Arranged\"],false]]",
+ "filters_json": "[[\"Hospitality Request\",\"greeting_required\",\"=\",1,false],[\"Hospitality Request\",\"status\",\"not in\",[\"Completed\",\"Cancelled\"],false]]",
  "function": "Count",
  "idx": 0,
  "is_public": 1,

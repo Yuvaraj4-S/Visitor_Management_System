@@ -125,12 +125,10 @@ doctype_js = {"Job Applicant": "public/js/job_applicant.js"}
 # 	"Event": "frappe.desk.doctype.event.event.has_permission",
 # }
 permission_query_conditions = {
-	"Pre-Registration Request": "visitormanagement.permissions.get_prr_permission_query_conditions",
 	"Visitor Pass": "visitormanagement.permissions.get_visitor_pass_permission_query_conditions",
 }
 
 has_permission = {
-	"Pre-Registration Request": "visitormanagement.permissions.has_prr_permission",
 	"Visitor Pass": "visitormanagement.permissions.has_visitor_pass_permission",
 }
 
@@ -154,9 +152,6 @@ has_permission = {
 # 	}
 # }
 doc_events = {
-	"Pre-Registration Request": {
-		"validate": "visitormanagement.visitor_management.doctype.pre_registration_request.pre_registration_request.sync_invitation_context",
-	},
 	"Job Applicant": {
 		"after_insert": "visitormanagement.visitor_management.candidate_flow.maybe_create_invitation",
 		"on_update": "visitormanagement.visitor_management.candidate_flow.maybe_create_invitation",
@@ -261,7 +256,6 @@ fixtures = [
         "filters": [
             ["name", "in", [
                 "Visitor Pass Approval",
-                "Pre-Registration Request Approval",
                 "Conference Room Booking Approval",
                 "Hospitality Request Approval",
             ]]

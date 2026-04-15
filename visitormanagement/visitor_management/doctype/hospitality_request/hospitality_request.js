@@ -71,7 +71,6 @@ frappe.ui.form.on("Hospitality Request", {
 		if (!needs_pickup) {
 			frm.set_value("pickup_location", null);
 			frm.set_value("pickup_datetime", null);
-			frm.set_value("flight_train_no", null);
 		}
 		if (!needs_drop) {
 			frm.set_value("drop_location", null);

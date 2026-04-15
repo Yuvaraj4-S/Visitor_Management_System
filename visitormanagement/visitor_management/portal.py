@@ -352,7 +352,6 @@ def submit_pre_registration(payload=None):
 	if invitation:
 		invitation_updates = {
 			"visitor_pass": visitor_pass.name,
-			"pre_registration_request": None,
 			"invitation_status": "Saved" if submission_action == "save" else "Submitted",
 		}
 		if not invitation.link_opened_on:

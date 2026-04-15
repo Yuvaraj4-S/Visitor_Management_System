@@ -167,11 +167,6 @@ def sync_hospitality_to_pass(request_doc):
 		"factory_tour_required": cint(getattr(request_doc, "factory_tour_required", 0)),
 		"buggy_required": cint(getattr(request_doc, "buggy_required", 0)),
 		"greeting_required": cint(getattr(request_doc, "greeting_required", 0)),
-		"cab_status_display": getattr(request_doc, "cab_status", None),
-		"hotel_status_display": getattr(request_doc, "hotel_status", None),
-		"tour_status_display": getattr(request_doc, "tour_status", None),
-		"buggy_status_display": getattr(request_doc, "buggy_status", None),
-		"greeting_status_display": getattr(request_doc, "greeting_status", None),
 		"hospitality_overall_status": _compute_overall_hospitality_status(request_doc),
 	}
 	if hasattr(request_doc, "meal_required"):
@@ -353,25 +348,22 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 
 
 def _compute_overall_hospitality_status(request_doc):
-	flag_status_pairs = [
-		("cab_required", "cab_status"),
-		("hotel_required", "hotel_status"),
-		("factory_tour_required", "tour_status"),
-		("buggy_required", "buggy_status"),
-		("greeting_required", "greeting_status"),
-	]
-	active = [s for f, s in flag_status_pairs if cint(getattr(request_doc, f, 0))]
-	if not active:
-		# Fall back to food flow status if arrangement flags all zero
-		if cint(getattr(request_doc, "meal_required", 0)) or getattr(request_doc, "conference_room", None):
-			return "Completed" if request_doc.status == "Completed" else "In Progress"
+	# Individual per-service statuses were removed. Overall status now derives
+	# from the Hospitality Request's main `status` field plus whether any
+	# arrangement was requested at all.
+	required_flags = ("cab_required", "hotel_required", "factory_tour_required", "buggy_required", "greeting_required")
+	any_required = any(cint(getattr(request_doc, f, 0)) for f in required_flags)
+	has_food_or_room = cint(getattr(request_doc, "meal_required", 0)) or getattr(request_doc, "conference_room", None)
+
+	if not any_required and not has_food_or_room:
 		return "Not Required"
-	statuses = [getattr(request_doc, s, None) or "Pending" for s in active]
-	if all(st in ARRANGEMENT_TERMINAL_STATUSES and st != "Cancelled" for st in statuses):
+
+	main_status = (getattr(request_doc, "status", None) or "Pending").strip()
+	if main_status == "Completed":
 		return "Completed"
-	if all(st == "Cancelled" for st in statuses):
+	if main_status == "Cancelled":
 		return "Cancelled"
-	if any(st not in ("Pending",) for st in statuses):
+	if main_status in ("In Progress", "Confirmed", "Served", "Delivered", "Checked In"):
 		return "In Progress"
 	return "Pending"
 

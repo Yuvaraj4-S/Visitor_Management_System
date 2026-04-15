@@ -261,36 +261,6 @@ def run():
     test("Visit duration > max (12h) blocked", t_visit_too_long)
 
     # ═══════════════════════════════════════════════════════════
-    # PRE-REGISTRATION REQUEST
-    # ═══════════════════════════════════════════════════════════
-    print("\n--- PRE-REGISTRATION REQUEST ---")
-
-    def t_prr_past_date():
-        prr = frappe.new_doc("Pre-Registration Request")
-        prr.update({
-            "visitor_name": "Test PRR", "visitor_type": "Customer",
-            "mobile_number": "+91-9999888777", "email_id": "prr@test.com",
-            "visit_date": add_days(today(), -1), "expected_checkin": "10:00:00", "expected_checkout": "12:00:00",
-            "person_to_visit": EMP_MKT, "purpose_of_visit": "Test",
-            "id_proof_type": "Aadhaar", "id_proof_number": "123456789012",
-        })
-        prr.flags.ignore_validate = False
-        expect_validation_error(lambda: prr.insert(ignore_permissions=True, ignore_mandatory=True), "past")
-    test("PRR past date blocked", t_prr_past_date)
-
-    def t_prr_invalid_email():
-        prr = frappe.new_doc("Pre-Registration Request")
-        prr.update({
-            "visitor_name": "Test PRR 2", "visitor_type": "Customer",
-            "mobile_number": "+91-9999888766", "email_id": "invalid@@email",
-            "visit_date": add_days(today(), 10), "expected_checkin": "10:00:00", "expected_checkout": "12:00:00",
-            "person_to_visit": EMP_MKT, "purpose_of_visit": "Test",
-            "id_proof_type": "Aadhaar", "id_proof_number": "123456789012",
-        })
-        expect_validation_error(lambda: prr.insert(ignore_permissions=True, ignore_mandatory=True), "email")
-    test("PRR invalid email blocked", t_prr_invalid_email)
-
-    # ═══════════════════════════════════════════════════════════
     # VISITOR INVITATION
     # ═══════════════════════════════════════════════════════════
     print("\n--- VISITOR INVITATION ---")

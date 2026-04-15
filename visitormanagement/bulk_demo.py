@@ -192,7 +192,7 @@ def run():
     print("VMS BULK DEMO DATA GENERATOR")
     print("=" * 70)
 
-    stats = {"invitations": 0, "prrs": 0, "vps": 0, "checkins": 0, "checkouts": 0, "emergency": 0}
+    stats = {"invitations": 0, "vps": 0, "checkins": 0, "checkouts": 0, "emergency": 0}
 
     # ═══════════════════════════════════════════════════════
     # STEP 1: Visitor Invitations (10)
@@ -212,31 +212,7 @@ def run():
     print(f"  Created: {stats['invitations']}")
 
     # ═══════════════════════════════════════════════════════
-    # STEP 2: Pre-Registration Requests (10)
-    # ═══════════════════════════════════════════════════════
-    print("\n--- STEP 2: Pre-Registration Requests ---")
-    for i in range(10):
-        prr = frappe.new_doc("Pre-Registration Request")
-        prr.visitor_name = f"Walk-in Visitor {i+1}"
-        prr.visitor_type = random.choice(["Customer", "Supplier"])
-        prr.mobile_number = f"+91-9900{i:06d}"
-        prr.email_id = f"walkin{i}@example.com"
-        prr.visit_date = add_days(BASE_DATE, i + 7)
-        prr.expected_checkin = "10:00:00"
-        prr.expected_checkout = "12:00:00"
-        prr.person_to_visit = random.choice(list(EMP.values()))
-        prr.purpose_of_visit = f"Pre-registered walk-in #{i+1}"
-        prr.id_proof_type = "Aadhaar"
-        prr.id_proof_number = f"{700000000000 + i * 1000:012d}"
-        prr.request_channel = "Desk"  # Desk, not portal — avoids workflow transition
-        prr.status = "Draft"
-        prr.flags.ignore_validate = True  # skip lifecycle auto-routing
-        prr.insert(ignore_permissions=True, ignore_mandatory=True)
-        stats["prrs"] += 1
-    print(f"  Created: {stats['prrs']}")
-
-    # ═══════════════════════════════════════════════════════
-    # STEP 3: Visitor Passes (50 — 10 per type)
+    # STEP 2: Visitor Passes (50 — 10 per type)
     # ═══════════════════════════════════════════════════════
     print("\n--- STEP 3: Visitor Passes ---")
     all_vps = []
@@ -377,7 +353,7 @@ def run():
     print("\n" + "=" * 70)
     print("FINAL DATABASE STATE")
     print("=" * 70)
-    for dt in ["Visitor Invitation", "Pre-Registration Request", "Visitor Pass",
+    for dt in ["Visitor Invitation", "Visitor Pass",
                "Security Log", "Hospitality Request", "Health Screening",
                "Contact Trace Record", "Compliance Check", "Visitor Event Log",
                "Emergency Event", "Evacuation Muster"]:

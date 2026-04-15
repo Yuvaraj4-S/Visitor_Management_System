@@ -35,13 +35,13 @@ def _get_data(target_date, service_filter):
 		"Hospitality Request",
 		filters={"status": ("!=", "Cancelled")},
 		fields=[
-			"name", "visitor_pass",
+			"name", "visitor_pass", "status",
 			"cab_required", "cab_type", "pickup_location", "pickup_datetime",
-			"drop_location", "drop_datetime", "driver_name", "cab_status",
-			"hotel_required", "hotel_name", "check_in", "booking_reference", "hotel_status",
-			"factory_tour_required", "tour_date", "tour_start_time", "tour_guide", "tour_status",
-			"buggy_required", "buggy_pickup_point", "buggy_datetime", "buggy_driver", "buggy_status",
-			"greeting_required", "greeting_type", "greeting_delivery_time", "greeting_assigned_to", "greeting_status",
+			"drop_location", "drop_datetime", "driver_name",
+			"hotel_required", "hotel_name", "check_in", "booking_reference",
+			"factory_tour_required", "tour_date", "tour_start_time", "tour_guide",
+			"buggy_required", "buggy_pickup_point", "buggy_datetime", "buggy_driver",
+			"greeting_required", "greeting_type", "greeting_delivery_time", "greeting_assigned_to",
 		],
 	)
 
@@ -56,7 +56,7 @@ def _get_data(target_date, service_filter):
 					"visitor_pass": r.visitor_pass, "hospitality_request": r.name,
 					"details": f"{r.pickup_location or '-'}",
 					"assignee": r.driver_name or "-",
-					"status": r.cab_status or "Pending",
+					"status": r.status or "Pending",
 				})
 			if r.drop_datetime and day_start <= str(r.drop_datetime) <= day_end:
 				data.append({
@@ -64,7 +64,7 @@ def _get_data(target_date, service_filter):
 					"visitor_pass": r.visitor_pass, "hospitality_request": r.name,
 					"details": f"{r.drop_location or '-'}",
 					"assignee": r.driver_name or "-",
-					"status": r.cab_status or "Pending",
+					"status": r.status or "Pending",
 				})
 		if (show_all or service_filter == "Hotel") and r.hotel_required and r.check_in and getdate(r.check_in) == target_date:
 			data.append({
@@ -72,7 +72,7 @@ def _get_data(target_date, service_filter):
 				"visitor_pass": r.visitor_pass, "hospitality_request": r.name,
 				"details": f"{r.hotel_name or '-'} | Ref: {r.booking_reference or '-'}",
 				"assignee": "Front Office",
-				"status": r.hotel_status or "Pending",
+				"status": r.status or "Pending",
 			})
 		if (show_all or service_filter == "Factory Tour") and r.factory_tour_required and r.tour_date and getdate(r.tour_date) == target_date:
 			data.append({
@@ -80,7 +80,7 @@ def _get_data(target_date, service_filter):
 				"visitor_pass": r.visitor_pass, "hospitality_request": r.name,
 				"details": "Plant tour",
 				"assignee": r.tour_guide or "-",
-				"status": r.tour_status or "Pending",
+				"status": r.status or "Pending",
 			})
 		if (show_all or service_filter == "Buggy") and r.buggy_required and r.buggy_datetime and day_start <= str(r.buggy_datetime) <= day_end:
 			data.append({
@@ -88,7 +88,7 @@ def _get_data(target_date, service_filter):
 				"visitor_pass": r.visitor_pass, "hospitality_request": r.name,
 				"details": f"{r.buggy_pickup_point or '-'}",
 				"assignee": r.buggy_driver or "-",
-				"status": r.buggy_status or "Pending",
+				"status": r.status or "Pending",
 			})
 		if (show_all or service_filter == "Greeting") and r.greeting_required and r.greeting_delivery_time and day_start <= str(r.greeting_delivery_time) <= day_end:
 			data.append({
@@ -96,7 +96,7 @@ def _get_data(target_date, service_filter):
 				"visitor_pass": r.visitor_pass, "hospitality_request": r.name,
 				"details": r.greeting_type or "-",
 				"assignee": r.greeting_assigned_to or "-",
-				"status": r.greeting_status or "Planned",
+				"status": r.status or "Pending",
 			})
 
 	data.sort(key=lambda x: x["time"])

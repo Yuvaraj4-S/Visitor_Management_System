@@ -17,7 +17,6 @@
   "request_channel",
   "risk_level",
   "approval_sla_minutes",
-  "pre_registration_request",
   "visitor_invitation",
   "section_break_identity_details",
   "visitor_full_name",
@@ -132,11 +131,6 @@
   "greeting_required",
   "arrangements_col_break",
   "hospitality_overall_status",
-  "cab_status_display",
-  "hotel_status_display",
-  "tour_status_display",
-  "buggy_status_display",
-  "greeting_status_display",
   "items_tab",
   "section_break_items_summary",
   "items_carried",
@@ -215,13 +209,6 @@
    "fieldname": "approval_sla_minutes",
    "fieldtype": "Int",
    "label": "Approval SLA (Minutes)"
-  },
-  {
-   "fieldname": "pre_registration_request",
-   "fieldtype": "Link",
-   "label": "Pre-Registration Request",
-   "options": "Pre-Registration Request",
-   "read_only": 1
   },
   {
    "fieldname": "visitor_invitation",
@@ -958,41 +945,6 @@
    "fieldtype": "Select",
    "label": "Hospitality Overall Status",
    "options": "Not Required\nPending\nIn Progress\nCompleted\nCancelled",
-   "read_only": 1
-  },
-  {
-   "depends_on": "eval:doc.cab_required",
-   "fieldname": "cab_status_display",
-   "fieldtype": "Data",
-   "label": "Cab Status",
-   "read_only": 1
-  },
-  {
-   "depends_on": "eval:doc.hotel_required",
-   "fieldname": "hotel_status_display",
-   "fieldtype": "Data",
-   "label": "Hotel Status",
-   "read_only": 1
-  },
-  {
-   "depends_on": "eval:doc.factory_tour_required",
-   "fieldname": "tour_status_display",
-   "fieldtype": "Data",
-   "label": "Factory Tour Status",
-   "read_only": 1
-  },
-  {
-   "depends_on": "eval:doc.buggy_required",
-   "fieldname": "buggy_status_display",
-   "fieldtype": "Data",
-   "label": "Buggy Status",
-   "read_only": 1
-  },
-  {
-   "depends_on": "eval:doc.greeting_required",
-   "fieldname": "greeting_status_display",
-   "fieldtype": "Data",
-   "label": "Greeting Status",
    "read_only": 1
   },
   {

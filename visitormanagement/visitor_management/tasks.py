@@ -46,13 +46,13 @@ def _fetch_today_rows(today):
 			["greeting_delivery_time", "between", [f"{today} 00:00:00", f"{today} 23:59:59"]],
 		],
 		fields=[
-			"name", "visitor_pass",
+			"name", "visitor_pass", "status",
 			"cab_required", "cab_type", "pickup_location", "pickup_datetime",
-			"drop_location", "drop_datetime", "driver_name", "cab_status",
-			"hotel_required", "hotel_name", "check_in", "booking_reference", "hotel_status",
-			"factory_tour_required", "tour_date", "tour_start_time", "tour_guide", "tour_status",
-			"buggy_required", "buggy_pickup_point", "buggy_datetime", "buggy_driver", "buggy_status",
-			"greeting_required", "greeting_type", "greeting_delivery_time", "greeting_assigned_to", "greeting_status",
+			"drop_location", "drop_datetime", "driver_name",
+			"hotel_required", "hotel_name", "check_in", "booking_reference",
+			"factory_tour_required", "tour_date", "tour_start_time", "tour_guide",
+			"buggy_required", "buggy_pickup_point", "buggy_datetime", "buggy_driver",
+			"greeting_required", "greeting_type", "greeting_delivery_time", "greeting_assigned_to",
 		],
 	)
 
@@ -89,25 +89,25 @@ def _build_html(today, rows):
 			f"{r.pickup_datetime or r.drop_datetime} — {r.cab_type} — "
 			f"{r.pickup_location or r.drop_location or '-'} "
 			f"(Driver: {r.driver_name or 'Not assigned'}) "
-			f"[{r.cab_status or 'Pending'}] — {r.visitor_pass}"
+			f"[{r.status or 'Pending'}] — {r.visitor_pass}"
 		)),
 		section("🏨 Hotel Check-ins", hotels, lambda r: (
 			f"{r.hotel_name or '-'} — Ref: {r.booking_reference or '-'} "
-			f"[{r.hotel_status or 'Pending'}] — {r.visitor_pass}"
+			f"[{r.status or 'Pending'}] — {r.visitor_pass}"
 		)),
 		section("🏭 Factory Tours", tours, lambda r: (
 			f"{r.tour_start_time or '-'} — Guide: {r.tour_guide or 'Not assigned'} "
-			f"[{r.tour_status or 'Pending'}] — {r.visitor_pass}"
+			f"[{r.status or 'Pending'}] — {r.visitor_pass}"
 		)),
 		section("🛺 Buggy Requests", buggies, lambda r: (
 			f"{r.buggy_datetime} — {r.buggy_pickup_point or '-'} — "
 			f"Driver: {r.buggy_driver or 'Not assigned'} "
-			f"[{r.buggy_status or 'Pending'}] — {r.visitor_pass}"
+			f"[{r.status or 'Pending'}] — {r.visitor_pass}"
 		)),
 		section("🎁 Greetings", greetings, lambda r: (
 			f"{r.greeting_delivery_time} — {r.greeting_type or '-'} — "
 			f"Assigned: {r.greeting_assigned_to or 'Not assigned'} "
-			f"[{r.greeting_status or 'Planned'}] — {r.visitor_pass}"
+			f"[{r.status or 'Pending'}] — {r.visitor_pass}"
 		)),
 	]
 	return "<div style='font-family:Arial,sans-serif;font-size:13px;color:#1f2933'>" + "".join(parts) + "</div>"

@@ -160,8 +160,6 @@ class HospitalityRequest(Document):
 	def _validate_tour_safety(self):
 		if not self.factory_tour_required:
 			return
-		if self.tour_status == "Scheduled" and not self.safety_briefing_done:
-			frappe.throw("Safety briefing must be completed before scheduling a factory tour")
 		if self.tour_start_time and self.tour_end_time:
 			if self.tour_end_time <= self.tour_start_time:
 				frappe.throw("Tour end time must be after start time")
@@ -176,7 +174,7 @@ class HospitalityRequest(Document):
 				"buggy_required": 1,
 				"buggy_number": self.buggy_number,
 				"buggy_datetime": self.buggy_datetime,
-				"buggy_status": ("not in", ("Cancelled", "Completed")),
+				"status": ("not in", ("Cancelled", "Completed")),
 			},
 		)
 		if conflict:

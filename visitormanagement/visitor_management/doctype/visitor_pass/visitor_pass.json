@@ -73,9 +73,6 @@
   "supplier_link",
   "supplier_visit_mode",
   "meeting_subject",
-  "purchase_order",
-  "delivery_note",
-  "goods_description",
   "column_break_supplier",
   "nda_required",
   "documents_shared",
@@ -562,38 +559,17 @@
    "options": "Supplier"
   },
   {
-   "default": "Delivery",
    "depends_on": "eval:doc.visitor_type == 'Supplier'",
    "fieldname": "supplier_visit_mode",
    "fieldtype": "Select",
    "label": "Supplier Visit Mode",
-   "options": "Delivery\nMeeting\nAudit\nService"
+   "options": "\nMeeting\nAudit\nService"
   },
   {
    "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode != 'Delivery'",
    "fieldname": "meeting_subject",
    "fieldtype": "Data",
    "label": "Meeting Subject"
-  },
-  {
-   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode == 'Delivery'",
-   "fieldname": "purchase_order",
-   "fieldtype": "Link",
-   "label": "Purchase Order",
-   "options": "Purchase Order"
-  },
-  {
-   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode == 'Delivery'",
-   "fieldname": "delivery_note",
-   "fieldtype": "Link",
-   "label": "Delivery Note",
-   "options": "Delivery Note"
-  },
-  {
-   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode == 'Delivery'",
-   "fieldname": "goods_description",
-   "fieldtype": "Small Text",
-   "label": "Goods Description"
   },
   {
    "depends_on": "eval:doc.visitor_type == 'Supplier'",
@@ -937,10 +913,10 @@
    "read_only": 1
   },
   {
+   "collapsible": 1,
    "fieldname": "arrangements_section",
    "fieldtype": "Section Break",
-   "label": "Additional Arrangements",
-   "collapsible": 1
+   "label": "Additional Arrangements"
   },
   {
    "default": "0",
@@ -1060,7 +1036,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-13 10:19:35.538461",
+ "modified": "2026-04-15 11:35:42.440403",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Pass",

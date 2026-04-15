@@ -2,12 +2,12 @@
     "attach_files": "",
     "attach_print": 0,
     "channel": "Email",
-    "condition": "doc.status and doc.status.startswith('Pending')",
+    "condition": "(doc.workflow_state and doc.workflow_state.startswith('Pending')) or (doc.status and doc.status.startswith('Pending'))",
     "creation": "2026-04-13 12:00:00.000000",
     "days_in_advance": 0,
     "docstatus": 0,
     "doctype": "Notification",
-    "document_type": "Pre-Registration Request",
+    "document_type": "Visitor Pass",
     "enabled": 1,
     "event": "Value Change",
     "idx": 0,
@@ -22,27 +22,27 @@
     "recipients": [
         {
             "receiver_by_role": "System Manager",
-            "condition": "doc.status == 'Pending System Manager'"
+            "condition": "(doc.workflow_state or doc.status) == 'Pending System Manager'"
         },
         {
             "receiver_by_role": "HR Manager",
-            "condition": "doc.status == 'Pending HR Manager'"
+            "condition": "(doc.workflow_state or doc.status) == 'Pending HR Manager'"
         },
         {
             "receiver_by_role": "Sales Manager",
-            "condition": "doc.status == 'Pending Sales Manager'"
+            "condition": "(doc.workflow_state or doc.status) == 'Pending Sales Manager'"
         },
         {
             "receiver_by_role": "HOD",
-            "condition": "doc.status == 'Pending HOD'"
+            "condition": "(doc.workflow_state or doc.status) == 'Pending HOD'"
         },
         {
             "receiver_by_role": "CEO",
-            "condition": "doc.status == 'Pending CEO'"
+            "condition": "(doc.workflow_state or doc.status) == 'Pending CEO'"
         }
     ],
     "send_system_notification": 1,
     "send_to_all_assignees": 0,
     "subject": "Approval Required: {{ doc.visitor_name }} ({{ doc.visitor_type }}) — {{ doc.visit_date }}",
-    "value_changed": "status"
+    "value_changed": "workflow_state"
 }

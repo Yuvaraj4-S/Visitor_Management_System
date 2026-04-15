@@ -18,6 +18,13 @@ const TYPE_SECTION_LABELS = {
 	Candidate: "Candidate Details",
 	VIP: "VIP Details",
 };
+const PENDING_APPROVAL_BY_TYPE = {
+	Contractor: "Pending System Manager",
+	Supplier: "Pending System Manager",
+	Customer: "Pending Sales Manager",
+	Candidate: "Pending HR Manager",
+	VIP: "Pending HOD",
+};
 
 let invitationContextState = {
 	loaded: false,
@@ -91,22 +98,6 @@ function getVisitorItemRowTemplate(item = {}) {
 					<label class="control-label">${__("Quantity")}</label>
 					<input type="number" min="1" step="0.01" class="form-control vm-item-quantity" value="${escapeHtml(item.quantity || 1)}">
 				</div>
-				<div>
-					<label class="control-label">${__("Item Category")}</label>
-					<input type="text" class="form-control vm-item-category" value="${escapeHtml(item.item_category || "")}">
-				</div>
-				<div>
-					<label class="control-label">${__("Serial Number")}</label>
-					<input type="text" class="form-control vm-item-serial-number" value="${escapeHtml(item.serial_number || "")}">
-				</div>
-				<div>
-					<label class="control-label">${__("Unit Of Measure")}</label>
-					<input type="text" class="form-control vm-item-uom" value="${escapeHtml(item.unit_of_measure || "")}">
-				</div>
-				<div>
-					<label class="control-label">${__("Estimated Value")}</label>
-					<input type="number" min="0" step="0.01" class="form-control vm-item-estimated-value" value="${escapeHtml(item.estimated_value || "")}">
-				</div>
 			</div>
 			<div class="mt-3">
 				<label class="control-label">${__("Description")}</label>
@@ -173,10 +164,6 @@ function collectVisitorItems() {
 			return {
 				item_name: itemName,
 				quantity: $row.find(".vm-item-quantity").val() || 1,
-				item_category: ($row.find(".vm-item-category").val() || "").trim(),
-				serial_number: ($row.find(".vm-item-serial-number").val() || "").trim(),
-				unit_of_measure: ($row.find(".vm-item-uom").val() || "").trim(),
-				estimated_value: $row.find(".vm-item-estimated-value").val() || null,
 				description: ($row.find(".vm-item-description").val() || "").trim(),
 			};
 		})
@@ -187,6 +174,25 @@ function collectVisitorItems() {
 function getFieldValue(fieldname) {
 	if (!frappe.web_form) {
 		return null;
+	}
+
+	if (LOCKED_FIELDS.includes(fieldname)) {
+		const lockedDocValue = frappe.web_form.doc?.[fieldname];
+		if (lockedDocValue !== undefined && lockedDocValue !== null && lockedDocValue !== "") {
+			return lockedDocValue;
+		}
+
+		const lockedInvitationValue = invitationContextState.values?.[fieldname];
+		if (
+			lockedInvitationValue !== undefined &&
+			lockedInvitationValue !== null &&
+			lockedInvitationValue !== ""
+		) {
+			return lockedInvitationValue;
+		}
+
+		const lockedBootValue = window.vmInvitationValues?.[fieldname];
+		return lockedBootValue !== undefined ? lockedBootValue : null;
 	}
 
 	const fieldValue = frappe.web_form.fields_dict?.[fieldname]
@@ -210,14 +216,40 @@ function getFieldValue(fieldname) {
 	return bootValue !== undefined ? bootValue : null;
 }
 
+function setFieldInputDirectly(field, value) {
+	field.value = value;
+	if (field.$input) {
+		field.$input.val(value == null ? "" : value);
+	} else if (field.input) {
+		$(field.input).val(value == null ? "" : value);
+	}
+	field.set_disp_area?.(value);
+}
+
 async function setFieldValue(fieldname, value) {
-	if (!frappe.web_form?.fields_dict?.[fieldname]) {
+	const field = frappe.web_form?.fields_dict?.[fieldname];
+	if (!field) {
 		return;
 	}
 
-	await frappe.web_form.set_value(fieldname, value);
+	if (LOCKED_FIELDS.includes(fieldname)) {
+		setFieldInputDirectly(field, value);
+		frappe.web_form.doc[fieldname] = value;
+		field.refresh?.();
+		return;
+	}
+
+	try {
+		await frappe.web_form.set_value(fieldname, value);
+	} catch (error) {
+		// Some web form controls, especially autocomplete/link-like fields,
+		// can throw during early boot if suggestion lists are not ready yet.
+		console.warn(`Falling back to direct assignment for ${fieldname}`, error);
+		setFieldInputDirectly(field, value);
+	}
+
 	frappe.web_form.doc[fieldname] = value;
-	frappe.web_form.fields_dict[fieldname].refresh?.();
+	field.refresh?.();
 }
 
 async function syncHospitalityFieldsFromMealToggle() {
@@ -320,6 +352,14 @@ function getInvitationToken() {
 	return new URLSearchParams(window.location.search).get("token");
 }
 
+function getPortalSubmissionState(visitorType, submissionAction = "submit") {
+	if (submissionAction === "save") {
+		return "Draft";
+	}
+
+	return PENDING_APPROVAL_BY_TYPE[visitorType] || "Pending System Manager";
+}
+
 function getBootInvitationContext() {
 	if (window.vmInvitationValues === undefined) {
 		return null;
@@ -419,13 +459,12 @@ function renderLockedFieldValues(values = {}) {
 
 async function applyInvitationValues(values) {
 	for (const [fieldname, value] of Object.entries(values || {})) {
-		if (!frappe.web_form.fields_dict[fieldname]) {
+		const field = frappe.web_form.fields_dict[fieldname];
+		if (!field) {
 			continue;
 		}
 
-		await frappe.web_form.set_value(fieldname, value);
-		frappe.web_form.doc[fieldname] = value;
-		frappe.web_form.fields_dict[fieldname].refresh();
+		await setFieldValue(fieldname, value);
 		if (LOCKED_FIELDS.includes(fieldname)) {
 			syncVisibleLockedField(fieldname, value);
 		}
@@ -462,6 +501,62 @@ function ensureInvitationBinding() {
 	return true;
 }
 
+function getInvitationBackedValue(fieldname) {
+	return (
+		invitationContextState.values?.[fieldname] ??
+		window.vmInvitationValues?.[fieldname]
+	);
+}
+
+function isMissingRequiredValue(value, field) {
+	if (value === null || value === undefined) {
+		return true;
+	}
+
+	if (field?.df?.fieldtype === "Text Editor") {
+		return !String(value).replace(/<[^>]*>/g, "").trim();
+	}
+
+	if (typeof value === "string") {
+		return !value.trim();
+	}
+
+	return false;
+}
+
+function validateRequiredFieldsForSave(docValues) {
+	const missingLabels = [];
+
+	Object.values(frappe.web_form.fields_dict || {}).forEach((field) => {
+		if (!field?.df?.reqd) {
+			return;
+		}
+
+		const fieldname = field.df.fieldname;
+		const value = docValues[fieldname];
+		if (!isMissingRequiredValue(value, field)) {
+			return;
+		}
+
+		missingLabels.push(__(field.df.label));
+	});
+
+	if (!missingLabels.length) {
+		return true;
+	}
+
+	frappe.msgprint({
+		title: __("Missing Values Required"),
+		message:
+			__("Following fields have missing values:") +
+			"<br><br><ul><li>" +
+			missingLabels.join("<li>") +
+			"</ul>",
+		indicator: "orange",
+	});
+	return false;
+}
+
 function lockInvitationFields() {
 	LOCKED_FIELDS.forEach((fieldname) => {
 		const field = frappe.web_form.fields_dict[fieldname];
@@ -469,6 +564,11 @@ function lockInvitationFields() {
 			return;
 		}
 
+		// Locked invitation fields are source-of-truth values from the host.
+		// Skip client-side option/link validation that may run before controls finish booting.
+		field.df.ignore_validation = 1;
+		field.df.ignore_link_validation = 1;
+		frappe.web_form.set_df_property(fieldname, "reqd", 0);
 		frappe.web_form.set_df_property(fieldname, "read_only", 1);
 		const $input = frappe.web_form.get_input(fieldname);
 		$input.prop("readonly", true).prop("disabled", true);
@@ -593,27 +693,34 @@ function setupInvitationHooks() {
 			return false;
 		}
 
-		const docValues = this.get_values(false, true);
+		const docValues = this.get_values(true, true) || {};
 		if (window.saving) {
 			return false;
 		}
-		if (!docValues) {
-			frappe.msgprint(
-				__("Please fill all required fields before submitting."),
-				__("Missing Information")
-			);
+
+		LOCKED_FIELDS.forEach((fieldname) => {
+			const invitationValue = getInvitationBackedValue(fieldname);
+			if (invitationValue !== undefined && invitationValue !== null && invitationValue !== "") {
+				docValues[fieldname] = invitationValue;
+			}
+		});
+
+		if (!validateRequiredFieldsForSave(docValues)) {
 			return false;
 		}
 
 		Object.assign(this.doc, docValues);
+
 		this.doc.visitor_items = collectVisitorItems();
 		this.doc.doctype = this.doc_type;
 		this.doc.web_form_name = this.name;
 		this.doc.invitation_token = getInvitationToken();
 		this.doc.entry_type = "New";
 		this.doc.request_channel = "Portal";
-		this.doc.status = "Draft";
 		this.doc.submission_action = "submit";
+		const targetState = getPortalSubmissionState(this.doc.visitor_type, this.doc.submission_action);
+		this.doc.status = targetState;
+		this.doc.workflow_state = targetState;
 		this.doc.visitor_invitation =
 			this.doc.visitor_invitation ||
 			invitationContextState.invitation ||

@@ -9,6 +9,14 @@ from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_inv
 	get_valid_invitation_by_token,
 )
 
+PENDING_APPROVAL_BY_TYPE = {
+	"Contractor": "Pending System Manager",
+	"Supplier": "Pending System Manager",
+	"Candidate": "Pending HR Manager",
+	"Customer": "Pending Sales Manager",
+	"VIP": "Pending HOD",
+}
+
 
 def _extract_file_payload(payload, fallback_filename=None):
 	if not payload:
@@ -151,14 +159,29 @@ def _normalize_time(value):
 	return value
 
 
+def _get_portal_submission_state(visitor_type, submission_action):
+	if submission_action == "save":
+		return "Draft"
+
+	return PENDING_APPROVAL_BY_TYPE.get(visitor_type, "Pending System Manager")
+
+
 def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_photo_url, invitation=None):
 	visitor_type = invitation.visitor_type if invitation else data.get("visitor_type")
+	submission_action = (data.get("submission_action") or "submit").strip().lower()
+	target_state = _get_portal_submission_state(visitor_type, submission_action)
 
 	return {
 		"entry_type": "New",
-		"visitor_full_name": data.get("visitor_full_name") or data.get("visitor_name"),
+		"visitor_full_name": (
+			data.get("visitor_full_name")
+			or data.get("visitor_name")
+			or (invitation.get("visitor_full_name") if invitation else None)
+		),
 		"mobile_number": _normalize_mobile_number(
-			data.get("mobile_number"), data.get("mobile_country_code")
+			data.get("mobile_number")
+			or (invitation.get("visitor_mobile") if invitation else None),
+			data.get("mobile_country_code"),
 		),
 		"email_id": invitation.visitor_email if invitation else data.get("email_id"),
 		"company__organisation": data.get("company__organisation"),
@@ -207,7 +230,8 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"id_proof_number": data.get("id_proof_number"),
 		"id_proof_scan": id_proof_url,
 		"visitor_photo": visitor_photo_url,
-		"status": "Draft",
+		"status": target_state,
+		"workflow_state": target_state,
 		"request_channel": "Portal",
 		"visitor_invitation": invitation.name if invitation else None,
 	}
@@ -308,11 +332,22 @@ def submit_pre_registration(payload=None):
 	for item in visitor_items:
 		visitor_pass.append("visitor_items", item)
 
+	target_state = _get_portal_submission_state(visitor_pass.visitor_type, submission_action)
+
 	if visitor_pass.is_new():
 		visitor_pass.insert(ignore_permissions=True, ignore_mandatory=not require_full_submission)
 	else:
 		visitor_pass.flags.ignore_mandatory = not require_full_submission
 		visitor_pass.save(ignore_permissions=True)
+
+	if visitor_pass.status != target_state or visitor_pass.workflow_state != target_state:
+		visitor_pass.db_set(
+			{
+				"status": target_state,
+				"workflow_state": target_state,
+			},
+			update_modified=False,
+		)
 
 	if invitation:
 		invitation_updates = {

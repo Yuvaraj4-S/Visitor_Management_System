@@ -545,18 +545,9 @@ function set_visitor_pass_headline(frm) {
 }
 
 function add_action_buttons(frm) {
-	if (frm.is_new()) return;
-
-	if (frm.doc.hospitality_request) {
-		frm.add_custom_button(
-			__("Open Hospitality"),
-			() => frappe.set_route("Form", "Hospitality Request", frm.doc.hospitality_request),
-			__("Actions")
-		);
-	}
-
-	// Intentionally hidden on saved Draft forms.
-	// Web Submissions is exposed in List view near "Add Visitor Pass".
+	// "Actions" group removed — "Open Hospitality" is already available
+	// under the "Hospitality" group (see add_hospitality_buttons).
+	return;
 }
 
 function setup_supplier_pass_query(frm) {

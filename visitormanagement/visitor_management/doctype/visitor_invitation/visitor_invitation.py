@@ -90,6 +90,8 @@ def get_web_form_context(token):
 		"visitor_invitation": invitation.name,
 		"visitor_type": invitation.visitor_type,
 		"email_id": invitation.visitor_email,
+		"mobile_number": invitation.get("visitor_mobile") or "",
+		"visitor_full_name": invitation.get("visitor_full_name") or "",
 		"visit_date": str(invitation.visit_date) if invitation.visit_date else "",
 		"expected_checkin": _format_time_for_web_form(invitation.expected_checkin),
 		"expected_checkout": _format_time_for_web_form(invitation.expected_checkout),

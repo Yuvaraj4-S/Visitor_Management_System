@@ -167,6 +167,10 @@ class VisitorPass(Document):
         """Enforce max visit duration from VMS Settings."""
         if not (self.expected_checkin and self.expected_checkout):
             return
+
+        if self._is_host_approved_invitation_schedule():
+            return
+
         settings = frappe.get_cached_doc("VMS Settings")
         max_hours = cint(getattr(settings, "max_visit_duration_hrs", 0))
         if not max_hours:
@@ -181,6 +185,19 @@ class VisitorPass(Document):
                   "Adjust the expected check-in/out times.").format(duration_hours, max_hours),
                 title=_("Visit Too Long"),
             )
+
+    def _is_host_approved_invitation_schedule(self):
+        """Allow invitation-backed passes to retain the host-approved visit window."""
+        if not self.visitor_invitation or not frappe.db.exists("Visitor Invitation", self.visitor_invitation):
+            return False
+
+        invitation = frappe.get_cached_doc("Visitor Invitation", self.visitor_invitation)
+        return (
+            str(self.visit_date or "") == str(invitation.visit_date or "")
+            and str(self.expected_checkin or "") == str(invitation.expected_checkin or "")
+            and str(self.expected_checkout or "") == str(invitation.expected_checkout or "")
+            and (self.person_to_visit or "") == (invitation.host_employee or "")
+        )
 
     def _align_workflow_lane_with_visitor_type(self):
         if not self.visitor_type or not self.workflow_state:

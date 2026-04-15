@@ -43,7 +43,7 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {"Job Applicant": "public/js/job_applicant.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -156,7 +156,11 @@ has_permission = {
 doc_events = {
 	"Pre-Registration Request": {
 		"validate": "visitormanagement.visitor_management.doctype.pre_registration_request.pre_registration_request.sync_invitation_context",
-	}
+	},
+	"Job Applicant": {
+		"after_insert": "visitormanagement.visitor_management.candidate_flow.maybe_create_invitation",
+		"on_update": "visitormanagement.visitor_management.candidate_flow.maybe_create_invitation",
+	},
 }
 
 # Scheduled Tasks
@@ -279,7 +283,24 @@ fixtures = [
         ]
     },
     "Workflow State",
-    "Workflow Action"
+    "Workflow Action",
+    {
+        "doctype": "Custom Field",
+        "filters": [
+            ["name", "in", [
+                "Job Applicant-vms_section_break",
+                "Job Applicant-interview_mode",
+                "Job Applicant-interview_host",
+                "Job Applicant-vms_column_break",
+                "Job Applicant-interview_visit_date",
+                "Job Applicant-interview_checkin_time",
+                "Job Applicant-interview_checkout_time",
+                "Visitor Invitation-reference_job_applicant",
+                "Visitor Invitation-visitor_mobile",
+                "Visitor Invitation-visitor_full_name",
+            ]]
+        ]
+    }
 ]
 
 after_migrate = [

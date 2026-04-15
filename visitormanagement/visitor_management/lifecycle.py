@@ -64,12 +64,8 @@ def normalize_visitor_pass(doc):
 	if not doc.request_channel:
 		doc.request_channel = "Desk"
 
-	parts = [
-		doc.visitor_full_name or "Unnamed",
-		f"({doc.visitor_type})" if doc.visitor_type else None,
-		doc.mobile_number,
-	]
-	doc.visitor_summary = " • ".join([p for p in parts if p])
+	# Line 1 (title in Link dropdown) — just the visitor name.
+	doc.visitor_summary = doc.visitor_full_name or "Unnamed"
 
 	expected_risk_level = infer_risk_level(doc)
 	if (

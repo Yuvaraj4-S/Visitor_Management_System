@@ -10,10 +10,19 @@
    "card": "Checked-In Visitors"
   },
   {
-   "card": "Security Alerts"
+   "card": "Today's Visitors"
   },
   {
-   "card": "Today's Visitors"
+   "card": "Tomorrow's Arrivals"
+  },
+  {
+   "card": "High-Risk Visitors Today"
+  },
+  {
+   "card": "Blacklist Alerts Today"
+  },
+  {
+   "card": "Security Alerts"
   },
   {
    "card": "No-Show Passes"
@@ -22,10 +31,25 @@
    "card": "Compliance Misses"
   },
   {
+   "card": "Avg Compliance Score"
+  },
+  {
+   "card": "Passes Missing Photo"
+  },
+  {
    "card": "Health Screening Exceptions"
   },
   {
    "card": "Active Emergency Events"
+  },
+  {
+   "card": "Missing in Muster"
+  },
+  {
+   "card": "Pending Invitations"
+  },
+  {
+   "card": "Today's Conference Bookings"
   }
  ],
  "charts": [
@@ -42,12 +66,32 @@
    "width": "Half"
   },
   {
+   "chart": "Pending Approvals by Type",
+   "width": "Half"
+  },
+  {
+   "chart": "Pending Approvals by Department",
+   "width": "Half"
+  },
+  {
    "chart": "Compliance Status Breakdown",
+   "width": "Half"
+  },
+  {
+   "chart": "Compliance Score Trend",
    "width": "Half"
   },
   {
    "chart": "Health Screening Status Breakdown",
    "width": "Half"
+  },
+  {
+   "chart": "Muster Status Breakdown",
+   "width": "Half"
+  },
+  {
+   "chart": "Invitation Funnel",
+   "width": "Full"
   }
  ],
  "creation": "2026-04-04 12:00:00.000000",

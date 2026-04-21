@@ -219,6 +219,7 @@ class VisitorPass(Document):
     # BEFORE SAVE
     # ─────────────────────────────────────────────────────────
     def before_save(self):
+        self._sync_items_carried()
         # Auto-fetch host department from Employee record
         if self.person_to_visit and not self.host_department:
             self.host_department = frappe.db.get_value(
@@ -249,6 +250,41 @@ class VisitorPass(Document):
                 self.item_verification_status = "All Verified"
                 self.all_items_verified = 1
 
+    def _sync_items_carried(self):
+        """Bidirectional sync between `items_carried` (Small Text on the desk form)
+        and the hidden `visitor_items` child table.
+
+        Rule:
+          - items_carried is the source of truth for the desk-form user.
+          - visitor_items keeps a single mirror row so gate verification
+            (Security Log → Security Item Verify) continues to work.
+        """
+        text = (self.items_carried or "").strip()
+        current_first = self.visitor_items[0] if self.visitor_items else None
+        current_first_name = (current_first.item_name or "").strip() if current_first else ""
+
+        if text:
+            # If nothing would change, skip.
+            if current_first_name == text and len(self.visitor_items) == 1:
+                return
+            # Rebuild visitor_items with a single row mirroring items_carried,
+            # preserving verification state from the existing row if any.
+            preserved_verified = current_first.verified_by_security if current_first else 0
+            preserved_remarks = current_first.verification_remarks if current_first else None
+            self.set("visitor_items", [])
+            row = self.append("visitor_items", {
+                "item_name": text,
+                "quantity": 1,
+            })
+            if preserved_verified:
+                row.verified_by_security = 1
+            if preserved_remarks:
+                row.verification_remarks = preserved_remarks
+        elif current_first and current_first.item_name:
+            # items_carried empty but a row exists (e.g. from pre-reg that wrote
+            # visitor_items directly). Read-back into items_carried.
+            self.items_carried = current_first.item_name
+
     def on_update(self):
         if self.docstatus == 0 and self.status == "Draft":
             return
@@ -268,6 +304,14 @@ class VisitorPass(Document):
             frappe.throw(
                 _("ID Proof Scan is required before submitting the pass."),
                 title=_("Missing ID Proof Scan"),
+            )
+
+        # 0️⃣.5 OPTIONAL ITEM DECLARATION (enforced via VMS Settings)
+        settings = frappe.get_cached_doc("VMS Settings")
+        if settings.get("require_item_declaration") and not self.visitor_items:
+            frappe.throw(
+                _("Item declaration is required — add at least one item row before submitting."),
+                title=_("Items Not Declared"),
             )
 
         # 1️⃣ BLACKLIST CHECK

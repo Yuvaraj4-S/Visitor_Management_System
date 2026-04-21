@@ -665,7 +665,24 @@ function apply_security_log_ui(frm) {
 
 	render_identity_comparison(frm);
 	set_security_log_intro(frm, is_check_in, is_check_out);
-	set_security_log_headline(frm);
+	if (frm.dashboard) frm.dashboard.clear_headline();
+	apply_badge_visibility_sl(frm);
+}
+
+// Hide badge_number field on Security Log when VMS Settings → enable_badge is off.
+function apply_badge_visibility_sl(frm) {
+	const setHidden = (hide) => {
+		frm.set_df_property("badge_number", "hidden", hide ? 1 : 0);
+		frm.toggle_display("badge_number", !hide);
+		frm.refresh_field("badge_number");
+	};
+	setHidden(true);
+	frappe.db.get_value("VMS Settings", "VMS Settings", "enable_badge")
+		.then((r) => {
+			// Single-doctype fields come back as strings — coerce via cint.
+			const enabled = !!cint(((r && r.message) || {}).enable_badge);
+			setHidden(!enabled);
+		});
 }
 
 function render_identity_comparison(frm) {
@@ -779,21 +796,6 @@ function set_security_log_intro(frm, is_check_in, is_check_out) {
 	);
 }
 
-function set_security_log_headline(frm) {
-	if (!frm.dashboard) return;
-
-	const headline = frm.doc.visitor_name
-		? __("{0} | {1}{2}", [
-			frm.doc.event_type || __("Gate Event"),
-			frm.doc.visitor_name,
-			frm.__visitor_type === "VIP" ? " | VIP Priority" : "",
-		])
-		: frm.doc.event_type || __("Gate Event");
-
-	frm.dashboard.clear_headline();
-	frm.dashboard.set_headline(headline, get_security_event_color(frm.doc.event_type));
-}
-
 function get_security_event_color(event_type) {
 	if (event_type === "Check-In") return "green";
 	if (event_type === "Check-Out") return "orange";
@@ -868,7 +870,11 @@ function render_vip_queue_preview(dialog, vip_queue) {
 				<div><strong>${__("MD/CEO Notified")}:</strong> ${selected.mdceo_notified ? __("Yes") : __("No")}</div>
 				<div><strong>${__("Meal / People")}:</strong> ${selected.meal_type || "-"} / ${selected.number_of_people || "-"}</div>
 				<div><strong>${__("Welcome Gift")}:</strong> ${selected.welcome_gift || "-"}</div>
-				<div><strong>${__("Items Carried")}:</strong> ${selected.items_carried || __("No items declared")}</div>
+				<div><strong>${__("Declared Items")}:</strong> ${
+					(selected.visitor_items && selected.visitor_items.length)
+						? selected.visitor_items.map(i => `${frappe.utils.escape_html(i.item_name || "-")}${i.quantity ? ` \u00D7${i.quantity}` : ""}`).join(", ")
+						: __("No items declared")
+				}</div>
 				<div><strong>${__("Protocol Notes")}:</strong> ${selected.protocol_notes || "-"}</div>
 			</div>
 		</div>

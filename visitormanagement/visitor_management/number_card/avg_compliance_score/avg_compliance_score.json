@@ -1,0 +1,23 @@
+{
+ "aggregate_function_based_on": "score",
+ "creation": "2026-04-20 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "document_type": "Compliance Check",
+ "dynamic_filters_json": "[]",
+ "filters_json": "[[\"Compliance Check\",\"visit_date\",\"Timespan\",\"last month\",false]]",
+ "function": "Average",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Avg Compliance Score",
+ "modified": "2026-04-20 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Avg Compliance Score",
+ "owner": "Administrator",
+ "show_full_number": 0,
+ "show_percentage_stats": 1,
+ "stats_time_interval": "Daily",
+ "type": "Document Type"
+}

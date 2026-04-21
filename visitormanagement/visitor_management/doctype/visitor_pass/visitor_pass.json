@@ -88,26 +88,6 @@
   "last_vip_notification_stage",
   "last_workflow_notification_stage",
   "gate_badge_tab",
-  "section_break_gqft",
-  "badge_number",
-  "badge_colour",
-  "approval_date",
-  "approved_by",
-  "column_break_badge",
-  "qr_code_image",
-  "gate_verified_photo",
-  "gate_verified_on",
-  "gate_verified_by",
-  "items_verification_status",
-  "actual_checkin",
-  "actual_checkout",
-  "no_show",
-  "current_location",
-  "last_health_screening",
-  "health_screening_status",
-  "item_verification_status",
-  "items_verified",
-  "all_items_verified",
   "section_break_khxo",
   "meal_required",
   "meal_type",
@@ -131,10 +111,29 @@
   "greeting_required",
   "arrangements_col_break",
   "hospitality_overall_status",
+  "section_break_gqft",
+  "badge_number",
+  "badge_colour",
+  "approval_date",
+  "approved_by",
+  "column_break_badge",
+  "qr_code_image",
+  "gate_verified_photo",
+  "gate_verified_on",
+  "gate_verified_by",
+  "items_verification_status",
+  "actual_checkin",
+  "actual_checkout",
+  "no_show",
+  "current_location",
+  "last_health_screening",
+  "health_screening_status",
+  "item_verification_status",
+  "items_verified",
+  "all_items_verified",
   "items_tab",
-  "section_break_items_summary",
-  "items_carried",
   "section_break_gaxf",
+  "items_carried",
   "visitor_items",
   "amended_from"
  ],
@@ -179,6 +178,7 @@
   {
    "fieldname": "status",
    "fieldtype": "Select",
+   "hidden": 1,
    "in_list_view": 1,
    "label": "Status",
    "options": "Draft\nPending Approval\nApproved\nItems Verified\nChecked-In\nChecked-Out\nCancelled",
@@ -187,6 +187,7 @@
   {
    "fieldname": "workflow_state",
    "fieldtype": "Link",
+   "hidden": 1,
    "in_list_view": 1,
    "label": "Workflow State",
    "options": "Workflow State",
@@ -202,12 +203,14 @@
   {
    "fieldname": "risk_level",
    "fieldtype": "Select",
+   "hidden": 1,
    "label": "Risk Level",
    "options": "Low\nMedium\nHigh\nCritical"
   },
   {
    "fieldname": "approval_sla_minutes",
    "fieldtype": "Int",
+   "hidden": 1,
    "label": "Approval SLA (Minutes)"
   },
   {
@@ -553,7 +556,7 @@
    "options": "\nMeeting\nAudit\nService"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode != 'Delivery'",
+   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode == 'Meeting'",
    "fieldname": "meeting_subject",
    "fieldtype": "Data",
    "label": "Meeting Subject"
@@ -565,15 +568,15 @@
   },
   {
    "default": "0",
-   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode != 'Delivery'",
    "fieldname": "nda_required",
    "fieldtype": "Check",
+   "hidden": 1,
    "label": "NDA Required"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode != 'Delivery'",
    "fieldname": "documents_shared",
    "fieldtype": "Small Text",
+   "hidden": 1,
    "label": "Documents Shared"
   },
   {
@@ -660,12 +663,14 @@
   {
    "fieldname": "gate_badge_tab",
    "fieldtype": "Tab Break",
-   "label": "Approval & Gate"
+   "label": "Hospitality"
   },
   {
+   "collapsible": 1,
+   "collapsible_depends_on": "eval:doc.approval_date || doc.actual_checkin || doc.docstatus > 0",
    "fieldname": "section_break_gqft",
    "fieldtype": "Section Break",
-   "label": "Badge & Approval"
+   "label": "Approval & Gate Audit"
   },
   {
    "fieldname": "badge_number",
@@ -814,6 +819,7 @@
   },
   {
    "allow_on_submit": 1,
+   "depends_on": "eval:doc.meal_required",
    "fieldname": "meal_type",
    "fieldtype": "Select",
    "label": "Meal Type",
@@ -823,6 +829,7 @@
    "allow_on_submit": 1,
    "fieldname": "assigned_meal_slots",
    "fieldtype": "Small Text",
+   "hidden": 1,
    "label": "Assigned Meal Slots",
    "read_only": 1
   },
@@ -830,12 +837,14 @@
    "allow_on_submit": 1,
    "fieldname": "hospitality_type",
    "fieldtype": "Select",
+   "hidden": 1,
    "label": "Hospitality Type",
    "options": "Single Meal\nTwo Meals\nFull Day",
    "read_only": 1
   },
   {
    "allow_on_submit": 1,
+   "depends_on": "eval:doc.meal_required",
    "fieldname": "number_of_people",
    "fieldtype": "Int",
    "label": "Number of People"
@@ -852,6 +861,7 @@
    "default": "0",
    "fieldname": "refreshments_required",
    "fieldtype": "Check",
+   "hidden": 1,
    "label": "Refreshments Required"
   },
   {
@@ -869,12 +879,14 @@
    "allow_on_submit": 1,
    "fieldname": "service_time",
    "fieldtype": "Datetime",
+   "hidden": 1,
    "label": "Service Time"
   },
   {
    "allow_on_submit": 1,
    "fieldname": "food_dept_staff_assigned",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Food Dept Staff Assigned",
    "options": "Employee"
   },
@@ -882,6 +894,7 @@
    "allow_on_submit": 1,
    "fieldname": "food_status",
    "fieldtype": "Select",
+   "hidden": 1,
    "label": "Food Status",
    "options": "Pending\nOrdered\nServed\nCompleted\nCancelled"
   },
@@ -953,23 +966,20 @@
    "label": "Items"
   },
   {
-   "fieldname": "section_break_items_summary",
-   "fieldtype": "Section Break",
-   "label": "Items Summary"
-  },
-  {
-   "fieldname": "items_carried",
-   "fieldtype": "Small Text",
-   "label": "Items Carried"
-  },
-  {
    "fieldname": "section_break_gaxf",
    "fieldtype": "Section Break",
    "label": "Declared Items"
   },
   {
+   "description": "e.g. Dell laptop, USB drive, toolkit \u2014 list every item the visitor will be carrying.",
+   "fieldname": "items_carried",
+   "fieldtype": "Small Text",
+   "label": "Items"
+  },
+  {
    "fieldname": "visitor_items",
    "fieldtype": "Table",
+   "hidden": 1,
    "label": "Visitor Items",
    "options": "Visitor Item"
   },

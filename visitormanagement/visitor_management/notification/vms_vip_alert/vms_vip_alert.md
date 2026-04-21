@@ -13,5 +13,5 @@ Current Stage: {{ doc.workflow_state or doc.status }}
 - Interpreter: {{ 'Required' if doc.interpreter_required else 'Not Required' }}{% if doc.interpreter_required and doc.interpreter_language %} ({{ doc.interpreter_language }}){% endif %}
 - Welcome Gift: {{ doc.welcome_gift or 'N/A' }}
 - Meal / Number of People: {{ doc.meal_type or 'N/A' }} / {{ doc.number_of_people or 'N/A' }}
-- Items Carried: {{ doc.items_carried or 'No items declared' }}
 - Protocol Notes: {{ doc.protocol_notes or 'N/A' }}
+- Declared Items: {% if doc.visitor_items %}{% for item in doc.visitor_items %}{{ item.item_name }} ×{{ item.quantity|int }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}No items declared{% endif %}

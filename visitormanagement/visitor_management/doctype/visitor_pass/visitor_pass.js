@@ -193,7 +193,43 @@ frappe.ui.form.on("Visitor Pass", {
 function apply_visitor_pass_ui(frm) {
 	apply_visitor_pass_field_rules(frm);
 	set_visitor_pass_intro(frm);
-	set_visitor_pass_headline(frm);
+	if (frm.dashboard) frm.dashboard.clear_headline();
+	apply_badge_visibility(frm);
+}
+
+// Hide badge_number / badge_colour when VMS Settings → enable_badge is off.
+// Also respects badge_required_for (per-visitor-type opt-in list).
+// Uses set_df_property("hidden", 1) + refresh_field — the most reliable
+// force-hide in Frappe; toggle_display alone can flicker if the field
+// was already painted before the async settings fetch resolved.
+function apply_badge_visibility(frm) {
+	const BADGE_FIELDS = ["badge_number", "badge_colour"];
+	const setHidden = (hide) => {
+		BADGE_FIELDS.forEach((fn) => {
+			frm.set_df_property(fn, "hidden", hide ? 1 : 0);
+			frm.toggle_display(fn, !hide);
+			frm.refresh_field(fn);
+		});
+	};
+	// Hide first so we never flash badge fields on before the fetch resolves.
+	setHidden(true);
+	frappe.db.get_value("VMS Settings", "VMS Settings",
+			["enable_badge", "badge_required_for"])
+		.then((r) => {
+			const s = (r && r.message) || {};
+			// Single-doctype fields come back as strings — "0" is truthy in JS.
+			// Coerce to int with cint to get a real boolean.
+			let show = !!cint(s.enable_badge);
+			if (show) {
+				const list = (s.badge_required_for || "").split(/[\n,]/)
+					.map((x) => x.trim()).filter(Boolean);
+				if (list.length && frm.doc.visitor_type
+						&& !list.includes(frm.doc.visitor_type)) {
+					show = false;
+				}
+			}
+			setHidden(!show);
+		});
 }
 
 function ensure_customer_crm_defaults(frm) {
@@ -377,23 +413,24 @@ function apply_visitor_pass_field_rules(frm) {
 		],
 		is_supplier_delivery
 	);
+	// meeting_subject, nda_required, documents_shared are DocType-gated
+	// (depends_on / hidden:1). Removed from this toggle_display list so JS
+	// doesn't override the JSON visibility rules.
 	frm.toggle_display(
 		[
-			"meeting_subject",
 			"meeting_start_time",
 			"meeting_end_time",
 			"meeting_room",
 			"attendees",
-			"refreshments_required",
 			"refreshment_notes",
 			"presentation_material",
-			"nda_required",
-			"documents_shared",
 		],
 		is_supplier_business
 	);
+	const is_supplier_meeting =
+		frm.doc.visitor_type === "Supplier" && frm.doc.supplier_visit_mode === "Meeting";
 	frm.toggle_reqd("purchase_order", is_supplier_delivery);
-	frm.toggle_reqd("meeting_subject", is_supplier_business);
+	frm.toggle_reqd("meeting_subject", is_supplier_meeting);
 
 	frm.toggle_display("followup_date", is_follow_up);
 	frm.toggle_reqd("followup_date", is_follow_up);
@@ -408,19 +445,13 @@ function apply_visitor_pass_field_rules(frm) {
 	frm.toggle_display("ppe_provided_document", has_ppe_proof);
 	frm.toggle_reqd("ppe_provided_document", has_ppe_proof);
 
-	[
-		"meal_type",
-		"assigned_meal_slots",
-		"hospitality_type",
-		"number_of_people",
-		"special_diet",
-		"food_dept_staff_assigned",
-		"food_status",
-		"hospitality_request",
-	].forEach((fieldname) => frm.toggle_display(fieldname, hospitality_recorded));
-
-	frm.toggle_display(["conference_room", "service_time"], true);
-	frm.toggle_display(["rest_area", "hospitality_notes"], hospitality_recorded);
+	// Hospitality field visibility is now DocType-driven:
+	//   - assigned_meal_slots, hospitality_type, food_dept_staff_assigned,
+	//     food_status, service_time, refreshments_required → hidden:1 in JSON
+	//   - meal_type, number_of_people → depends_on:eval:doc.meal_required in JSON
+	// special_diet, hospitality_request are always visible (no toggle needed).
+	frm.toggle_display("conference_room", true);
+	frm.toggle_display("hospitality_notes", hospitality_recorded);
 }
 
 function refresh_hospitality_plan(frm) {
@@ -528,20 +559,6 @@ function set_visitor_pass_intro(frm) {
 	}
 
 	frm.set_intro(null);
-}
-
-function set_visitor_pass_headline(frm) {
-	if (!frm.dashboard) return;
-
-	const stage = get_pass_stage(frm);
-	const visitor_type = frm.doc.visitor_type || __("Visitor");
-	const visit_date = frm.doc.visit_date ? frappe.datetime.str_to_user(frm.doc.visit_date) : __("Date Pending");
-	const headline = frm.doc.badge_number
-		? __("{0} | {1} | Badge {2}", [visitor_type, stage, frm.doc.badge_number])
-		: __("{0} | {1} | {2}", [visitor_type, stage, visit_date]);
-
-	frm.dashboard.clear_headline();
-	frm.dashboard.set_headline(headline, get_pass_stage_color(stage));
 }
 
 function add_action_buttons(frm) {

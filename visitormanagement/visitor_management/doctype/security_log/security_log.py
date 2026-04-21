@@ -489,7 +489,6 @@ def get_approved_vip_queue(visit_date=None):
 			"welcome_gift",
 			"meal_type",
 			"number_of_people",
-			"items_carried",
 			"protocol_notes",
 		],
 		order_by="expected_checkin asc, modified asc",

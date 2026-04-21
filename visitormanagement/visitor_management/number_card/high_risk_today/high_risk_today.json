@@ -1,0 +1,22 @@
+{
+ "creation": "2026-04-20 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "document_type": "Visitor Pass",
+ "dynamic_filters_json": "[]",
+ "filters_json": "[[\"Visitor Pass\",\"visit_date\",\"Timespan\",\"today\",false],[\"Visitor Pass\",\"risk_level\",\"in\",[\"High\",\"Critical\"],false]]",
+ "function": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "High-Risk Visitors Today",
+ "modified": "2026-04-20 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "High-Risk Visitors Today",
+ "owner": "Administrator",
+ "show_full_number": 0,
+ "show_percentage_stats": 1,
+ "stats_time_interval": "Daily",
+ "type": "Document Type"
+}

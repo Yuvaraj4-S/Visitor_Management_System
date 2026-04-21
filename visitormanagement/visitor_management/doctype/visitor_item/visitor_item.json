@@ -33,8 +33,10 @@
    "reqd": 1
   },
   {
+   "columns": 2,
    "fieldname": "item_category",
    "fieldtype": "Select",
+   "in_list_view": 1,
    "label": "Item Category",
    "options": "Electronics\nTool\nDocument / Sample / Gift / Perishable / Weapon / Other"
   },
@@ -73,10 +75,12 @@
    "label": "Estimated Value"
   },
   {
+   "columns": 1,
    "default": "0",
    "fieldname": "verified_by_security",
    "fieldtype": "Check",
-   "label": "Verified by Security",
+   "in_list_view": 1,
+   "label": "Verified",
    "read_only": 1
   },
   {

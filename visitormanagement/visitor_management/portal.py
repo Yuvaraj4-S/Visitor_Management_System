@@ -160,10 +160,11 @@ def _normalize_time(value):
 
 
 def _get_portal_submission_state(visitor_type, submission_action):
-	if submission_action == "save":
-		return "Draft"
-
-	return PENDING_APPROVAL_BY_TYPE.get(visitor_type, "Pending System Manager")
+	# Both Save Draft and Submit produce Draft state. Staff reviews every
+	# pre-registered Visitor Pass in the desk UI before advancing it into the
+	# approval workflow. The `visitor_type` / `submission_action` args are kept
+	# for signature compatibility; they no longer change the target state.
+	return "Draft"
 
 
 def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_photo_url, invitation=None):
@@ -197,14 +198,8 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"delivery_note": data.get("delivery_note"),
 		"goods_description": data.get("goods_description"),
 		"visit_category": data.get("visit_category"),
-		"products_discussed": data.get("products_discussed"),
-		"meeting_outcome": data.get("meeting_outcome"),
-		"followup_date": data.get("followup_date"),
 		"contractor_link": data.get("contractor_link"),
 		"work_order_ref": data.get("work_order_ref"),
-		"safety_induction_done": data.get("safety_induction_done"),
-		"contractor_nda_signed": data.get("contractor_nda_signed"),
-		"ppe_provided": data.get("ppe_provided"),
 		"tools_list": data.get("tools_list"),
 		"multi_day_pass": data.get("multi_day_pass"),
 		"pass_valid_until": data.get("pass_valid_until"),
@@ -213,19 +208,10 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"candidate_interview_type": data.get("candidate_interview_type"),
 		"interview_panel": data.get("interview_panel"),
 		"vip_category": data.get("vip_category"),
-		"priority_lane": data.get("priority_lane"),
-		"mdceo_notified": data.get("mdceo_notified"),
 		"interpreter_required": data.get("interpreter_required"),
 		"interpreter_language": data.get("interpreter_language"),
 		"protocol_notes": data.get("protocol_notes"),
-		"meal_required": data.get("meal_required"),
-		"meal_type": data.get("meal_type"),
-		"assigned_meal_slots": data.get("assigned_meal_slots"),
-		"hospitality_type": data.get("hospitality_type"),
-		"special_diet": data.get("special_diet"),
-		"service_time": data.get("service_time"),
-		"refreshments_required": data.get("refreshments_required"),
-		"items_carried": data.get("items_carried"),
+		"vehicle_number": data.get("vehicle_number"),
 		"id_proof_type": _normalize_id_proof_type(data.get("id_proof_type")),
 		"id_proof_number": data.get("id_proof_number"),
 		"id_proof_scan": id_proof_url,

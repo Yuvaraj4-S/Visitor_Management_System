@@ -89,23 +89,8 @@ function getVisitorItemsFromContext() {
 function getVisitorItemRowTemplate(item = {}) {
 	return `
 		<div class="vm-visitor-item-row vm-hospitality-card">
-			<div class="vm-locked-grid">
-				<div>
-					<label class="control-label">${__("Item Name")}</label>
-					<input type="text" class="form-control vm-item-name" value="${escapeHtml(item.item_name || "")}">
-				</div>
-				<div>
-					<label class="control-label">${__("Quantity")}</label>
-					<input type="number" min="1" step="0.01" class="form-control vm-item-quantity" value="${escapeHtml(item.quantity || 1)}">
-				</div>
-			</div>
-			<div class="mt-3">
-				<label class="control-label">${__("Description")}</label>
-				<textarea class="form-control vm-item-description">${escapeHtml(item.description || "")}</textarea>
-			</div>
-			<div class="mt-3 d-flex justify-content-end">
-				<button type="button" class="btn btn-default btn-sm vm-remove-item">${__("Remove Item")}</button>
-			</div>
+			<label class="control-label">${__("Items")}</label>
+			<textarea rows="3" class="form-control vm-item-name" placeholder="${__("e.g. Dell laptop, USB drive, toolkit")}">${escapeHtml(item.item_name || "")}</textarea>
 		</div>
 	`;
 }
@@ -118,23 +103,16 @@ function ensureVisitorItemsSection() {
 	const sectionHtml = `
 		<div class="vm-custom-block vm-visitor-items-section vm-locked-section">
 			<div class="vm-locked-section-title">${__("Visitor Items")}</div>
-			<div class="help-box small text-muted">
-				${__("Add all items carried by the visitor. These details will be visible for security verification.")}
+			<div class="vm-items-intro">
+				${__("Will you be carrying any laptops, storage devices, tools, or similar items? List them below so security can verify them at the gate.")}
 			</div>
 			<div class="vm-visitor-items-list mt-3"></div>
-			<div class="mt-3">
-				<button type="button" class="btn btn-default vm-add-item">${__("Add Item")}</button>
-			</div>
 		</div>
 	`;
 
 	$(".web-form .web-form-footer").before(sectionHtml);
-	$(".vm-visitor-items-section").on("click", ".vm-add-item", () => {
-		$(".vm-visitor-items-list").append(getVisitorItemRowTemplate());
-	});
-	$(".vm-visitor-items-section").on("click", ".vm-remove-item", function () {
-		$(this).closest(".vm-visitor-item-row").remove();
-	});
+	// Single fixed row — no add/remove controls.
+	$(".vm-visitor-items-list").append(getVisitorItemRowTemplate());
 }
 
 function renderVisitorItems(items = []) {
@@ -163,8 +141,8 @@ function collectVisitorItems() {
 
 			return {
 				item_name: itemName,
-				quantity: $row.find(".vm-item-quantity").val() || 1,
-				description: ($row.find(".vm-item-description").val() || "").trim(),
+				quantity: 1,
+				description: "",
 			};
 		})
 		.get()

@@ -1,0 +1,22 @@
+{
+ "creation": "2026-04-20 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "document_type": "Visitor Pass",
+ "dynamic_filters_json": "[]",
+ "filters_json": "[[\"Visitor Pass\",\"visit_date\",\"Timespan\",\"tomorrow\",false],[\"Visitor Pass\",\"status\",\"in\",[\"Approved\",\"Items Verified\"],false]]",
+ "function": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Tomorrow's Arrivals",
+ "modified": "2026-04-20 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Tomorrow's Arrivals",
+ "owner": "Administrator",
+ "show_full_number": 0,
+ "show_percentage_stats": 1,
+ "stats_time_interval": "Daily",
+ "type": "Document Type"
+}

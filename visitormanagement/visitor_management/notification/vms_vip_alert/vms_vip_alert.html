@@ -13,7 +13,6 @@
 <tr><td style="padding: 6px; border: 1px solid #d9e2ec;"><strong>Interpreter</strong></td><td style="padding: 6px; border: 1px solid #d9e2ec;">{{ 'Required' if doc.interpreter_required else 'Not Required' }}{% if doc.interpreter_required and doc.interpreter_language %} ({{ doc.interpreter_language }}){% endif %}</td></tr>
 <tr><td style="padding: 6px; border: 1px solid #d9e2ec;"><strong>Welcome Gift</strong></td><td style="padding: 6px; border: 1px solid #d9e2ec;">{{ doc.welcome_gift or 'N/A' }}</td></tr>
 <tr><td style="padding: 6px; border: 1px solid #d9e2ec;"><strong>Meal / Number of People</strong></td><td style="padding: 6px; border: 1px solid #d9e2ec;">{{ doc.meal_type or 'N/A' }} / {{ doc.number_of_people or 'N/A' }}</td></tr>
-<tr><td style="padding: 6px; border: 1px solid #d9e2ec;"><strong>Items Carried</strong></td><td style="padding: 6px; border: 1px solid #d9e2ec;">{{ doc.items_carried or 'No items declared' }}</td></tr>
 <tr><td style="padding: 6px; border: 1px solid #d9e2ec;"><strong>Protocol Notes</strong></td><td style="padding: 6px; border: 1px solid #d9e2ec;">{{ doc.protocol_notes or 'N/A' }}</td></tr>
 </table>
 {% if doc.visitor_items %}<p style="margin: 0 0 6px;"><strong>Declared Items</strong></p><ul>{% for item in doc.visitor_items %}<li>{{ item.item_name }}{% if item.quantity %} | Qty: {{ item.quantity }}{% endif %}{% if item.serial_number %} | S/N: {{ item.serial_number }}{% endif %}</li>{% endfor %}</ul>{% endif %}

@@ -64,7 +64,7 @@ def make_vp(**overrides):
     base = {
         "visitor_type": "Customer",
         "visitor_full_name": "Test Visitor",
-        "mobile_number": "+91-9876543210",
+        "mobile_number": "+91 9876543210",
         "email_id": "test@example.com",
         "company__organisation": "Test Corp",
         "id_proof_type": "Aadhaar",

@@ -123,15 +123,14 @@ def make_vp_data(vtype, data, idx):
         name, company, email, id_num, id_type = data
         base.update({
             "visitor_full_name": name, "company__organisation": company, "email_id": email,
-            "mobile_number": f"+91-9876{idx:06d}", "id_proof_type": id_type, "id_proof_number": id_num,
-            "safety_induction_done": 1, "ppe_provided": 1, "contractor_nda_signed": 1,
+            "mobile_number": f"+91 9876{idx:06d}", "id_proof_type": id_type, "id_proof_number": id_num,
             "tools_list": "Standard toolkit", "person_to_visit": EMP["ops"],
         })
     elif vtype == "Candidate":
         name, _, email, id_num, id_type, position, interview = data
         base.update({
             "visitor_full_name": name, "email_id": email,
-            "mobile_number": f"+91-9876{10000 + idx:06d}", "id_proof_type": id_type, "id_proof_number": id_num,
+            "mobile_number": f"+91 9876{10000 + idx:06d}", "id_proof_type": id_type, "id_proof_number": id_num,
             "position_applied": position, "candidate_interview_type": interview,
             "interview_panel": "HR Panel", "person_to_visit": EMP["hr"],
         })
@@ -139,22 +138,22 @@ def make_vp_data(vtype, data, idx):
         name, company, email, id_num, id_type, cat = data
         base.update({
             "visitor_full_name": name, "company__organisation": company, "email_id": email,
-            "mobile_number": f"+91-9876{20000 + idx:06d}", "id_proof_type": id_type, "id_proof_number": id_num,
+            "mobile_number": f"+91 9876{20000 + idx:06d}", "id_proof_type": id_type, "id_proof_number": id_num,
             "visit_category": cat, "sales_executive": EMP["mkt"], "person_to_visit": EMP["mkt"],
         })
     elif vtype == "Supplier":
         name, company, email, id_num, id_type, mode = data
         base.update({
             "visitor_full_name": name, "company__organisation": company, "email_id": email,
-            "mobile_number": f"+91-9876{30000 + idx:06d}", "id_proof_type": id_type, "id_proof_number": id_num,
+            "mobile_number": f"+91 9876{30000 + idx:06d}", "id_proof_type": id_type, "id_proof_number": id_num,
             "supplier_visit_mode": mode, "person_to_visit": EMP["ops"],
         })
     elif vtype == "VIP":
         name, company, email, id_num, id_type, vip_cat = data
         base.update({
             "visitor_full_name": name, "company__organisation": company, "email_id": email,
-            "mobile_number": f"+91-9876{40000 + idx:06d}", "id_proof_type": id_type, "id_proof_number": id_num,
-            "vip_category": vip_cat, "priority_lane": 1, "mdceo_notified": 1,
+            "mobile_number": f"+91 9876{40000 + idx:06d}", "id_proof_type": id_type, "id_proof_number": id_num,
+            "vip_category": vip_cat, "mdceo_notified": 1,
             "protocol_notes": "VIP visit protocol applies.", "person_to_visit": EMP["ceo"],
         })
     return base

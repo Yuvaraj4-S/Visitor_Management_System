@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import re
+from datetime import timedelta
 
 import frappe
 from frappe import _
@@ -94,14 +95,61 @@ class HospitalityRequest(Document):
 		self._validate_buggy_conflict()
 		self._validate_seating_capacity()
 		self._validate_hotel_in_visit_window()
+		self._validate_activities_in_visit_window()
 
 	def _validate_seating_capacity(self):
-		# Only validate if seating_capacity was explicitly set to 0 or negative
-		if self.conference_room and self.seating_capacity and int(self.seating_capacity) < 0:
+		if self.seating_capacity is not None and int(self.seating_capacity or 0) < 0:
 			frappe.throw(
 				_("Seating Capacity cannot be negative."),
 				title=_("Invalid Seating"),
 			)
+		if not self.conference_room:
+			return
+		room_cap = frappe.db.get_value("Conference Room", self.conference_room, "capacity") or 0
+		guests = int(self.seating_capacity or self.no_of_guests or 0)
+		if guests and room_cap and guests > int(room_cap):
+			frappe.throw(
+				_("Seating ({0}) exceeds room {1} capacity ({2}). Pick a larger room.").format(
+					guests, self.conference_room, room_cap
+				),
+				title=_("Room Over-Booked"),
+			)
+
+	def _validate_activities_in_visit_window(self):
+		"""Tour / buggy / greeting times must fall within the visit window."""
+		if not (self.visit_start_time and self.visit_end_time):
+			return
+		start_dt = get_datetime(self.visit_start_time)
+		end_dt = get_datetime(self.visit_end_time)
+
+		def _check(label, dt_value, buffer_hours=0):
+			if not dt_value:
+				return
+			v = get_datetime(dt_value)
+			lo = start_dt - timedelta(hours=buffer_hours)
+			hi = end_dt + timedelta(hours=buffer_hours)
+			if v < lo or v > hi:
+				frappe.throw(
+					_("{0} ({1}) is outside the visit window ({2} \u2192 {3}).").format(
+						label, dt_value, start_dt, end_dt
+					),
+					title=_("Out of Visit Window"),
+				)
+
+		if self.factory_tour_required and self.tour_date:
+			if self.tour_start_time:
+				_check(_("Tour start"),
+					get_datetime(f"{self.tour_date} {self.tour_start_time}"))
+			if self.tour_end_time:
+				_check(_("Tour end"),
+					get_datetime(f"{self.tour_date} {self.tour_end_time}"))
+
+		if self.buggy_required and self.buggy_datetime:
+			_check(_("Buggy pickup"), self.buggy_datetime)
+
+		if self.greeting_required and self.greeting_delivery_time:
+			# greeting often happens at arrival — allow 30 min buffer either side
+			_check(_("Greeting delivery"), self.greeting_delivery_time, buffer_hours=0.5)
 
 	def _validate_hotel_in_visit_window(self):
 		"""Hotel check-in/out should fall within (or very close to) the visit window."""
@@ -140,8 +188,14 @@ class HospitalityRequest(Document):
 	def _compute_hotel_nights(self):
 		if self.hotel_required and self.check_in and self.check_out:
 			nights = date_diff(self.check_out, self.check_in)
-			if nights < 1:
-				frappe.throw("Hotel check-out must be after check-in")
+			if nights < 0:
+				frappe.throw(
+					_("Hotel check-out ({0}) cannot be before check-in ({1}).").format(
+						self.check_out, self.check_in
+					),
+					title=_("Invalid Hotel Dates"),
+				)
+			# 0 nights is valid for day-use hotel (prayer room / locker / day stay).
 			self.nights = nights
 		else:
 			self.nights = 0

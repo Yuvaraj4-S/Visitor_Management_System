@@ -253,7 +253,7 @@ def create_invitations(hosts):
             "visitor_type": "Customer",
             "visitor_email": "arjun.customer@acme.example",
             "visitor_full_name": "Arjun Kapoor",
-            "visitor_mobile": "+919812300001",
+            "visitor_mobile": "+91 9812300001",
             "host_employee": hosts["sales_mgr"],
             "visit_date": add_days(today(), 2),
             "expected_checkin": "10:00:00",
@@ -266,7 +266,7 @@ def create_invitations(hosts):
             "visitor_type": "Candidate",
             "visitor_email": "meera.candidate@gmail.example",
             "visitor_full_name": "Meera Krishnan",
-            "visitor_mobile": "+919812300002",
+            "visitor_mobile": "+91 9812300002",
             "host_employee": hosts["hr_mgr"],
             "visit_date": add_days(today(), 3),
             "expected_checkin": "11:00:00",
@@ -278,7 +278,7 @@ def create_invitations(hosts):
             "visitor_type": "VIP",
             "visitor_email": "hon.guest@ministry.example",
             "visitor_full_name": "Hon. Ravi Sharma",
-            "visitor_mobile": "+919812300003",
+            "visitor_mobile": "+91 9812300003",
             "host_employee": hosts["ceo"],
             "visit_date": add_days(today(), 5),
             "expected_checkin": "14:00:00",
@@ -291,7 +291,7 @@ def create_invitations(hosts):
             "visitor_type": "Supplier",
             "visitor_email": "logistics@vendor.example",
             "visitor_full_name": "Kumar Logistics",
-            "visitor_mobile": "+919812300004",
+            "visitor_mobile": "+91 9812300004",
             "host_employee": hosts["sys_mgr"],
             "visit_date": add_days(today(), 7),
             "expected_checkin": "09:00:00",
@@ -324,7 +324,7 @@ def create_visitor_passes(hosts, photo_url):
         {
             "visitor_type": "Contractor",
             "visitor_full_name": "Suresh Patil",
-            "mobile_number": "+919812300010",
+            "mobile_number": "+91 9812300010",
             "email_id": "suresh.patil@contractor.example",
             "company__organisation": "Patil Electricals Pvt Ltd",
             "id_proof_type": "Aadhaar",
@@ -338,15 +338,12 @@ def create_visitor_passes(hosts, photo_url):
             "expected_checkout": "16:30:00",
             "vehicle_number": "MH12AB1234",
             "risk_level": "Medium",
-            "safety_induction_done": 1,
-            "contractor_nda_signed": 1,
-            "ppe_provided": 1,
             "meal_required": 1,
         },
         {
             "visitor_type": "Candidate",
             "visitor_full_name": "Meera Krishnan",
-            "mobile_number": "+919812300002",
+            "mobile_number": "+91 9812300002",
             "email_id": "meera.candidate@gmail.example",
             "company__organisation": "Self (Candidate)",
             "id_proof_type": "PAN Card",
@@ -365,7 +362,7 @@ def create_visitor_passes(hosts, photo_url):
         {
             "visitor_type": "Customer",
             "visitor_full_name": "Arjun Kapoor",
-            "mobile_number": "+919812300001",
+            "mobile_number": "+91 9812300001",
             "email_id": "arjun.customer@acme.example",
             "company__organisation": "Acme Retail Pvt Ltd",
             "id_proof_type": "Driving License",
@@ -384,7 +381,7 @@ def create_visitor_passes(hosts, photo_url):
         {
             "visitor_type": "Supplier",
             "visitor_full_name": "Rakesh Gupta",
-            "mobile_number": "+919812300020",
+            "mobile_number": "+91 9812300020",
             "email_id": "rakesh@supplier.example",
             "company__organisation": "Gupta Metals & Alloys",
             "id_proof_type": "Aadhaar",
@@ -403,7 +400,7 @@ def create_visitor_passes(hosts, photo_url):
         {
             "visitor_type": "VIP",
             "visitor_full_name": "Hon. Ravi Sharma",
-            "mobile_number": "+919812300003",
+            "mobile_number": "+91 9812300003",
             "email_id": "hon.guest@ministry.example",
             "company__organisation": "Ministry of Commerce",
             "id_proof_type": "Passport",
@@ -449,11 +446,6 @@ def backfill_pass_requirements(pass_names):
         if doc.docstatus != 0:
             continue  # can't edit submitted docs
         changed = False
-        if doc.visitor_type == "Contractor":
-            for f in ("safety_induction_done", "contractor_nda_signed", "ppe_provided"):
-                if not doc.get(f):
-                    doc.set(f, 1)
-                    changed = True
         if doc.visitor_type == "Supplier" and not doc.get("supplier_visit_mode"):
             doc.supplier_visit_mode = "Service"
             changed = True
@@ -638,7 +630,7 @@ def create_job_applicant(hosts):
             "doctype": "Job Applicant",
             "applicant_name": "Arun Desai",
             "email_id": email,
-            "phone_number": "+919812300040",
+            "phone_number": "+91 9812300040",
             "status": "Open",
             "country": "India",
             "interview_mode": "Offline",
@@ -813,7 +805,7 @@ def _fake_visitor(vtype, idx):
     last = _LAST_NAMES[(idx // len(_FIRST_NAMES)) % len(_LAST_NAMES)]
     lower = vtype.lower()
     email = f"{lower}{idx:05d}@demo.local"
-    mobile = f"+91{_PHONE_RANGE[vtype]}{idx:06d}"
+    mobile = f"+91 {_PHONE_RANGE[vtype]}{idx:06d}"
     id_proof_type = _ID_TYPES[idx % len(_ID_TYPES)]
     tp = _PREFIX_BY_TYPE[vtype]
     # 2-letter suffix per vtype keeps PANs unique across visitor types
@@ -908,13 +900,7 @@ def bulk_create_passes(per_type, hosts, photo_url):
                 "risk_level": _RISK_BY_TYPE[vtype],
                 **_service_flags(vtype, idx),
             }
-            if vtype == "Contractor":
-                data.update({
-                    "safety_induction_done": 1,
-                    "contractor_nda_signed": 1,
-                    "ppe_provided": 1,
-                })
-            elif vtype == "Supplier":
+            if vtype == "Supplier":
                 data["supplier_visit_mode"] = "Service"
             elif vtype == "VIP":
                 data["mdceo_notified"] = 1
@@ -1072,7 +1058,7 @@ def bulk_create_invitations(hosts, count=20):
                 "visitor_type": vtype,
                 "visitor_email": email,
                 "visitor_full_name": f"Bulk Invitee {i+1:03d}",
-                "visitor_mobile": f"+91990{i:07d}",
+                "visitor_mobile": f"+91 990{i:07d}",
                 "host_employee": hosts[host_map[vtype]],
                 "visit_date": visit_date,
                 "expected_checkin": "10:00:00",
@@ -1101,7 +1087,7 @@ def bulk_create_job_applicants(hosts, count=5):
                 "doctype": "Job Applicant",
                 "applicant_name": f"Applicant {i+1:03d} - {roles[i % len(roles)]}",
                 "email_id": email,
-                "phone_number": f"+9199300{i:05d}",
+                "phone_number": f"+91 99300{i:05d}",
                 "status": "Open",
                 "country": "India",
                 "interview_mode": "Offline",

@@ -53,11 +53,6 @@
   "section_break_contractor",
   "contractor_link",
   "work_order_ref",
-  "safety_induction_done",
-  "contractor_nda_signed",
-  "contractor_nda_document",
-  "ppe_provided",
-  "ppe_provided_document",
   "column_break_contractor",
   "tools_list",
   "multi_day_pass",
@@ -77,13 +72,10 @@
   "documents_shared",
   "section_break_vip_details",
   "vip_category",
-  "priority_lane",
   "mdceo_notified",
-  "welcome_gift",
   "column_break_vip",
   "interpreter_required",
   "interpreter_language",
-  "security_detail",
   "protocol_notes",
   "last_vip_notification_stage",
   "last_workflow_notification_stage",
@@ -440,39 +432,6 @@
    "options": "Maintenance Visit"
   },
   {
-   "default": "0",
-   "depends_on": "eval:doc.visitor_type == 'Contractor'",
-   "fieldname": "safety_induction_done",
-   "fieldtype": "Check",
-   "label": "Safety Induction Done"
-  },
-  {
-   "default": "0",
-   "depends_on": "eval:doc.visitor_type == 'Contractor'",
-   "fieldname": "contractor_nda_signed",
-   "fieldtype": "Check",
-   "label": "NDA Signed"
-  },
-  {
-   "depends_on": "eval:doc.visitor_type == 'Contractor' && doc.contractor_nda_signed",
-   "fieldname": "contractor_nda_document",
-   "fieldtype": "Attach",
-   "label": "NDA Document"
-  },
-  {
-   "default": "0",
-   "depends_on": "eval:doc.visitor_type == 'Contractor'",
-   "fieldname": "ppe_provided",
-   "fieldtype": "Check",
-   "label": "PPE Provided"
-  },
-  {
-   "depends_on": "eval:doc.visitor_type == 'Contractor' && doc.ppe_provided",
-   "fieldname": "ppe_provided_document",
-   "fieldtype": "Attach",
-   "label": "PPE Proof Document"
-  },
-  {
    "depends_on": "eval:doc.visitor_type == 'Contractor'",
    "fieldname": "column_break_contractor",
    "fieldtype": "Column Break"
@@ -596,22 +555,9 @@
   {
    "default": "0",
    "depends_on": "eval:doc.visitor_type == 'VIP'",
-   "fieldname": "priority_lane",
-   "fieldtype": "Check",
-   "label": "Priority Lane"
-  },
-  {
-   "default": "0",
-   "depends_on": "eval:doc.visitor_type == 'VIP'",
    "fieldname": "mdceo_notified",
    "fieldtype": "Check",
    "label": "MD/CEO Notified"
-  },
-  {
-   "depends_on": "eval:doc.visitor_type == 'VIP'",
-   "fieldname": "welcome_gift",
-   "fieldtype": "Data",
-   "label": "Welcome Gift"
   },
   {
    "depends_on": "eval:doc.visitor_type == 'VIP'",
@@ -626,23 +572,18 @@
    "label": "Interpreter Required"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'VIP'",
+   "depends_on": "eval:doc.visitor_type == 'VIP' && doc.interpreter_required",
    "fieldname": "interpreter_language",
    "fieldtype": "Select",
    "label": "Interpreter Language",
-   "options": "Tamil\nEnglish"
-  },
-  {
-   "depends_on": "eval:doc.visitor_type == 'VIP'",
-   "fieldname": "security_detail",
-   "fieldtype": "Data",
-   "label": "Security Detail"
+   "options": "\nEnglish\nTamil\nHindi\nTelugu\nKannada\nMalayalam\nJapanese\nMandarin\nGerman\nFrench\nArabic"
   },
   {
    "depends_on": "eval:doc.visitor_type == 'VIP'",
    "fieldname": "protocol_notes",
    "fieldtype": "Text Editor",
-   "label": "Protocol Notes"
+   "label": "Protocol Notes",
+   "description": "Capture welcome gift, security escort, dress code, or any special instructions here."
   },
   {
    "fieldname": "last_vip_notification_stage",
@@ -971,7 +912,7 @@
    "label": "Declared Items"
   },
   {
-   "description": "e.g. Dell laptop, USB drive, toolkit \u2014 list every item the visitor will be carrying.",
+   "description": "e.g. laptop, toolkit \u2014 list the items the visitor will be carrying.",
    "fieldname": "items_carried",
    "fieldtype": "Small Text",
    "label": "Items"
@@ -1087,7 +1028,7 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
- "search_fields": "mobile_number",
+ "search_fields": "visitor_full_name,mobile_number",
  "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",

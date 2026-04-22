@@ -6,7 +6,7 @@ def run():
     vp.update({
         "visitor_type": "Customer",
         "visitor_full_name": "Test Sync A",
-        "mobile_number": "+919999999981",
+        "mobile_number": "+91 9999999981",
         "email_id": "tsync_a@example.com",
         "id_proof_type": "Aadhaar",
         "id_proof_number": "7" + str(abs(hash(frappe.generate_hash(length=8))))[:11].ljust(11, "0"),

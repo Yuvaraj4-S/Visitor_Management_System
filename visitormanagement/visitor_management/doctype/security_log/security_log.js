@@ -7,11 +7,11 @@ frappe.ui.form.on("Security Log", {
 		frm.add_fetch("visitor_pass", "badge_number", "badge_number");
 		frm.add_fetch("visitor_pass", "visitor_photo", "visitor_photo");
 		frm.add_fetch("visitor_pass", "id_proof_scan", "id_proof_scan");
-		frm.add_fetch("visitor_pass", "id_proof_number", "id_proof_number");
 	},
 
 	refresh(frm) {
 		apply_security_log_ui(frm);
+		mask_id_proof_number(frm);
 
 		if (frm.doc.visitor_pass) {
 			frm.add_custom_button(
@@ -225,7 +225,6 @@ frappe.ui.form.on("Security Log", {
 				"visitor_type",
 				"status",
 				"id_proof_number",
-				"priority_lane",
 				"mdceo_notified",
 				"conference_room",
 				"protocol_notes",
@@ -259,11 +258,11 @@ frappe.ui.form.on("Security Log", {
 				}
 
 				if (r.id_proof_number) {
-					frm.set_value("id_proof_number", r.id_proof_number);
-					frm.set_value(
-						"id_last_4_digits",
-						r.id_proof_number.length >= 4 ? r.id_proof_number.slice(-4) : r.id_proof_number
-					);
+					const last4 = r.id_proof_number.length >= 4
+						? r.id_proof_number.slice(-4)
+						: r.id_proof_number;
+					frm.set_value("id_proof_number", build_masked_id(r.id_proof_number));
+					frm.set_value("id_last_4_digits", last4);
 				}
 
 				if (r.id_proof_type && !frm.doc.id_proof_type_verified) {
@@ -597,6 +596,24 @@ function upload_captured_image({ file, doctype, docname, fieldname }) {
 	});
 }
 
+function mask_id_proof_number(frm) {
+	const val = frm.doc.id_proof_number;
+	if (!val || val.includes("X") || val.includes(" ")) return;
+	frm.set_value("id_proof_number", build_masked_id(val));
+}
+
+function build_masked_id(val) {
+	if (!val) return val;
+	if (val.length <= 4) return val;
+	const last4 = val.slice(-4);
+	const maskLen = val.length - 4;
+	let masked = "X".repeat(maskLen);
+	const chunks = [];
+	for (let i = 0; i < masked.length; i += 4) chunks.push(masked.slice(i, i + 4));
+	chunks.push(last4);
+	return chunks.join(" ");
+}
+
 function apply_security_log_ui(frm) {
 	[
 		"badge_number",
@@ -608,7 +625,6 @@ function apply_security_log_ui(frm) {
 		"visitor_photo",
 		"qr_code_scanned",
 		"gate_auto_assigned",
-		"priority_lane",
 		"mdceo_notified",
 		"vip_meeting_room",
 		"vip_protocol_notes",
@@ -619,14 +635,12 @@ function apply_security_log_ui(frm) {
 	].forEach((fieldname) => frm.set_df_property(fieldname, "read_only", 1));
 
 	const has_pass = !!frm.doc.visitor_pass;
-	const is_vip = frm.__visitor_type === "VIP" || !!frm.doc.priority_lane;
+	const is_vip = frm.__visitor_type === "VIP";
 	const is_check_in = frm.doc.event_type === "Check-In";
 	const is_check_out = frm.doc.event_type === "Check-Out";
-	const is_gate_transfer = frm.doc.event_type === "Gate Transfer";
 	const has_items = !!(frm.doc.items_verification && frm.doc.items_verification.length);
 	const show_items = is_check_in || has_items;
 	const show_gate_photo = ["Check-In", "Alert", "Gate Transfer", "Badge Collected"].includes(frm.doc.event_type);
-	const show_health_screening = is_check_in || frm.doc.event_type === "Alert" || !!frm.doc.health_screening;
 	const show_exception_reason = !frm.is_new() && !!frm.doc.exception_reason;
 
 	frm.toggle_display("check_in_date_time", is_check_in || (!frm.is_new() && !!frm.doc.check_in_date_time));
@@ -639,29 +653,13 @@ function apply_security_log_ui(frm) {
 	frm.toggle_display(["section_break_identity_comparison", "identity_comparison_html"], has_pass);
 	frm.toggle_display(["photo_at_gate", "capture_photo"], show_gate_photo);
 	frm.toggle_display(["id_proof_match", "pass_photo_match", "verification_notes"], is_check_in);
-	frm.toggle_display(
-		[
-			"exception_reason",
-			"verification_duration",
-			"visited_area",
-			"temperature",
-			"symptoms_flag",
-			"symptoms_details",
-			"health_screening_status",
-			"health_screening",
-		],
-		has_pass
-	);
-	frm.toggle_display(["section_break_items", "items_verification", "all_items_confirmed"], show_items);
+	frm.toggle_display("exception_reason", show_exception_reason);
+	frm.toggle_display(["section_break_items", "all_items_confirmed"], show_items && has_pass);
 	frm.toggle_reqd("photo_at_gate", is_check_in);
 	frm.toggle_reqd("id_proof_match", is_check_in);
 	frm.toggle_reqd("pass_photo_match", is_check_in);
-	frm.toggle_display("exception_reason", show_exception_reason);
 	frm.toggle_reqd("exception_reason", false);
-	frm.toggle_reqd("visited_area", is_gate_transfer);
-	frm.toggle_display(["temperature", "symptoms_flag", "symptoms_details", "health_screening_status", "health_screening"], show_health_screening);
-	frm.toggle_display("symptoms_details", !!frm.doc.symptoms_flag);
-	frm.toggle_display(["priority_lane", "mdceo_notified", "vip_meeting_room", "vip_protocol_notes"], has_pass && is_vip);
+	frm.toggle_display(["mdceo_notified", "vip_meeting_room", "vip_protocol_notes"], has_pass && is_vip);
 
 	render_identity_comparison(frm);
 	set_security_log_intro(frm, is_check_in, is_check_out);
@@ -866,10 +864,8 @@ function render_vip_queue_preview(dialog, vip_queue) {
 				<div><strong>${__("Host")}:</strong> ${selected.person_to_visit || "-"}</div>
 				<div><strong>${__("Purpose")}:</strong> ${selected.purpose_of_visit || "-"}</div>
 				<div><strong>${__("Meeting Room")}:</strong> ${selected.conference_room || "-"}</div>
-				<div><strong>${__("Priority Lane")}:</strong> ${selected.priority_lane ? __("Yes") : __("No")}</div>
 				<div><strong>${__("MD/CEO Notified")}:</strong> ${selected.mdceo_notified ? __("Yes") : __("No")}</div>
 				<div><strong>${__("Meal / People")}:</strong> ${selected.meal_type || "-"} / ${selected.number_of_people || "-"}</div>
-				<div><strong>${__("Welcome Gift")}:</strong> ${selected.welcome_gift || "-"}</div>
 				<div><strong>${__("Declared Items")}:</strong> ${
 					(selected.visitor_items && selected.visitor_items.length)
 						? selected.visitor_items.map(i => `${frappe.utils.escape_html(i.item_name || "-")}${i.quantity ? ` \u00D7${i.quantity}` : ""}`).join(", ")

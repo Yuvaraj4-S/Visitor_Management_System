@@ -17,7 +17,7 @@ class TestVisitorPass(FrappeTestCase):
 	def test_get_customer_visit_details_from_lead(self):
 		lead_row = frappe._dict(
 			lead_name="Ravi Kumar",
-			mobile_no="+919876543210",
+			mobile_no="+91 9876543210",
 			email_id="ravi@example.com",
 			company_name="Acme Industries",
 			lead_owner="sales@example.com",
@@ -33,7 +33,7 @@ class TestVisitorPass(FrappeTestCase):
 			details = get_customer_visit_details("Lead", "CRM-LEAD-0001")
 
 		self.assertEqual(details["visitor_full_name"], "Ravi Kumar")
-		self.assertEqual(details["mobile_number"], "+919876543210")
+		self.assertEqual(details["mobile_number"], "+91 9876543210")
 		self.assertEqual(details["email_id"], "ravi@example.com")
 		self.assertEqual(details["company__organisation"], "Acme Industries")
 		self.assertEqual(details["sales_executive"], "HR-EMP-00007")
@@ -50,7 +50,7 @@ class TestVisitorPass(FrappeTestCase):
 		)
 		contact_row = frappe._dict(
 			full_name="Anita Sharma",
-			mobile_no="+919999888877",
+			mobile_no="+91 9999888877",
 			email_id="anita@example.com",
 			company_name="Beta Manufacturing",
 		)
@@ -75,7 +75,7 @@ class TestVisitorPass(FrappeTestCase):
 			details = get_customer_visit_details("Opportunity", "CRM-OPP-0001")
 
 		self.assertEqual(details["visitor_full_name"], "Anita Sharma")
-		self.assertEqual(details["mobile_number"], "+919999888877")
+		self.assertEqual(details["mobile_number"], "+91 9999888877")
 		self.assertEqual(details["email_id"], "anita@example.com")
 		self.assertEqual(details["company__organisation"], "Beta Manufacturing")
 		self.assertEqual(details["sales_executive"], "HR-EMP-00009")

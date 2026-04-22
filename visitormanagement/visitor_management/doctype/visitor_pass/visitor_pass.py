@@ -220,6 +220,8 @@ class VisitorPass(Document):
     # ─────────────────────────────────────────────────────────
     def before_save(self):
         self._sync_items_carried()
+        self._normalize_mobile_number()
+        self._set_visitor_summary()
         # Auto-fetch host department from Employee record
         if self.person_to_visit and not self.host_department:
             self.host_department = frappe.db.get_value(
@@ -249,6 +251,21 @@ class VisitorPass(Document):
             else:
                 self.item_verification_status = "All Verified"
                 self.all_items_verified = 1
+
+    def _normalize_mobile_number(self):
+        if not self.mobile_number:
+            return
+        raw = str(self.mobile_number).strip()
+        digits = "".join(c for c in raw if c.isdigit())
+        if not digits:
+            return
+        if digits.startswith("91") and len(digits) > 10:
+            digits = digits[2:]
+        self.mobile_number = f"+91 {digits[-10:]}" if len(digits) >= 10 else raw
+
+    def _set_visitor_summary(self):
+        parts = [self.visitor_full_name or "", self.mobile_number or ""]
+        self.visitor_summary = " | ".join(p for p in parts if p)
 
     def _sync_items_carried(self):
         """Bidirectional sync between `items_carried` (Small Text on the desk form)
@@ -328,15 +345,6 @@ class VisitorPass(Document):
                     f"Visitor: {self.visitor_full_name}<br>"
                     f"Reason: {bl.reason}",
                     title="BLACKLISTED VISITOR",
-                )
-
-        # 2️⃣ Contractor Safety Check
-        if self.visitor_type == "Contractor":
-            if not getattr(self, "safety_induction_done", 0):
-                frappe.throw(
-                    _("Safety Induction must be completed before submitting a Contractor Visitor Pass. "
-                      "Please check the Safety Induction field in the Contractor Details section."),
-                    title=_("Safety Induction Required"),
                 )
 
         # 3️⃣ VIP Approval Check
@@ -635,6 +643,31 @@ def get_existing_visitor_matches(visitor_type=None, id_proof_number=None, mobile
 
 
 @frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def search_visitor_passes(doctype, txt, searchfield, start, page_len, filters):
+    filters = filters or {}
+    visitor_type = filters.get("visitor_type")
+
+    conditions = []
+    params = []
+    if visitor_type:
+        conditions.append("visitor_type = %s")
+        params.append(visitor_type)
+    if txt:
+        like = f"%{txt}%"
+        conditions.append(
+            "(name LIKE %s OR visitor_full_name LIKE %s OR mobile_number LIKE %s OR email_id LIKE %s OR visitor_summary LIKE %s)"
+        )
+        params.extend([like] * 5)
+
+    where = " AND ".join(conditions) if conditions else "1=1"
+    return frappe.db.sql(
+        f"SELECT name, visitor_summary FROM `tabVisitor Pass` WHERE {where} ORDER BY modified DESC LIMIT %s OFFSET %s",
+        params + [int(page_len), int(start)],
+    )
+
+
+@frappe.whitelist()
 def get_existing_visitor_pass_details(visitor_pass, visitor_type=None):
     if not visitor_pass:
         frappe.throw("Visitor Pass is required.")
@@ -686,11 +719,6 @@ def get_existing_visitor_pass_details(visitor_pass, visitor_type=None):
         "Contractor": [
             "contractor_link",
             "work_order_ref",
-            "safety_induction_done",
-            "contractor_nda_signed",
-            "contractor_nda_document",
-            "ppe_provided",
-            "ppe_provided_document",
             "tools_list",
             "multi_day_pass",
             "pass_valid_until",

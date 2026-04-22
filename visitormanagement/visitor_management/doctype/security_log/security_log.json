@@ -18,41 +18,53 @@
     "verification_duration",
     "qr_code_scanned",
     "gate_auto_assigned",
-    "priority_lane",
     "mdceo_notified",
     "vip_meeting_room",
     "vip_protocol_notes",
     "section_break_snapshot",
     "visitor_name",
+    "visitor_type",
     "visitor_company",
+    "mobile_number",
+    "person_to_visit",
+    "purpose_of_visit",
     "id_proof_type_verified",
     "id_proof_number",
     "column_break_snapshot",
+    "visit_date",
+    "expected_checkin",
+    "expected_checkout",
+    "vehicle_number",
     "check_in_date_time",
     "check_out_date_time",
     "id_proof_scan",
     "visitor_photo",
+    "section_break_special_arrangements",
+    "buggy_required",
+    "greeting_required",
+    "factory_tour_required",
     "section_break_identity_comparison",
     "identity_comparison_html",
     "section_break_gate_capture",
-    "temperature",
-    "symptoms_flag",
-    "symptoms_details",
-    "visited_area",
-    "remarks",
     "photo_at_gate",
     "capture_photo",
     "column_break_gate_capture",
     "id_proof_match",
     "pass_photo_match",
     "exception_reason",
-    "health_screening_status",
-    "health_screening",
     "verification_notes",
+    "section_break_items",
+    "items_carried",
+    "items_verification",
     "all_items_confirmed",
     "item_verification",
-    "section_break_items",
-    "items_verification"
+    "temperature",
+    "symptoms_flag",
+    "symptoms_details",
+    "visited_area",
+    "remarks",
+    "health_screening_status",
+    "health_screening"
   ],
   "fields": [
     {
@@ -133,13 +145,6 @@
       "read_only": 1
     },
     {
-      "fetch_from": "visitor_pass.priority_lane",
-      "fieldname": "priority_lane",
-      "fieldtype": "Check",
-      "label": "Priority Lane",
-      "read_only": 1
-    },
-    {
       "fetch_from": "visitor_pass.mdceo_notified",
       "fieldname": "mdceo_notified",
       "fieldtype": "Check",
@@ -161,6 +166,7 @@
       "read_only": 1
     },
     {
+      "depends_on": "eval:doc.visitor_pass",
       "fieldname": "section_break_snapshot",
       "fieldtype": "Section Break",
       "label": "Visitor Snapshot"
@@ -173,10 +179,39 @@
       "read_only": 1
     },
     {
+      "fetch_from": "visitor_pass.visitor_type",
+      "fieldname": "visitor_type",
+      "fieldtype": "Data",
+      "label": "Visitor Type",
+      "read_only": 1
+    },
+    {
       "fetch_from": "visitor_pass.company__organisation",
       "fieldname": "visitor_company",
       "fieldtype": "Data",
       "label": "Visitor Company",
+      "read_only": 1
+    },
+    {
+      "fetch_from": "visitor_pass.mobile_number",
+      "fieldname": "mobile_number",
+      "fieldtype": "Data",
+      "label": "Mobile Number",
+      "read_only": 1
+    },
+    {
+      "fetch_from": "visitor_pass.person_to_visit",
+      "fieldname": "person_to_visit",
+      "fieldtype": "Link",
+      "label": "Person to Visit",
+      "options": "Employee",
+      "read_only": 1
+    },
+    {
+      "fetch_from": "visitor_pass.purpose_of_visit",
+      "fieldname": "purpose_of_visit",
+      "fieldtype": "Small Text",
+      "label": "Purpose of Visit",
       "read_only": 1
     },
     {
@@ -194,6 +229,34 @@
     {
       "fieldname": "column_break_snapshot",
       "fieldtype": "Column Break"
+    },
+    {
+      "fetch_from": "visitor_pass.visit_date",
+      "fieldname": "visit_date",
+      "fieldtype": "Date",
+      "label": "Visit Date",
+      "read_only": 1
+    },
+    {
+      "fetch_from": "visitor_pass.expected_checkin",
+      "fieldname": "expected_checkin",
+      "fieldtype": "Time",
+      "label": "Expected Check-In",
+      "read_only": 1
+    },
+    {
+      "fetch_from": "visitor_pass.expected_checkout",
+      "fieldname": "expected_checkout",
+      "fieldtype": "Time",
+      "label": "Expected Check-Out",
+      "read_only": 1
+    },
+    {
+      "fetch_from": "visitor_pass.vehicle_number",
+      "fieldname": "vehicle_number",
+      "fieldtype": "Data",
+      "label": "Vehicle Number",
+      "read_only": 1
     },
     {
       "fieldname": "check_in_date_time",
@@ -220,6 +283,36 @@
       "read_only": 1
     },
     {
+      "depends_on": "eval:doc.visitor_pass && (doc.buggy_required || doc.greeting_required || doc.factory_tour_required)",
+      "fieldname": "section_break_special_arrangements",
+      "fieldtype": "Section Break",
+      "label": "Special Arrangements"
+    },
+    {
+      "default": "0",
+      "fetch_from": "visitor_pass.buggy_required",
+      "fieldname": "buggy_required",
+      "fieldtype": "Check",
+      "label": "Buggy / Site Transport",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "fetch_from": "visitor_pass.greeting_required",
+      "fieldname": "greeting_required",
+      "fieldtype": "Check",
+      "label": "Greeting / Lobby Escort",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "fetch_from": "visitor_pass.factory_tour_required",
+      "fieldname": "factory_tour_required",
+      "fieldtype": "Check",
+      "label": "Factory Tour",
+      "read_only": 1
+    },
+    {
       "fieldname": "section_break_identity_comparison",
       "fieldtype": "Section Break",
       "label": "Identity Comparison"
@@ -237,28 +330,33 @@
     {
       "fieldname": "temperature",
       "fieldtype": "Float",
+      "hidden": 1,
       "label": "Temperature"
     },
     {
       "default": "0",
       "fieldname": "symptoms_flag",
       "fieldtype": "Check",
+      "hidden": 1,
       "label": "Symptoms Flag"
     },
     {
       "depends_on": "eval:doc.symptoms_flag",
       "fieldname": "symptoms_details",
       "fieldtype": "Small Text",
+      "hidden": 1,
       "label": "Symptoms Details"
     },
     {
       "fieldname": "visited_area",
       "fieldtype": "Data",
+      "hidden": 1,
       "label": "Visited Area"
     },
     {
       "fieldname": "remarks",
       "fieldtype": "Small Text",
+      "hidden": 1,
       "label": "Remarks",
       "options": "Security notes"
     },
@@ -296,6 +394,7 @@
     {
       "fieldname": "health_screening_status",
       "fieldtype": "Select",
+      "hidden": 1,
       "label": "Health Screening Status",
       "options": "Pending\nCleared\nNeeds Review\nDenied Entry",
       "read_only": 1
@@ -303,6 +402,7 @@
     {
       "fieldname": "health_screening",
       "fieldtype": "Link",
+      "hidden": 1,
       "label": "Health Screening",
       "options": "Health Screening",
       "read_only": 1
@@ -326,14 +426,23 @@
       "label": "Item Verification"
     },
     {
-      "collapsible": 1,
+      "depends_on": "eval:doc.visitor_pass",
       "fieldname": "section_break_items",
       "fieldtype": "Section Break",
       "label": "Items Verification"
     },
     {
+      "description": "Auto-filled from the Visitor Pass on QR scan. Security may add or amend items here.",
+      "fetch_from": "visitor_pass.items_carried",
+      "fetch_if_empty": 1,
+      "fieldname": "items_carried",
+      "fieldtype": "Small Text",
+      "label": "Declared Items"
+    },
+    {
       "fieldname": "items_verification",
       "fieldtype": "Table",
+      "hidden": 1,
       "label": "Items Verification",
       "options": "Security Item Verify"
     }
@@ -341,7 +450,7 @@
   "grid_page_length": 50,
   "index_web_pages_for_search": 1,
   "links": [],
-  "modified": "2026-03-02 11:18:53.809252",
+  "modified": "2026-04-22 13:20:00.000000",
   "modified_by": "Administrator",
   "module": "Visitor Management",
   "name": "Security Log",

@@ -270,9 +270,6 @@ function apply_visitor_type_defaults(frm, force = false) {
 		updates.approval_sla_minutes = visitor_defaults.approval_sla_minutes;
 	}
 	if (frm.doc.visitor_type === "VIP") {
-		if (!frm.doc.priority_lane) {
-			updates.priority_lane = 1;
-		}
 		if (frm.doc.interpreter_required && !frm.doc.interpreter_language) {
 			updates.interpreter_language = "English";
 		}
@@ -363,8 +360,6 @@ function apply_visitor_pass_field_rules(frm) {
 	const is_follow_up = frm.doc.visitor_type === "Customer" && frm.doc.meeting_outcome === "Follow-Up Needed";
 	const needs_interpreter = frm.doc.visitor_type === "VIP" && !!frm.doc.interpreter_required;
 	const is_multi_day_contractor = frm.doc.visitor_type === "Contractor" && !!frm.doc.multi_day_pass;
-	const has_contractor_nda = frm.doc.visitor_type === "Contractor" && !!frm.doc.contractor_nda_signed;
-	const has_ppe_proof = frm.doc.visitor_type === "Contractor" && !!frm.doc.ppe_provided;
 	const hospitality_requested =
 		!!frm.doc.meal_required || !!frm.doc.refreshments_required || !!frm.doc.conference_room;
 	const hospitality_recorded = hospitality_requested || !!frm.doc.hospitality_request;
@@ -440,10 +435,6 @@ function apply_visitor_pass_field_rules(frm) {
 
 	frm.toggle_display("pass_valid_until", is_multi_day_contractor);
 	frm.toggle_reqd("pass_valid_until", is_multi_day_contractor);
-	frm.toggle_display("contractor_nda_document", has_contractor_nda);
-	frm.toggle_reqd("contractor_nda_document", has_contractor_nda);
-	frm.toggle_display("ppe_provided_document", has_ppe_proof);
-	frm.toggle_reqd("ppe_provided_document", has_ppe_proof);
 
 	// Hospitality field visibility is now DocType-driven:
 	//   - assigned_meal_slots, hospitality_type, food_dept_staff_assigned,
@@ -571,6 +562,7 @@ function setup_supplier_pass_query(frm) {
 	if (!['Supplier','Customer','Contractor','Candidate'].includes(frm.doc.visitor_type)) return;
 
 	frm.set_query("existing_visitor_pass", () => ({
+		query: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.search_visitor_passes",
 		filters: {
 			visitor_type: frm.doc.visitor_type,
 		},
@@ -757,11 +749,6 @@ function apply_existing_pass_data(frm, data) {
 		"meeting_minutes",
 		"contractor_link",
 		"work_order_ref",
-		"safety_induction_done",
-		"contractor_nda_signed",
-		"contractor_nda_document",
-		"ppe_provided",
-		"ppe_provided_document",
 		"work_area_zone",
 		"tools_list",
 		"multi_day_pass",

@@ -20,6 +20,8 @@
   "assigned_meal_slots",
   "hospitality_type",
   "special_diet",
+  "dietary_allergies",
+  "accessibility_requirements",
   "meal_required",
   "meal_type",
   "snacks_required",
@@ -32,6 +34,7 @@
   "cab_type",
   "pickup_location",
   "pickup_datetime",
+  "cab_pickup_instructions",
   "drop_location",
   "drop_datetime",
   "cab_col_break",
@@ -49,6 +52,7 @@
   "no_of_rooms",
   "no_of_guests",
   "booking_reference",
+  "hotel_special_requests",
   "hotel_cost",
   "factory_tour_section",
   "tour_date",
@@ -192,6 +196,20 @@
    "options": "None\nNon-vegetarian\nVegetarian\nVegan\nGluten Free\nHalal\nJain"
   },
   {
+   "description": "Food allergies that could cause a medical reaction \u2014 e.g. peanut, shellfish, dairy. Kitchen team must see this.",
+   "fieldname": "dietary_allergies",
+   "fieldtype": "Small Text",
+   "label": "Dietary Allergies"
+  },
+  {
+   "default": "None",
+   "description": "Affects hotel room assignment, buggy selection, tour path.",
+   "fieldname": "accessibility_requirements",
+   "fieldtype": "Select",
+   "label": "Accessibility Requirements",
+   "options": "None\nWheelchair\nMobility Aid\nVisual Impairment\nHearing Impairment\nOther"
+  },
+  {
    "default": "0",
    "fieldname": "meal_required",
    "fieldtype": "Check",
@@ -264,6 +282,13 @@
    "label": "Pickup Datetime"
   },
   {
+   "depends_on": "eval:doc.cab_required",
+   "description": "Extra notes for the driver \u2014 e.g. \"Wait at Gate 3\", \"Call 5 min before arrival\".",
+   "fieldname": "cab_pickup_instructions",
+   "fieldtype": "Small Text",
+   "label": "Pickup Instructions"
+  },
+  {
    "depends_on": "eval:doc.cab_required && (doc.cab_type=='Drop' || doc.cab_type=='Both')",
    "fieldname": "drop_location",
    "fieldtype": "Data",
@@ -281,10 +306,11 @@
   },
   {
    "depends_on": "eval:doc.cab_required",
+   "description": "Transport supplier / cab company",
    "fieldname": "cab_vendor",
    "fieldtype": "Link",
-   "label": "Cab Vendor / Driver",
-   "options": "Employee"
+   "label": "Cab Vendor",
+   "options": "Supplier"
   },
   {
    "depends_on": "eval:doc.cab_required",
@@ -303,6 +329,7 @@
    "depends_on": "eval:doc.cab_required",
    "fieldname": "vehicle_number",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Vehicle Number"
   },
   {
@@ -314,10 +341,11 @@
   },
   {
    "depends_on": "eval:doc.hotel_required",
+   "description": "Hotel partner / accommodation supplier",
    "fieldname": "hotel_name",
    "fieldtype": "Link",
-   "label": "Hotel Contact",
-   "options": "Employee"
+   "label": "Hotel",
+   "options": "Supplier"
   },
   {
    "depends_on": "eval:doc.hotel_required",
@@ -368,6 +396,13 @@
    "fieldname": "booking_reference",
    "fieldtype": "Data",
    "label": "Booking Reference"
+  },
+  {
+   "depends_on": "eval:doc.hotel_required",
+   "description": "Late checkout, floor preference, Wi-Fi / breakfast inclusions \u2014 passed to front desk.",
+   "fieldname": "hotel_special_requests",
+   "fieldtype": "Small Text",
+   "label": "Special Requests"
   },
   {
    "depends_on": "eval:doc.hotel_required",
@@ -488,6 +523,7 @@
    "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_passenger_count",
    "fieldtype": "Int",
+   "hidden": 1,
    "label": "Passenger Count"
   },
   {

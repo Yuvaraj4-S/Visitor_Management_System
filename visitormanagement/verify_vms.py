@@ -100,9 +100,7 @@ def run():
 
     # ── 7. CONTRACTOR FIELDS ──
     print("\n--- 7. Contractor Validations ---")
-    cons = frappe.get_all("Visitor Pass", filters={"visitor_type": "Contractor"}, fields=["safety_induction_done", "ppe_provided", "tools_list"])
-    test("All contractors: safety_induction=1", all(c.safety_induction_done for c in cons))
-    test("All contractors: ppe_provided=1", all(c.ppe_provided for c in cons))
+    cons = frappe.get_all("Visitor Pass", filters={"visitor_type": "Contractor"}, fields=["tools_list"])
     test("All contractors: tools_list filled", all(c.tools_list for c in cons))
 
     # ── 8. CANDIDATE FIELDS ──
@@ -125,9 +123,8 @@ def run():
 
     # ── 11. VIP FIELDS ──
     print("\n--- 11. VIP Fields ---")
-    vips = frappe.get_all("Visitor Pass", filters={"visitor_type": "VIP"}, fields=["vip_category", "priority_lane", "mdceo_notified", "protocol_notes"])
+    vips = frappe.get_all("Visitor Pass", filters={"visitor_type": "VIP"}, fields=["vip_category", "mdceo_notified", "protocol_notes"])
     test("All VIPs: category filled", all(v.vip_category for v in vips))
-    test("All VIPs: priority_lane=1", all(v.priority_lane for v in vips))
     test("All VIPs: mdceo_notified=1", all(v.mdceo_notified for v in vips))
     test("All VIPs: protocol_notes filled", all(v.protocol_notes for v in vips))
 

@@ -247,6 +247,19 @@
   },
   {
    "allow_read_on_all_link_options": 0,
+   "fieldname": "items_carried",
+   "fieldtype": "Small Text",
+   "hidden": 0,
+   "label": "Declared Items",
+   "max_length": 0,
+   "max_value": 0,
+   "read_only": 0,
+   "reqd": 0,
+   "show_in_filter": 0,
+   "description": "List items you will be carrying — e.g. laptop, USB drive, toolkit."
+  },
+  {
+   "allow_read_on_all_link_options": 0,
    "fieldname": "",
    "fieldtype": "Section Break",
    "hidden": 0,
@@ -499,13 +512,13 @@
    "fieldname": "supplier_visit_mode",
    "fieldtype": "Select",
    "hidden": 0,
-   "label": "Supplier Visit Mode",
+   "label": "Meeting Purpose",
    "max_length": 0,
    "max_value": 0,
    "read_only": 0,
    "reqd": 0,
    "show_in_filter": 0,
-   "options": "Delivery\nMeeting\nAudit\nService",
+   "options": "Meeting\nAudit\nService",
    "depends_on": "eval:doc.visitor_type == 'Supplier'"
   },
   {

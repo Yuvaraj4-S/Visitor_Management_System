@@ -1,0 +1,30 @@
+{
+ "attach_print": 0,
+ "channel": "Email",
+ "condition": "doc.status == 'Checked-Out' and doc.email_id",
+ "creation": "2026-04-22 17:00:00.000000",
+ "days_in_advance": 0,
+ "docstatus": 0,
+ "doctype": "Notification",
+ "document_type": "Visitor Pass",
+ "enabled": 1,
+ "event": "Value Change",
+ "idx": 0,
+ "is_standard": 1,
+ "message": "<div style=\"font-family: Arial, sans-serif; font-size: 14px; color: #1f2933; max-width: 600px;\">\n<h2 style=\"color: #1e40af;\">Thank you for visiting us, {{ doc.visitor_full_name }}!</h2>\n<p>We appreciate your time today and hope your visit with <b>{{ doc.person_to_visit or 'our team' }}</b> was productive.</p>\n<table style=\"border-collapse: collapse; width: 100%; margin: 16px 0;\">\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Visit Date</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.visit_date }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Checked In</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.actual_checkin or '-' }}</td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Checked Out</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.actual_checkout or '-' }}</td></tr>\n</table>\n<p>If you need to plan another visit, please contact your host directly.</p>\n<p style=\"margin-top: 24px; color: #6b7280; font-size: 12px;\">— Visitor Management Team</p>\n</div>",
+ "message_type": "HTML",
+ "modified": "2026-04-22 17:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "VMS Visitor Thank You",
+ "owner": "Administrator",
+ "recipients": [
+  {
+   "receiver_by_document_field": "email_id"
+  }
+ ],
+ "send_system_notification": 0,
+ "send_to_all_assignees": 0,
+ "subject": "Thank you for visiting — {{ doc.visit_date }}",
+ "value_changed": "status"
+}

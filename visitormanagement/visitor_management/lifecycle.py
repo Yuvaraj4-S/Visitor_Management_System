@@ -78,7 +78,7 @@ def normalize_visitor_pass(doc):
 		doc.approval_sla_minutes = DEFAULT_SLA_BY_TYPE.get(doc.visitor_type, 120)
 
 	if doc.visitor_type == "Supplier" and not doc.supplier_visit_mode:
-		doc.supplier_visit_mode = "Delivery"
+		doc.supplier_visit_mode = "Meeting"
 
 	if doc.actual_checkin:
 		doc.no_show = 0
@@ -96,9 +96,6 @@ def normalize_visitor_pass(doc):
 
 
 def infer_risk_level(doc):
-	if doc.visitor_type == "Supplier" and getattr(doc, "supplier_visit_mode", None) == "Delivery":
-		return "Medium"
-
 	return DEFAULT_RISK_BY_TYPE.get(doc.visitor_type, "Medium")
 
 
@@ -149,7 +146,110 @@ def ensure_hospitality_request(visitor_pass):
 	if visitor_pass.hospitality_request != doc.name:
 		visitor_pass.db_set("hospitality_request", doc.name, update_modified=False)
 
+	# Auto-create a Conference Room Booking if a room is selected on the pass.
+	if getattr(visitor_pass, "conference_room", None):
+		ensure_conference_room_booking(visitor_pass)
+
 	return doc.name
+
+
+def ensure_conference_room_booking(visitor_pass):
+	"""Create or update a Conference Room Booking for this Visitor Pass."""
+	if not getattr(visitor_pass, "conference_room", None):
+		return None
+
+	existing = frappe.db.get_value(
+		"Conference Room Booking",
+		{"visitor_pass": visitor_pass.name, "docstatus": ["<", 2]},
+		"name",
+	)
+	if existing:
+		booking = frappe.get_doc("Conference Room Booking", existing)
+	else:
+		booking = frappe.new_doc("Conference Room Booking")
+		booking.visitor_pass = visitor_pass.name
+
+	# Clamp times to room operating hours if needed
+	start_time, end_time = _clamp_to_room_hours(
+		visitor_pass.conference_room,
+		visitor_pass.expected_checkin,
+		visitor_pass.expected_checkout,
+	)
+
+	booking.conference_room = visitor_pass.conference_room
+	booking.meeting_title = f"Visitor Meeting — {visitor_pass.visitor_full_name or visitor_pass.name}"
+	booking.booking_date = visitor_pass.visit_date
+	booking.start_time = start_time
+	booking.end_time = end_time
+	booking.meeting_type = "External"
+	booking.expected_attendees = cint(getattr(visitor_pass, "number_of_people", None)) or 1
+	if not booking.booked_by:
+		booking.booked_by = visitor_pass.person_to_visit
+
+	try:
+		if booking.is_new():
+			booking.insert(ignore_permissions=True)
+		else:
+			booking.save(ignore_permissions=True)
+		return booking.name
+	except Exception as exc:
+		frappe.log_error(f"CRB auto-create failed for {visitor_pass.name}: {exc}", "VMS CRB Auto-Create")
+		return None
+
+
+def _clamp_to_room_hours(room_name, start, end):
+	"""Clamp visitor time window to the room's operating hours.
+	Returns (start_time, end_time) strings usable for CRB booking.
+	Falls back to 09:00:00–17:00:00 if room has no hours defined."""
+	from frappe.utils import get_time
+
+	from datetime import datetime, timedelta
+
+	default_start, default_end = "09:00:00", "17:00:00"
+	room = frappe.db.get_value(
+		"Conference Room",
+		room_name,
+		["available_from", "available_to", "max_booking_hours"],
+		as_dict=True,
+	) or {}
+	room_open = room.get("available_from") or default_start
+	room_close = room.get("available_to") or default_end
+	max_hours = int(room.get("max_booking_hours") or 0)
+
+	def _as_str(t):
+		if not t:
+			return None
+		try:
+			return str(get_time(t))
+		except Exception:
+			return str(t)
+
+	room_open_s = _as_str(room_open)
+	room_close_s = _as_str(room_close)
+	start_s = _as_str(start) or room_open_s
+	end_s = _as_str(end) or room_close_s
+
+	# Clamp start within [room_open, room_close]
+	if start_s < room_open_s or start_s >= room_close_s:
+		start_s = room_open_s
+	# Clamp end within (start, room_close]
+	if end_s <= start_s or end_s > room_close_s:
+		end_s = room_close_s
+
+	# Enforce max booking duration
+	if max_hours > 0:
+		base = datetime(2000, 1, 1)
+		start_dt = datetime.combine(base.date(), get_time(start_s))
+		end_dt = datetime.combine(base.date(), get_time(end_s))
+		if (end_dt - start_dt) > timedelta(hours=max_hours):
+			end_dt = start_dt + timedelta(hours=max_hours)
+			# keep within room_close
+			close_dt = datetime.combine(base.date(), get_time(room_close_s))
+			if end_dt > close_dt:
+				end_dt = close_dt
+			end_s = str(end_dt.time())
+
+	return start_s, end_s
 
 
 def sync_hospitality_to_pass(request_doc):
@@ -248,9 +348,14 @@ def apply_hospitality_meal_plan(doc, preserve_existing=False):
 	meal_plan = derive_hospitality_meal_plan(doc)
 	existing_meal_type = getattr(doc, "meal_type", None)
 	existing_service_time = getattr(doc, "service_time", None)
-	doc.meal_required = meal_plan["meal_required"]
+	# Respect user's manual selection — only auto-set if currently unchecked.
+	user_wants_meal = cint(getattr(doc, "meal_required", 0))
+	effective_meal_required = user_wants_meal or meal_plan["meal_required"]
+	doc.meal_required = effective_meal_required
+	# Keep meal_plan-derived values in sync for downstream logic
+	meal_plan["meal_required"] = effective_meal_required
 	doc.meal_type = (
-		existing_meal_type if preserve_existing and meal_plan["meal_required"] and existing_meal_type else meal_plan["meal_type"]
+		existing_meal_type if preserve_existing and effective_meal_required and existing_meal_type else meal_plan["meal_type"]
 	)
 
 	if hasattr(doc, "assigned_meal_slots"):
@@ -277,8 +382,13 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 		return doc
 
 	meal_plan = derive_hospitality_meal_plan(visitor_pass)
-	doc.meal_required = meal_plan["meal_required"]
-	doc.meal_type = meal_plan["meal_type"] if doc.meal_required else None
+	# Honor manual meal_required on the Visitor Pass — if host/guest ticked it, carry it across
+	# even if visit window doesn't overlap standard meal slots.
+	vp_meal_required = cint(getattr(visitor_pass, "meal_required", 0))
+	doc.meal_required = vp_meal_required or meal_plan["meal_required"]
+	doc.meal_type = (
+		getattr(visitor_pass, "meal_type", None) or meal_plan["meal_type"]
+	) if doc.meal_required else None
 	doc.visit_start_time = meal_plan["visit_start_time"]
 	doc.visit_end_time = meal_plan["visit_end_time"]
 	doc.assigned_meal_slots = meal_plan["assigned_meal_slots"] if doc.meal_required else None

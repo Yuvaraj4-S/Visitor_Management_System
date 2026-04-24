@@ -97,7 +97,7 @@ class ConferenceRoomBooking(Document):
 			  AND booking_date = %(date)s
 			  AND name != %(self_name)s
 			  AND docstatus < 2
-			  AND status NOT IN ('Cancelled')
+			  AND status NOT IN ('Cancelled', 'Rejected')
 			  AND (start_time < %(end_time)s AND end_time > %(start_time)s)
 			LIMIT 1
 			""",

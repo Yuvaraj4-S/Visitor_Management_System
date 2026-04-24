@@ -21,7 +21,7 @@
     "owner": "Administrator",
     "recipients": [
         {
-            "receiver_by_role": "Gate Security"
+            "receiver_by_role": "Security"
         }
     ],
     "send_system_notification": 0,

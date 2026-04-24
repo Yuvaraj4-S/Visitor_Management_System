@@ -70,16 +70,20 @@ def _normalize_mobile_number(number, country_code=None):
 	if not digits:
 		return number
 
+	# Frappe Phone widget requires "+{isd}-{number}" (hyphen separator)
 	if country_code:
 		country_code_digits = "".join(char for char in country_code if char.isdigit())
 		if country_code_digits and len(digits) == 10:
-			return f"+{country_code_digits}{digits}"
+			return f"+{country_code_digits}-{digits}"
 
 	if len(digits) == 10:
-		return f"+91{digits}"
+		return f"+91-{digits}"
 
 	if 11 <= len(digits) <= 15:
-		return f"+{digits}"
+		# strip leading country code digits if present, reconstruct with hyphen
+		if digits.startswith("91") and len(digits) >= 12:
+			return f"+91-{digits[-10:]}"
+		return f"+{digits[:-10]}-{digits[-10:]}"
 
 	frappe.throw("Mobile Number must be 10 digits local or 11-15 digits with country code.")
 
@@ -194,9 +198,6 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"visitor_type": visitor_type,
 		"supplier_link": data.get("supplier_link"),
 		"supplier_visit_mode": data.get("supplier_visit_mode"),
-		"purchase_order": data.get("purchase_order"),
-		"delivery_note": data.get("delivery_note"),
-		"goods_description": data.get("goods_description"),
 		"visit_category": data.get("visit_category"),
 		"contractor_link": data.get("contractor_link"),
 		"work_order_ref": data.get("work_order_ref"),
@@ -216,6 +217,7 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"id_proof_number": data.get("id_proof_number"),
 		"id_proof_scan": id_proof_url,
 		"visitor_photo": visitor_photo_url,
+		"items_carried": data.get("items_carried"),
 		"status": target_state,
 		"workflow_state": target_state,
 		"request_channel": "Portal",

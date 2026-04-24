@@ -21,16 +21,13 @@
     "owner": "Administrator",
     "recipients": [
         {
+            "receiver_by_role": "System Manager"
+        },
+        {
+            "receiver_by_role": "Security"
+        },
+        {
             "receiver_by_role": "Facility Manager"
-        },
-        {
-            "receiver_by_role": "Gate Security"
-        },
-        {
-            "receiver_by_role": "Security Supervisor"
-        },
-        {
-            "receiver_by_role": "Visitor Manager"
         }
     ],
     "send_system_notification": 1,

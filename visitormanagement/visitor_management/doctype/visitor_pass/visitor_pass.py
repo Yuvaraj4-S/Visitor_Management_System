@@ -23,7 +23,6 @@ PENDING_LANES_BY_VISITOR_TYPE = {
 
 ALL_PENDING_LANES = {
     "Pending System Manager",
-    "Pending Visitor Manager",
     "Pending Sales Manager",
     "Pending HR Manager",
     "Pending HOD",
@@ -252,6 +251,47 @@ class VisitorPass(Document):
                 self.item_verification_status = "All Verified"
                 self.all_items_verified = 1
 
+    def _alert_blacklist_match(self, blacklist_doc):
+        recipients = self._security_alert_recipients()
+        if not recipients:
+            return
+        try:
+            frappe.sendmail(
+                recipients=recipients,
+                subject=f"🚨 Blacklist match attempt: {self.visitor_full_name}",
+                message=(
+                    f"<p><b>A blacklisted visitor attempted entry.</b></p>"
+                    f"<ul>"
+                    f"<li><b>Visitor:</b> {self.visitor_full_name}</li>"
+                    f"<li><b>ID Proof:</b> {self.id_proof_type} — {self.id_proof_number}</li>"
+                    f"<li><b>Mobile:</b> {self.mobile_number or '-'}</li>"
+                    f"<li><b>Reason on file:</b> {blacklist_doc.reason}</li>"
+                    f"<li><b>Attempted host:</b> {self.person_to_visit or '-'}</li>"
+                    f"<li><b>Time:</b> {frappe.utils.now()}</li>"
+                    f"</ul>"
+                    f"<p>Entry was blocked. No Visitor Pass created.</p>"
+                ),
+                reference_doctype="Visitor Blacklist",
+                reference_name=blacklist_doc.name,
+                now=True,
+            )
+        except Exception as exc:
+            frappe.log_error(f"Blacklist alert email failed: {exc}", "VMS Blacklist Alert")
+
+    def _security_alert_recipients(self):
+        users = frappe.get_all(
+            "Has Role",
+            filters={"role": ["in", ["Security", "System Manager"]], "parenttype": "User"},
+            fields=["parent"],
+            distinct=True,
+        )
+        emails = []
+        for u in users:
+            email = frappe.db.get_value("User", u.parent, "email")
+            if email and email != "Administrator" and "@" in email:
+                emails.append(email)
+        return list(set(emails))
+
     def _normalize_mobile_number(self):
         if not self.mobile_number:
             return
@@ -261,10 +301,13 @@ class VisitorPass(Document):
             return
         if digits.startswith("91") and len(digits) > 10:
             digits = digits[2:]
-        self.mobile_number = f"+91 {digits[-10:]}" if len(digits) >= 10 else raw
+        # Frappe Phone widget expects "+{isd}-{number}" format (hyphen, NOT space)
+        # See apps/frappe/frappe/public/js/frappe/form/controls/phone.js:167
+        self.mobile_number = f"+91-{digits[-10:]}" if len(digits) >= 10 else raw
 
     def _set_visitor_summary(self):
-        parts = [self.visitor_full_name or "", self.mobile_number or ""]
+        mobile_display = (self.mobile_number or "").replace("-", " ")
+        parts = [self.visitor_full_name or "", mobile_display]
         self.visitor_summary = " | ".join(p for p in parts if p)
 
     def _sync_items_carried(self):
@@ -340,6 +383,7 @@ class VisitorPass(Document):
 
             if blacklist_name:
                 bl = frappe.get_doc("Visitor Blacklist", blacklist_name)
+                self._alert_blacklist_match(bl)
                 frappe.throw(
                     f"<b>ACCESS DENIED</b><br>"
                     f"Visitor: {self.visitor_full_name}<br>"

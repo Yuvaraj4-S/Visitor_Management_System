@@ -21,7 +21,7 @@
  "owner": "Administrator",
  "recipients": [
   {
-   "receiver_by_role": "Hospitality User"
+   "receiver_by_role": "Hospitality Manager"
   }
  ],
  "send_system_notification": 1,

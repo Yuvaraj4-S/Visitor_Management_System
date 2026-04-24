@@ -46,7 +46,7 @@ frappe.ui.form.on("Hospitality Request", {
 
 	hotel_required(frm) {
 		frm.toggle_reqd(
-			["hotel_name", "check_in", "check_out"],
+			["check_in", "check_out"],
 			frm.doc.hotel_required
 		);
 		if (frm.doc.hotel_required && !frm.doc.buggy_required) {
@@ -102,7 +102,7 @@ frappe.ui.form.on("Hospitality Request", {
 
 	greeting_required(frm) {
 		frm.toggle_reqd(
-			["greeting_type", "greeting_delivery_time", "greeting_assigned_to"],
+			["greeting_type", "greeting_delivery_time"],
 			frm.doc.greeting_required
 		);
 	},

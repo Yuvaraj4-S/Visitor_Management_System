@@ -23,7 +23,23 @@ def _coerce_datetime(value):
 
 
 def build_invitation_link(token):
-	return get_url(f"/visitor-pre-registration-form/new?token={token}")
+	"""Build invitation URL using the current request's host so the link works
+	dynamically across localhost / ngrok / production domains — no need to
+	hard-code `host_name` in site_config.
+	"""
+	path = f"/visitor-pre-registration-form/new?token={token}"
+	base = None
+	# Prefer current request's host (request-context send)
+	try:
+		req = getattr(frappe.local, "request", None)
+		if req is not None and getattr(req, "host_url", None):
+			base = req.host_url.rstrip("/")
+	except Exception:
+		base = None
+	# Fallback to Frappe's get_url (respects host_name, else infers)
+	if not base:
+		return get_url(path)
+	return f"{base}{path}"
 
 
 def get_valid_invitation_by_token(token):
@@ -113,9 +129,6 @@ def get_web_form_context(token):
 				"company__organisation": existing_pass.company__organisation,
 				"supplier_link": existing_pass.supplier_link,
 				"supplier_visit_mode": existing_pass.supplier_visit_mode,
-				"purchase_order": existing_pass.purchase_order,
-				"delivery_note": existing_pass.delivery_note,
-				"goods_description": existing_pass.goods_description,
 				"visit_category": existing_pass.visit_category,
 				"products_discussed": existing_pass.products_discussed,
 				"meeting_outcome": existing_pass.meeting_outcome,
@@ -169,6 +182,17 @@ def get_web_form_context(token):
 
 
 class VisitorInvitation(Document):
+	def onload(self):
+		# Default Host Employee to the current user's Employee record (if any)
+		if self.is_new() and not self.host_employee and frappe.session.user not in ("Administrator", "Guest"):
+			emp = frappe.db.get_value(
+				"Employee",
+				{"user_id": frappe.session.user, "status": "Active"},
+				"name",
+			)
+			if emp:
+				self.host_employee = emp
+
 	def validate(self):
 		if not self.created_by_user:
 			self.created_by_user = frappe.session.user
@@ -280,9 +304,6 @@ class VisitorInvitation(Document):
 			f"Expected Check-In: {self.expected_checkin or '-'}",
 			f"Expected Check-Out: {self.expected_checkout or '-'}",
 			f"Purpose: {self.purpose_of_visit or '-'}",
-			f"Meal Required: {'Yes' if self.meal_required else 'No'}",
-			f"Meal Type: {self.meal_type or '-'}",
-			f"Refreshments Required: {'Yes' if self.refreshments_required else 'No'}",
 			"",
 			"Please use the secure link below to fill your information before arrival:",
 			f"<a href=\"{link}\">{link}</a>",

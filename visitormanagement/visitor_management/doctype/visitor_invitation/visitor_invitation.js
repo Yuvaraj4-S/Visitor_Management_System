@@ -13,6 +13,34 @@ function getInvitationLink(frm) {
 
 frappe.ui.form.on("Visitor Invitation", {
 
+	onload(frm) {
+		// Restrict Host Employee picker to the currently logged-in user's Employee
+		frm.set_query("host_employee", () => ({
+			filters: {
+				user_id: frappe.session.user,
+				status: "Active",
+			},
+		}));
+
+		// On new forms, auto-fill Host Employee with the logged-in user's Employee
+		if (frm.is_new() && !frm.doc.host_employee && !["Administrator", "Guest"].includes(frappe.session.user)) {
+			frappe.call({
+				method: "frappe.client.get_value",
+				args: {
+					doctype: "Employee",
+					filters: { user_id: frappe.session.user, status: "Active" },
+					fieldname: "name",
+				},
+				callback: (r) => {
+					const emp = r && r.message && r.message.name;
+					if (emp && !frm.doc.host_employee) {
+						frm.set_value("host_employee", emp);
+					}
+				},
+			});
+		}
+	},
+
 	visit_date(frm) {
 		if (frm.doc.visit_date && !frm.doc.invitation_expires_on) {
 			frm.set_value("invitation_expires_on", `${frm.doc.visit_date} 23:59:59`);

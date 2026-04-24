@@ -232,6 +232,14 @@
    "role": "System Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Employee"
+  },
+  {
+   "read": 1,
+   "role": "Security"
   }
  ],
  "row_format": "Dynamic",

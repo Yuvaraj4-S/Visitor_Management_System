@@ -1,34 +1,34 @@
 {
-    "attach_files": "",
-    "attach_print": 0,
-    "channel": "Email",
-    "condition": "doc.workflow_state == 'Rejected' or doc.status == 'Rejected'",
-    "creation": "2026-04-13 12:00:00.000000",
-    "days_in_advance": 0,
-    "docstatus": 0,
-    "doctype": "Notification",
-    "document_type": "Visitor Pass",
-    "enabled": 1,
-    "event": "Value Change",
-    "idx": 0,
-    "is_standard": 1,
-    "message": "<div style=\"font-family: Arial, sans-serif; font-size: 13px; color: #1f2933;\">\n<h3>Visitor Pass Rejected</h3>\n<p>The following visitor pass request has been rejected.</p>\n\n<table style=\"border-collapse: collapse; width: 100%; margin: 12px 0;\">\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Pass ID</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.name }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Visitor</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.visitor_full_name }}</td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Visit Date</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.visit_date }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Purpose</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.purpose_of_visit }}</td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Status</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\"><b style=\"color: #dc3545;\">Rejected</b></td></tr>\n</table>\n\n<p>You can modify the request and reapply, or contact your HR / Administration team for clarification.</p>\n\n<p style=\"margin-top: 16px;\"><a href=\"{{ frappe.utils.get_url() }}/app/visitor-pass/{{ doc.name }}\">View Pass</a></p>\n</div>",
-    "message_type": "HTML",
-    "modified": "2026-04-13 12:00:00.000000",
-    "modified_by": "Administrator",
-    "module": "Visitor Management",
-    "name": "VMS Pass Rejected",
-    "owner": "Administrator",
-    "recipients": [
-        {
-            "receiver_by_document_field": "owner"
-        },
-        {
-            "receiver_by_document_field": "person_to_visit"
-        }
-    ],
-    "send_system_notification": 1,
-    "send_to_all_assignees": 0,
-    "subject": "Visitor Pass Rejected: {{ doc.visitor_full_name }} — {{ doc.visit_date }}",
-    "value_changed": "workflow_state"
+ "attach_files": "",
+ "attach_print": 0,
+ "channel": "Email",
+ "condition": "doc.workflow_state == 'Rejected' or doc.status == 'Rejected'",
+ "creation": "2026-04-13 12:00:00.000000",
+ "days_in_advance": 0,
+ "docstatus": 0,
+ "doctype": "Notification",
+ "document_type": "Visitor Pass",
+ "enabled": 1,
+ "event": "Value Change",
+ "idx": 0,
+ "is_standard": 0,
+ "message": "<div style=\"font-family: Arial, sans-serif; font-size: 13px; color: #1f2933;\">\n<h3>Visitor Pass Rejected</h3>\n<p>The following visitor pass request has been rejected.</p>\n\n<table style=\"border-collapse: collapse; width: 100%; margin: 12px 0;\">\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Pass ID</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.name }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Visitor</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.visitor_full_name }}</td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Visit Date</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.visit_date }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Purpose</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.purpose_of_visit }}</td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Status</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\"><b style=\"color: #dc3545;\">Rejected</b></td></tr>\n</table>\n\n<p>You can modify the request and reapply, or contact your HR / Administration team for clarification.</p>\n\n<p style=\"margin-top: 16px;\"><a href=\"{{ frappe.utils.get_url() }}/app/visitor-pass/{{ doc.name }}\">View Pass</a></p>\n</div>",
+ "message_type": "HTML",
+ "modified": "2026-04-13 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "VMS Pass Rejected",
+ "owner": "Administrator",
+ "recipients": [
+  {
+   "receiver_by_document_field": "owner"
+  },
+  {
+   "receiver_by_document_field": "person_to_visit"
+  }
+ ],
+ "send_system_notification": 1,
+ "send_to_all_assignees": 0,
+ "subject": "Visitor Pass Rejected: {{ doc.visitor_full_name }} — {{ doc.visit_date }}",
+ "value_changed": "workflow_state"
 }

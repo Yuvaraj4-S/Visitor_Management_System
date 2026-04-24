@@ -11,7 +11,7 @@
  "enabled": 1,
  "event": "Value Change",
  "idx": 0,
- "is_standard": 1,
+ "is_standard": 0,
  "message": "<div style=\"font-family: Arial, sans-serif; font-size: 13px; color: #1f2933;\">\n<h3>Your Visitor Has Arrived</h3>\n<p>Hi {{ doc.person_to_visit }}, your visitor <b>{{ doc.visitor_full_name }}</b> has checked in at the gate and is now on their way to meet you.</p>\n\n<table style=\"border-collapse: collapse; width: 100%; margin: 12px 0;\">\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Visitor</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.visitor_full_name }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Company</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.company__organisation or 'N/A' }}</td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Type</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.visitor_type }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Badge</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.badge_number or 'QR Only' }}</td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Purpose</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.purpose_of_visit }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Checked In At</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.actual_checkin or frappe.utils.now_datetime() }}</td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Expected Departure</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.expected_checkout }}</td></tr>\n</table>\n\n<p style=\"margin-top: 16px;\"><a href=\"{{ frappe.utils.get_url() }}/app/visitor-pass/{{ doc.name }}\">View Pass</a></p>\n</div>",
  "message_type": "HTML",
  "modified": "2026-04-13 13:42:49.248077",
@@ -26,6 +26,6 @@
  ],
  "send_system_notification": 1,
  "send_to_all_assignees": 0,
- "subject": "Visitor Arrived: {{ doc.visitor_full_name }} \u2014 {{ doc.company__organisation or doc.visitor_type }}",
+ "subject": "Visitor Arrived: {{ doc.visitor_full_name }} — {{ doc.company__organisation or doc.visitor_type }}",
  "value_changed": "status"
 }

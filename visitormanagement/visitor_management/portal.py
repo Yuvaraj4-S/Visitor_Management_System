@@ -8,6 +8,10 @@ from frappe.utils import now_datetime
 from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation import (
 	get_valid_invitation_by_token,
 )
+from visitormanagement.visitor_management.validators import (
+	id_proof_error_message,
+	validate_id,
+)
 
 PENDING_APPROVAL_BY_TYPE = {
 	"Contractor": "Pending System Manager",
@@ -278,6 +282,15 @@ def submit_pre_registration(payload=None):
 
 	if require_full_submission and not data.get("visitor_photo"):
 		frappe.throw("Visitor Photo is required.")
+
+	if require_full_submission:
+		canonical_type = _normalize_id_proof_type(data.get("id_proof_type"))
+		id_number = (data.get("id_proof_number") or "").strip()
+		if canonical_type and id_number and not validate_id(canonical_type, id_number):
+			frappe.throw(
+				id_proof_error_message(canonical_type),
+				title="Invalid ID Proof",
+			)
 
 	id_proof_filename, id_proof_content = _extract_file_payload(
 		data.get("id_proof_scan"),

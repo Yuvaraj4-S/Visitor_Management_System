@@ -11,6 +11,7 @@
   "meeting_title",
   "conference_room",
   "room_capacity",
+  "visitor_pass",
   "column_break_basic",
   "meeting_type",
   "status",
@@ -69,6 +70,14 @@
    "fieldtype": "Int",
    "label": "Room Capacity",
    "read_only": 1
+  },
+  {
+   "fieldname": "visitor_pass",
+   "fieldtype": "Link",
+   "label": "Visitor Pass",
+   "options": "Visitor Pass",
+   "read_only": 1,
+   "description": "Auto-linked when this booking is created from a Visitor Pass."
   },
   {
    "fieldname": "column_break_basic",
@@ -227,8 +236,6 @@
  "owner": "Administrator",
  "permissions": [
   {
-   "amend": 1,
-   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -237,22 +244,13 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
-   "submit": 1,
    "write": 1
   },
   {
+   "amend": 1,
    "cancel": 1,
-   "email": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "HR Manager",
-   "share": 1,
-   "submit": 1,
-   "write": 1
-  },
-  {
-   "cancel": 1,
+   "create": 1,
+   "delete": 1,
    "email": 1,
    "print": 1,
    "read": 1,

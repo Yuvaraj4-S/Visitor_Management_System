@@ -15,21 +15,27 @@
   "factory_tour_required",
   "buggy_required",
   "greeting_required",
+  "section_break_visit_info",
   "visit_start_time",
+  "col_break_visit_info",
   "visit_end_time",
-  "assigned_meal_slots",
-  "hospitality_type",
+  "section_break_dietary",
   "special_diet",
   "dietary_allergies",
+  "col_break_dietary",
   "accessibility_requirements",
+  "section_break_meal",
   "meal_required",
   "meal_type",
-  "snacks_required",
-  "tea_coffee_required",
-  "conference_room",
-  "seating_capacity",
+  "col_break_meal",
   "service_time",
   "assigned_staff",
+  "conference_room",
+  "assigned_meal_slots",
+  "hospitality_type",
+  "snacks_required",
+  "tea_coffee_required",
+  "seating_capacity",
   "cab_section",
   "cab_type",
   "pickup_location",
@@ -41,7 +47,6 @@
   "cab_vendor",
   "driver_name",
   "driver_phone",
-  "vehicle_number",
   "hotel_section",
   "hotel_name",
   "check_in",
@@ -60,9 +65,6 @@
   "tour_end_time",
   "tour_guide",
   "tour_col_break",
-  "safety_briefing_done",
-  "ppe_issued",
-  "nda_signed",
   "tour_areas",
   "buggy_section",
   "buggy_pickup_point",
@@ -71,7 +73,6 @@
   "buggy_col_break",
   "buggy_number",
   "buggy_driver",
-  "buggy_passenger_count",
   "greeting_section",
   "greeting_type",
   "greeting_delivery_time",
@@ -79,6 +80,7 @@
   "greeting_col_break",
   "greeting_assigned_to",
   "greeting_cost",
+  "section_break_status",
   "status",
   "notes",
   "amended_from"
@@ -165,10 +167,19 @@
    "read_only": 1
   },
   {
+   "fieldname": "section_break_visit_info",
+   "fieldtype": "Section Break",
+   "label": "Visit Info"
+  },
+  {
    "fieldname": "visit_start_time",
    "fieldtype": "Datetime",
    "label": "Visit Start Time",
    "read_only": 1
+  },
+  {
+   "fieldname": "col_break_visit_info",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "visit_end_time",
@@ -179,15 +190,22 @@
   {
    "fieldname": "assigned_meal_slots",
    "fieldtype": "Small Text",
+   "hidden": 1,
    "label": "Assigned Meal Slots",
    "read_only": 1
   },
   {
    "fieldname": "hospitality_type",
    "fieldtype": "Select",
+   "hidden": 1,
    "label": "Hospitality Type",
    "options": "Single Meal\nTwo Meals\nFull Day",
    "read_only": 1
+  },
+  {
+   "fieldname": "section_break_dietary",
+   "fieldtype": "Section Break",
+   "label": "Dietary & Accessibility"
   },
   {
    "fieldname": "special_diet",
@@ -202,12 +220,21 @@
    "label": "Dietary Allergies"
   },
   {
+   "fieldname": "col_break_dietary",
+   "fieldtype": "Column Break"
+  },
+  {
    "default": "None",
    "description": "Affects hotel room assignment, buggy selection, tour path.",
    "fieldname": "accessibility_requirements",
    "fieldtype": "Select",
    "label": "Accessibility Requirements",
-   "options": "None\nWheelchair\nMobility Aid\nVisual Impairment\nHearing Impairment\nOther"
+   "options": "None\nWheelchair\nMobility Aid"
+  },
+  {
+   "fieldname": "section_break_meal",
+   "fieldtype": "Section Break",
+   "label": "Meal & Venue"
   },
   {
    "default": "0",
@@ -222,36 +249,46 @@
    "options": "Breakfast\nLunch\nDinner\nBreakfast + Lunch\nLunch + Dinner\nBreakfast + Dinner\nSnacks\nAll Day"
   },
   {
+   "fieldname": "col_break_meal",
+   "fieldtype": "Column Break"
+  },
+  {
    "default": "0",
    "fieldname": "snacks_required",
    "fieldtype": "Check",
+   "hidden": 1,
    "label": "Snacks Required"
   },
   {
    "default": "0",
    "fieldname": "tea_coffee_required",
    "fieldtype": "Check",
+   "hidden": 1,
    "label": "Tea / Coffee Required"
   },
   {
    "fieldname": "conference_room",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Conference Room",
    "options": "Conference Room"
   },
   {
    "fieldname": "seating_capacity",
    "fieldtype": "Int",
+   "hidden": 1,
    "label": "Seating Capacity"
   },
   {
    "fieldname": "service_time",
    "fieldtype": "Datetime",
+   "hidden": 1,
    "label": "Service Time"
   },
   {
    "fieldname": "assigned_staff",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Assigned Staff",
    "options": "Employee"
   },
@@ -309,6 +346,7 @@
    "description": "Transport supplier / cab company",
    "fieldname": "cab_vendor",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Cab Vendor",
    "options": "Supplier"
   },
@@ -316,21 +354,16 @@
    "depends_on": "eval:doc.cab_required",
    "fieldname": "driver_name",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Driver Name"
   },
   {
    "depends_on": "eval:doc.cab_required",
    "fieldname": "driver_phone",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Driver Phone",
    "options": "Phone"
-  },
-  {
-   "depends_on": "eval:doc.cab_required",
-   "fieldname": "vehicle_number",
-   "fieldtype": "Data",
-   "hidden": 1,
-   "label": "Vehicle Number"
   },
   {
    "collapsible": 1,
@@ -344,6 +377,7 @@
    "description": "Hotel partner / accommodation supplier",
    "fieldname": "hotel_name",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Hotel",
    "options": "Supplier"
   },
@@ -395,6 +429,7 @@
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "booking_reference",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Booking Reference"
   },
   {
@@ -408,6 +443,7 @@
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "hotel_cost",
    "fieldtype": "Currency",
+   "hidden": 1,
    "label": "Hotel Cost"
   },
   {
@@ -449,27 +485,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "0",
-   "depends_on": "eval:doc.factory_tour_required",
-   "fieldname": "safety_briefing_done",
-   "fieldtype": "Check",
-   "label": "Safety Briefing Done"
-  },
-  {
-   "default": "0",
-   "depends_on": "eval:doc.factory_tour_required",
-   "fieldname": "ppe_issued",
-   "fieldtype": "Check",
-   "label": "PPE Issued"
-  },
-  {
-   "default": "0",
-   "depends_on": "eval:doc.factory_tour_required",
-   "fieldname": "nda_signed",
-   "fieldtype": "Check",
-   "label": "NDA Signed"
-  },
-  {
    "depends_on": "eval:doc.factory_tour_required",
    "fieldname": "tour_areas",
    "fieldtype": "Table",
@@ -509,22 +524,16 @@
    "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_number",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Buggy Number"
   },
   {
    "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_driver",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Buggy Driver",
    "options": "Employee"
-  },
-  {
-   "default": "1",
-   "depends_on": "eval:doc.buggy_required",
-   "fieldname": "buggy_passenger_count",
-   "fieldtype": "Int",
-   "hidden": 1,
-   "label": "Passenger Count"
   },
   {
    "collapsible": 1,
@@ -560,6 +569,7 @@
    "depends_on": "eval:doc.greeting_required",
    "fieldname": "greeting_assigned_to",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Assigned To",
    "options": "Employee"
   },
@@ -567,12 +577,20 @@
    "depends_on": "eval:doc.greeting_required",
    "fieldname": "greeting_cost",
    "fieldtype": "Currency",
+   "hidden": 1,
    "label": "Greeting Cost"
+  },
+  {
+   "fieldname": "section_break_status",
+   "fieldtype": "Section Break",
+   "hidden": 1,
+   "label": "Status & Notes"
   },
   {
    "default": "Pending",
    "fieldname": "status",
    "fieldtype": "Select",
+   "hidden": 1,
    "in_list_view": 1,
    "label": "Status",
    "options": "Pending\nConfirmed\nServed\nCompleted\nCancelled"
@@ -580,6 +598,7 @@
   {
    "fieldname": "notes",
    "fieldtype": "Text Editor",
+   "hidden": 1,
    "label": "Notes"
   },
   {
@@ -597,7 +616,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-13 12:50:40.424566",
+ "modified": "2026-04-22 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Hospitality Request",
@@ -605,22 +624,14 @@
  "owner": "Administrator",
  "permissions": [
   {
+   "create": 1,
+   "delete": 1,
    "email": 1,
    "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "Hospitality User",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "email": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Host Employee",
+   "role": "System Manager",
    "share": 1,
    "submit": 1,
    "write": 1
@@ -639,61 +650,14 @@
    "write": 1
   },
   {
-   "email": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Transport Coordinator",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "email": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Front Office Executive",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "email": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Factory Tour Coordinator",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "email": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Greeting Staff",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Visitor Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
    "create": 1,
-   "delete": 1,
    "email": 1,
-   "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "System Manager",
+   "role": "Host Employee",
    "share": 1,
+   "submit": 1,
    "write": 1
   }
  ],

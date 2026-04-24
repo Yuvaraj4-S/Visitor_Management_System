@@ -195,6 +195,17 @@ function apply_visitor_pass_ui(frm) {
 	set_visitor_pass_intro(frm);
 	if (frm.dashboard) frm.dashboard.clear_headline();
 	apply_badge_visibility(frm);
+
+	// Force Phone widget to re-render if mobile_number exists but display is blank.
+	// Frappe's Phone control sometimes fails to parse "+91 XXXXXXXXXX" on initial load.
+	if (frm.doc.mobile_number) {
+		setTimeout(() => {
+			const field = frm.get_field("mobile_number");
+			if (field && field.$input && !field.$input.val()) {
+				frm.refresh_field("mobile_number");
+			}
+		}, 400);
+	}
 }
 
 // Hide badge_number / badge_colour when VMS Settings → enable_badge is off.
@@ -351,12 +362,6 @@ function fetch_customer_crm_details(frm) {
 function apply_visitor_pass_field_rules(frm) {
 	const is_supplier_existing = frm.doc.visitor_type === "Supplier" && frm.doc.entry_type === "Existing";
 	const is_existing = ['Supplier','Customer','Contractor','Candidate'].includes(frm.doc.visitor_type) && frm.doc.entry_type === "Existing";
-	const is_supplier_delivery =
-		frm.doc.visitor_type === "Supplier" && frm.doc.supplier_visit_mode === "Delivery";
-	const is_supplier_business =
-		frm.doc.visitor_type === "Supplier" &&
-		!!frm.doc.supplier_visit_mode &&
-		frm.doc.supplier_visit_mode !== "Delivery";
 	const is_follow_up = frm.doc.visitor_type === "Customer" && frm.doc.meeting_outcome === "Follow-Up Needed";
 	const needs_interpreter = frm.doc.visitor_type === "VIP" && !!frm.doc.interpreter_required;
 	const is_multi_day_contractor = frm.doc.visitor_type === "Contractor" && !!frm.doc.multi_day_pass;
@@ -396,35 +401,8 @@ function apply_visitor_pass_field_rules(frm) {
 	frm.toggle_display("contractor_link", frm.doc.visitor_type === "Contractor" && frm.doc.entry_type === "New");
 	frm.toggle_display("work_order_ref", frm.doc.visitor_type === "Contractor" && frm.doc.entry_type === "New");
 	frm.toggle_display("job_applicant_link", frm.doc.visitor_type === "Candidate" && frm.doc.entry_type === "New");
-	frm.toggle_display(
-		[
-			"purchase_order",
-			"delivery_note",
-			"goods_received_by",
-			"driver_id_number",
-			"dock_bay_assigned",
-			"store_officer",
-			"goods_description",
-		],
-		is_supplier_delivery
-	);
-	// meeting_subject, nda_required, documents_shared are DocType-gated
-	// (depends_on / hidden:1). Removed from this toggle_display list so JS
-	// doesn't override the JSON visibility rules.
-	frm.toggle_display(
-		[
-			"meeting_start_time",
-			"meeting_end_time",
-			"meeting_room",
-			"attendees",
-			"refreshment_notes",
-			"presentation_material",
-		],
-		is_supplier_business
-	);
 	const is_supplier_meeting =
 		frm.doc.visitor_type === "Supplier" && frm.doc.supplier_visit_mode === "Meeting";
-	frm.toggle_reqd("purchase_order", is_supplier_delivery);
 	frm.toggle_reqd("meeting_subject", is_supplier_meeting);
 
 	frm.toggle_display("followup_date", is_follow_up);
@@ -587,7 +565,7 @@ function get_approval_lane(visitor_type) {
 
 function get_pass_stage_color(stage) {
 	if (["Approved", "Checked-In"].includes(stage)) return "green";
-	if (["Pending Approval", "Pending System Manager", "Pending Visitor Manager", "Pending Sales Manager", "Pending HR Manager", "Pending HOD", "Pending CEO"].includes(stage)) return "orange";
+	if (["Pending Approval", "Pending System Manager", "Pending Sales Manager", "Pending HR Manager", "Pending HOD", "Pending CEO"].includes(stage)) return "orange";
 	if (["Rejected", "Cancelled"].includes(stage)) return "red";
 	if (["Items Verified", "Checked-Out"].includes(stage)) return "blue";
 	return "gray";
@@ -600,7 +578,7 @@ function show_web_submissions_dialog(frm) {
 			doctype: 'Visitor Pass',
 			filters: [
 				['request_channel', '=', 'Portal'],
-				['workflow_state', 'in', ['Pending System Manager', 'Pending Visitor Manager', 'Pending Sales Manager', 'Pending HR Manager', 'Pending HOD', 'Pending CEO', 'Draft']]
+				['workflow_state', 'in', ['Pending System Manager', 'Pending Sales Manager', 'Pending HR Manager', 'Pending HOD', 'Pending CEO', 'Draft']]
 			],
 			fields: ['name', 'visitor_full_name', 'visitor_type', 'mobile_number', 'email_id', 'visit_date']
 		},

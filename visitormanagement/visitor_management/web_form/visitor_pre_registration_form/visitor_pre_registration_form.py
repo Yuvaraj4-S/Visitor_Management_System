@@ -154,52 +154,29 @@ def get_context(context):
 		if (values.get(fn) or "").strip():
 			locked_host_fields.add(fn)
 
-	purpose_card = ""
-	if purpose:
-		purpose_card = f"""
-			<div style="margin-top:10px; padding:8px 14px; border-radius:8px; background:#fff; border:1px solid #e2e8f0;">
-				<div class="vm-locked-label">Purpose of Visit</div>
-				<div class="vm-locked-value">{_safe(purpose)}</div>
-			</div>
-		"""
-
 	context.introduction_text = f"""
 		{boot}
 		<div class="vm-status-panel vm-status-success">
 			<div class="vm-status-title">Invitation Verified</div>
 			<div class="vm-status-message">
-				Your invitation has been verified. The visit details below were set by your host and cannot be changed.
+				Your invitation has been verified. Fields marked as locked were set by your host.
 				Please fill in your personal details, identity documents, and any additional information required.
-			</div>
-		</div>
-
-		<div class="vm-locked-sections">
-			<div class="vm-locked-section">
-				<div class="vm-locked-section-title">Host-Approved Visit Details</div>
-				<div class="vm-locked-grid">
-					{_locked_card("Visitor Type", type_badge)}
-					{_locked_card("Email", _safe(values.get("email_id")))}
-					{_locked_card("Visit Date", _format_visit_date(values.get("visit_date")))}
-					{_locked_card("Check-In", _format_visit_time(values.get("expected_checkin")))}
-					{_locked_card("Check-Out", _format_visit_time(values.get("expected_checkout")))}
-					{_locked_card("Host", host_display)}
-				</div>
-				{purpose_card}
 			</div>
 		</div>
 	"""
 
 	if getattr(context, "web_form_doc", None):
-		visitor_type = values.get("visitor_type", "")
-		active_section = TYPE_SECTION_LABELS.get(visitor_type, "")
-		hide_sections = {
-			label for label in TYPE_SECTION_LABELS.values() if label != active_section
-		}
+		# Hide ALL visitor-type specific sections — keep only the core 4:
+		# Visitor Profile, Visit Details, Identity Documents (+ Visitor Items is injected via JS)
+		hide_sections = set(TYPE_SECTION_LABELS.values())
 
 		hiding_section = False
 		for field in context.web_form_doc.web_form_fields:
-			if field.fieldname in INTERNAL_HIDE_FIELDS | locked_host_fields:
+			if field.fieldname in INTERNAL_HIDE_FIELDS:
 				field.hidden = 1
+			elif field.fieldname in locked_host_fields:
+				# Show host-set fields inline in the form, but lock editing
+				field.read_only = 1
 
 			if field.fieldtype == "Section Break":
 				hiding_section = field.label in hide_sections

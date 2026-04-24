@@ -12,6 +12,10 @@ from visitormanagement.visitor_management.lifecycle import (
     ensure_hospitality_request,
     normalize_visitor_pass,
 )
+from visitormanagement.visitor_management.validators import (
+    id_proof_error_message,
+    validate_id,
+)
 
 PENDING_LANES_BY_VISITOR_TYPE = {
     "Contractor": ("Pending System Manager",),
@@ -23,7 +27,6 @@ PENDING_LANES_BY_VISITOR_TYPE = {
 
 ALL_PENDING_LANES = {
     "Pending System Manager",
-    "Pending Visitor Manager",
     "Pending Sales Manager",
     "Pending HR Manager",
     "Pending HOD",
@@ -98,29 +101,11 @@ class VisitorPass(Document):
                 )
 
         if self.id_proof_type and self.id_proof_number:
-            raw = str(self.id_proof_number).strip()
-            # Strip non-alphanumeric for length/format check
-            clean = re.sub(r"[\s\-]", "", raw)
-
-            if self.id_proof_type == "Aadhaar":
-                if not re.match(r"^\d{12}$", clean):
-                    frappe.throw(
-                        _("Aadhaar must be exactly 12 digits. Got: {0}").format(raw),
-                        title=_("Invalid Aadhaar"),
-                    )
-            elif self.id_proof_type == "PAN Card":
-                if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]$", clean.upper()):
-                    frappe.throw(
-                        _("PAN Card format is 5 letters + 4 digits + 1 letter (e.g., ABCDE1234F). Got: {0}").format(raw),
-                        title=_("Invalid PAN"),
-                    )
-            # Passport: 1 letter + 7 digits (Indian) — skip strict check, just length
-            elif self.id_proof_type == "Passport":
-                if len(clean) < 6 or len(clean) > 12:
-                    frappe.throw(
-                        _("Passport number should be 6-12 characters. Got: {0}").format(raw),
-                        title=_("Invalid Passport"),
-                    )
+            if not validate_id(self.id_proof_type, self.id_proof_number):
+                frappe.throw(
+                    _(id_proof_error_message(self.id_proof_type)),
+                    title=_("Invalid ID Proof"),
+                )
 
     def _validate_host_active(self):
         """Host must be an Active employee."""
@@ -252,6 +237,47 @@ class VisitorPass(Document):
                 self.item_verification_status = "All Verified"
                 self.all_items_verified = 1
 
+    def _alert_blacklist_match(self, blacklist_doc):
+        recipients = self._security_alert_recipients()
+        if not recipients:
+            return
+        try:
+            frappe.sendmail(
+                recipients=recipients,
+                subject=f"🚨 Blacklist match attempt: {self.visitor_full_name}",
+                message=(
+                    f"<p><b>A blacklisted visitor attempted entry.</b></p>"
+                    f"<ul>"
+                    f"<li><b>Visitor:</b> {self.visitor_full_name}</li>"
+                    f"<li><b>ID Proof:</b> {self.id_proof_type} — {self.id_proof_number}</li>"
+                    f"<li><b>Mobile:</b> {self.mobile_number or '-'}</li>"
+                    f"<li><b>Reason on file:</b> {blacklist_doc.reason}</li>"
+                    f"<li><b>Attempted host:</b> {self.person_to_visit or '-'}</li>"
+                    f"<li><b>Time:</b> {frappe.utils.now()}</li>"
+                    f"</ul>"
+                    f"<p>Entry was blocked. No Visitor Pass created.</p>"
+                ),
+                reference_doctype="Visitor Blacklist",
+                reference_name=blacklist_doc.name,
+                now=True,
+            )
+        except Exception as exc:
+            frappe.log_error(f"Blacklist alert email failed: {exc}", "VMS Blacklist Alert")
+
+    def _security_alert_recipients(self):
+        users = frappe.get_all(
+            "Has Role",
+            filters={"role": ["in", ["Security", "System Manager"]], "parenttype": "User"},
+            fields=["parent"],
+            distinct=True,
+        )
+        emails = []
+        for u in users:
+            email = frappe.db.get_value("User", u.parent, "email")
+            if email and email != "Administrator" and "@" in email:
+                emails.append(email)
+        return list(set(emails))
+
     def _normalize_mobile_number(self):
         if not self.mobile_number:
             return
@@ -261,10 +287,13 @@ class VisitorPass(Document):
             return
         if digits.startswith("91") and len(digits) > 10:
             digits = digits[2:]
-        self.mobile_number = f"+91 {digits[-10:]}" if len(digits) >= 10 else raw
+        # Frappe Phone widget expects "+{isd}-{number}" format (hyphen, NOT space)
+        # See apps/frappe/frappe/public/js/frappe/form/controls/phone.js:167
+        self.mobile_number = f"+91-{digits[-10:]}" if len(digits) >= 10 else raw
 
     def _set_visitor_summary(self):
-        parts = [self.visitor_full_name or "", self.mobile_number or ""]
+        mobile_display = (self.mobile_number or "").replace("-", " ")
+        parts = [self.visitor_full_name or "", mobile_display]
         self.visitor_summary = " | ".join(p for p in parts if p)
 
     def _sync_items_carried(self):
@@ -340,6 +369,7 @@ class VisitorPass(Document):
 
             if blacklist_name:
                 bl = frappe.get_doc("Visitor Blacklist", blacklist_name)
+                self._alert_blacklist_match(bl)
                 frappe.throw(
                     f"<b>ACCESS DENIED</b><br>"
                     f"Visitor: {self.visitor_full_name}<br>"
@@ -487,22 +517,26 @@ class VisitorPass(Document):
 
         attachments = []
         inline_images = []
-        
-        # Use a constant CID for the QR code
-        qr_cid = "qr_pass_code"
+        qr_filename = f"QR_{self.name}.png"
+        qr_html = ""
 
         if qr_content:
-            # Add as attachment fallback
-            attachments.append({
-                "fname": f"QR_{self.name}.png",
-                "fcontent": qr_content
-            })
-            # Add as inline image for email clients supporting CID
+            # Frappe rewrites <img embed="name"> → <img src="cid:..."> and attaches
+            # the inline part using filename/filecontent. Use embed=, not src=cid.
             inline_images.append({
-                "fname": f"QR_{self.name}.png",
-                "fcontent": qr_content,
-                "cid": qr_cid
+                "filename": qr_filename,
+                "filecontent": qr_content,
             })
+            # Keep the same file as a downloadable attachment for email clients
+            # that strip inline images (some corporate gateways).
+            attachments.append({
+                "fname": qr_filename,
+                "fcontent": qr_content,
+            })
+            qr_html = (
+                f"<img embed='{qr_filename}' width='200' "
+                f"style='border: 1px solid #ddd; padding: 10px;' alt='QR Code'><br><br>"
+            )
 
         frappe.sendmail(
             recipients=[self.email_id],
@@ -511,8 +545,7 @@ class VisitorPass(Document):
                 f"Dear {self.visitor_full_name},<br><br>"
                 f"Your visit request has been approved.<br>"
                 f"Please present the QR code below at the security gate:<br><br>"
-                f"<img src='cid:{qr_cid}' width='200' style='border: 1px solid #ddd; padding: 10px;' alt='QR Code'><br><br>"
-                f"<i>(If the image above is not visible, please use the attached QR code)</i><br><br>"
+                f"{qr_html}"
                 f"<b>Visit Details:</b><br>"
                 f"Pass ID: {self.name}<br>"
                 f"Host: {self.person_to_visit}<br>"
@@ -520,7 +553,7 @@ class VisitorPass(Document):
                 f"{items_text}"
             ),
             attachments=attachments,
-            inline_images=inline_images
+            inline_images=inline_images,
         )
 
     # ─────────────────────────────────────────────────────────

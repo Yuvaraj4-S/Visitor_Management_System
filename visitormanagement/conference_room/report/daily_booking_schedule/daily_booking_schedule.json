@@ -12,7 +12,6 @@
  "report_type": "Script Report",
  "roles": [
   {"role": "System Manager"},
-  {"role": "HR Manager"},
   {"role": "Facility Manager"},
   {"role": "Employee"}
  ]

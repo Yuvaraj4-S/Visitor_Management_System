@@ -19,7 +19,7 @@ def execute():
 			"no_show": doc.no_show,
 		}
 		if doc.visitor_type == "Supplier":
-			updates["supplier_visit_mode"] = doc.supplier_visit_mode or "Delivery"
+			updates["supplier_visit_mode"] = doc.supplier_visit_mode or "Meeting"
 
 		frappe.db.set_value("Visitor Pass", name, updates, update_modified=False)
 

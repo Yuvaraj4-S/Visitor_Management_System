@@ -7,6 +7,30 @@ frappe.ui.form.on("Security Log", {
 		frm.add_fetch("visitor_pass", "badge_number", "badge_number");
 		frm.add_fetch("visitor_pass", "visitor_photo", "visitor_photo");
 		frm.add_fetch("visitor_pass", "id_proof_scan", "id_proof_scan");
+
+		frm.set_query("security_officer", () => {
+			if (is_security_admin()) return { filters: { status: "Active" } };
+			// Security staff may only log on their own behalf.
+			return { filters: { user_id: frappe.session.user, status: "Active" } };
+		});
+	},
+
+	onload(frm) {
+		if (frm.is_new() && !frm.doc.security_officer) {
+			frappe.db
+				.get_value(
+					"Employee",
+					{ user_id: frappe.session.user, status: "Active" },
+					"name"
+				)
+				.then((r) => {
+					const emp = r && r.message && r.message.name;
+					if (emp) frm.set_value("security_officer", emp);
+				});
+		}
+		if (!is_security_admin()) {
+			frm.set_df_property("security_officer", "read_only", 1);
+		}
 	},
 
 	refresh(frm) {
@@ -57,6 +81,13 @@ frappe.ui.form.on("Security Log", {
 
 	pass_photo_match(frm) {
 		apply_security_log_ui(frm);
+	},
+
+	all_items_confirmed(frm) {
+		// Derived server-side from items_verification rows. If a user manages
+		// to toggle it (Frappe's Check read_only is unreliable), snap it back
+		// to the computed value so the flag stays trustworthy.
+		recompute_all_items_confirmed(frm);
 	},
 
 	after_save(frm) {
@@ -258,11 +289,7 @@ frappe.ui.form.on("Security Log", {
 				}
 
 				if (r.id_proof_number) {
-					const last4 = r.id_proof_number.length >= 4
-						? r.id_proof_number.slice(-4)
-						: r.id_proof_number;
 					frm.set_value("id_proof_number", build_masked_id(r.id_proof_number));
-					frm.set_value("id_last_4_digits", last4);
 				}
 
 				if (r.id_proof_type && !frm.doc.id_proof_type_verified) {
@@ -452,12 +479,11 @@ frappe.ui.form.on("Security Item Verify", {
 
 		if (row.item_verified && !row.security_remarks) {
 			frappe.model.set_value(cdt, cdn, "security_remarks", __("Verified at gate"));
-			return;
-		}
-
-		if (!row.item_verified && row.security_remarks === __("Verified at gate")) {
+		} else if (!row.item_verified && row.security_remarks === __("Verified at gate")) {
 			frappe.model.set_value(cdt, cdn, "security_remarks", __("Pending security verification"));
 		}
+
+		recompute_all_items_confirmed(frm);
 	},
 
 		capture_item_image(frm, cdt, cdn) {
@@ -596,6 +622,12 @@ function upload_captured_image({ file, doctype, docname, fieldname }) {
 	});
 }
 
+function is_security_admin() {
+	// System / HR Managers can override the security_officer field.
+	const roles = frappe.user_roles || [];
+	return roles.includes("System Manager") || roles.includes("HR Manager");
+}
+
 function mask_id_proof_number(frm) {
 	const val = frm.doc.id_proof_number;
 	if (!val || val.includes("X") || val.includes(" ")) return;
@@ -620,7 +652,6 @@ function apply_security_log_ui(frm) {
 		"visitor_name",
 		"visitor_company",
 		"id_proof_number",
-		"id_last_4_digits",
 		"id_proof_scan",
 		"visitor_photo",
 		"qr_code_scanned",
@@ -665,6 +696,35 @@ function apply_security_log_ui(frm) {
 	set_security_log_intro(frm, is_check_in, is_check_out);
 	if (frm.dashboard) frm.dashboard.clear_headline();
 	apply_badge_visibility_sl(frm);
+	lock_all_items_confirmed(frm);
+}
+
+function lock_all_items_confirmed(frm) {
+	// Frappe's read_only on Check fields doesn't always disable the click in
+	// every theme/version. Lock the wrapper so re-renders from toggle_display
+	// can't resurrect interactivity.
+	const field = frm.fields_dict && frm.fields_dict.all_items_confirmed;
+	if (!field || !field.$wrapper) return;
+
+	const apply = () => {
+		const $wrapper = field.$wrapper;
+		const $input = $wrapper.find("input[type='checkbox']").first();
+		if ($input && $input.length) $input.prop("disabled", true);
+		$wrapper.css({ "pointer-events": "none", opacity: 0.85 });
+	};
+
+	apply();
+	// Catch late renders triggered by toggle_display / section re-layout.
+	setTimeout(apply, 50);
+	setTimeout(apply, 250);
+}
+
+function recompute_all_items_confirmed(frm) {
+	const rows = frm.doc.items_verification || [];
+	const expected = rows.length === 0 || rows.every((r) => !!r.item_verified) ? 1 : 0;
+	if (Number(frm.doc.all_items_confirmed || 0) !== expected) {
+		frm.set_value("all_items_confirmed", expected);
+	}
 }
 
 // Hide badge_number field on Security Log when VMS Settings → enable_badge is off.

@@ -1,31 +1,31 @@
 {
-    "attach_files": "",
-    "attach_print": 0,
-    "channel": "Email",
-    "condition": "doc.status == \"Approved\"",
-    "creation": "2026-03-02 15:40:20.731504",
-    "days_in_advance": 0,
-    "docstatus": 0,
-    "doctype": "Notification",
-    "document_type": "Visitor Pass",
-    "enabled": 1,
-    "event": "Value Change",
-    "idx": 0,
-    "is_standard": 1,
-    "message": "<b>NEW APPROVED VISITOR \u2014 ITEM VERIFICATION REQUIRED</b><br><br>\n\nName    : {{ doc.visitor_full_name }}<br>\nCompany : {{ doc.company__organisation or 'N/A' }}<br>\nType    : {{ doc.visitor_type }}<br>\nMeets   : {{ doc.person_to_visit }} | Dept: {{ doc.host_department }}<br>\nPurpose : {{ doc.purpose_of_visit }}<br>\nDate    : {{ doc.visit_date }} | Arrival: {{ doc.expected_checkin }}<br>\nID Type : {{ doc.id_proof_type }}<br><br>\n\n<b>Items Declared by Visitor:</b><br>\n\n{% if doc.visitor_items %}\n    {% for item in doc.visitor_items %}\n        - {{ item.item_name }} | Qty: {{ item.quantity }} {{ item.unit_of_measure or '' }}\n        {% if item.serial_number %} | S/N: {{ item.serial_number }}{% endif %}<br>\n    {% endfor %}\n{% else %}\n    No items declared.<br>\n{% endif %}\n\n<br><b>Please verify all declared items before issuing badge.</b>",
-    "message_type": "HTML",
-    "modified": "2026-03-02 15:40:20.731504",
-    "modified_by": "Administrator",
-    "module": "Visitor Management",
-    "name": "Gate Security Alert",
-    "owner": "Administrator",
-    "recipients": [
-        {
-            "receiver_by_role": "Gate Security"
-        }
-    ],
-    "send_system_notification": 0,
-    "send_to_all_assignees": 0,
-    "subject": "Visitor Approved: {{ doc.visitor_full_name }} — Verify Items Required",
-    "value_changed": "approval_date"
+ "attach_files": "",
+ "attach_print": 0,
+ "channel": "Email",
+ "condition": "doc.status == \"Approved\"",
+ "creation": "2026-03-02 15:40:20.731504",
+ "days_in_advance": 0,
+ "docstatus": 0,
+ "doctype": "Notification",
+ "document_type": "Visitor Pass",
+ "enabled": 1,
+ "event": "Value Change",
+ "idx": 0,
+ "is_standard": 0,
+ "message": "<b>NEW APPROVED VISITOR — ITEM VERIFICATION REQUIRED</b><br><br>\n\nName    : {{ doc.visitor_full_name }}<br>\nCompany : {{ doc.company__organisation or 'N/A' }}<br>\nType    : {{ doc.visitor_type }}<br>\nMeets   : {{ doc.person_to_visit }} | Dept: {{ doc.host_department }}<br>\nPurpose : {{ doc.purpose_of_visit }}<br>\nDate    : {{ doc.visit_date }} | Arrival: {{ doc.expected_checkin }}<br>\nID Type : {{ doc.id_proof_type }}<br><br>\n\n<b>Items Declared by Visitor:</b><br>\n\n{% if doc.visitor_items %}\n    {% for item in doc.visitor_items %}\n        - {{ item.item_name }} | Qty: {{ item.quantity }} {{ item.unit_of_measure or '' }}\n        {% if item.serial_number %} | S/N: {{ item.serial_number }}{% endif %}<br>\n    {% endfor %}\n{% else %}\n    No items declared.<br>\n{% endif %}\n\n<br><b>Please verify all declared items before issuing badge.</b>",
+ "message_type": "HTML",
+ "modified": "2026-03-02 15:40:20.731504",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Gate Security Alert",
+ "owner": "Administrator",
+ "recipients": [
+  {
+   "receiver_by_role": "Security"
+  }
+ ],
+ "send_system_notification": 0,
+ "send_to_all_assignees": 0,
+ "subject": "Visitor Approved: {{ doc.visitor_full_name }} — Verify Items Required",
+ "value_changed": "approval_date"
 }

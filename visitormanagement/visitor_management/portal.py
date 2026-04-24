@@ -8,6 +8,10 @@ from frappe.utils import now_datetime
 from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation import (
 	get_valid_invitation_by_token,
 )
+from visitormanagement.visitor_management.validators import (
+	id_proof_error_message,
+	validate_id,
+)
 
 PENDING_APPROVAL_BY_TYPE = {
 	"Contractor": "Pending System Manager",
@@ -70,16 +74,20 @@ def _normalize_mobile_number(number, country_code=None):
 	if not digits:
 		return number
 
+	# Frappe Phone widget requires "+{isd}-{number}" (hyphen separator)
 	if country_code:
 		country_code_digits = "".join(char for char in country_code if char.isdigit())
 		if country_code_digits and len(digits) == 10:
-			return f"+{country_code_digits}{digits}"
+			return f"+{country_code_digits}-{digits}"
 
 	if len(digits) == 10:
-		return f"+91{digits}"
+		return f"+91-{digits}"
 
 	if 11 <= len(digits) <= 15:
-		return f"+{digits}"
+		# strip leading country code digits if present, reconstruct with hyphen
+		if digits.startswith("91") and len(digits) >= 12:
+			return f"+91-{digits[-10:]}"
+		return f"+{digits[:-10]}-{digits[-10:]}"
 
 	frappe.throw("Mobile Number must be 10 digits local or 11-15 digits with country code.")
 
@@ -194,9 +202,6 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"visitor_type": visitor_type,
 		"supplier_link": data.get("supplier_link"),
 		"supplier_visit_mode": data.get("supplier_visit_mode"),
-		"purchase_order": data.get("purchase_order"),
-		"delivery_note": data.get("delivery_note"),
-		"goods_description": data.get("goods_description"),
 		"visit_category": data.get("visit_category"),
 		"contractor_link": data.get("contractor_link"),
 		"work_order_ref": data.get("work_order_ref"),
@@ -216,6 +221,7 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"id_proof_number": data.get("id_proof_number"),
 		"id_proof_scan": id_proof_url,
 		"visitor_photo": visitor_photo_url,
+		"items_carried": data.get("items_carried"),
 		"status": target_state,
 		"workflow_state": target_state,
 		"request_channel": "Portal",
@@ -276,6 +282,15 @@ def submit_pre_registration(payload=None):
 
 	if require_full_submission and not data.get("visitor_photo"):
 		frappe.throw("Visitor Photo is required.")
+
+	if require_full_submission:
+		canonical_type = _normalize_id_proof_type(data.get("id_proof_type"))
+		id_number = (data.get("id_proof_number") or "").strip()
+		if canonical_type and id_number and not validate_id(canonical_type, id_number):
+			frappe.throw(
+				id_proof_error_message(canonical_type),
+				title="Invalid ID Proof",
+			)
 
 	id_proof_filename, id_proof_content = _extract_file_payload(
 		data.get("id_proof_scan"),

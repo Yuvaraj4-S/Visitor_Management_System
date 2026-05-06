@@ -55,12 +55,16 @@ def _send_hospitality_assignment_mail(doc):
 	if doc.notes:
 		lines.extend(["", f"Notes: {frappe.utils.strip_html(doc.notes)}"])
 
-	frappe.sendmail(
-		recipients=[email],
-		subject=subject,
-		message="<br>".join(lines),
-		now=True,
-	)
+	try:
+		frappe.sendmail(
+			recipients=[email],
+			subject=subject,
+			message="<br>".join(lines),
+			now=True,
+		)
+	except Exception as exc:
+		# Email Account may not be configured — log and continue rather than blocking the save.
+		frappe.log_error(f"Hospitality assignment email failed for {doc.name}: {exc}", "VMS Hospitality Assignment Email")
 
 
 class HospitalityRequest(Document):

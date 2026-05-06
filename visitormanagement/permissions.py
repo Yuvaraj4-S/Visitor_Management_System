@@ -27,6 +27,14 @@ def get_visitor_pass_permission_query_conditions(user=None):
 
 	roles = set(frappe.get_roles(user))
 	table = "tabVisitor Pass"
+
+	# Facility Manager (Conference Room Booking → visitor_pass link) and
+	# Hospitality Manager (Hospitality Request → visitor_pass link) need to
+	# see every Visitor Pass so their link widgets and typeaheads work.
+	# They have no write/submit at role level, so this is read-only exposure.
+	if "Facility Manager" in roles or "Hospitality Manager" in roles:
+		return None
+
 	conditions = [_owner_condition(table, user)]
 
 	# Host scope — user can see any pass where they are person_to_visit (the host)
@@ -49,6 +57,9 @@ def get_visitor_pass_permission_query_conditions(user=None):
 	return " or ".join(conditions) if conditions else "1=0"
 
 
+_READ_LIKE_PTYPES = {None, "read", "select", "print", "email", "report", "export", "share"}
+
+
 def has_visitor_pass_permission(doc, user=None, permission_type=None):
 	user = user or frappe.session.user
 	if _is_admin(user):
@@ -63,6 +74,15 @@ def has_visitor_pass_permission(doc, user=None, permission_type=None):
 		return True
 
 	roles = set(frappe.get_roles(user))
+
+	# Facility Manager + Hospitality Manager: read-only on all passes so
+	# Conference Room Booking / Hospitality Request link widgets can render
+	# the visitor's title. Write paths are blocked at role level.
+	if permission_type in _READ_LIKE_PTYPES and (
+		"Facility Manager" in roles or "Hospitality Manager" in roles
+	):
+		return True
+
 	if "System Manager" in roles and doc.visitor_type in {"Contractor", "Supplier"}:
 		return True
 	if "HR Manager" in roles and doc.visitor_type == "Candidate":
@@ -71,12 +91,16 @@ def has_visitor_pass_permission(doc, user=None, permission_type=None):
 		return True
 	if ("HOD" in roles or "CEO" in roles) and doc.visitor_type == "VIP":
 		return True
+	# Security role is read-only on Visitor Pass. Gate workflow happens through
+	# Security Log (where they have write). Without this guard, has_permission
+	# would short-circuit `True` for every ptype and let Security write/submit
+	# any approved pass.
 	if "Security" in roles and doc.status in {
 		"Approved",
 		"Items Verified",
 		"Checked-In",
 		"Checked-Out",
 	}:
-		return True
+		return permission_type in _READ_LIKE_PTYPES
 
 	return False

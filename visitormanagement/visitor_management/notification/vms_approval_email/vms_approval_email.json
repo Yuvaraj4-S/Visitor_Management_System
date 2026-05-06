@@ -11,7 +11,7 @@
  "enabled": 1,
  "event": "Submit",
  "idx": 0,
- "is_standard": 1,
+ "is_standard": 0,
  "message": "<div style=\"font-family: Arial, sans-serif; font-size: 14px; color: #1f2933;\">\n<p>Dear {{ doc.visitor_full_name }},</p>\n\n<p>Your visit has been <b style=\"color: #28a745;\">APPROVED</b>.</p>\n\n<h3>Visit Details</h3>\n<table style=\"border-collapse: collapse; width: 100%; margin: 12px 0;\">\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Date</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.visit_date }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Time</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.expected_checkin }} - {{ doc.expected_checkout }}</td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Host</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.person_to_visit }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Purpose</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.purpose_of_visit }}</td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Pass ID</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.name }}</td></tr>\n</table>\n\n<h3>On Arrival</h3>\n<ul>\n<li>Please carry a valid photo ID matching the one you registered with.</li>\n<li>Show your <b>QR code</b> at the gate for verification.</li>\n<li>Your badge will be issued after item verification at the security desk.</li>\n{% if doc.visitor_type == 'Contractor' %}\n<li>Ensure you have completed the required safety induction and are wearing provided PPE.</li>\n{% endif %}\n</ul>\n\n<p>We look forward to welcoming you.</p>\n\n<p style=\"margin-top: 20px; color: #64748b; font-size: 12px;\">\nThis is an automated email. Please contact your host for any changes or queries.\n</p>\n</div>",
  "message_type": "HTML",
  "modified": "2026-04-13 13:42:48.807456",
@@ -26,5 +26,5 @@
  ],
  "send_system_notification": 0,
  "send_to_all_assignees": 0,
- "subject": "Visit Approved: {{ doc.visit_date }} \u2014 Pass {{ doc.name }}"
+ "subject": "Visit Approved: {{ doc.visit_date }} — Pass {{ doc.name }}"
 }

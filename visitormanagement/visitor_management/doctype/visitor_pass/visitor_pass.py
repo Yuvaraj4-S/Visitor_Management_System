@@ -12,6 +12,10 @@ from visitormanagement.visitor_management.lifecycle import (
     ensure_hospitality_request,
     normalize_visitor_pass,
 )
+from visitormanagement.visitor_management.validators import (
+    id_proof_error_message,
+    validate_id,
+)
 
 PENDING_LANES_BY_VISITOR_TYPE = {
     "Contractor": ("Pending System Manager",),
@@ -97,29 +101,11 @@ class VisitorPass(Document):
                 )
 
         if self.id_proof_type and self.id_proof_number:
-            raw = str(self.id_proof_number).strip()
-            # Strip non-alphanumeric for length/format check
-            clean = re.sub(r"[\s\-]", "", raw)
-
-            if self.id_proof_type == "Aadhaar":
-                if not re.match(r"^\d{12}$", clean):
-                    frappe.throw(
-                        _("Aadhaar must be exactly 12 digits. Got: {0}").format(raw),
-                        title=_("Invalid Aadhaar"),
-                    )
-            elif self.id_proof_type == "PAN Card":
-                if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]$", clean.upper()):
-                    frappe.throw(
-                        _("PAN Card format is 5 letters + 4 digits + 1 letter (e.g., ABCDE1234F). Got: {0}").format(raw),
-                        title=_("Invalid PAN"),
-                    )
-            # Passport: 1 letter + 7 digits (Indian) — skip strict check, just length
-            elif self.id_proof_type == "Passport":
-                if len(clean) < 6 or len(clean) > 12:
-                    frappe.throw(
-                        _("Passport number should be 6-12 characters. Got: {0}").format(raw),
-                        title=_("Invalid Passport"),
-                    )
+            if not validate_id(self.id_proof_type, self.id_proof_number):
+                frappe.throw(
+                    _(id_proof_error_message(self.id_proof_type)),
+                    title=_("Invalid ID Proof"),
+                )
 
     def _validate_host_active(self):
         """Host must be an Active employee."""
@@ -531,53 +517,64 @@ class VisitorPass(Document):
 
         attachments = []
         inline_images = []
-        
-        # Use a constant CID for the QR code
-        qr_cid = "qr_pass_code"
+        qr_filename = f"QR_{self.name}.png"
+        qr_html = ""
 
         if qr_content:
-            # Add as attachment fallback
-            attachments.append({
-                "fname": f"QR_{self.name}.png",
-                "fcontent": qr_content
-            })
-            # Add as inline image for email clients supporting CID
+            # Frappe rewrites <img embed="name"> → <img src="cid:..."> and attaches
+            # the inline part using filename/filecontent. Use embed=, not src=cid.
             inline_images.append({
-                "fname": f"QR_{self.name}.png",
-                "fcontent": qr_content,
-                "cid": qr_cid
+                "filename": qr_filename,
+                "filecontent": qr_content,
             })
+            # Keep the same file as a downloadable attachment for email clients
+            # that strip inline images (some corporate gateways).
+            attachments.append({
+                "fname": qr_filename,
+                "fcontent": qr_content,
+            })
+            qr_html = (
+                f"<img embed='{qr_filename}' width='200' "
+                f"style='border: 1px solid #ddd; padding: 10px;' alt='QR Code'><br><br>"
+            )
 
-        frappe.sendmail(
-            recipients=[self.email_id],
-            subject=f"Visit APPROVED — {self.name}",
-            message=(
-                f"Dear {self.visitor_full_name},<br><br>"
-                f"Your visit request has been approved.<br>"
-                f"Please present the QR code below at the security gate:<br><br>"
-                f"<img src='cid:{qr_cid}' width='200' style='border: 1px solid #ddd; padding: 10px;' alt='QR Code'><br><br>"
-                f"<i>(If the image above is not visible, please use the attached QR code)</i><br><br>"
-                f"<b>Visit Details:</b><br>"
-                f"Pass ID: {self.name}<br>"
-                f"Host: {self.person_to_visit}<br>"
-                f"Date: {self.visit_date}<br>"
-                f"{items_text}"
-            ),
-            attachments=attachments,
-            inline_images=inline_images
-        )
+        try:
+            frappe.sendmail(
+                recipients=[self.email_id],
+                subject=f"Visit APPROVED — {self.name}",
+                message=(
+                    f"Dear {self.visitor_full_name},<br><br>"
+                    f"Your visit request has been approved.<br>"
+                    f"Please present the QR code below at the security gate:<br><br>"
+                    f"{qr_html}"
+                    f"<b>Visit Details:</b><br>"
+                    f"Pass ID: {self.name}<br>"
+                    f"Host: {self.person_to_visit}<br>"
+                    f"Date: {self.visit_date}<br>"
+                    f"{items_text}"
+                ),
+                attachments=attachments,
+                inline_images=inline_images,
+            )
+        except Exception as exc:
+            # Don't let a missing/misconfigured Email Account block approval.
+            frappe.log_error(f"Approval email failed for {self.name}: {exc}", "VMS Approval Email")
 
     # ─────────────────────────────────────────────────────────
     # PRIVATE: NOTIFY FOOD DEPT
     # ─────────────────────────────────────────────────────────
     def _notify_food_dept(self):
         food_email = frappe.db.get_single_value("VMS Settings", "food_dept_email")
-        if food_email:
+        if not food_email:
+            return
+        try:
             frappe.sendmail(
                 recipients=[food_email],
                 subject=f"Meal Required: {self.visitor_full_name}",
                 message=f"Meal Type: {self.meal_type}<br>Visitor Pass: {self.name}",
             )
+        except Exception as exc:
+            frappe.log_error(f"Food dept notification failed for {self.name}: {exc}", "VMS Food Dept Notification")
 
 @frappe.whitelist()
 def search_existing_by_phone(phone):

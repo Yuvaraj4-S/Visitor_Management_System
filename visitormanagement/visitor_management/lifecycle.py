@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import cint, flt, get_datetime, getdate, now_datetime, nowdate
+from frappe.utils import cint, flt, get_datetime, get_time, getdate, now_datetime, nowdate
 
 
 DEFAULT_RISK_BY_TYPE = {
@@ -289,10 +289,22 @@ def sync_hospitality_to_pass(request_doc):
 
 
 def _combine_visit_datetime(visit_date, visit_time):
+	# Reduce visit_time to a HH:MM:SS string and strip tzinfo so the resulting datetime
+	# is always naive — meal-window slots are naive too, and mixing the two raises
+	# `can't compare offset-naive and offset-aware datetimes` in _overlaps_time_window.
 	if not visit_date or not visit_time:
 		return None
 
-	return get_datetime(f"{visit_date} {visit_time}")
+	try:
+		time_obj = get_time(visit_time)  # accepts time / datetime / timedelta / str
+		time_str = time_obj.strftime("%H:%M:%S")
+	except Exception:
+		time_str = str(visit_time)
+
+	dt = get_datetime(f"{visit_date} {time_str}")
+	if dt and getattr(dt, "tzinfo", None) is not None:
+		dt = dt.replace(tzinfo=None)
+	return dt
 
 
 def _overlaps_time_window(start_dt, end_dt, window_start_dt, window_end_dt):

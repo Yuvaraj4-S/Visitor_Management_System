@@ -297,24 +297,37 @@ class VisitorPass(Document):
         self.visitor_summary = " | ".join(p for p in parts if p)
 
     def _sync_items_carried(self):
-        """Bidirectional sync between `items_carried` (Small Text on the desk form)
-        and the hidden `visitor_items` child table.
+        """Bi-directional sync between `items_carried` (Small Text shown on the
+        desk form) and the structured `visitor_items` child table.
 
-        Rule:
-          - items_carried is the source of truth for the desk-form user.
-          - visitor_items keeps a single mirror row so gate verification
-            (Security Log → Security Item Verify) continues to work.
+        Rules — in priority order:
+          1. If `visitor_items` already has rows AND items_carried matches the
+             auto-summary of those rows → data is already consistent, leave
+             everything alone. This is the path the portal uses when it sets
+             both fields atomically with structured rows + a derived summary.
+          2. If items_carried is set and visitor_items is empty → create a
+             single mirror row (keeps gate verification working for
+             desk-form users who only type free-text).
+          3. If items_carried is set but visitor_items rows DON'T match the
+             summary → the desk-form user just edited items_carried; rebuild
+             the structured rows from the new text (single row mirror,
+             preserving prior verification state).
+          4. If items_carried is empty and rows exist → derive a summary into
+             items_carried so prints / dropdowns have a single label.
         """
         text = (self.items_carried or "").strip()
-        current_first = self.visitor_items[0] if self.visitor_items else None
-        current_first_name = (current_first.item_name or "").strip() if current_first else ""
+        rows = list(self.visitor_items or [])
+        auto_summary = self._summarise_items(rows)
+
+        if rows and text and text == auto_summary:
+            # Already consistent; don't rebuild anything.
+            return
 
         if text:
-            # If nothing would change, skip.
-            if current_first_name == text and len(self.visitor_items) == 1:
+            current_first = rows[0] if rows else None
+            current_first_name = (current_first.item_name or "").strip() if current_first else ""
+            if current_first_name == text and len(rows) == 1:
                 return
-            # Rebuild visitor_items with a single row mirroring items_carried,
-            # preserving verification state from the existing row if any.
             preserved_verified = current_first.verified_by_security if current_first else 0
             preserved_remarks = current_first.verification_remarks if current_first else None
             self.set("visitor_items", [])
@@ -326,10 +339,26 @@ class VisitorPass(Document):
                 row.verified_by_security = 1
             if preserved_remarks:
                 row.verification_remarks = preserved_remarks
-        elif current_first and current_first.item_name:
-            # items_carried empty but a row exists (e.g. from pre-reg that wrote
-            # visitor_items directly). Read-back into items_carried.
-            self.items_carried = current_first.item_name
+        elif rows:
+            # items_carried empty but rows exist (portal flow) → derive summary
+            self.items_carried = auto_summary
+
+    @staticmethod
+    def _summarise_items(rows):
+        """Build the same comma-separated summary string the portal helper
+        creates, so the controller can detect 'already-in-sync' state."""
+        if not rows:
+            return None
+        parts = []
+        for r in rows:
+            name = (r.item_name or "").strip()
+            if not name:
+                continue
+            qty = r.quantity
+            if qty and int(qty or 0) > 1:
+                name = f"{name} (x{int(qty)})"
+            parts.append(name)
+        return ", ".join(parts) if parts else None
 
     def on_update(self):
         if self.docstatus == 0 and self.status == "Draft":
@@ -371,10 +400,12 @@ class VisitorPass(Document):
                 bl = frappe.get_doc("Visitor Blacklist", blacklist_name)
                 self._alert_blacklist_match(bl)
                 frappe.throw(
-                    f"<b>ACCESS DENIED</b><br>"
-                    f"Visitor: {self.visitor_full_name}<br>"
-                    f"Reason: {bl.reason}",
-                    title="BLACKLISTED VISITOR",
+                    msg=_(
+                        "Visitor: {0}\n"
+                        "Reason: {1}\n\n"
+                        "This person is on the active blacklist. The pass cannot be submitted."
+                    ).format(self.visitor_full_name, bl.reason or _("Not specified")),
+                    title=_("Access Denied — Blacklisted Visitor"),
                 )
 
         # 3️⃣ VIP Approval Check
@@ -702,8 +733,14 @@ def search_visitor_passes(doctype, txt, searchfield, start, page_len, filters):
         params.extend([like] * 5)
 
     where = " AND ".join(conditions) if conditions else "1=1"
+<<<<<<< HEAD
     # Compute the dropdown description live (visitor_full_name · mobile_number) so reception
     # can spot + search by phone, regardless of how stale the cached visitor_summary is.
+=======
+    # Compute the dropdown description live (visitor_full_name · mobile_number) so
+    # reception can spot + search by phone, regardless of how stale the cached
+    # `visitor_summary` is on legacy/demo records.
+>>>>>>> 6f4ff72 (changes-6)
     return frappe.db.sql(
         f"""SELECT
                 name,

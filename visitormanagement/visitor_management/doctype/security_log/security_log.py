@@ -117,12 +117,13 @@ class SecurityLog(Document):
             if blacklist_name:
                 bl = frappe.get_doc('Visitor Blacklist', blacklist_name)
                 frappe.throw(
-                    f"<b>ACCESS DENIED AT GATE</b><br>"
-                    f"Visitor: {vp.visitor_full_name}<br>"
-                    f"ID Proof matches active blacklist entry.<br>"
-                    f"Reason: {bl.reason or 'Not specified'}<br>"
-                    f"Blocked by: {bl.blocked_by or 'System'}",
-                    title='BLACKLISTED VISITOR',
+                    msg=(
+                        f"Visitor: {vp.visitor_full_name}\n"
+                        f"Reason: {bl.reason or 'Not specified'}\n"
+                        f"Blocked by: {bl.blocked_by or 'System'}\n\n"
+                        f"ID matches an active blacklist entry. Refuse entry and notify supervisor."
+                    ),
+                    title='Access Denied at Gate — Blacklisted Visitor',
                 )
 
         # 1. Auto-fetch visitor info and ID details

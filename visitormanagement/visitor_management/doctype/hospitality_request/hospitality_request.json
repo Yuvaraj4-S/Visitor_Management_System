@@ -668,7 +668,11 @@
    "report": 1,
    "role": "Employee",
    "share": 1,
+<<<<<<< HEAD
    "submit": 1,
+=======
+   "submit": 0,
+>>>>>>> 6f4ff72 (changes-6)
    "write": 1
   }
  ],

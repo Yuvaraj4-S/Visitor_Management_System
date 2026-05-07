@@ -88,6 +88,7 @@ frappe.ui.form.on("Security Log", {
 		// to toggle it (Frappe's Check read_only is unreliable), snap it back
 		// to the computed value so the flag stays trustworthy.
 		recompute_all_items_confirmed(frm);
+		render_items_progress_summary(frm);
 	},
 
 	after_save(frm) {
@@ -484,6 +485,7 @@ frappe.ui.form.on("Security Item Verify", {
 		}
 
 		recompute_all_items_confirmed(frm);
+		render_items_progress_summary(frm);
 	},
 
 		capture_item_image(frm, cdt, cdn) {
@@ -695,10 +697,40 @@ function apply_security_log_ui(frm) {
 	frm.toggle_display(["mdceo_notified", "vip_meeting_room", "vip_protocol_notes"], has_pass && is_vip);
 
 	render_identity_comparison(frm);
+	render_items_progress_summary(frm);
 	set_security_log_intro(frm, is_check_in, is_check_out);
 	if (frm.dashboard) frm.dashboard.clear_headline();
 	apply_badge_visibility_sl(frm);
 	lock_all_items_confirmed(frm);
+}
+
+function render_items_progress_summary(frm) {
+	// Surface a compact "X / Y verified — Z discrepancies" line above the items
+	// grid so a busy gate officer doesn't need to count rows.
+	const field = frm.fields_dict && frm.fields_dict.items_verification;
+	if (!field || !field.$wrapper) return;
+
+	const rows = frm.doc.items_verification || [];
+	const total = rows.length;
+	const verified = rows.filter((r) => r.item_verified).length;
+	const discrepancies = rows.filter((r) => r.discrepancy).length;
+
+	field.$wrapper.find(".vm-items-progress").remove();
+	if (!total) return;
+
+	const all_verified = verified === total;
+	const bg = all_verified ? "#d9f3e4" : (discrepancies ? "#fde2e2" : "#fff4d6");
+	const fg = all_verified ? "#0d6b3e" : (discrepancies ? "#9b1c1c" : "#8d5d00");
+	const icon = all_verified ? "✅" : (discrepancies ? "⚠️" : "🟡");
+
+	const summary = `
+		<div class="vm-items-progress" style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; margin: 0 0 8px 0; border-radius: 8px; background: ${bg}; color: ${fg}; font-size: 12px; font-weight: 600;">
+			<span style="font-size: 14px;">${icon}</span>
+			<span>${__("Items: {0} / {1} verified", [verified, total])}</span>
+			${discrepancies ? `<span style="margin-left: auto;">${__("{0} discrepancy", [discrepancies])}${discrepancies > 1 ? __("ies") : ""}</span>` : ""}
+		</div>
+	`;
+	field.$wrapper.prepend(summary);
 }
 
 function lock_all_items_confirmed(frm) {

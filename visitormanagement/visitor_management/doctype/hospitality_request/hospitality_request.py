@@ -103,9 +103,15 @@ class HospitalityRequest(Document):
 		self._validate_activities_in_visit_window()
 
 	# Real-world rule: hospitality preparation should not begin until the visitor
+<<<<<<< HEAD
 	# is confirmed. Drafts can be created against any pass (so meal flags etc. can
 	# be drafted alongside the pass), but moving the request out of Draft requires
 	# the linked Visitor Pass to be Approved or beyond.
+=======
+	# is confirmed. Drafts (and re-applications after rejection) can be created
+	# against any pass, but moving the request out of Draft requires the linked
+	# Visitor Pass to be Approved (or beyond — Items Verified / Checked-In / -Out).
+>>>>>>> 6f4ff72 (changes-6)
 	def _validate_visitor_pass_approved(self):
 		if not self.visitor_pass:
 			return

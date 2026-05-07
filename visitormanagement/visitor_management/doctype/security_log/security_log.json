@@ -213,15 +213,17 @@
       "read_only": 1
     },
     {
+      "description": "ID type the visitor has presented at the gate (may differ from what was declared).",
       "fieldname": "id_proof_type_verified",
       "fieldtype": "Select",
-      "label": "ID Proof Type Verified",
+      "label": "ID Type Presented at Gate",
       "options": "Aadhaar\nPAN Card\nPassport\nDriving License"
     },
     {
+      "description": "Last 4 digits of the ID number — for cross-reference against the document. Read-only; cannot be edited at the gate.",
       "fieldname": "id_proof_number",
       "fieldtype": "Data",
-      "label": "ID Proof Number (Masked)",
+      "label": "ID Number (Last 4 Digits)",
       "read_only": 1
     },
     {
@@ -359,9 +361,11 @@
       "options": "Security notes"
     },
     {
+      "description": "Capture a live photo of the visitor at the gate. Required for Check-In.",
       "fieldname": "photo_at_gate",
       "fieldtype": "Attach Image",
-      "label": "Photo at Gate"
+      "label": "Photo at Gate",
+      "mandatory_depends_on": "eval:doc.event_type == 'Check-In'"
     },
     {
       "fieldname": "capture_photo",
@@ -374,15 +378,19 @@
     },
     {
       "default": "0",
+      "description": "Tick after confirming the visitor matches the ID proof shown.",
       "fieldname": "id_proof_match",
       "fieldtype": "Check",
-      "label": "Matches ID Proof"
+      "label": "Matches ID Proof",
+      "mandatory_depends_on": "eval:doc.event_type == 'Check-In'"
     },
     {
       "default": "0",
+      "description": "Tick after confirming the visitor matches the photo on the approved pass.",
       "fieldname": "pass_photo_match",
       "fieldtype": "Check",
-      "label": "Matches Pass Photo"
+      "label": "Matches Pass Photo",
+      "mandatory_depends_on": "eval:doc.event_type == 'Check-In'"
     },
     {
       "fieldname": "exception_reason",
@@ -422,9 +430,10 @@
       "label": "Declared Items"
     },
     {
+      "depends_on": "eval:doc.event_type == 'Check-In' || (doc.items_verification && doc.items_verification.length)",
+      "description": "Tick each declared item once verified at the gate. The summary above shows progress.",
       "fieldname": "items_verification",
       "fieldtype": "Table",
-      "hidden": 1,
       "label": "Items Verification",
       "options": "Security Item Verify"
     }

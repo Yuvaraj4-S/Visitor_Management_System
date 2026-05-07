@@ -1,4 +1,8 @@
 import frappe
+<<<<<<< HEAD
+=======
+from frappe import _
+>>>>>>> 6f4ff72 (changes-6)
 from frappe.utils import cint, flt, get_datetime, get_time, getdate, now_datetime, nowdate
 
 
@@ -127,6 +131,7 @@ def ensure_hospitality_request(visitor_pass):
 	request_name = visitor_pass.hospitality_request or frappe.db.get_value(
 		"Hospitality Request", {"visitor_pass": visitor_pass.name}, "name"
 	)
+	is_new_request = not request_name
 	if request_name:
 		doc = frappe.get_doc("Hospitality Request", request_name)
 	else:
@@ -142,6 +147,23 @@ def ensure_hospitality_request(visitor_pass):
 
 	if visitor_pass.hospitality_request != doc.name:
 		visitor_pass.db_set("hospitality_request", doc.name, update_modified=False)
+
+	# Surface what just happened so the host/reception isn't surprised that a
+	# hospitality doc magically exists. Only on creation, not on every save —
+	# avoids alert spam on subsequent edits.
+	if is_new_request:
+		try:
+			frappe.msgprint(
+				_("Hospitality Request {0} was created from this pass — the Hospitality Manager will see it in their queue.").format(
+					frappe.bold(doc.name)
+				),
+				title=_("Hospitality Arranged"),
+				indicator="green",
+				alert=True,
+			)
+		except Exception:
+			# Background contexts (workflow_action) sometimes lack a request — ignore.
+			pass
 
 	# Auto-create a Conference Room Booking if a room is selected on the pass.
 	if getattr(visitor_pass, "conference_room", None):
@@ -286,9 +308,16 @@ def sync_hospitality_to_pass(request_doc):
 
 
 def _combine_visit_datetime(visit_date, visit_time):
+<<<<<<< HEAD
 	# Reduce visit_time to a HH:MM:SS string and strip tzinfo so the resulting datetime
 	# is always naive — meal-window slots are naive too, and mixing the two raises
 	# `can't compare offset-naive and offset-aware datetimes` in _overlaps_time_window.
+=======
+	# Reduce visit_time to a HH:MM:SS string and strip tzinfo so the result is
+	# always naive — meal-window slots (built from the time-only MEAL_WINDOWS
+	# constants) are naive, and mixing naive + tz-aware crashes the comparison
+	# in `_overlaps_time_window` with `can't compare offset-naive and offset-aware`.
+>>>>>>> 6f4ff72 (changes-6)
 	if not visit_date or not visit_time:
 		return None
 

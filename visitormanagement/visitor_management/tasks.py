@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import getdate, nowdate
+from frappe.utils import add_to_date, get_datetime, getdate, now_datetime, nowdate
 
 
 DIGEST_RECIPIENTS_BY_ROLE = [
@@ -130,3 +130,76 @@ def send_daily_hospitality_digest():
 		reference_doctype="Hospitality Request",
 		now=False,
 	)
+
+
+# ---------------------------------------------------------------------------
+# No-show detection
+# ---------------------------------------------------------------------------
+# Hourly job. Flags Visitor Passes that were Approved/Items-Verified but never
+# checked-in past their expected_checkout + grace window. Marks no_show=1 and
+# logs a Visitor Event so admins can audit. Idempotent: passes already flagged
+# are skipped.
+NO_SHOW_GRACE_HOURS = 4
+
+
+def flag_no_show_passes():
+	"""Set no_show=1 on Visitor Passes that missed their visit window.
+
+	A pass is a no-show when:
+	  - status in (Approved, Items Verified)  -- never made it past the gate
+	  - visit_date + expected_checkout + grace is in the past
+	  - no_show is currently 0
+	"""
+	now = now_datetime()
+	candidates = frappe.get_all(
+		"Visitor Pass",
+		filters={
+			"status": ["in", ["Approved", "Items Verified"]],
+			"no_show": 0,
+			"docstatus": ["<", 2],
+		},
+		fields=["name", "visit_date", "expected_checkout"],
+	)
+
+	flagged = 0
+	for cand in candidates:
+		if not cand.visit_date:
+			continue
+
+		# Build the deadline: visit_date + expected_checkout (or end of day) + grace.
+		if cand.expected_checkout:
+			deadline_str = f"{cand.visit_date} {cand.expected_checkout}"
+		else:
+			deadline_str = f"{cand.visit_date} 23:59:59"
+
+		try:
+			deadline = get_datetime(deadline_str)
+		except Exception:
+			continue
+
+		deadline = add_to_date(deadline, hours=NO_SHOW_GRACE_HOURS)
+		if now < deadline:
+			continue
+
+		frappe.db.set_value(
+			"Visitor Pass",
+			cand.name,
+			{"no_show": 1, "current_location": "No Show"},
+			update_modified=False,
+		)
+		try:
+			from visitormanagement.visitor_management.lifecycle import log_visitor_event
+			log_visitor_event(
+				cand.name,
+				"No Show",
+				event_status="Auto-flagged",
+				source_doctype="Scheduled Task",
+				source_name="flag_no_show_passes",
+				details={"deadline": str(deadline), "grace_hours": NO_SHOW_GRACE_HOURS},
+			)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), "flag_no_show_passes log_visitor_event")
+		flagged += 1
+
+	if flagged:
+		frappe.db.commit()

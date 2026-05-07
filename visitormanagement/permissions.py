@@ -49,6 +49,11 @@ def get_visitor_pass_permission_query_conditions(user=None):
 	return " or ".join(conditions) if conditions else "1=0"
 
 
+# Permission types that count as "read-like" — granting these to a role does
+# NOT let the user write/submit/cancel/delete the doc.
+_READ_LIKE_PTYPES = {None, "read", "select", "print", "email", "report", "export", "share"}
+
+
 def has_visitor_pass_permission(doc, user=None, permission_type=None):
 	user = user or frappe.session.user
 	if _is_admin(user):
@@ -71,12 +76,16 @@ def has_visitor_pass_permission(doc, user=None, permission_type=None):
 		return True
 	if ("HOD" in roles or "CEO" in roles) and doc.visitor_type == "VIP":
 		return True
+	# Security role is read-only on Visitor Pass — gate workflow happens through
+	# Security Log (where they have write). Without this guard, has_permission
+	# would short-circuit `True` for every ptype and let Security write/submit
+	# any approved pass.
 	if "Security" in roles and doc.status in {
 		"Approved",
 		"Items Verified",
 		"Checked-In",
 		"Checked-Out",
 	}:
-		return True
+		return permission_type in _READ_LIKE_PTYPES
 
 	return False

@@ -118,8 +118,6 @@
   "actual_checkout",
   "no_show",
   "current_location",
-  "last_health_screening",
-  "health_screening_status",
   "item_verification_status",
   "items_verified",
   "all_items_verified",
@@ -151,6 +149,7 @@
   {
    "default": "New",
    "depends_on": "eval:['Supplier','Customer','Contractor','Candidate'].includes(doc.visitor_type)",
+   "description": "New = first-time visitor; fill all details below. Existing = returning visitor; pick the prior pass to auto-fill name, phone, email, and ID.",
    "fieldname": "entry_type",
    "fieldtype": "Select",
    "label": "Entry Type",
@@ -247,6 +246,7 @@
   },
   {
    "depends_on": "eval:doc.visitor_type == 'Contractor' || doc.visitor_type == 'Supplier' || doc.visitor_type == 'Customer'",
+   "description": "The company the visitor represents (not our facility).",
    "fieldname": "company__organisation",
    "fieldtype": "Data",
    "label": "Company / Organisation",
@@ -550,6 +550,7 @@
   },
   {
    "depends_on": "eval:doc.visitor_type == 'VIP'",
+   "description": "Determines protocol level. Board Member, Government Official, and Investor visits warrant MD/CEO notification before approval.",
    "fieldname": "vip_category",
    "fieldtype": "Select",
    "label": "VIP Category",
@@ -703,22 +704,6 @@
    "read_only": 1
   },
   {
-   "allow_on_submit": 1,
-   "fieldname": "last_health_screening",
-   "fieldtype": "Link",
-   "label": "Last Health Screening",
-   "options": "Health Screening",
-   "read_only": 1
-  },
-  {
-   "allow_on_submit": 1,
-   "fieldname": "health_screening_status",
-   "fieldtype": "Select",
-   "label": "Health Screening Status",
-   "options": "Pending\nCleared\nNeeds Review\nDenied Entry",
-   "read_only": 1
-  },
-  {
    "fieldname": "items_verification_status",
    "fieldtype": "Select",
    "hidden": 1,
@@ -749,7 +734,8 @@
   },
   {
    "allow_on_submit": 1,
-   "collapsible": 1,
+   "collapsible": 0,
+   "description": "Tick any arrangements required for this visit. A Hospitality Request is created automatically once the pass is approved.",
    "fieldname": "section_break_khxo",
    "fieldtype": "Section Break",
    "label": "Hospitality"
@@ -857,7 +843,8 @@
    "read_only": 1
   },
   {
-   "collapsible": 1,
+   "collapsible": 0,
+   "description": "Cab, hotel, factory tour, buggy, or lobby greeting — tick what the visitor needs.",
    "fieldname": "arrangements_section",
    "fieldtype": "Section Break",
    "label": "Additional Arrangements"

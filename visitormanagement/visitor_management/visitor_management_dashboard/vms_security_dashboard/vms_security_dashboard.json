@@ -37,9 +37,6 @@
    "card": "Passes Missing Photo"
   },
   {
-   "card": "Health Screening Exceptions"
-  },
-  {
    "card": "Active Emergency Events"
   },
   {
@@ -79,10 +76,6 @@
   },
   {
    "chart": "Compliance Score Trend",
-   "width": "Half"
-  },
-  {
-   "chart": "Health Screening Status Breakdown",
    "width": "Half"
   },
   {

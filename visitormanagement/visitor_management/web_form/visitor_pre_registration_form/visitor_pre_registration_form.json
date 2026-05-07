@@ -15,7 +15,7 @@
  "docstatus": 0,
  "doctype": "Web Form",
  "idx": 0,
- "introduction_text": "<div>Submit your details and a valid ID to request a visitor pass. You'll be notified by email once it's approved.</div>",
+ "introduction_text": "<div>Welcome! Complete this short form to pre-register your visit.<br><br><b>What to keep ready:</b> a valid government ID (Aadhaar, PAN, Passport, or Driving License) and a recent photo of yourself. Your visitor type has been pre-set by your host — you don't need to change it.<br><br>Once you submit, your host will be notified for approval. You'll receive an email and can show that confirmation at the gate when you arrive.</div>",
  "is_standard": 1,
  "list_columns": [],
  "login_required": 0,
@@ -244,19 +244,6 @@
    "reqd": 0,
    "show_in_filter": 0,
    "description": "Leave blank if arriving without a vehicle"
-  },
-  {
-   "allow_read_on_all_link_options": 0,
-   "fieldname": "items_carried",
-   "fieldtype": "Small Text",
-   "hidden": 0,
-   "label": "Declared Items",
-   "max_length": 0,
-   "max_value": 0,
-   "read_only": 0,
-   "reqd": 0,
-   "show_in_filter": 0,
-   "description": "List items you will be carrying — e.g. laptop, USB drive, toolkit."
   },
   {
    "allow_read_on_all_link_options": 0,

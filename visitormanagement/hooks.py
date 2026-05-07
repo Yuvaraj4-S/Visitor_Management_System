@@ -166,7 +166,10 @@ scheduler_events = {
 		"0 7 * * *": [
 			"visitormanagement.visitor_management.tasks.send_daily_hospitality_digest"
 		]
-	}
+	},
+	"hourly": [
+		"visitormanagement.visitor_management.tasks.flag_no_show_passes"
+	]
 }
 
 # Testing

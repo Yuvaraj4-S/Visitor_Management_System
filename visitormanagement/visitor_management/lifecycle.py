@@ -1,5 +1,6 @@
 import frappe
-from frappe.utils import cint, flt, get_datetime, getdate, now_datetime, nowdate
+from frappe import _
+from frappe.utils import cint, flt, get_datetime, get_time, getdate, now_datetime, nowdate
 
 
 DEFAULT_RISK_BY_TYPE = {
@@ -19,9 +20,6 @@ DEFAULT_SLA_BY_TYPE = {
 }
 
 COMPLIANCE_OK_STATUSES = {"Completed", "Served", "Closed", "Cancelled"}
-HEALTH_SCREENING_OK_STATUSES = {"Cleared"}
-HEALTH_REVIEW_TEMPERATURE = 37.5
-HEALTH_DENY_TEMPERATURE = 38.0
 VISITOR_PASS_FOOD_STATUS_FROM_REQUEST = {
 	"Pending": "Pending",
 	"Confirmed": "Ordered",
@@ -130,6 +128,7 @@ def ensure_hospitality_request(visitor_pass):
 	request_name = visitor_pass.hospitality_request or frappe.db.get_value(
 		"Hospitality Request", {"visitor_pass": visitor_pass.name}, "name"
 	)
+	is_new_request = not request_name
 	if request_name:
 		doc = frappe.get_doc("Hospitality Request", request_name)
 	else:
@@ -145,6 +144,23 @@ def ensure_hospitality_request(visitor_pass):
 
 	if visitor_pass.hospitality_request != doc.name:
 		visitor_pass.db_set("hospitality_request", doc.name, update_modified=False)
+
+	# Surface what just happened so the host/reception isn't surprised that a
+	# hospitality doc magically exists. Only on creation, not on every save —
+	# avoids alert spam on subsequent edits.
+	if is_new_request:
+		try:
+			frappe.msgprint(
+				_("Hospitality Request {0} was created from this pass — the Hospitality Manager will see it in their queue.").format(
+					frappe.bold(doc.name)
+				),
+				title=_("Hospitality Arranged"),
+				indicator="green",
+				alert=True,
+			)
+		except Exception:
+			# Background contexts (workflow_action) sometimes lack a request — ignore.
+			pass
 
 	# Auto-create a Conference Room Booking if a room is selected on the pass.
 	if getattr(visitor_pass, "conference_room", None):
@@ -289,10 +305,23 @@ def sync_hospitality_to_pass(request_doc):
 
 
 def _combine_visit_datetime(visit_date, visit_time):
+	# Reduce visit_time to a HH:MM:SS string and strip tzinfo so the result is
+	# always naive — meal-window slots (built from the time-only MEAL_WINDOWS
+	# constants) are naive, and mixing naive + tz-aware crashes the comparison
+	# in `_overlaps_time_window` with `can't compare offset-naive and offset-aware`.
 	if not visit_date or not visit_time:
 		return None
 
-	return get_datetime(f"{visit_date} {visit_time}")
+	try:
+		time_obj = get_time(visit_time)  # accepts time / datetime / timedelta / str
+		time_str = time_obj.strftime("%H:%M:%S")
+	except Exception:
+		time_str = str(visit_time)
+
+	dt = get_datetime(f"{visit_date} {time_str}")
+	if dt and getattr(dt, "tzinfo", None) is not None:
+		dt = dt.replace(tzinfo=None)
+	return dt
 
 
 def _overlaps_time_window(start_dt, end_dt, window_start_dt, window_end_dt):
@@ -491,17 +520,6 @@ def get_hospitality_meal_plan(visit_date=None, expected_checkin=None, expected_c
 	)
 
 
-def derive_health_screening_status(temperature=None, symptoms_flag=0):
-	temperature = flt(temperature or 0)
-	if temperature >= HEALTH_DENY_TEMPERATURE:
-		return "Denied Entry"
-
-	if temperature >= HEALTH_REVIEW_TEMPERATURE or cint(symptoms_flag):
-		return "Needs Review"
-
-	return "Cleared"
-
-
 def log_visitor_event(
 	visitor_pass_name,
 	event_type,
@@ -544,86 +562,6 @@ def log_visitor_event(
 
 	doc = frappe.get_doc({"doctype": "Visitor Event Log", **payload})
 	doc.insert(ignore_permissions=True)
-	return doc.name
-
-
-def sync_health_screening(visitor_pass_name, security_log=None):
-	if not visitor_pass_name or not security_log:
-		return None
-
-	if security_log.event_type != "Check-In":
-		return None
-
-	screening_status = derive_health_screening_status(
-		temperature=getattr(security_log, "temperature", None),
-		symptoms_flag=getattr(security_log, "symptoms_flag", 0),
-	)
-	screening_name = getattr(security_log, "health_screening", None) or frappe.db.get_value(
-		"Health Screening", {"security_log": security_log.name}, "name"
-	)
-	doc = (
-		frappe.get_doc("Health Screening", screening_name)
-		if screening_name
-		else frappe.new_doc("Health Screening")
-	)
-	doc.visitor_pass = visitor_pass_name
-	doc.security_log = security_log.name
-	doc.screened_on = (
-		getattr(security_log, "check_in_date_time", None)
-		or getattr(security_log, "modified", None)
-		or now_datetime()
-	)
-	doc.screened_by = getattr(security_log, "security_officer", None)
-	doc.temperature = getattr(security_log, "temperature", None)
-	doc.symptoms_flag = cint(getattr(security_log, "symptoms_flag", 0))
-	doc.symptoms_details = getattr(security_log, "symptoms_details", None)
-	doc.screening_status = screening_status
-	doc.screening_notes = "\n".join(
-		filter(
-			None,
-			[
-				getattr(security_log, "remarks", None),
-				getattr(security_log, "verification_notes", None),
-			],
-		)
-	)
-	doc.restricted_entry = cint(screening_status == "Denied Entry")
-	doc.location = getattr(security_log, "visited_area", None) or getattr(security_log, "gate_name", None)
-
-	if doc.is_new():
-		doc.insert(ignore_permissions=True)
-	else:
-		doc.save(ignore_permissions=True)
-
-	frappe.db.set_value(
-		"Visitor Pass",
-		visitor_pass_name,
-		{
-			"last_health_screening": doc.name,
-			"health_screening_status": doc.screening_status,
-		},
-		update_modified=False,
-	)
-	frappe.db.set_value(
-		"Security Log",
-		security_log.name,
-		{
-			"health_screening": doc.name,
-			"health_screening_status": doc.screening_status,
-		},
-		update_modified=False,
-	)
-	log_visitor_event(
-		visitor_pass_name,
-		"Health Screening",
-		event_status=doc.screening_status,
-		source_doctype="Health Screening",
-		source_name=doc.name,
-		details={
-			"temperature": doc.temperature,
-			"symptoms_flag": doc.symptoms_flag,
-		},
-	)
 	return doc.name
 
 
@@ -696,7 +634,7 @@ def sync_contact_trace(visitor_pass_name, security_log=None):
 	doc.status = "Active"
 	doc.exposure_risk = (
 		"High"
-		if flt(getattr(security_log, "temperature", 0) or 0) >= HEALTH_REVIEW_TEMPERATURE
+		if flt(getattr(security_log, "temperature", 0) or 0) >= 37.5
 		or cint(getattr(security_log, "symptoms_flag", 0))
 		else "Low"
 	)
@@ -764,7 +702,7 @@ def generate_emergency_muster_records(emergency_event):
 	active_visitors = frappe.get_all(
 		"Visitor Pass",
 		filters={"status": "Checked-In"},
-		fields=["name", "person_to_visit", "last_health_screening"],
+		fields=["name", "person_to_visit"],
 	)
 
 	count = 0
@@ -784,7 +722,6 @@ def generate_emergency_muster_records(emergency_event):
 		doc.employee_host = visitor.person_to_visit
 		doc.assembly_point = emergency_event.assembly_point
 		doc.last_known_location = get_last_known_location(visitor.name)
-		doc.health_screening = visitor.last_health_screening
 		if not doc.accounted_status:
 			doc.accounted_status = "Pending"
 
@@ -816,11 +753,6 @@ def sync_compliance_check(visitor_pass_name, security_log=None):
 	if visitor_pass.hospitality_request:
 		hospitality_status = frappe.db.get_value(
 			"Hospitality Request", visitor_pass.hospitality_request, "status"
-		)
-	health_screening_status = None
-	if getattr(visitor_pass, "last_health_screening", None):
-		health_screening_status = frappe.db.get_value(
-			"Health Screening", visitor_pass.last_health_screening, "screening_status"
 		)
 
 	if not security_log:
@@ -860,10 +792,6 @@ def sync_compliance_check(visitor_pass_name, security_log=None):
 		missing_requirements.append("Declared items not fully verified")
 	if not hospitality_closed:
 		missing_requirements.append("Hospitality workflow still open")
-	if visitor_pass.actual_checkin and not getattr(visitor_pass, "last_health_screening", None):
-		missing_requirements.append("Health screening missing")
-	if health_screening_status and health_screening_status not in HEALTH_SCREENING_OK_STATUSES:
-		missing_requirements.append(f"Health screening status: {health_screening_status}")
 
 	if no_show:
 		compliance_status = "No Show"
@@ -892,7 +820,6 @@ def sync_compliance_check(visitor_pass_name, security_log=None):
 	doc.hospitality_closed = hospitality_closed
 	doc.no_show = no_show
 	doc.verification_duration = verification_duration or 0
-	doc.health_screening_status = health_screening_status
 	doc.current_location = getattr(visitor_pass, "current_location", None)
 	doc.missing_requirements = "\n".join(missing_requirements)
 	doc.exception_reason = getattr(security_log, "exception_reason", None) if security_log else None

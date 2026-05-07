@@ -62,9 +62,7 @@
     "symptoms_flag",
     "symptoms_details",
     "visited_area",
-    "remarks",
-    "health_screening_status",
-    "health_screening"
+    "remarks"
   ],
   "fields": [
     {
@@ -390,22 +388,6 @@
       "fieldname": "exception_reason",
       "fieldtype": "Small Text",
       "label": "Exception Reason"
-    },
-    {
-      "fieldname": "health_screening_status",
-      "fieldtype": "Select",
-      "hidden": 1,
-      "label": "Health Screening Status",
-      "options": "Pending\nCleared\nNeeds Review\nDenied Entry",
-      "read_only": 1
-    },
-    {
-      "fieldname": "health_screening",
-      "fieldtype": "Link",
-      "hidden": 1,
-      "label": "Health Screening",
-      "options": "Health Screening",
-      "read_only": 1
     },
     {
       "fieldname": "verification_notes",

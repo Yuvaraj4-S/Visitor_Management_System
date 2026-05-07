@@ -387,8 +387,6 @@ function apply_visitor_pass_field_rules(frm) {
 		"actual_checkout",
 		"no_show",
 		"current_location",
-		"last_health_screening",
-		"health_screening_status",
 		"hospitality_request",
 	].forEach((fieldname) => frm.set_df_property(fieldname, "read_only", 1));
 

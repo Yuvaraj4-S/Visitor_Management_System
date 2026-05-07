@@ -81,18 +81,6 @@
   },
   {
    "dependencies": "",
-   "description": "Temperature and symptom check at the gate; auto-grades Cleared / Review / Denied.",
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Health Screening",
-   "link_count": 0,
-   "link_to": "Health Screening",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "dependencies": "",
    "description": "Tracks areas each visitor moves through for health/safety contact tracing.",
    "hidden": 0,
    "is_query_report": 0,

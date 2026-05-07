@@ -118,8 +118,6 @@
   "actual_checkout",
   "no_show",
   "current_location",
-  "last_health_screening",
-  "health_screening_status",
   "item_verification_status",
   "items_verified",
   "all_items_verified",
@@ -700,22 +698,6 @@
    "fieldname": "current_location",
    "fieldtype": "Data",
    "label": "Current Location",
-   "read_only": 1
-  },
-  {
-   "allow_on_submit": 1,
-   "fieldname": "last_health_screening",
-   "fieldtype": "Link",
-   "label": "Last Health Screening",
-   "options": "Health Screening",
-   "read_only": 1
-  },
-  {
-   "allow_on_submit": 1,
-   "fieldname": "health_screening_status",
-   "fieldtype": "Select",
-   "label": "Health Screening Status",
-   "options": "Pending\nCleared\nNeeds Review\nDenied Entry",
    "read_only": 1
   },
   {

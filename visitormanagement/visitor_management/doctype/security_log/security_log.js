@@ -665,8 +665,6 @@ function apply_security_log_ui(frm) {
 		"vip_protocol_notes",
 		"all_items_confirmed",
 		"verification_duration",
-		"health_screening_status",
-		"health_screening",
 	].forEach((fieldname) => frm.set_df_property(fieldname, "read_only", 1));
 
 	const has_pass = !!frm.doc.visitor_pass;

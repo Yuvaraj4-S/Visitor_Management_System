@@ -10,7 +10,7 @@ Creates:
 - 30 Check-Ins via Security Log
 - 15 Check-Outs via Security Log
 - 1 Emergency Event (with muster generation for active visitors)
-- Health Screenings, Contact Traces, Compliance Checks auto-generated
+- Contact Traces, Compliance Checks auto-generated
 - Hospitality Requests auto-linked
 """
 import base64
@@ -353,7 +353,7 @@ def run():
     print("FINAL DATABASE STATE")
     print("=" * 70)
     for dt in ["Visitor Invitation", "Visitor Pass",
-               "Security Log", "Hospitality Request", "Health Screening",
+               "Security Log", "Hospitality Request",
                "Contact Trace Record", "Compliance Check", "Visitor Event Log",
                "Emergency Event", "Evacuation Muster"]:
         count = frappe.db.count(dt)
@@ -374,10 +374,6 @@ def run():
         FROM `tabVisitor Pass` WHERE visitor_type != 'VIP' AND docstatus = 1
     """, as_dict=1)[0]
     print(f"    {r.with_badge}/{r.total} have badge numbers")
-
-    print("\n  Health Screenings:")
-    for r in frappe.db.sql("SELECT screening_status, COUNT(*) c FROM `tabHealth Screening` GROUP BY screening_status", as_dict=1):
-        print(f"    {r.screening_status:15s}: {r.c}")
 
     print("\n  Compliance Score Distribution:")
     r = frappe.db.sql("""

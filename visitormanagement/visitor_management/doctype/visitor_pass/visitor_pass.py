@@ -702,8 +702,16 @@ def search_visitor_passes(doctype, txt, searchfield, start, page_len, filters):
         params.extend([like] * 5)
 
     where = " AND ".join(conditions) if conditions else "1=1"
+    # Compute the dropdown description live (visitor_full_name · mobile_number) so reception
+    # can spot + search by phone, regardless of how stale the cached visitor_summary is.
     return frappe.db.sql(
-        f"SELECT name, visitor_summary FROM `tabVisitor Pass` WHERE {where} ORDER BY modified DESC LIMIT %s OFFSET %s",
+        f"""SELECT
+                name,
+                CONCAT_WS(' · ', NULLIF(visitor_full_name, ''), NULLIF(mobile_number, '')) AS description
+            FROM `tabVisitor Pass`
+            WHERE {where}
+            ORDER BY modified DESC
+            LIMIT %s OFFSET %s""",
         params + [int(page_len), int(start)],
     )
 

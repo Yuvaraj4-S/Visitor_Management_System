@@ -5,23 +5,27 @@ WORKFLOW_NAME = "Hospitality Request Approval"
 DOCTYPE = "Hospitality Request"
 
 STATES = [
-	{"state": "Draft", "doc_status": "0", "allow_edit": "Host Employee"},
+	{"state": "Draft", "doc_status": "0", "allow_edit": "Employee"},
 	{"state": "Pending Manager Approval", "doc_status": "0", "allow_edit": "Hospitality Manager"},
 	{"state": "Approved", "doc_status": "0", "allow_edit": "Hospitality Manager"},
 	{"state": "In Progress", "doc_status": "0", "allow_edit": "Hospitality Manager"},
 	{"state": "Completed", "doc_status": "0", "allow_edit": "Hospitality Manager"},
-	{"state": "Rejected", "doc_status": "0", "allow_edit": "Hospitality Manager"},
+	{"state": "Rejected", "doc_status": "0", "allow_edit": "Employee"},
 	{"state": "Cancelled", "doc_status": "0", "allow_edit": "Hospitality Manager"},
 ]
 
+# Submit + Reapply are open to the standard `Employee` role so any host on the
+# desk can route their request to the Hospitality Manager. Manager-only actions
+# (Approve / Reject / Start Work / Complete / Cancel) stay with Hospitality Manager.
 TRANSITIONS = [
-	{"state": "Draft", "action": "Submit for Approval", "next_state": "Pending Manager Approval", "allowed": "Host Employee"},
+	{"state": "Draft", "action": "Submit for Approval", "next_state": "Pending Manager Approval", "allowed": "Employee"},
 	{"state": "Pending Manager Approval", "action": "Approve", "next_state": "Approved", "allowed": "Hospitality Manager"},
 	{"state": "Pending Manager Approval", "action": "Reject", "next_state": "Rejected", "allowed": "Hospitality Manager"},
 	{"state": "Approved", "action": "Start Work", "next_state": "In Progress", "allowed": "Hospitality Manager"},
 	{"state": "In Progress", "action": "Complete", "next_state": "Completed", "allowed": "Hospitality Manager"},
 	{"state": "Approved", "action": "Cancel", "next_state": "Cancelled", "allowed": "Hospitality Manager"},
 	{"state": "In Progress", "action": "Cancel", "next_state": "Cancelled", "allowed": "Hospitality Manager"},
+	{"state": "Rejected", "action": "Reapply", "next_state": "Draft", "allowed": "Employee"},
 ]
 
 

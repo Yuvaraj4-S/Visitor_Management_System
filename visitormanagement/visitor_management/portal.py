@@ -157,6 +157,26 @@ def _parse_visitor_items(items):
 	return parsed_items
 
 
+def _summarise_visitor_items(items):
+	"""Return a human-readable text summary of the parsed visitor_items rows.
+	Used to populate Visitor Pass.items_carried (a free-text field shown on the
+	gate badge / printout) without forcing the visitor to type the same list
+	twice on the portal form."""
+	parsed = _parse_visitor_items(items)
+	if not parsed:
+		return None
+	parts = []
+	for row in parsed:
+		piece = row.get("item_name", "").strip()
+		if not piece:
+			continue
+		qty = row.get("quantity")
+		if qty and int(qty or 0) > 1:
+			piece = f"{piece} (x{int(qty)})"
+		parts.append(piece)
+	return ", ".join(parts) if parts else None
+
+
 def _normalize_time(value):
 	value = (value or "").strip()
 	if not value:
@@ -221,7 +241,12 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"id_proof_number": data.get("id_proof_number"),
 		"id_proof_scan": id_proof_url,
 		"visitor_photo": visitor_photo_url,
-		"items_carried": data.get("items_carried"),
+		# items_carried is the printable free-text summary. The portal form no
+		# longer asks for it directly — it is derived from the structured
+		# `visitor_items` rows the visitor entered in the "Visitor Items"
+		# section. If the caller still passes items_carried (e.g. internal
+		# desk submissions), respect it as a manual override.
+		"items_carried": data.get("items_carried") or _summarise_visitor_items(data.get("visitor_items")),
 		"status": target_state,
 		"workflow_state": target_state,
 		"request_channel": "Portal",

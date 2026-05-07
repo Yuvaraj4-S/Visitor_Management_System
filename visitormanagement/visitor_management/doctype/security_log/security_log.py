@@ -8,11 +8,9 @@ from frappe.utils import get_datetime, getdate, now_datetime, time_diff_in_secon
 import re
 
 from visitormanagement.visitor_management.lifecycle import (
-    derive_health_screening_status,
     log_visitor_event,
     sync_contact_trace,
     sync_compliance_check,
-    sync_health_screening,
 )
 
 
@@ -115,12 +113,13 @@ class SecurityLog(Document):
             if blacklist_name:
                 bl = frappe.get_doc('Visitor Blacklist', blacklist_name)
                 frappe.throw(
-                    f"<b>ACCESS DENIED AT GATE</b><br>"
-                    f"Visitor: {vp.visitor_full_name}<br>"
-                    f"ID Proof matches active blacklist entry.<br>"
-                    f"Reason: {bl.reason or 'Not specified'}<br>"
-                    f"Blocked by: {bl.blocked_by or 'System'}",
-                    title='BLACKLISTED VISITOR',
+                    msg=(
+                        f"Visitor: {vp.visitor_full_name}\n"
+                        f"Reason: {bl.reason or 'Not specified'}\n"
+                        f"Blocked by: {bl.blocked_by or 'System'}\n\n"
+                        f"ID matches an active blacklist entry. Refuse entry and notify supervisor."
+                    ),
+                    title='Access Denied at Gate — Blacklisted Visitor',
                 )
 
         # 1. Auto-fetch visitor info and ID details
@@ -238,15 +237,6 @@ class SecurityLog(Document):
             if not self.pass_photo_match:
                 frappe.throw("Confirm that the visitor matches the pass creation photo before saving the visitor check-in.")
 
-            health_status = derive_health_screening_status(
-                temperature=self.temperature,
-                symptoms_flag=self.symptoms_flag,
-            )
-            if health_status == "Denied Entry":
-                frappe.throw(
-                    "Health screening failed due to the recorded temperature. Entry cannot be completed until the health status is acceptable."
-                )
-
         if self.event_type == 'Gate Transfer' and not self.visited_area:
             frappe.throw("Visited Area is required for gate transfer tracking.")
 
@@ -332,7 +322,6 @@ class SecurityLog(Document):
                 )
 
         self._record_lifecycle_event()
-        sync_health_screening(self.visitor_pass, self)
         sync_contact_trace(self.visitor_pass, self)
         sync_compliance_check(self.visitor_pass, self)
 
@@ -349,7 +338,6 @@ class SecurityLog(Document):
 
         if self.visitor_pass:
             self._record_lifecycle_event()
-            sync_health_screening(self.visitor_pass, self)
             sync_contact_trace(self.visitor_pass, self)
             sync_compliance_check(self.visitor_pass, self)
 
@@ -457,7 +445,6 @@ class SecurityLog(Document):
                 "visited_area": self.visited_area,
                 "security_officer": self.security_officer,
                 "exception_reason": self.exception_reason,
-                "health_screening_status": self.health_screening_status,
             },
         )
 

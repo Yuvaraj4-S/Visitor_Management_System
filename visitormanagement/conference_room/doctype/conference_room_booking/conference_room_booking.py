@@ -18,6 +18,27 @@ class ConferenceRoomBooking(Document):
 		self.validate_overlap()
 		self.validate_operating_hours()
 		self.auto_set_service_flags()
+		self._validate_visitor_pass_approved()
+
+	# Real-world rule: a room booking tied to a visitor cannot move to Pending
+	# Approval until that visitor is confirmed. Drafts and bookings without any
+	# linked visitor (purely internal meetings) are unaffected.
+	def _validate_visitor_pass_approved(self):
+		if not getattr(self, "visitor_pass", None):
+			return
+		current_state = self.workflow_state or "Draft"
+		if current_state in ("Draft", "Rejected"):
+			return
+		vp_status = frappe.db.get_value("Visitor Pass", self.visitor_pass, "status")
+		if vp_status not in ("Approved", "Items Verified", "Checked-In", "Checked-Out"):
+			frappe.throw(
+				_(
+					"Cannot send Conference Room Booking {0} for approval — the linked Visitor "
+					"Pass {1} is still <b>{2}</b>. Room preparation can only begin once the "
+					"visitor is confirmed (Visitor Pass must be Approved)."
+				).format(self.name or _("(new)"), self.visitor_pass, vp_status or _("Draft")),
+				title=_("Visitor Not Yet Approved"),
+			)
 
 	# -- Auto-Set Service Flags --
 

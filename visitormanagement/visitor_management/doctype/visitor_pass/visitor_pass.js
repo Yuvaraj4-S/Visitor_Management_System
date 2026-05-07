@@ -89,6 +89,7 @@ frappe.ui.form.on("Visitor Pass", {
 	},
 
 	mobile_number(frm) {
+		preview_normalised_mobile(frm);
 		lookup_existing_visitor_match(frm, "mobile_number");
 	},
 
@@ -189,6 +190,29 @@ frappe.ui.form.on("Visitor Pass", {
 		apply_visitor_pass_ui(frm);
 	},
 });
+
+function preview_normalised_mobile(frm) {
+	// On save the server normalises the phone to "+91-XXXXXXXXXX". Show the
+	// reception staff what they actually typed *will become*, so they catch
+	// typos before submitting (a wrong +91 number = SMS approvals never land).
+	const raw = (frm.doc.mobile_number || "").trim();
+	if (!raw) {
+		frm.set_df_property("mobile_number", "description", "");
+		frm.refresh_field("mobile_number");
+		return;
+	}
+	const digits = raw.replace(/\D/g, "");
+	let normalised = raw;
+	if (digits.length >= 10) {
+		const last10 = digits.slice(-10);
+		normalised = `+91-${last10}`;
+	}
+	const description = (normalised !== raw)
+		? __("Will be saved as: <b>{0}</b>", [normalised])
+		: __("✓ Format looks good");
+	frm.set_df_property("mobile_number", "description", description);
+	frm.refresh_field("mobile_number");
+}
 
 function apply_visitor_pass_ui(frm) {
 	apply_visitor_pass_field_rules(frm);
@@ -387,8 +411,6 @@ function apply_visitor_pass_field_rules(frm) {
 		"actual_checkout",
 		"no_show",
 		"current_location",
-		"last_health_screening",
-		"health_screening_status",
 		"hospitality_request",
 	].forEach((fieldname) => frm.set_df_property(fieldname, "read_only", 1));
 
@@ -464,6 +486,9 @@ function set_visitor_pass_intro(frm) {
 	const stage = get_pass_stage(frm);
 	const approval_lane = get_approval_lane(frm.doc.visitor_type);
 
+	// Clear approver card at the start; it's re-rendered only for Pending stages.
+	clear_approver_context_card(frm);
+
 	if (frm.is_new()) {
 		frm.set_intro(
 			__(
@@ -483,6 +508,7 @@ function set_visitor_pass_intro(frm) {
 				: __("Awaiting approval. Review the visitor details before taking action."),
 			"orange"
 		);
+		render_approver_context_card(frm);
 		return;
 	}
 
@@ -528,6 +554,69 @@ function set_visitor_pass_intro(frm) {
 	}
 
 	frm.set_intro(null);
+}
+
+function render_approver_context_card(frm) {
+	// One-glance card for approvers: visit details + attachment checklist.
+	// Intentionally NO SLA timer and NO risk badge — kept minimal so approvers
+	// see only verifiable facts about the request.
+	if (!frm.dashboard || !frm.dashboard.wrapper) return;
+
+	const photo_ok = !!frm.doc.visitor_photo;
+	const id_ok = !!frm.doc.id_proof_scan;
+	const items_declared = (frm.doc.visitor_items || []).length > 0
+		|| !!(frm.doc.items_carried || "").trim();
+
+	const checklist_item = (label, ok) => `
+		<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; background:${ok ? "#d9f3e4" : "#fde2e2"}; color:${ok ? "#0d6b3e" : "#9b1c1c"};">
+			${ok ? "✅" : "⚠️"} ${label}
+		</span>
+	`;
+
+	const meta_row = (label, value) => `
+		<div style="font-size:12px; color:#334e68; line-height:1.6;">
+			<strong>${label}:</strong> ${value || "-"}
+		</div>
+	`;
+
+	const visit_window = [
+		frm.doc.visit_date || "",
+		frm.doc.expected_checkin || "",
+		frm.doc.expected_checkout ? "→ " + frm.doc.expected_checkout : "",
+	].filter(Boolean).join(" ");
+
+	const html = `
+		<div class="vm-approver-card" style="border:1px solid #dbe3ea; border-radius:12px; padding:14px 16px; background:linear-gradient(180deg,#f8fafc 0%, #eef4f8 100%); margin-bottom:12px;">
+			<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+				<div style="font-size:13px; font-weight:700; color:#102a43;">
+					${__("Approver Snapshot")}
+				</div>
+				<div style="display:flex; gap:6px; flex-wrap:wrap;">
+					${checklist_item(__("Visitor Photo"), photo_ok)}
+					${checklist_item(__("ID Scan"), id_ok)}
+					${checklist_item(__("Items Declared"), items_declared)}
+				</div>
+			</div>
+			<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:8px;">
+				${meta_row(__("Visitor"), frm.doc.visitor_full_name)}
+				${meta_row(__("Type"), frm.doc.visitor_type)}
+				${meta_row(__("Company"), frm.doc.company__organisation)}
+				${meta_row(__("Host"), frm.doc.person_to_visit)}
+				${meta_row(__("Visit Window"), visit_window)}
+				${meta_row(__("Purpose"), frm.doc.purpose_of_visit)}
+			</div>
+		</div>
+	`;
+
+	clear_approver_context_card(frm);
+	const $headline = frm.dashboard.wrapper.find(".form-headline").first();
+	const $target = $headline.length ? $headline : $(frm.dashboard.wrapper);
+	$target.before(`<div class="vm-approver-card-host">${html}</div>`);
+}
+
+function clear_approver_context_card(frm) {
+	if (!frm.dashboard || !frm.dashboard.wrapper) return;
+	frm.dashboard.wrapper.parent().find(".vm-approver-card-host").remove();
 }
 
 function add_action_buttons(frm) {

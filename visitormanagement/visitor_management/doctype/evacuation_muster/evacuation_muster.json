@@ -10,7 +10,6 @@
   "employee_host",
   "assembly_point",
   "last_known_location",
-  "health_screening",
   "accounted_status",
   "accounted_time",
   "notes"
@@ -47,12 +46,6 @@
    "fieldname": "last_known_location",
    "fieldtype": "Data",
    "label": "Last Known Location"
-  },
-  {
-   "fieldname": "health_screening",
-   "fieldtype": "Link",
-   "label": "Health Screening",
-   "options": "Health Screening"
   },
   {
    "default": "Pending",

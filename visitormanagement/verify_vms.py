@@ -29,7 +29,6 @@ def run():
     print("\n--- 1. Record Counts ---")
     test("30 Visitor Passes", frappe.db.count("Visitor Pass") == 30, f"got {frappe.db.count('Visitor Pass')}")
     test("28 Security Logs (18 in + 10 out)", frappe.db.count("Security Log") == 28, f"got {frappe.db.count('Security Log')}")
-    test("18 Health Screenings auto-created", frappe.db.count("Health Screening") == 18)
     test("18 Contact Trace records", frappe.db.count("Contact Trace Record") >= 18)
     test("18 Compliance Checks", frappe.db.count("Compliance Check") == 18)
     test("Hospitality Requests auto-created", frappe.db.count("Hospitality Request") >= 1, f"got {frappe.db.count('Hospitality Request')}")
@@ -130,10 +129,6 @@ def run():
 
     # ── 12. AUTO-CREATION CHAINS ──
     print("\n--- 12. Auto-Creation Chains ---")
-
-    # Health Screening
-    hs = frappe.db.sql("SELECT screening_status, COUNT(*) c FROM `tabHealth Screening` GROUP BY screening_status", as_dict=1)
-    test("Health screenings all Cleared (temp=36.4)", len(hs) == 1 and hs[0].screening_status == "Cleared", f"got {hs}")
 
     # Compliance Check scores
     cc = frappe.db.sql("SELECT MIN(score) mn, MAX(score) mx, AVG(score) av FROM `tabCompliance Check`", as_dict=1)

@@ -89,6 +89,7 @@ class HospitalityRequest(Document):
 			self.status = "Pending"
 		if self.visitor_pass:
 			populate_hospitality_request_from_pass(self)
+		self._validate_visitor_pass_approved()
 		self._compute_hotel_nights()
 		self._validate_cab_timing()
 		self._validate_tour_safety()
@@ -96,6 +97,27 @@ class HospitalityRequest(Document):
 		self._validate_seating_capacity()
 		self._validate_hotel_in_visit_window()
 		self._validate_activities_in_visit_window()
+
+	# Real-world rule: hospitality preparation should not begin until the visitor
+	# is confirmed. Drafts (and re-applications after rejection) can be created
+	# against any pass, but moving the request out of Draft requires the linked
+	# Visitor Pass to be Approved (or beyond — Items Verified / Checked-In / -Out).
+	def _validate_visitor_pass_approved(self):
+		if not self.visitor_pass:
+			return
+		current_state = self.workflow_state or "Draft"
+		if current_state in ("Draft", "Rejected"):
+			return
+		vp_status = frappe.db.get_value("Visitor Pass", self.visitor_pass, "status")
+		if vp_status not in ("Approved", "Items Verified", "Checked-In", "Checked-Out"):
+			frappe.throw(
+				_(
+					"Cannot send Hospitality Request {0} for approval — the linked Visitor Pass "
+					"{1} is still <b>{2}</b>. Hospitality preparation can only begin once the "
+					"visitor is confirmed (Visitor Pass must be Approved)."
+				).format(self.name or _("(new)"), self.visitor_pass, vp_status or _("Draft")),
+				title=_("Visitor Not Yet Approved"),
+			)
 
 	def _validate_seating_capacity(self):
 		if self.seating_capacity is not None and int(self.seating_capacity or 0) < 0:

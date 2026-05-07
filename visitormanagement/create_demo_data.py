@@ -174,7 +174,7 @@ def run():
     print("\n" + "=" * 60)
     print("FINAL DATABASE STATE")
     print("=" * 60)
-    for dt in ["Visitor Pass", "Security Log", "Health Screening", "Contact Trace Record",
+    for dt in ["Visitor Pass", "Security Log", "Contact Trace Record",
                "Compliance Check", "Hospitality Request", "Visitor Blacklist"]:
         print(f"  {dt}: {frappe.db.count(dt)}")
 

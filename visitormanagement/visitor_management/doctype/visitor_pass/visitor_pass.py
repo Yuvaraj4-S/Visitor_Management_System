@@ -733,14 +733,12 @@ def search_visitor_passes(doctype, txt, searchfield, start, page_len, filters):
         params.extend([like] * 5)
 
     where = " AND ".join(conditions) if conditions else "1=1"
-<<<<<<< HEAD
-    # Compute the dropdown description live (visitor_full_name · mobile_number) so reception
-    # can spot + search by phone, regardless of how stale the cached visitor_summary is.
-=======
     # Compute the dropdown description live (visitor_full_name · mobile_number) so
     # reception can spot + search by phone, regardless of how stale the cached
     # `visitor_summary` is on legacy/demo records.
->>>>>>> 6f4ff72 (changes-6)
+    # Compute the dropdown description live (visitor_full_name · mobile_number) so reception
+    # can spot + search by phone, regardless of how stale the cached visitor_summary is.
+
     return frappe.db.sql(
         f"""SELECT
                 name,

@@ -18,8 +18,5 @@ visitormanagement.patches.post_model_sync.sync_hospitality_request_workflow
 visitormanagement.patches.post_model_sync.sync_hospitality_arrangement_notifications
 visitormanagement.patches.post_model_sync.backfill_visitor_summary
 visitormanagement.patches.post_model_sync.drop_hospitality_status_columns
-<<<<<<< HEAD
-visitormanagement.patches.post_model_sync.drop_orphan_columns
-=======
 visitormanagement.patches.post_model_sync.ensure_desk_basic_perms
->>>>>>> 6f4ff72 (changes-6)
+visitormanagement.patches.post_model_sync.drop_orphan_columns

@@ -57,11 +57,8 @@ def get_visitor_pass_permission_query_conditions(user=None):
 	return " or ".join(conditions) if conditions else "1=0"
 
 
-<<<<<<< HEAD
-=======
 # Permission types that count as "read-like" — granting these to a role does
 # NOT let the user write/submit/cancel/delete the doc.
->>>>>>> 6f4ff72 (changes-6)
 _READ_LIKE_PTYPES = {None, "read", "select", "print", "email", "report", "export", "share"}
 
 
@@ -96,11 +93,8 @@ def has_visitor_pass_permission(doc, user=None, permission_type=None):
 		return True
 	if ("HOD" in roles or "CEO" in roles) and doc.visitor_type == "VIP":
 		return True
-<<<<<<< HEAD
-	# Security role is read-only on Visitor Pass. Gate workflow happens through
-=======
 	# Security role is read-only on Visitor Pass — gate workflow happens through
->>>>>>> 6f4ff72 (changes-6)
+	# Security role is read-only on Visitor Pass. Gate workflow happens through
 	# Security Log (where they have write). Without this guard, has_permission
 	# would short-circuit `True` for every ptype and let Security write/submit
 	# any approved pass.

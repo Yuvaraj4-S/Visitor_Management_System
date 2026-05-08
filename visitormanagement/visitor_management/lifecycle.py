@@ -825,10 +825,8 @@ def sync_compliance_check(visitor_pass_name, security_log=None):
 	doc.exception_reason = getattr(security_log, "exception_reason", None) if security_log else None
 	doc.last_security_log = getattr(security_log, "name", None) if security_log else None
 	doc.last_checked_on = now_datetime()
-
 	if doc.is_new():
 		doc.insert(ignore_permissions=True)
 	else:
 		doc.save(ignore_permissions=True)
-
 	return doc.name

@@ -569,35 +569,43 @@ class VisitorPass(Document):
                 f"style='border: 1px solid #ddd; padding: 10px;' alt='QR Code'><br><br>"
             )
 
-        frappe.sendmail(
-            recipients=[self.email_id],
-            subject=f"Visit APPROVED — {self.name}",
-            message=(
-                f"Dear {self.visitor_full_name},<br><br>"
-                f"Your visit request has been approved.<br>"
-                f"Please present the QR code below at the security gate:<br><br>"
-                f"{qr_html}"
-                f"<b>Visit Details:</b><br>"
-                f"Pass ID: {self.name}<br>"
-                f"Host: {self.person_to_visit}<br>"
-                f"Date: {self.visit_date}<br>"
-                f"{items_text}"
-            ),
-            attachments=attachments,
-            inline_images=inline_images,
-        )
+        try:
+            frappe.sendmail(
+                recipients=[self.email_id],
+                subject=f"Visit APPROVED — {self.name}",
+                message=(
+                    f"Dear {self.visitor_full_name},<br><br>"
+                    f"Your visit request has been approved.<br>"
+                    f"Please present the QR code below at the security gate:<br><br>"
+                    f"{qr_html}"
+                    f"<b>Visit Details:</b><br>"
+                    f"Pass ID: {self.name}<br>"
+                    f"Host: {self.person_to_visit}<br>"
+                    f"Date: {self.visit_date}<br>"
+                    f"{items_text}"
+                ),
+                attachments=attachments,
+                inline_images=inline_images,
+            )
+        except Exception as exc:
+            # Don't let a missing/misconfigured Email Account block approval.
+            frappe.log_error(f"Approval email failed for {self.name}: {exc}", "VMS Approval Email")
 
     # ─────────────────────────────────────────────────────────
     # PRIVATE: NOTIFY FOOD DEPT
     # ─────────────────────────────────────────────────────────
     def _notify_food_dept(self):
         food_email = frappe.db.get_single_value("VMS Settings", "food_dept_email")
-        if food_email:
+        if not food_email:
+            return
+        try:
             frappe.sendmail(
                 recipients=[food_email],
                 subject=f"Meal Required: {self.visitor_full_name}",
                 message=f"Meal Type: {self.meal_type}<br>Visitor Pass: {self.name}",
             )
+        except Exception as exc:
+            frappe.log_error(f"Food dept notification failed for {self.name}: {exc}", "VMS Food Dept Notification")
 
 @frappe.whitelist()
 def search_existing_by_phone(phone):
@@ -728,6 +736,9 @@ def search_visitor_passes(doctype, txt, searchfield, start, page_len, filters):
     # Compute the dropdown description live (visitor_full_name · mobile_number) so
     # reception can spot + search by phone, regardless of how stale the cached
     # `visitor_summary` is on legacy/demo records.
+    # Compute the dropdown description live (visitor_full_name · mobile_number) so reception
+    # can spot + search by phone, regardless of how stale the cached visitor_summary is.
+
     return frappe.db.sql(
         f"""SELECT
                 name,

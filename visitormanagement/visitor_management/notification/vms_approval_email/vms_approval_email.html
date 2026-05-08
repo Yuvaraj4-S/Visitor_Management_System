@@ -12,11 +12,21 @@
 <tr style="background: #f4f5f7;"><td style="padding: 8px; border: 1px solid #ddd;"><b>Pass ID</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.name }}</td></tr>
 </table>
 
+<h3>Your Gate Pass (QR Code)</h3>
+{% if doc.qr_code_image %}
+<div style="text-align: center; margin: 16px 0;">
+<img src="{{ doc.qr_code_image }}" alt="Gate QR Code" style="width: 180px; height: 180px; border: 1px solid #e2e8f0; padding: 8px; background: #fff;">
+<div style="font-size: 12px; color: #64748b; margin-top: 6px;">Show this code at the security gate. You can also save this email or take a screenshot.</div>
+</div>
+{% else %}
+<p style="color: #b45309;">Your QR pass is being generated and will be sent in a follow-up email shortly.</p>
+{% endif %}
+
 <h3>On Arrival</h3>
 <ul>
 <li>Please carry a valid photo ID matching the one you registered with.</li>
-<li>Show your <b>QR code</b> at the gate for verification.</li>
-<li>Your badge will be issued after item verification at the security desk.</li>
+<li>Show the QR code above at the gate for verification.</li>
+<li>Your physical badge will be issued at the security desk after item verification.</li>
 {% if doc.visitor_type == 'Contractor' %}
 <li>Ensure you have completed the required safety induction and are wearing provided PPE.</li>
 {% endif %}

@@ -119,6 +119,7 @@ def get_web_form_context(token):
 		"hospitality_type": meal_plan["hospitality_type"] if invitation.meal_required else "",
 		"service_time": _format_datetime_for_web_form(meal_plan["service_time"]) if invitation.meal_required else "",
 		"refreshments_required": invitation.refreshments_required,
+		"conference_room": invitation.get("conference_room") or "",
 	}
 
 	if existing_pass:

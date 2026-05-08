@@ -111,18 +111,36 @@ frappe.ui.form.on("Security Log", {
 		}
 
 		if (frm.doc.event_type === "Check-In") {
-			if (!frm.doc.photo_at_gate) {
-				frappe.msgprint(__("Capture the live gate photo before printing the visitor badge."));
-				return;
-			}
+			const checks = [
+				{
+					ok: Boolean(frm.doc.photo_at_gate),
+					label: __("Capture the live gate photo"),
+				},
+				{
+					ok: Boolean(frm.doc.id_proof_match) && Boolean(frm.doc.pass_photo_match),
+					label: __("Confirm both identity matches (ID proof + pass photo)"),
+				},
+				{
+					ok: !(frm.is_new() || frm.is_dirty()),
+					label: __("Save the check-in (so the gate photo is locked into the badge)"),
+				},
+			];
 
-			if (!frm.doc.id_proof_match || !frm.doc.pass_photo_match) {
-				frappe.msgprint(__("Complete the identity match confirmation before printing the visitor badge."));
-				return;
-			}
-
-			if (frm.is_new() || frm.is_dirty()) {
-				frappe.msgprint(__("Save the check-in first so the gate photo becomes the badge photo."));
+			const pending = checks.filter((c) => !c.ok);
+			if (pending.length) {
+				const items = checks
+					.map(
+						(c) =>
+							`<li style="color:${c.ok ? "#059669" : "#b45309"};">` +
+							`${c.ok ? "&#10003;" : "&#9888;"} ${c.label}` +
+							`</li>`
+					)
+					.join("");
+				frappe.msgprint({
+					title: __("Finish these steps to print the badge"),
+					message: `<ul style="padding-left:18px; margin:0;">${items}</ul>`,
+					indicator: "orange",
+				});
 				return;
 			}
 		}

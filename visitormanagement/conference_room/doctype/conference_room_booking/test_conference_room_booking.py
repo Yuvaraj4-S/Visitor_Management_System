@@ -5,7 +5,108 @@ from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_days, today
 
 
+# Rooms the booking tests reference by name. Seeded once per class run so the
+# tests don't depend on whatever happens to be in the live site's data.
+# Operating hours must span the time windows the tests use (08:00-18:00).
+_ROOM_DEFAULTS = {
+    "available_from": "08:00:00",
+    "available_to": "18:00:00",
+    "min_booking_minutes": 15,
+    "max_booking_hours": 4,
+    "location": "Test",
+    "is_active": 1,
+}
+_REQUIRED_ROOMS = (
+    {"room_name": "Boardroom A", "capacity": 12, **_ROOM_DEFAULTS},
+    {"room_name": "Huddle Room", "capacity": 4, **_ROOM_DEFAULTS},
+    {"room_name": "Meeting Room 1", "capacity": 8, **_ROOM_DEFAULTS},
+)
+
+
 class TestConferenceRoomBooking(FrappeTestCase):
+
+    _ROOM_NAMES = tuple(spec["room_name"] for spec in _REQUIRED_ROOMS)
+
+    @classmethod
+    def _purge_test_bookings(cls):
+        """Remove any bookings against our test rooms — including submitted ones
+        leaked by prior test class runs that didn't roll back."""
+        leaked = frappe.db.get_all(
+            "Conference Room Booking",
+            filters={"conference_room": ["in", cls._ROOM_NAMES]},
+            fields=["name", "docstatus"],
+        )
+        for row in leaked:
+            try:
+                if row["docstatus"] == 1:
+                    doc = frappe.get_doc("Conference Room Booking", row["name"])
+                    doc.cancel()
+                frappe.delete_doc(
+                    "Conference Room Booking", row["name"],
+                    force=True, ignore_permissions=True, ignore_missing=True,
+                )
+            except Exception:
+                # Last-resort SQL delete for stuck rows
+                frappe.db.sql(
+                    "DELETE FROM `tabConference Room Booking` WHERE name=%s",
+                    row["name"],
+                )
+
+    @classmethod
+    def _purge_leaked_test_rooms(cls):
+        """Remove any 'Test Valid Room *' rows leaked by a prior run of
+        test_valid_room_creation. These have transient operating hours that
+        can break later tests which pick 'any active Conference Room'."""
+        leaked = frappe.db.get_all(
+            "Conference Room",
+            filters={"name": ["like", "Test Valid Room%"]},
+            pluck="name",
+        )
+        for name in leaked:
+            try:
+                frappe.delete_doc(
+                    "Conference Room", name,
+                    force=True, ignore_permissions=True, ignore_missing=True,
+                )
+            except Exception:
+                frappe.db.sql(
+                    "DELETE FROM `tabConference Room` WHERE name=%s", name
+                )
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._purge_test_bookings()
+        cls._purge_leaked_test_rooms()
+        # Drop any pre-existing rooms with the same names so we know they have
+        # the right operating hours / capacity / max_booking_hours.
+        for name in cls._ROOM_NAMES:
+            if frappe.db.exists("Conference Room", name):
+                frappe.delete_doc(
+                    "Conference Room", name,
+                    force=True, ignore_permissions=True, ignore_missing=True,
+                )
+        for spec in _REQUIRED_ROOMS:
+            room = frappe.new_doc("Conference Room")
+            room.update(spec)
+            room.insert(ignore_permissions=True)
+        frappe.db.commit()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._purge_test_bookings()
+        cls._purge_leaked_test_rooms()
+        for name in cls._ROOM_NAMES:
+            if frappe.db.exists("Conference Room", name):
+                try:
+                    frappe.delete_doc(
+                        "Conference Room", name,
+                        force=True, ignore_permissions=True, ignore_missing=True,
+                    )
+                except Exception:
+                    pass
+        frappe.db.commit()
+        super().tearDownClass()
 
     # ── Helper ──
 
@@ -56,6 +157,10 @@ class TestConferenceRoomBooking(FrappeTestCase):
         room.room_name = "Test Valid Room " + frappe.generate_hash(length=6)
         room.location = "Test"
         room.capacity = 10
+        # Explicit hours so leaked rows (if a commit slips in) don't break
+        # later test runs that pick "any active Conference Room".
+        room.available_from = "08:00:00"
+        room.available_to = "20:00:00"
         room.insert(ignore_permissions=True)
         self.assertTrue(room.name)
 

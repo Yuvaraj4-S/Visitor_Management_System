@@ -1,3 +1,5 @@
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
 const ALWAYS_LOCKED_FIELDS = [
 	"visitor_type",
 	"email_id",
@@ -44,6 +46,120 @@ let genericFormState = {
 
 function escapeHtml(value) {
 	return frappe.utils.escape_html(value == null ? "" : String(value));
+}
+
+function isValidMobile(value) {
+	if (!value) return false;
+	const trimmed = String(value).trim();
+	if (!trimmed) return false;
+	const digits = trimmed.replace(/\D/g, "");
+	if (trimmed.startsWith("+")) {
+		return digits.length >= 11 && digits.length <= 15;
+	}
+	if (digits.length === 10) return true;
+	if (digits.length >= 11 && digits.length <= 15) return true;
+	return false;
+}
+
+function attachMobileValidator() {
+	const field = frappe.web_form?.fields_dict?.mobile_number;
+	if (!field || field._vmMobileValidatorBound) {
+		return;
+	}
+	field._vmMobileValidatorBound = true;
+
+	const $wrap = $(field.wrapper);
+	let $err = $wrap.find(".vm-mobile-error");
+	if (!$err.length) {
+		$err = $('<div class="vm-mobile-error"></div>');
+		const $target = $wrap.find(".control-input-wrapper").first();
+		if ($target.length) {
+			$target.append($err);
+		} else {
+			$wrap.append($err);
+		}
+	}
+
+	const $input = frappe.web_form.get_input("mobile_number");
+	if (!$input || !$input.length) {
+		return;
+	}
+
+	const showError = () => {
+		$err.text(
+			__("Enter 10 digits (e.g. 9876543210) or +country code + number (e.g. +91 9876543210).")
+		).addClass("visible");
+	};
+	const hideError = () => $err.removeClass("visible");
+
+	$input.on("blur.vmMobile", () => {
+		const value = $input.val() || "";
+		if (!value.trim()) {
+			hideError();
+			return;
+		}
+		if (isValidMobile(value)) {
+			hideError();
+		} else {
+			showError();
+		}
+	});
+	$input.on("input.vmMobile", () => {
+		if (isValidMobile($input.val())) {
+			hideError();
+		}
+	});
+}
+
+function approxBase64Bytes(value) {
+	if (!value || typeof value !== "string") return 0;
+	const idx = value.indexOf(",");
+	const payload = idx > -1 ? value.slice(idx + 1) : value;
+	// each 4 base64 chars encode 3 bytes
+	const padding = (payload.match(/=+$/) || [""])[0].length;
+	return Math.max(0, Math.floor((payload.length * 3) / 4) - padding);
+}
+
+function checkAttachmentSize(fieldname, label) {
+	const value = frappe.web_form?.doc?.[fieldname];
+	if (!value || typeof value !== "string") return null;
+	if (!value.startsWith("data:")) return null;
+	const bytes = approxBase64Bytes(value);
+	if (bytes > MAX_ATTACHMENT_BYTES) {
+		return __("{0} is {1} MB — please upload a file under 5 MB.", [
+			__(label),
+			(bytes / 1024 / 1024).toFixed(1),
+		]);
+	}
+	return null;
+}
+
+function renderSuccessPanel(reference) {
+	const ref = reference ? escapeHtml(reference) : "";
+	const html = `
+		<div class="vm-success-panel" role="status" aria-live="polite">
+			<div style="font-size:1.1rem; font-weight:700; color:var(--vr-success);">
+				${__("Pre-registration submitted")}
+			</div>
+			<div style="font-size:0.9rem; color:var(--vr-text-muted); margin-top:4px;">
+				${__("Keep this reference for your records.")}
+			</div>
+			${ref ? `<div class="vm-success-ref">${ref}</div>` : ""}
+			<div class="vm-success-next">
+				<strong>${__("What happens next")}</strong>
+				<ol>
+					<li>${__("A confirmation email is on its way to you.")}</li>
+					<li>${__("Your host will review and approve the request.")}</li>
+					<li>${__("Once approved, you'll get a final email with a QR pass — show it at the gate.")}</li>
+				</ol>
+			</div>
+		</div>
+	`;
+	const $target = $(".web-form-container").first();
+	if (!$target.length) return;
+	$target.find(".vm-success-panel").remove();
+	$target.prepend(html);
+	window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function setFormVisibility(visible) {
@@ -395,6 +511,7 @@ function enableDirectAccessMode() {
 	startHospitalityWatcher();
 	renderVisitorItems();
 	applyVisitorTypeSections(getFieldValue("visitor_type"));
+	attachMobileValidator();
 	setFormVisibility(true);
 	setSubmitDisabled(false);
 }
@@ -629,6 +746,7 @@ async function handleInvitationAfterLoad() {
 		startHospitalityWatcher();
 		await syncHospitalityFieldsFromMealToggle();
 		renderVisitorItems(getVisitorItemsFromContext());
+		attachMobileValidator();
 		setFormVisibility(true);
 		setSubmitDisabled(false);
 	} catch (error) {
@@ -687,6 +805,31 @@ function setupInvitationHooks() {
 			return false;
 		}
 
+		const mobileForCheck =
+			docValues.mobile_number || frappe.web_form.doc?.mobile_number || "";
+		if (mobileForCheck && !isValidMobile(mobileForCheck)) {
+			frappe.msgprint({
+				title: __("Check your mobile number"),
+				message: __(
+					"Mobile number doesn't look right. Enter 10 digits (e.g. 9876543210), or +country code + number (e.g. +91 9876543210)."
+				),
+				indicator: "orange",
+			});
+			return false;
+		}
+
+		const sizeIssue =
+			checkAttachmentSize("id_proof_scan", "ID Proof Scan") ||
+			checkAttachmentSize("visitor_photo", "Visitor Photo");
+		if (sizeIssue) {
+			frappe.msgprint({
+				title: __("File too large"),
+				message: sizeIssue,
+				indicator: "orange",
+			});
+			return false;
+		}
+
 		Object.assign(this.doc, docValues);
 
 		this.doc.visitor_items = collectVisitorItems();
@@ -717,6 +860,11 @@ function setupInvitationHooks() {
 			callback: (response) => {
 				if (!response.exc) {
 					this.handle_success(response.message);
+					try {
+						renderSuccessPanel(response.message?.name);
+					} catch (e) {
+						console.warn("Could not render success panel", e);
+					}
 					frappe.web_form.events.trigger("after_save");
 					this.after_save && this.after_save();
 				}

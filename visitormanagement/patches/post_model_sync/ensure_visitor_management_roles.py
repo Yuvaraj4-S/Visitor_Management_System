@@ -39,7 +39,37 @@ def execute():
         update_permission_property("Employee", role_name, 0, "read", 1)
 
     _trim_security_role_scope()
-    _provision_employee_for_security_users()
+    _grant_visitor_pass_read_to_link_roles()
+    _provision_employee_for_role_users(
+        role="Security",
+        designation="Security Engineer",
+    )
+    _provision_employee_for_role_users(
+        role="Facility Manager",
+        designation="Facility Manager" if frappe.db.exists("Designation", "Facility Manager") else None,
+    )
+    _provision_employee_for_role_users(
+        role="Hospitality Manager",
+        designation="Hospitality Manager" if frappe.db.exists("Designation", "Hospitality Manager") else None,
+    )
+
+
+def _grant_visitor_pass_read_to_link_roles():
+    """Facility Manager (Conference Room Booking → visitor_pass link) and
+    Hospitality Manager (Hospitality Request → visitor_pass link) need read
+    on Visitor Pass at the role level so the desk's link widget doesn't 403
+    when rendering the visitor's title. Write/submit stays denied.
+    """
+    for role_name in ("Facility Manager", "Hospitality Manager"):
+        if not frappe.db.exists("Role", role_name):
+            continue
+        existing = frappe.db.exists(
+            "Custom DocPerm",
+            {"parent": "Visitor Pass", "role": role_name, "permlevel": 0},
+        )
+        if not existing:
+            add_permission("Visitor Pass", role_name, 0)
+        update_permission_property("Visitor Pass", role_name, 0, "read", 1)
 
 
 def _trim_security_role_scope():
@@ -57,11 +87,13 @@ def _trim_security_role_scope():
             frappe.delete_doc("Custom DocPerm", row.name, ignore_permissions=True, force=True)
 
 
-def _provision_employee_for_security_users():
-    """Every Security user must have an Employee record — without it, the
-    `security_officer` self-filter breaks and ERPNext auto-strips the Employee
-    role on next User save. Auto-create a minimal Employee so the flow works
-    out of the box for any newly-hired security staff.
+def _provision_employee_for_role_users(role, designation=None):
+    """Every user with `role` must have an Employee record. Without it,
+    Frappe-style "self" filters break and ERPNext auto-strips the Employee
+    role on next User save. Idempotent — runs every migrate, fixes any
+    new hires that were granted the role without an Employee record.
+    Also strips the auto-created Employee-level User Permission so users
+    aren't restricted to records linked to their own Employee row.
     """
     default_company = (
         frappe.defaults.get_global_default("company")
@@ -70,15 +102,13 @@ def _provision_employee_for_security_users():
     if not default_company:
         return
 
-    designation = "Security Engineer" if frappe.db.exists("Designation", "Security Engineer") else None
-
-    security_users = frappe.get_all(
+    role_users = frappe.get_all(
         "Has Role",
-        filters={"role": "Security", "parenttype": "User"},
+        filters={"role": role, "parenttype": "User"},
         fields=["parent as user"],
     )
 
-    for row in security_users:
+    for row in role_users:
         user_name = row.user
         if user_name in ("Administrator", "Guest"):
             continue
@@ -113,7 +143,7 @@ def _provision_employee_for_security_users():
             except Exception:
                 frappe.log_error(
                     frappe.get_traceback(),
-                    f"VMS: auto-provision Employee failed for Security user {user_name}",
+                    f"VMS: auto-provision Employee failed for {role} user {user_name}",
                 )
                 continue
 
@@ -132,10 +162,9 @@ def _provision_employee_for_security_users():
 
         # ERPNext's Employee.update_user_permissions() auto-creates a global
         # User Permission (Employee=<self>, applicable_for=None) that would
-        # restrict Alan to only Security Logs linked to his own Employee record.
-        # Gate security must process EVERY visitor, so strip the Employee-level
-        # User Permission. Keep the Company-level one so they stay scoped to
-        # their own company's data.
+        # restrict the user to only records linked to their own Employee row.
+        # VMS approver/manager roles must process every visitor / booking, so
+        # strip the Employee-level User Permission. Company-level stays.
         frappe.db.delete(
             "User Permission",
             {"user": user_name, "allow": "Employee"},

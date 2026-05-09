@@ -26,18 +26,17 @@ class ConferenceRoomBooking(Document):
 	def _validate_visitor_pass_approved(self):
 		if not getattr(self, "visitor_pass", None):
 			return
-		current_state = self.workflow_state or "Draft"
+		current_state = getattr(self, "workflow_state", None) or "Draft"
 		if current_state in ("Draft", "Rejected"):
 			return
 		vp_status = frappe.db.get_value("Visitor Pass", self.visitor_pass, "status")
 		if vp_status not in ("Approved", "Items Verified", "Checked-In", "Checked-Out"):
 			frappe.throw(
 				_(
-					"Cannot send Conference Room Booking {0} for approval — the linked Visitor "
-					"Pass {1} is still <b>{2}</b>. Room preparation can only begin once the "
-					"visitor is confirmed (Visitor Pass must be Approved)."
-				).format(self.name or _("(new)"), self.visitor_pass, vp_status or _("Draft")),
-				title=_("Visitor Not Yet Approved"),
+					"Visitor Pass {0} is currently <b>{1}</b>. Please ensure the Visitor "
+					"Pass is Approved before submitting this Conference Room Booking."
+				).format(self.visitor_pass, vp_status or _("Draft")),
+				title=_("Approval Not Allowed"),
 			)
 
 	# -- Auto-Set Service Flags --

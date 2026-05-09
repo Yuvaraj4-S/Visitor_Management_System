@@ -177,13 +177,16 @@ def run():
 
     def t_inactive_host():
         # Create a disabled employee — set via db_set to bypass HRMS mandatory relieving_date
+        company = frappe.db.get_value("Company", {}, "name", order_by="creation asc")
+        if not company:
+            raise RuntimeError("No Company exists on this site — cannot run inactive-host test")
         emp = frappe.new_doc("Employee")
         emp.employee_name = "Inactive Test"
         emp.first_name = "Inactive"
         emp.gender = "Male"
         emp.date_of_birth = "1990-01-01"
         emp.date_of_joining = "2024-01-01"
-        emp.company = "Yuvi Enterprises"
+        emp.company = company
         emp.status = "Active"
         emp.insert(ignore_permissions=True, ignore_mandatory=True)
         frappe.db.set_value("Employee", emp.name, "status", "Left")

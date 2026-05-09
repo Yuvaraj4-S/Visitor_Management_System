@@ -6,7 +6,7 @@
 <tr style="background: #f4f5f7;"><td style="padding: 8px; border: 1px solid #ddd;"><b>Visitor</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.visitor_full_name }}</td></tr>
 <tr><td style="padding: 8px; border: 1px solid #ddd;"><b>Company</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.company__organisation or 'N/A' }}</td></tr>
 <tr style="background: #f4f5f7;"><td style="padding: 8px; border: 1px solid #ddd;"><b>Type</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.visitor_type }}</td></tr>
-<tr><td style="padding: 8px; border: 1px solid #ddd;"><b>Badge</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.badge_number or 'QR Only' }}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><b>Badge</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.badge_number or 'Digital QR pass (no physical badge)' }}</td></tr>
 <tr style="background: #f4f5f7;"><td style="padding: 8px; border: 1px solid #ddd;"><b>Purpose</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.purpose_of_visit }}</td></tr>
 <tr><td style="padding: 8px; border: 1px solid #ddd;"><b>Checked In At</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.actual_checkin or frappe.utils.now_datetime() }}</td></tr>
 <tr style="background: #f4f5f7;"><td style="padding: 8px; border: 1px solid #ddd;"><b>Expected Departure</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.expected_checkout }}</td></tr>

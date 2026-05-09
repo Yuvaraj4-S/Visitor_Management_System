@@ -200,6 +200,16 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 	submission_action = (data.get("submission_action") or "submit").strip().lower()
 	target_state = _get_portal_submission_state(visitor_type, submission_action)
 
+	# Hospitality + room intent fields come from the host on the invitation. The
+	# guest's portal form doesn't expose these, so without copying them here the
+	# food/conference teams would never see what the host requested. When there
+	# is no invitation (walk-in / desk entry), fall back to whatever the caller
+	# put on the payload.
+	def _from_invitation(field):
+		if invitation is not None and invitation.get(field) is not None:
+			return invitation.get(field)
+		return data.get(field)
+
 	return {
 		"entry_type": "New",
 		"visitor_full_name": (
@@ -241,6 +251,16 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"id_proof_number": data.get("id_proof_number"),
 		"id_proof_scan": id_proof_url,
 		"visitor_photo": visitor_photo_url,
+		# Host-set hospitality + venue intent — copied from the invitation so the
+		# Visitor Pass reflects the full plan even though the guest can't edit
+		# these on the portal form.
+		"meal_required": _from_invitation("meal_required"),
+		"meal_type": _from_invitation("meal_type"),
+		"assigned_meal_slots": _from_invitation("assigned_meal_slots"),
+		"hospitality_type": _from_invitation("hospitality_type"),
+		"refreshments_required": _from_invitation("refreshments_required"),
+		"conference_room": _from_invitation("conference_room"),
+		"special_diet": data.get("special_diet"),
 		# items_carried is the printable free-text summary. The portal form no
 		# longer asks for it directly — it is derived from the structured
 		# `visitor_items` rows the visitor entered in the "Visitor Items"

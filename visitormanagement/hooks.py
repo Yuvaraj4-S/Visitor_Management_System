@@ -1,8 +1,8 @@
 app_name = "visitormanagement"
 app_title = "Visitor Management"
-app_publisher = "Harthesh"
+app_publisher = "VMS"
 app_description = "Visitor Management System"
-app_email = "hharthesh@gmail.com"
+app_email = "vms@example.com"
 app_license = "mit"
 
 # Apps

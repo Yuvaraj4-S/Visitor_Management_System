@@ -101,6 +101,16 @@ def _send_host_checkin_email(visitor_pass, security_log):
 class SecurityLog(Document):
 
     def before_save(self):
+        # Once a Security Log is recorded, it is an immutable gate-event audit record.
+        # Block edits from non-admin users so a security officer can't quietly amend
+        # what was logged at the gate. System Manager / Administrator may still amend
+        # to correct a typo / mis-keyed gate.
+        if not self.is_new() and "System Manager" not in (frappe.get_roles() or []):
+            frappe.throw(
+                f"Security Log {self.name} has already been recorded and cannot be modified. "
+                "Contact your administrator if a correction is needed.",
+                title="Record Locked",
+            )
 
         # Fetch Visitor Pass once
         vp = None
@@ -249,6 +259,12 @@ class SecurityLog(Document):
 
             if not self.photo_at_gate:
                 frappe.throw("Capture a live gate photo before saving the visitor check-out.")
+
+            if not self.id_proof_match:
+                frappe.throw("Confirm that the visitor matches the ID proof before saving the visitor check-out.")
+
+            if not self.pass_photo_match:
+                frappe.throw("Confirm that the visitor matches the pass creation photo before saving the visitor check-out.")
 
         if self.event_type == 'Gate Transfer' and not self.visited_area:
             frappe.throw("Visited Area is required for gate transfer tracking.")

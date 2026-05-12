@@ -1,5 +1,21 @@
 // For license information, please see license.txt
 
+function sync_reqd_flags(frm) {
+	// UI-only sync of required-field markers. Must NOT call set_value() — doing
+	// so on refresh dirties the form and shows "Not Saved" before the user has
+	// touched anything.
+	const t = frm.doc.cab_type;
+	const needs_pickup = t === "Pickup" || t === "Both";
+	const needs_drop = t === "Drop" || t === "Both";
+	frm.toggle_reqd(["cab_type"], frm.doc.cab_required);
+	frm.toggle_reqd(["pickup_location", "pickup_datetime"], frm.doc.cab_required && needs_pickup);
+	frm.toggle_reqd(["drop_location", "drop_datetime"], frm.doc.cab_required && needs_drop);
+	frm.toggle_reqd(["check_in", "check_out"], frm.doc.hotel_required);
+	frm.toggle_reqd(["tour_guide"], frm.doc.factory_tour_required);
+	frm.toggle_reqd(["buggy_pickup_point", "buggy_datetime"], frm.doc.buggy_required);
+	frm.toggle_reqd(["greeting_type", "greeting_delivery_time"], frm.doc.greeting_required);
+}
+
 frappe.ui.form.on("Hospitality Request", {
 	refresh(frm) {
 		if (!frm.is_new()) {
@@ -10,11 +26,7 @@ frappe.ui.form.on("Hospitality Request", {
 			}));
 		}
 		if (frm.dashboard) frm.dashboard.clear_headline();
-		frm.trigger("cab_required");
-		frm.trigger("hotel_required");
-		frm.trigger("factory_tour_required");
-		frm.trigger("buggy_required");
-		frm.trigger("greeting_required");
+		sync_reqd_flags(frm);
 	},
 
 	cab_required(frm) {

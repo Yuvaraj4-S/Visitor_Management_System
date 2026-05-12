@@ -446,19 +446,18 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 	doc.conference_room = getattr(visitor_pass, "conference_room", None)
 	doc.seating_capacity = getattr(visitor_pass, "number_of_people", None)
 	doc.service_time = meal_plan["service_time"]
-	# Inherit approval state from the parent Visitor Pass. If the VP is already
-	# Approved (or beyond), the hospitality work is implicitly authorised — no
-	# need for the Hospitality Manager to re-approve a parallel doc.
-	# Runs on both auto-create (from ensure_hospitality_request) and manual
-	# create/edit (from validate). Only fires while the HR is still in its
-	# default Draft lane so we never overwrite an intentional manual transition
-	# (Rejected, Cancelled, etc.) to a "live" state.
+	# Once the parent Visitor Pass is Approved (or beyond), the Hospitality Request
+	# becomes ready for the Hospitality Manager to review — move it from Draft into
+	# Pending Approval so it shows up in the manager's queue. We do NOT force it to
+	# Approved here: that bypasses the workflow (no Draft→Approved transition exists)
+	# and the submit permission of whoever happens to be saving.
+	# Only fires while the HR is still in its default Draft lane so we never overwrite
+	# an intentional manual transition (Rejected, Cancelled, etc.) to a "live" state.
 	current_wf = getattr(doc, "workflow_state", None) or "Draft"
 	if current_wf == "Draft":
 		vp_status = getattr(visitor_pass, "status", None)
 		if vp_status in ("Approved", "Items Verified", "Checked-In", "Checked-Out"):
-			doc.workflow_state = "Approved"
-			doc.docstatus = 1
+			doc.workflow_state = "Pending Approval"
 		elif vp_status == "Rejected":
 			doc.workflow_state = "Rejected"
 

@@ -619,63 +619,6 @@ function isMissingRequiredValue(value, field) {
 	return false;
 }
 
-function validateIDProofFormat(docValues) {
-	const v = window.VMS_IDValidators;
-	if (!v) return true; // validator asset not loaded — don't hard-block submit
-	const t = docValues.id_proof_type;
-	const n = docValues.id_proof_number;
-	if (!t || !n) return true;
-	if (v.validateID(t, n)) return true;
-
-	frappe.msgprint({
-		title: __("Invalid ID Proof"),
-		message: __(v.idProofErrorMessage(t)),
-		indicator: "red",
-	});
-	return false;
-}
-
-function attachIDProofLiveValidator() {
-	const v = window.VMS_IDValidators;
-	if (!v || !frappe.web_form || !frappe.web_form.fields_dict) return;
-
-	const numField = frappe.web_form.fields_dict.id_proof_number;
-	const typeField = frappe.web_form.fields_dict.id_proof_type;
-	if (!numField || !typeField) return;
-
-	const refresh = () => {
-		const t = frappe.web_form.doc.id_proof_type;
-		const n = frappe.web_form.doc.id_proof_number;
-		if (!t || !n) {
-			frappe.web_form.set_df_property("id_proof_number", "description", "");
-			return;
-		}
-		if (v.validateID(t, n)) {
-			frappe.web_form.set_df_property(
-				"id_proof_number",
-				"description",
-				`<span style="color:#1f8b4c;">✓ ${__("Looks valid")}</span>`
-			);
-		} else {
-			frappe.web_form.set_df_property(
-				"id_proof_number",
-				"description",
-				`<span style="color:#d64545;">${__(v.idProofErrorMessage(t))}</span>`
-			);
-		}
-	};
-
-	// Debounce to avoid scolding mid-typing — react on blur and type change.
-	const $num = frappe.web_form.get_input("id_proof_number");
-	if ($num && $num.on) {
-		$num.on("blur.vmsIdValidator", refresh);
-	}
-	const $type = frappe.web_form.get_input("id_proof_type");
-	if ($type && $type.on) {
-		$type.on("change.vmsIdValidator", refresh);
-	}
-}
-
 function validateRequiredFieldsForSave(docValues) {
 	const missingLabels = [];
 

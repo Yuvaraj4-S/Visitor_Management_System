@@ -47,6 +47,16 @@ frappe.ui.form.on("Security Log", {
 		if (frm.is_new() && !frm.doc.visitor_pass) {
 			frm.add_custom_button(__("Approved VIP Queue"), () => open_vip_queue(frm), __("Actions"));
 		}
+
+		// Lock the form once the gate event has been recorded — it is an audit record.
+		// Admins (System Manager) can still amend; everyone else gets a read-only form.
+		if (!frm.is_new() && !(frappe.user_roles || []).includes("System Manager")) {
+			frm.disable_form();
+			frm.set_intro(
+				__("This Security Log is locked. Gate events are immutable once saved."),
+				"blue"
+			);
+		}
 	},
 
 	event_type(frm) {
@@ -704,12 +714,12 @@ function apply_security_log_ui(frm) {
 	frm.toggle_display("id_proof_scan", false);
 	frm.toggle_display(["section_break_identity_comparison", "identity_comparison_html"], has_pass);
 	frm.toggle_display(["photo_at_gate", "capture_photo"], show_gate_photo);
-	frm.toggle_display(["id_proof_match", "pass_photo_match", "verification_notes"], is_check_in);
+	frm.toggle_display(["id_proof_match", "pass_photo_match", "verification_notes"], is_check_in || is_check_out);
 	frm.toggle_display("exception_reason", show_exception_reason);
 	frm.toggle_display(["section_break_items", "all_items_confirmed"], show_items && has_pass);
 	frm.toggle_reqd("photo_at_gate", is_check_in || is_check_out);
-	frm.toggle_reqd("id_proof_match", is_check_in);
-	frm.toggle_reqd("pass_photo_match", is_check_in);
+	frm.toggle_reqd("id_proof_match", is_check_in || is_check_out);
+	frm.toggle_reqd("pass_photo_match", is_check_in || is_check_out);
 	frm.toggle_reqd("exception_reason", false);
 	frm.toggle_display(["mdceo_notified", "vip_meeting_room", "vip_protocol_notes"], has_pass && is_vip);
 

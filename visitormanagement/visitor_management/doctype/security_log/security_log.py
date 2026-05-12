@@ -76,22 +76,26 @@ def _send_host_checkin_email(visitor_pass, security_log):
             item_lines.append(line)
         items_summary = "<br>".join(item_lines)
 
-    frappe.sendmail(
-        recipients=[host_email],
-        subject=f"Visitor Arrived: {visitor_pass.visitor_full_name}",
-        message=(
-            f"<p>Visitor <b>{visitor_pass.visitor_full_name}</b> has checked in.</p>"
-            "<table style='border-collapse: collapse;'>"
-            f"<tr><td style='padding:4px 8px;'><b>Pass ID</b></td><td style='padding:4px 8px;'>{visitor_pass.name}</td></tr>"
-            f"<tr><td style='padding:4px 8px;'><b>Visitor Type</b></td><td style='padding:4px 8px;'>{visitor_pass.visitor_type or '-'}</td></tr>"
-            f"<tr><td style='padding:4px 8px;'><b>Purpose</b></td><td style='padding:4px 8px;'>{visitor_pass.purpose_of_visit or '-'}</td></tr>"
-            f"<tr><td style='padding:4px 8px;'><b>Check-In Time</b></td><td style='padding:4px 8px;'>{security_log.check_in_date_time or now_datetime()}</td></tr>"
-            f"<tr><td style='padding:4px 8px;'><b>Gate</b></td><td style='padding:4px 8px;'>{security_log.gate_name or '-'}</td></tr>"
-            f"<tr><td style='padding:4px 8px;'><b>Items Declared</b></td><td style='padding:4px 8px;'>{items_summary}</td></tr>"
-            "</table>"
-        ),
-        now=True,
-    )
+    try:
+        frappe.sendmail(
+            recipients=[host_email],
+            subject=f"Visitor Arrived: {visitor_pass.visitor_full_name}",
+            message=(
+                f"<p>Visitor <b>{visitor_pass.visitor_full_name}</b> has checked in.</p>"
+                "<table style='border-collapse: collapse;'>"
+                f"<tr><td style='padding:4px 8px;'><b>Pass ID</b></td><td style='padding:4px 8px;'>{visitor_pass.name}</td></tr>"
+                f"<tr><td style='padding:4px 8px;'><b>Visitor Type</b></td><td style='padding:4px 8px;'>{visitor_pass.visitor_type or '-'}</td></tr>"
+                f"<tr><td style='padding:4px 8px;'><b>Purpose</b></td><td style='padding:4px 8px;'>{visitor_pass.purpose_of_visit or '-'}</td></tr>"
+                f"<tr><td style='padding:4px 8px;'><b>Check-In Time</b></td><td style='padding:4px 8px;'>{security_log.check_in_date_time or now_datetime()}</td></tr>"
+                f"<tr><td style='padding:4px 8px;'><b>Gate</b></td><td style='padding:4px 8px;'>{security_log.gate_name or '-'}</td></tr>"
+                f"<tr><td style='padding:4px 8px;'><b>Items Declared</b></td><td style='padding:4px 8px;'>{items_summary}</td></tr>"
+                "</table>"
+            ),
+            now=True,
+        )
+    except Exception as exc:
+        # Don't let a missing/misconfigured Email Account block check-in.
+        frappe.log_error(f"Host check-in email failed for {security_log.name}: {exc}", "VMS Host Check-in Email")
 
 
 class SecurityLog(Document):

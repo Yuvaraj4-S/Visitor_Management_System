@@ -54,12 +54,16 @@ def _send_hospitality_assignment_mail(doc):
 	if doc.notes:
 		lines.extend(["", f"Notes: {frappe.utils.strip_html(doc.notes)}"])
 
-	frappe.sendmail(
-		recipients=[email],
-		subject=subject,
-		message="<br>".join(lines),
-		now=True,
-	)
+	try:
+		frappe.sendmail(
+			recipients=[email],
+			subject=subject,
+			message="<br>".join(lines),
+			now=True,
+		)
+	except Exception as exc:
+		# Email Account may not be configured — log and continue rather than blocking the save.
+		frappe.log_error(f"Hospitality assignment email failed for {doc.name}: {exc}", "VMS Hospitality Assignment Email")
 
 
 class HospitalityRequest(Document):
@@ -101,6 +105,10 @@ class HospitalityRequest(Document):
 	# is confirmed. Drafts (and re-applications after rejection) can be created
 	# against any pass, but moving the request out of Draft requires the linked
 	# Visitor Pass to be Approved (or beyond — Items Verified / Checked-In / -Out).
+	# is confirmed. Drafts can be created against any pass (so meal flags etc. can
+	# be drafted alongside the pass), but moving the request out of Draft requires
+	# the linked Visitor Pass to be Approved or beyond.
+
 	def _validate_visitor_pass_approved(self):
 		if not self.visitor_pass:
 			return

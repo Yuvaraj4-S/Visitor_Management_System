@@ -792,17 +792,8 @@ function apply_existing_pass_data(frm, data) {
 		"expected_checkout",
 		"supplier_visit_mode",
 		"supplier_link",
-		"purchase_order",
-		"delivery_note",
-		"goods_description",
 		"meeting_subject",
-		"meeting_start_time",
-		"meeting_end_time",
-		"meeting_room",
-		"attendees",
 		"refreshments_required",
-		"refreshment_notes",
-		"presentation_material",
 		"nda_required",
 		"documents_shared",
 		"crm_reference_type",
@@ -815,7 +806,6 @@ function apply_existing_pass_data(frm, data) {
 		"meeting_minutes",
 		"contractor_link",
 		"work_order_ref",
-		"work_area_zone",
 		"tools_list",
 		"multi_day_pass",
 		"pass_valid_until",
@@ -823,7 +813,6 @@ function apply_existing_pass_data(frm, data) {
 		"position_applied",
 		"candidate_interview_type",
 		"interview_panel",
-		"interview_room",
 	];
 
 	const updates = {};

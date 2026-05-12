@@ -26,6 +26,6 @@
  ],
  "send_system_notification": 1,
  "send_to_all_assignees": 0,
- "subject": "Visitor Arrived: {{ doc.visitor_full_name }} \u2014 {{ doc.company__organisation or doc.visitor_type }}",
+ "subject": "Visitor Arrived: {{ doc.visitor_full_name }} — {{ doc.company__organisation or doc.visitor_type }}",
  "value_changed": "status"
 }

@@ -1,5 +1,6 @@
 import frappe
 from frappe import _
+
 from frappe.utils import cint, flt, get_datetime, get_time, getdate, now_datetime, nowdate
 
 
@@ -318,10 +319,14 @@ def sync_hospitality_to_pass(request_doc):
 
 
 def _combine_visit_datetime(visit_date, visit_time):
+	# Reduce visit_time to a HH:MM:SS string and strip tzinfo so the resulting datetime
+	# is always naive — meal-window slots are naive too, and mixing the two raises
+	# `can't compare offset-naive and offset-aware datetimes` in _overlaps_time_window.
 	# Reduce visit_time to a HH:MM:SS string and strip tzinfo so the result is
 	# always naive — meal-window slots (built from the time-only MEAL_WINDOWS
 	# constants) are naive, and mixing naive + tz-aware crashes the comparison
 	# in `_overlaps_time_window` with `can't compare offset-naive and offset-aware`.
+
 	if not visit_date or not visit_time:
 		return None
 
@@ -854,10 +859,8 @@ def sync_compliance_check(visitor_pass_name, security_log=None):
 	doc.exception_reason = getattr(security_log, "exception_reason", None) if security_log else None
 	doc.last_security_log = getattr(security_log, "name", None) if security_log else None
 	doc.last_checked_on = now_datetime()
-
 	if doc.is_new():
 		doc.insert(ignore_permissions=True)
 	else:
 		doc.save(ignore_permissions=True)
-
 	return doc.name

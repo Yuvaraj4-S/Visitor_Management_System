@@ -642,14 +642,18 @@ function upload_captured_image({ file, doctype, docname, fieldname }) {
 }
 
 function is_security_admin() {
-	// System / HR Managers can override the security_officer field.
+	// Only System Manager can override the security_officer field. HR Manager
+	// has no server-side perm on Security Log, so they never reach this path.
 	const roles = frappe.user_roles || [];
-	return roles.includes("System Manager") || roles.includes("HR Manager");
+	return roles.includes("System Manager");
 }
 
 function mask_id_proof_number(frm) {
 	const val = frm.doc.id_proof_number;
-	if (!val || val.includes("X") || val.includes(" ")) return;
+	// "X" guard prevents double-masking on form refresh. Don't gate on spaces —
+	// real DL ("TN05 20210001234") and spaced Aadhaar ("2345 6789 0124") have
+	// real spaces that would otherwise leave the full number visible.
+	if (!val || val.includes("X")) return;
 	frm.set_value("id_proof_number", build_masked_id(val));
 }
 

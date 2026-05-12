@@ -11,6 +11,10 @@ from visitormanagement.visitor_management.lifecycle import (
     ensure_hospitality_request,
     normalize_visitor_pass,
 )
+from visitormanagement.visitor_management.validators import (
+    id_proof_error_message,
+    validate_id,
+)
 
 PENDING_LANES_BY_VISITOR_TYPE = {
     "Contractor": ("Pending System Manager",),
@@ -96,29 +100,11 @@ class VisitorPass(Document):
                 )
 
         if self.id_proof_type and self.id_proof_number:
-            raw = str(self.id_proof_number).strip()
-            # Strip non-alphanumeric for length/format check
-            clean = re.sub(r"[\s\-]", "", raw)
-
-            if self.id_proof_type == "Aadhaar":
-                if not re.match(r"^\d{12}$", clean):
-                    frappe.throw(
-                        _("Aadhaar must be exactly 12 digits. Got: {0}").format(raw),
-                        title=_("Invalid Aadhaar"),
-                    )
-            elif self.id_proof_type == "PAN Card":
-                if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]$", clean.upper()):
-                    frappe.throw(
-                        _("PAN Card format is 5 letters + 4 digits + 1 letter (e.g., ABCDE1234F). Got: {0}").format(raw),
-                        title=_("Invalid PAN"),
-                    )
-            # Passport: 1 letter + 7 digits (Indian) — skip strict check, just length
-            elif self.id_proof_type == "Passport":
-                if len(clean) < 6 or len(clean) > 12:
-                    frappe.throw(
-                        _("Passport number should be 6-12 characters. Got: {0}").format(raw),
-                        title=_("Invalid Passport"),
-                    )
+            if not validate_id(self.id_proof_type, self.id_proof_number):
+                frappe.throw(
+                    _(id_proof_error_message(self.id_proof_type)),
+                    title=_("Invalid ID Proof"),
+                )
 
     def _validate_host_active(self):
         """Host must be an Active employee."""
@@ -635,12 +621,16 @@ class VisitorPass(Document):
     # ─────────────────────────────────────────────────────────
     def _notify_food_dept(self):
         food_email = frappe.db.get_single_value("VMS Settings", "food_dept_email")
-        if food_email:
+        if not food_email:
+            return
+        try:
             frappe.sendmail(
                 recipients=[food_email],
                 subject=f"Meal Required: {self.visitor_full_name}",
                 message=f"Meal Type: {self.meal_type}<br>Visitor Pass: {self.name}",
             )
+        except Exception as exc:
+            frappe.log_error(f"Food dept notification failed for {self.name}: {exc}", "VMS Food Dept Notification")
 
 @frappe.whitelist()
 def search_existing_by_phone(phone):
@@ -771,6 +761,9 @@ def search_visitor_passes(doctype, txt, searchfield, start, page_len, filters):
     # Compute the dropdown description live (visitor_full_name · mobile_number) so
     # reception can spot + search by phone, regardless of how stale the cached
     # `visitor_summary` is on legacy/demo records.
+    # Compute the dropdown description live (visitor_full_name · mobile_number) so reception
+    # can spot + search by phone, regardless of how stale the cached visitor_summary is.
+
     return frappe.db.sql(
         f"""SELECT
                 name,

@@ -382,7 +382,7 @@
       "fieldname": "id_proof_match",
       "fieldtype": "Check",
       "label": "Matches ID Proof",
-      "mandatory_depends_on": "eval:doc.event_type == 'Check-In'"
+      "mandatory_depends_on": "eval:doc.event_type in ['Check-In', 'Check-Out']"
     },
     {
       "default": "0",
@@ -390,7 +390,7 @@
       "fieldname": "pass_photo_match",
       "fieldtype": "Check",
       "label": "Matches Pass Photo",
-      "mandatory_depends_on": "eval:doc.event_type == 'Check-In'"
+      "mandatory_depends_on": "eval:doc.event_type in ['Check-In', 'Check-Out']"
     },
     {
       "fieldname": "exception_reason",

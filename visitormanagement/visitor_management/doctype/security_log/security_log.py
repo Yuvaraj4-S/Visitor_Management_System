@@ -1,4 +1,3 @@
-# Copyright (c) 2026, Harthesh and contributors
 # For license information, please see license.txt
 
 import frappe
@@ -228,6 +227,9 @@ class SecurityLog(Document):
                 self.security_officer = emp
 
         if self.event_type == 'Check-In':
+            if not self.qr_code_scanned:
+                frappe.throw("Scan the visitor's QR code before saving the check-in.")
+
             if not self.photo_at_gate:
                 frappe.throw("Capture a live gate photo before saving the visitor check-in.")
 
@@ -236,6 +238,13 @@ class SecurityLog(Document):
 
             if not self.pass_photo_match:
                 frappe.throw("Confirm that the visitor matches the pass creation photo before saving the visitor check-in.")
+
+        if self.event_type == 'Check-Out':
+            if not self.qr_code_scanned:
+                frappe.throw("Scan the visitor's QR code before saving the check-out.")
+
+            if not self.photo_at_gate:
+                frappe.throw("Capture a live gate photo before saving the visitor check-out.")
 
         if self.event_type == 'Gate Transfer' and not self.visited_area:
             frappe.throw("Visited Area is required for gate transfer tracking.")

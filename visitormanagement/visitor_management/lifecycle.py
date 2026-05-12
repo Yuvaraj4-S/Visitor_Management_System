@@ -207,6 +207,19 @@ def ensure_conference_room_booking(visitor_pass):
 			booking.insert(ignore_permissions=True)
 		else:
 			booking.save(ignore_permissions=True)
+
+		# Move the CRB into the Facility Manager's queue as soon as the parent VP
+		# is confirmed. Without this, auto-created CRBs sit in Draft forever and
+		# the FM never sees an Approve/Reject button. Use save() (not db_set) so
+		# the Notification 'CRB Pending Approval' fires and the FM gets emailed.
+		vp_status = getattr(visitor_pass, "status", None)
+		current_wf = getattr(booking, "workflow_state", None) or "Draft"
+		if current_wf == "Draft" and vp_status in (
+			"Approved", "Items Verified", "Checked-In", "Checked-Out"
+		):
+			booking.workflow_state = "Pending Approval"
+			booking.save(ignore_permissions=True)
+
 		return booking.name
 	except Exception as exc:
 		frappe.log_error(f"CRB auto-create failed for {visitor_pass.name}: {exc}", "VMS CRB Auto-Create")
@@ -428,6 +441,22 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 	doc.conference_room = getattr(visitor_pass, "conference_room", None)
 	doc.seating_capacity = getattr(visitor_pass, "number_of_people", None)
 	doc.service_time = meal_plan["service_time"]
+	# Inherit approval state from the parent Visitor Pass. If the VP is already
+	# Approved (or beyond), the hospitality work is implicitly authorised — no
+	# need for the Hospitality Manager to re-approve a parallel doc.
+	# Runs on both auto-create (from ensure_hospitality_request) and manual
+	# create/edit (from validate). Only fires while the HR is still in its
+	# default Draft lane so we never overwrite an intentional manual transition
+	# (Rejected, Cancelled, etc.) to a "live" state.
+	current_wf = getattr(doc, "workflow_state", None) or "Draft"
+	if current_wf == "Draft":
+		vp_status = getattr(visitor_pass, "status", None)
+		if vp_status in ("Approved", "Items Verified", "Checked-In", "Checked-Out"):
+			doc.workflow_state = "Approved"
+			doc.docstatus = 1
+		elif vp_status == "Rejected":
+			doc.workflow_state = "Rejected"
+
 	if sync_management_fields:
 		doc.assigned_staff = getattr(visitor_pass, "food_dept_staff_assigned", None)
 		doc.status = HOSPITALITY_REQUEST_STATUS_FROM_PASS.get(

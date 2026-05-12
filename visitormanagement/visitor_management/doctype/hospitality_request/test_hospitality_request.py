@@ -1,4 +1,3 @@
-# Copyright (c) 2026, Harthesh and Contributors
 # See license.txt
 
 # import frappe

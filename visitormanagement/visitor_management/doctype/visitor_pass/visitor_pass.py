@@ -1,4 +1,3 @@
-# Copyright (c) 2026, Harthesh
 # For license information, please see license.txt
 
 import re
@@ -553,49 +552,82 @@ class VisitorPass(Document):
             return
 
         items_text = ""
+        items_section = ""
         if self.visitor_items:
-            items_text = "<br><b>Items Declared:</b><ul>"
+            items_section = (
+                "<h3 style='margin: 16px 0 6px; font-size: 14px;'>Items Declared</h3>"
+                "<ul style='margin: 0 0 12px 20px; padding: 0;'>"
+            )
             for item in self.visitor_items:
                 qty = getattr(item, 'quantity', 1)
-                items_text += f"<li>{item.item_name} (Qty: {qty})</li>"
-            items_text += "</ul>"
+                items_section += f"<li>{item.item_name} (Qty: {qty})</li>"
+            items_section += "</ul>"
+
+        time_value = ""
+        if self.expected_checkin and self.expected_checkout:
+            time_value = f"{self.expected_checkin} &ndash; {self.expected_checkout}"
+
+        td_label = "padding: 8px; border: 1px solid #ddd; width: 30%;"
+        td_value = "padding: 8px; border: 1px solid #ddd;"
+
+        details_rows = [
+            ("Date", self.visit_date or ""),
+            ("Time", time_value),
+            ("Host", self.person_to_visit or ""),
+            ("Purpose", self.purpose_of_visit or ""),
+            ("Pass ID", self.name or ""),
+        ]
+        details_html = (
+            "<table style='border-collapse: collapse; width: 100%; margin: 0 0 12px 0;'>"
+        )
+        for i, (label, value) in enumerate(details_rows):
+            bg = "background: #f4f5f7;" if i % 2 == 0 else ""
+            details_html += (
+                f"<tr style='{bg}'>"
+                f"<td style='{td_label}'><b>{label}</b></td>"
+                f"<td style='{td_value}'>{value}</td>"
+                f"</tr>"
+            )
+        details_html += "</table>"
+
+        contractor_li = ""
+        if self.visitor_type == "Contractor":
+            contractor_li = (
+                "<li>Ensure you have completed the required safety induction and are "
+                "wearing provided PPE.</li>"
+            )
 
         attachments = []
-        inline_images = []
-        
-        # Use a constant CID for the QR code
-        qr_cid = "qr_pass_code"
-
         if qr_content:
-            # Add as attachment fallback
             attachments.append({
                 "fname": f"QR_{self.name}.png",
                 "fcontent": qr_content
             })
-            # Add as inline image for email clients supporting CID
-            inline_images.append({
-                "fname": f"QR_{self.name}.png",
-                "fcontent": qr_content,
-                "cid": qr_cid
-            })
 
         frappe.sendmail(
             recipients=[self.email_id],
-            subject=f"Visit APPROVED — {self.name}",
+            subject=f"Visit Approved: {self.visit_date} — Pass {self.name}",
             message=(
-                f"Dear {self.visitor_full_name},<br><br>"
-                f"Your visit request has been approved.<br>"
-                f"Please present the QR code below at the security gate:<br><br>"
-                f"<img src='cid:{qr_cid}' width='200' style='border: 1px solid #ddd; padding: 10px;' alt='QR Code'><br><br>"
-                f"<i>(If the image above is not visible, please use the attached QR code)</i><br><br>"
-                f"<b>Visit Details:</b><br>"
-                f"Pass ID: {self.name}<br>"
-                f"Host: {self.person_to_visit}<br>"
-                f"Date: {self.visit_date}<br>"
-                f"{items_text}"
+                f"<div style='font-family: Arial, sans-serif; font-size: 14px; color: #1f2933; line-height: 1.5;'>"
+                f"<p>Dear <b>{self.visitor_full_name}</b>,</p>"
+                f"<p>Your visit has been <b style='color: #28a745;'>APPROVED</b>.</p>"
+                f"<h3 style='margin: 16px 0 6px; font-size: 14px;'>Visit Details</h3>"
+                f"{details_html}"
+                f"{items_section}"
+                f"<h3 style='margin: 16px 0 6px; font-size: 14px;'>On Arrival</h3>"
+                f"<ul style='margin: 0 0 12px 20px; padding: 0;'>"
+                f"<li>Please carry a valid photo ID matching the one you registered with.</li>"
+                f"<li>Scan the <b>QR code attached to this email</b> at the security gate.</li>"
+                f"<li>Your physical badge will be issued at the security desk after item verification.</li>"
+                f"{contractor_li}"
+                f"</ul>"
+                f"<p>We look forward to welcoming you.</p>"
+                f"<p style='margin-top: 20px; color: #64748b; font-size: 12px;'>"
+                f"This is an automated email. Please contact your host for any changes or queries."
+                f"</p>"
+                f"</div>"
             ),
             attachments=attachments,
-            inline_images=inline_images
         )
 
     # ─────────────────────────────────────────────────────────

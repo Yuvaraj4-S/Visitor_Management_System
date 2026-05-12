@@ -1,4 +1,3 @@
-# Copyright (c) 2026, Harthesh and Contributors
 # See license.txt
 """Regression test suite for the Visitor Management app.
 

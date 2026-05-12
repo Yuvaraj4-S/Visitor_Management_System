@@ -1,4 +1,3 @@
-// Copyright (c) 2026, Harthesh and contributors
 // For license information, please see license.txt
 
 frappe.ui.form.on("Security Log", {
@@ -362,7 +361,7 @@ frappe.ui.form.on("Security Log", {
 				}
 
 				if (frm.__scanned) {
-					if (frm.doc.event_type === "Check-In" && !frm.doc.photo_at_gate) {
+					if (["Check-In", "Check-Out"].includes(frm.doc.event_type) && !frm.doc.photo_at_gate) {
 						setTimeout(() => frm.trigger("capture_photo"), 500);
 					}
 					delete frm.__scanned;
@@ -693,7 +692,7 @@ function apply_security_log_ui(frm) {
 	const is_check_out = frm.doc.event_type === "Check-Out";
 	const has_items = !!(frm.doc.items_verification && frm.doc.items_verification.length);
 	const show_items = is_check_in || has_items;
-	const show_gate_photo = ["Check-In", "Alert", "Gate Transfer", "Badge Collected"].includes(frm.doc.event_type);
+	const show_gate_photo = ["Check-In", "Check-Out", "Alert", "Gate Transfer", "Badge Collected"].includes(frm.doc.event_type);
 	const show_exception_reason = !frm.is_new() && !!frm.doc.exception_reason;
 
 	frm.toggle_display("check_in_date_time", is_check_in || (!frm.is_new() && !!frm.doc.check_in_date_time));
@@ -708,7 +707,7 @@ function apply_security_log_ui(frm) {
 	frm.toggle_display(["id_proof_match", "pass_photo_match", "verification_notes"], is_check_in);
 	frm.toggle_display("exception_reason", show_exception_reason);
 	frm.toggle_display(["section_break_items", "all_items_confirmed"], show_items && has_pass);
-	frm.toggle_reqd("photo_at_gate", is_check_in);
+	frm.toggle_reqd("photo_at_gate", is_check_in || is_check_out);
 	frm.toggle_reqd("id_proof_match", is_check_in);
 	frm.toggle_reqd("pass_photo_match", is_check_in);
 	frm.toggle_reqd("exception_reason", false);

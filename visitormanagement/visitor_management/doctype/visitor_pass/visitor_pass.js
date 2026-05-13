@@ -10,7 +10,6 @@ frappe.ui.form.on("Visitor Pass", {
 	},
 
 	visitor_type(frm) {
-		apply_visitor_type_defaults(frm, true);
 		ensure_customer_crm_defaults(frm);
 		setup_supplier_pass_query(frm);
 		apply_visitor_pass_ui(frm);
@@ -279,38 +278,6 @@ function ensure_customer_crm_defaults(frm) {
 				crm_lead_opportunity: "",
 			});
 		}
-	}
-}
-
-function apply_visitor_type_defaults(frm, force = false) {
-	const defaults = {
-		Candidate: { risk_level: "Low", approval_sla_minutes: 180 },
-		Contractor: { risk_level: "High", approval_sla_minutes: 120 },
-		Customer: { risk_level: "Low", approval_sla_minutes: 90 },
-		Supplier: { risk_level: "Medium", approval_sla_minutes: 90 },
-		VIP: { risk_level: "Medium", approval_sla_minutes: 30 },
-	};
-
-	const visitor_defaults = defaults[frm.doc.visitor_type];
-	if (!visitor_defaults) {
-		return;
-	}
-
-	const updates = {};
-	if (force || !frm.doc.risk_level) {
-		updates.risk_level = visitor_defaults.risk_level;
-	}
-	if (force || !frm.doc.approval_sla_minutes) {
-		updates.approval_sla_minutes = visitor_defaults.approval_sla_minutes;
-	}
-	if (frm.doc.visitor_type === "VIP") {
-		if (frm.doc.interpreter_required && !frm.doc.interpreter_language) {
-			updates.interpreter_language = "English";
-		}
-	}
-
-	if (Object.keys(updates).length) {
-		frm.set_value(updates);
 	}
 }
 

@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "CTR-.YYYY.-.#####",
  "creation": "2026-04-05 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",

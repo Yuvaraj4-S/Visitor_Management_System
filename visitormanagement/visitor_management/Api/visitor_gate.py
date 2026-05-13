@@ -111,7 +111,7 @@ def scan_qr_checkin(qr_data):
     # Fetch status + visit_date for early validation
     vp_info = frappe.db.get_value(
         "Visitor Pass", doc_name,
-        ["status", "visit_date", "id_proof_number"],
+        ["status", "visit_date", "id_proof_number", "visitor_full_name", "id_proof_type"],
         as_dict=True,
     )
     doc_status = vp_info.status
@@ -126,19 +126,20 @@ def scan_qr_checkin(qr_data):
                 )
             )
 
-    # Re-check blacklist at the gate — person may have been blacklisted since pass approval
-    if vp_info.id_proof_number:
-        blocked = frappe.db.exists(
-            "Visitor Blacklist",
-            {"id_proof_number": vp_info.id_proof_number, "is_active": 1},
+    if doc_status in ("Approved", "Items Verified"):
+        # Re-check blacklist only at entry — a Checked-In blacklisted visitor must still
+        # be allowed to check out. Match by ID number first, fall back to name + ID type.
+        from visitormanagement.visitor_management.doctype.visitor_blacklist.visitor_blacklist import VisitorBlacklist
+        blocked = VisitorBlacklist.find_active_match(
+            id_proof_number=vp_info.id_proof_number,
+            visitor_name=vp_info.visitor_full_name,
+            id_proof_type=vp_info.id_proof_type,
         )
         if blocked:
             frappe.throw(
                 _("ACCESS DENIED: Visitor Pass {0} matches an active blacklist entry.").format(doc_name),
                 title=_("Blacklisted"),
             )
-
-    if doc_status in ("Approved", "Items Verified"):
         return visitor_checkin(doc_name)
     elif doc_status == "Checked-In":
         return visitor_checkout(doc_name)

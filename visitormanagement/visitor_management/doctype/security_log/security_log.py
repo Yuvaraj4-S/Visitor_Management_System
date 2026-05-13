@@ -9,7 +9,6 @@ import re
 from visitormanagement.visitor_management.lifecycle import (
     log_visitor_event,
     sync_contact_trace,
-    sync_compliance_check,
 )
 
 
@@ -117,11 +116,15 @@ class SecurityLog(Document):
         if self.visitor_pass:
             vp = frappe.get_doc('Visitor Pass', self.visitor_pass)
 
-        # 0. Re-check blacklist at gate — blacklisting could have happened AFTER pass approval
-        if vp and self.event_type == 'Check-In' and vp.id_proof_number:
-            blacklist_name = frappe.db.exists(
-                'Visitor Blacklist',
-                {'id_proof_number': vp.id_proof_number, 'is_active': 1},
+        # 0. Re-check blacklist at gate — blacklisting could have happened AFTER pass approval.
+        # Only block Check-In; let Check-Out proceed so a blacklisted visitor who is already
+        # inside can still leave (the goal is to keep them out, not trap them in).
+        if vp and self.event_type == 'Check-In':
+            from visitormanagement.visitor_management.doctype.visitor_blacklist.visitor_blacklist import VisitorBlacklist
+            blacklist_name = VisitorBlacklist.find_active_match(
+                id_proof_number=vp.id_proof_number,
+                visitor_name=vp.visitor_full_name,
+                id_proof_type=vp.id_proof_type,
             )
             if blacklist_name:
                 bl = frappe.get_doc('Visitor Blacklist', blacklist_name)
@@ -332,27 +335,8 @@ class SecurityLog(Document):
                 },
             )
 
-            # Auto-close any pending Evacuation Muster records for this visitor —
-            # they've left the premises, so they're no longer at risk.
-            pending_musters = frappe.get_all(
-                'Evacuation Muster',
-                filters={'visitor_pass': self.visitor_pass, 'accounted_status': ['in', ['Pending', 'Missing']]},
-                pluck='name',
-            )
-            for muster_name in pending_musters:
-                frappe.db.set_value(
-                    'Evacuation Muster', muster_name,
-                    {
-                        'accounted_status': 'Excused',
-                        'accounted_time': now_datetime(),
-                        'notes': (frappe.db.get_value('Evacuation Muster', muster_name, 'notes') or '') +
-                                 f"\nAuto-closed: visitor checked out at {now_datetime()}.",
-                    },
-                )
-
         self._record_lifecycle_event()
         sync_contact_trace(self.visitor_pass, self)
-        sync_compliance_check(self.visitor_pass, self)
 
     # --------------------------------------------------
 
@@ -368,7 +352,6 @@ class SecurityLog(Document):
         if self.visitor_pass:
             self._record_lifecycle_event()
             sync_contact_trace(self.visitor_pass, self)
-            sync_compliance_check(self.visitor_pass, self)
 
     # --------------------------------------------------
 

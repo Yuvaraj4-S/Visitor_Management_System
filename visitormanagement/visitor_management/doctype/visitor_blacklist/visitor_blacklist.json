@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "VB-.YYYY.-.#####",
  "creation": "2026-03-01 17:10:15.563084",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -22,7 +23,8 @@
   {
    "fieldname": "id_proof_type",
    "fieldtype": "Select",
-   "label": "ID Proof Type "
+   "label": "ID Proof Type ",
+   "options": "\nAadhaar\nPAN Card\nPassport\nDriving License"
   },
   {
    "fieldname": "id_proof_number",
@@ -42,7 +44,7 @@
   },
   {
    "fieldname": "blocked_on",
-   "fieldtype": "Data",
+   "fieldtype": "Date",
    "label": "Blocked On "
   },
   {

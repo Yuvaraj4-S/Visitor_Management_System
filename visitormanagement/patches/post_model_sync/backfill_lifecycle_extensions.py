@@ -3,7 +3,6 @@ import frappe
 from visitormanagement.visitor_management.lifecycle import (
 	ensure_hospitality_request,
 	normalize_visitor_pass,
-	sync_compliance_check,
 )
 
 
@@ -14,8 +13,6 @@ def execute():
 
 		updates = {
 			"request_channel": doc.request_channel,
-			"risk_level": doc.risk_level,
-			"approval_sla_minutes": doc.approval_sla_minutes,
 			"no_show": doc.no_show,
 		}
 		if doc.visitor_type == "Supplier":
@@ -25,4 +22,3 @@ def execute():
 
 		doc.reload()
 		ensure_hospitality_request(doc)
-		sync_compliance_check(name)

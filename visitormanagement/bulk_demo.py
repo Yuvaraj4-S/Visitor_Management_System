@@ -9,8 +9,7 @@ Creates:
 - 50 Visitor Passes (10 per type: Contractor, Candidate, Customer, Supplier, VIP)
 - 30 Check-Ins via Security Log
 - 15 Check-Outs via Security Log
-- 1 Emergency Event (with muster generation for active visitors)
-- Contact Traces, Compliance Checks auto-generated
+- Contact Traces auto-generated
 - Hospitality Requests auto-linked
 """
 import base64
@@ -309,44 +308,6 @@ def run():
     print(f"  Checked out: {stats['checkouts']}")
 
     # ═══════════════════════════════════════════════════════
-    # STEP 7: Emergency Event (triggers muster)
-    # ═══════════════════════════════════════════════════════
-    print("\n--- STEP 7: Emergency Event ---")
-    try:
-        ee = frappe.new_doc("Emergency Event")
-        ee.event_type = "Fire"
-        ee.location = "Main Building - Floor 2"
-        ee.assembly_point = "Parking Lot A"
-        ee.incident_commander = EMP["ops"]
-        ee.description = "DEMO: Fire drill for demonstration purposes. All visitors to assembly point."
-        ee.status = "Active"
-        ee.insert(ignore_permissions=True)
-        stats["emergency"] = 1
-        print(f"  Created: {ee.name} ({ee.event_type} at {ee.location})")
-
-        # Close it after muster
-        frappe.db.commit()
-        muster_count = frappe.db.count("Evacuation Muster", {"emergency_event": ee.name})
-        print(f"  Muster records auto-generated: {muster_count}")
-
-        # Mark all muster as accounted
-        for m in frappe.get_all("Evacuation Muster", filters={"emergency_event": ee.name}, pluck="name"):
-            frappe.db.set_value("Evacuation Muster", m, {
-                "accounted_status": "Accounted",
-                "accounted_time": now_datetime(),
-            })
-        frappe.db.commit()
-
-        # Now can close emergency
-        ee.reload()
-        ee.status = "Closed"
-        ee.save(ignore_permissions=True)
-        frappe.db.commit()
-        print(f"  Emergency closed (all muster accounted)")
-    except Exception as e:
-        print(f"  FAILED emergency: {str(e)[:100]}")
-
-    # ═══════════════════════════════════════════════════════
     # FINAL REPORT
     # ═══════════════════════════════════════════════════════
     print("\n" + "=" * 70)
@@ -354,8 +315,7 @@ def run():
     print("=" * 70)
     for dt in ["Visitor Invitation", "Visitor Pass",
                "Security Log", "Hospitality Request",
-               "Contact Trace Record", "Compliance Check", "Visitor Event Log",
-               "Emergency Event", "Evacuation Muster"]:
+               "Contact Trace Record", "Visitor Event Log"]:
         count = frappe.db.count(dt)
         print(f"  {dt:28s}: {count}")
 
@@ -374,14 +334,6 @@ def run():
         FROM `tabVisitor Pass` WHERE visitor_type != 'VIP' AND docstatus = 1
     """, as_dict=1)[0]
     print(f"    {r.with_badge}/{r.total} have badge numbers")
-
-    print("\n  Compliance Score Distribution:")
-    r = frappe.db.sql("""
-        SELECT MIN(score) mn, MAX(score) mx, AVG(score) av, COUNT(*) c
-        FROM `tabCompliance Check` WHERE score IS NOT NULL
-    """, as_dict=1)[0]
-    if r.c:
-        print(f"    {r.c} records | min={r.mn} | max={r.mx} | avg={r.av:.1f}")
 
     print("\n" + "=" * 70)
     print(f"SUMMARY: {stats}")

@@ -655,8 +655,7 @@ class TestWorkspaceAndDoctypes(FrappeTestCase):
         "Security Log", "Hospitality Request",
         "Conference Room", "Conference Room Booking",
         "Visitor Blacklist", "Visitor Event Log",
-        "Compliance Check", "Contact Trace Record",
-        "Emergency Event", "Evacuation Muster",
+        "Contact Trace Record",
         "VMS Settings",
     ]
 
@@ -714,8 +713,6 @@ class TestRemovedFeatures(FrappeTestCase):
             ("tabVisitor Pass", "health_screening_status"),
             ("tabSecurity Log", "health_screening"),
             ("tabSecurity Log", "health_screening_status"),
-            ("tabEvacuation Muster", "health_screening"),
-            ("tabCompliance Check", "health_screening_status"),
         ]:
             with self.subTest(column=f"{table}.{column}"):
                 cols = frappe.db.sql(f"SHOW COLUMNS FROM `{table}` LIKE %s", (column,))

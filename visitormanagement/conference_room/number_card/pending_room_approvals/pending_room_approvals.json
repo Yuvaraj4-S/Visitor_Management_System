@@ -1,0 +1,22 @@
+{
+ "creation": "2026-05-13 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "document_type": "Conference Room Booking",
+ "dynamic_filters_json": "[]",
+ "filters_json": "[[\"Conference Room Booking\",\"workflow_state\",\"like\",\"Pending%\",false],[\"Conference Room Booking\",\"docstatus\",\"<\",2,false]]",
+ "function": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Pending Room Approvals",
+ "modified": "2026-05-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Conference Room",
+ "name": "Pending Room Approvals",
+ "owner": "Administrator",
+ "show_full_number": 0,
+ "show_percentage_stats": 1,
+ "stats_time_interval": "Daily",
+ "type": "Document Type"
+}

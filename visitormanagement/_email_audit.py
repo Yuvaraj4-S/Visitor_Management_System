@@ -79,7 +79,7 @@ def show_messages(names=None):
     """Print the message body of given notifications (or all VMS ones if no list)."""
     if names is None:
         vms_doctypes = ("Visitor Pass", "Conference Room Booking", "Hospitality Request",
-                        "Visitor Invitation", "Emergency Event")
+                        "Visitor Invitation")
         names = [n.name for n in frappe.get_all("Notification",
                  filters={"document_type": ["in", vms_doctypes], "enabled": 1})]
     for nm in names:
@@ -144,7 +144,7 @@ def fix_all_notifications():
     - Enable system notification on Gate Security Alert
     """
     vms_doctypes = ("Visitor Pass", "Conference Room Booking", "Hospitality Request",
-                    "Visitor Invitation", "Emergency Event")
+                    "Visitor Invitation")
     notifs = frappe.get_all("Notification",
         filters={"document_type": ["in", vms_doctypes], "enabled": 1},
         pluck="name")
@@ -198,7 +198,7 @@ def fix_all_notifications():
 def standard_check():
     """Score each enabled VMS notification against company-standard markers."""
     vms_doctypes = ("Visitor Pass", "Conference Room Booking", "Hospitality Request",
-                    "Visitor Invitation", "Emergency Event")
+                    "Visitor Invitation")
     rows = frappe.get_all("Notification",
         filters={"document_type": ["in", vms_doctypes], "enabled": 1},
         fields=["name", "message"])
@@ -231,9 +231,9 @@ def full_notification_inventory():
     subject, channel, message length, and whether it uses templates."""
     vms_doctypes = (
         "Visitor Pass", "Conference Room Booking", "Hospitality Request",
-        "Visitor Invitation", "Emergency Event", "Security Log",
-        "Visitor Blacklist", "Compliance Check", "Contact Trace Record",
-        "Evacuation Muster", "Visitor Event Log", "VMS Settings",
+        "Visitor Invitation", "Security Log",
+        "Visitor Blacklist", "Contact Trace Record",
+        "Visitor Event Log", "VMS Settings",
     )
     rows = frappe.get_all("Notification",
         filters={"document_type": ["in", vms_doctypes]},

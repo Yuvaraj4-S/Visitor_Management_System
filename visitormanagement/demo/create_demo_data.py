@@ -337,7 +337,6 @@ def create_visitor_passes(hosts, photo_url):
             "expected_checkin": "09:30:00",
             "expected_checkout": "16:30:00",
             "vehicle_number": "MH12AB1234",
-            "risk_level": "Medium",
             "meal_required": 1,
         },
         {
@@ -355,7 +354,6 @@ def create_visitor_passes(hosts, photo_url):
             "visit_date": add_days(today(), 3),
             "expected_checkin": "11:00:00",
             "expected_checkout": "15:00:00",
-            "risk_level": "Low",
             "interview_round": "Technical Round 2",
             "position_applied": "Senior Backend Engineer",
         },
@@ -374,7 +372,6 @@ def create_visitor_passes(hosts, photo_url):
             "visit_date": today(),
             "expected_checkin": "10:00:00",
             "expected_checkout": "13:00:00",
-            "risk_level": "Low",
             "meal_required": 1,
             "conference_room": "HQ-A1-CR01",
         },
@@ -394,7 +391,6 @@ def create_visitor_passes(hosts, photo_url):
             "expected_checkin": "08:00:00",
             "expected_checkout": "10:00:00",
             "vehicle_number": "MH04CD5678",
-            "risk_level": "Medium",
             "supplier_visit_mode": "Service",
         },
         {
@@ -412,7 +408,6 @@ def create_visitor_passes(hosts, photo_url):
             "visit_date": add_days(today(), 5),
             "expected_checkin": "14:00:00",
             "expected_checkout": "17:00:00",
-            "risk_level": "High",
             "meal_required": 1,
             "factory_tour_required": 1,
             "greeting_required": 1,
@@ -646,48 +641,6 @@ def create_job_applicant(hosts):
 
 
 # ─────────────────────────────────────────────────────────
-# TRANSACTIONAL — Emergency Event + Evacuation Muster
-# ─────────────────────────────────────────────────────────
-def create_emergency(pass_names):
-    if frappe.db.exists("Emergency Event", {"notes": ["like", "%VMS demo%"]}):
-        return
-    ev = frappe.get_doc(
-        {
-            "doctype": "Emergency Event",
-            "event_type": "Fire",
-            "location": "Block A - Server Room",
-            "status": "Active",
-            "assembly_point": "Assembly Point A — Parking Lot",
-            "notes": "VMS demo — simulated fire drill, all visitors to be mustered.",
-        }
-    )
-    ev.flags.ignore_permissions = True
-    ev.insert()
-    # Generate muster records for checked-in passes
-    for pass_name in pass_names:
-        status = frappe.db.get_value("Visitor Pass", pass_name, "status")
-        if status != "Checked-In":
-            continue
-        existing = frappe.db.exists(
-            "Evacuation Muster",
-            {"emergency_event": ev.name, "visitor_pass": pass_name},
-        )
-        if existing:
-            continue
-        m = frappe.get_doc(
-            {
-                "doctype": "Evacuation Muster",
-                "emergency_event": ev.name,
-                "visitor_pass": pass_name,
-                "assembly_point": "Assembly Point A — Parking Lot",
-                "accounted_status": "Pending",
-            }
-        )
-        m.flags.ignore_permissions = True
-        m.insert()
-
-
-# ─────────────────────────────────────────────────────────
 # MAIN ENTRYPOINT
 # ─────────────────────────────────────────────────────────
 def run():
@@ -730,9 +683,6 @@ def run():
 
     security_logs = create_security_logs(passes, photo_url)
     _log(f"Security logs: {security_logs}")
-
-    create_emergency(passes)
-    _log("Emergency event + muster records created")
 
     frappe.db.commit()
     _log("Done.")
@@ -785,8 +735,6 @@ _SUBJECTS = {
     "VIP":        ["facility tour", "executive briefing", "inauguration ceremony"],
 }
 
-_RISK_BY_TYPE = {"Contractor": "Medium", "Candidate": "Low", "Customer": "Low",
-                 "Supplier": "Medium", "VIP": "High"}
 _HOST_BY_TYPE = {"Contractor": "sys_mgr", "Candidate": "hr_mgr", "Customer": "sales_mgr",
                  "Supplier": "sys_mgr", "VIP": "ceo"}
 _PREFIX_BY_TYPE = {"Contractor": "CON", "Candidate": "CAN", "Customer": "CUS",
@@ -897,7 +845,6 @@ def bulk_create_passes(per_type, hosts, photo_url):
                 "visit_date": vdate,
                 "expected_checkin": "10:00:00",
                 "expected_checkout": "16:00:00",
-                "risk_level": _RISK_BY_TYPE[vtype],
                 **_service_flags(vtype, idx),
             }
             if vtype == "Supplier":
@@ -1105,47 +1052,6 @@ def bulk_create_job_applicants(hosts, count=5):
     return created
 
 
-def bulk_create_emergency(pass_names_with_state):
-    """Create 2 emergency events; create muster entries for currently Checked-In passes."""
-    events = [("Fire", "Block A - Server Room", "Bulk demo — Fire drill"),
-              ("Evacuation", "Block C - Loading Dock", "Bulk demo — Evacuation drill")]
-    for evtype, location, marker in events:
-        if frappe.db.exists("Emergency Event", {"notes": ["like", f"%{marker}%"]}):
-            continue
-        try:
-            ev = frappe.get_doc({
-                "doctype": "Emergency Event",
-                "event_type": evtype,
-                "location": location,
-                "status": "Active",
-                "assembly_point": "Assembly Point A — Parking Lot",
-                "notes": marker,
-            })
-            ev.flags.ignore_permissions = True
-            ev.insert()
-        except Exception as exc:
-            _log(f"  [emergency {evtype}] {exc}")
-            continue
-
-        for pass_name, target in pass_names_with_state:
-            if target != "checked_in":
-                continue
-            if frappe.db.exists("Evacuation Muster",
-                                {"emergency_event": ev.name, "visitor_pass": pass_name}):
-                continue
-            try:
-                frappe.get_doc({
-                    "doctype": "Evacuation Muster",
-                    "emergency_event": ev.name,
-                    "visitor_pass": pass_name,
-                    "assembly_point": "Assembly Point A — Parking Lot",
-                    "accounted_status": "Pending",
-                }).insert(ignore_permissions=True)
-            except Exception:
-                pass
-    frappe.db.commit()
-
-
 def run_bulk(per_type=50):
     """Seed ~50 visitor passes per type plus varied transactional records."""
     per_type = int(per_type)
@@ -1172,9 +1078,6 @@ def run_bulk(per_type=50):
     n_invs = bulk_create_invitations(hosts)
     n_apps = bulk_create_job_applicants(hosts)
     _log(f"Bookings={n_bookings}, Invitations={n_invs}, Job Applicants={n_apps}")
-
-    bulk_create_emergency(passes)
-    _log("Emergency events + musters created")
 
     frappe.db.commit()
     _log("BULK demo data complete.")

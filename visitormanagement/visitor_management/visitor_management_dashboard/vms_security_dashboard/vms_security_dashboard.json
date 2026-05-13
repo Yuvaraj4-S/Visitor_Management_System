@@ -1,91 +1,29 @@
 {
  "cards": [
-  {
-   "card": "Total Visitor Passes"
-  },
-  {
-   "card": "Pending Visitor Approvals"
-  },
-  {
-   "card": "Checked-In Visitors"
-  },
-  {
-   "card": "Today's Visitors"
-  },
-  {
-   "card": "Tomorrow's Arrivals"
-  },
-  {
-   "card": "High-Risk Visitors Today"
-  },
-  {
-   "card": "Blacklist Alerts Today"
-  },
-  {
-   "card": "Security Alerts"
-  },
-  {
-   "card": "No-Show Passes"
-  },
-  {
-   "card": "Compliance Misses"
-  },
-  {
-   "card": "Avg Compliance Score"
-  },
-  {
-   "card": "Passes Missing Photo"
-  },
-  {
-   "card": "Active Emergency Events"
-  },
-  {
-   "card": "Missing in Muster"
-  },
-  {
-   "card": "Pending Invitations"
-  },
-  {
-   "card": "Today's Conference Bookings"
-  }
+  {"card": "Today's Visitors"},
+  {"card": "Checked-In Visitors"},
+  {"card": "Tomorrow's Arrivals"},
+  {"card": "Pending Visitor Approvals"},
+  {"card": "No-Show Passes"},
+  {"card": "Blacklist Alerts Today"},
+  {"card": "Security Alerts"},
+  {"card": "Passes Missing Photo"},
+  {"card": "Today's Conference Bookings"},
+  {"card": "Today's Cabs"},
+  {"card": "Today's Factory Tours"},
+  {"card": "VIPs Today"},
+  {"card": "Active Hotel Bookings"},
+  {"card": "Pending Greetings"},
+  {"card": "Pending Invitations"}
  ],
  "charts": [
-  {
-   "chart": "Visitor Pass Trend",
-   "width": "Full"
-  },
-  {
-   "chart": "Visitors by Type",
-   "width": "Half"
-  },
-  {
-   "chart": "Security Events by Gate",
-   "width": "Half"
-  },
-  {
-   "chart": "Pending Approvals by Type",
-   "width": "Half"
-  },
-  {
-   "chart": "Pending Approvals by Department",
-   "width": "Half"
-  },
-  {
-   "chart": "Compliance Status Breakdown",
-   "width": "Half"
-  },
-  {
-   "chart": "Compliance Score Trend",
-   "width": "Half"
-  },
-  {
-   "chart": "Muster Status Breakdown",
-   "width": "Half"
-  },
-  {
-   "chart": "Invitation Funnel",
-   "width": "Full"
-  }
+  {"chart": "Visitor Pass Trend",              "width": "Full"},
+  {"chart": "Visitors by Type",                "width": "Half"},
+  {"chart": "Check-Ins by Day",                "width": "Half"},
+  {"chart": "Pending Approvals by Type",       "width": "Half"},
+  {"chart": "Pending Approvals by Department", "width": "Half"},
+  {"chart": "Security Events by Gate",         "width": "Full"},
+  {"chart": "Invitation Funnel",               "width": "Full"}
  ],
  "creation": "2026-04-04 12:00:00.000000",
  "dashboard_name": "VMS Security Dashboard",
@@ -94,7 +32,7 @@
  "idx": 0,
  "is_default": 0,
  "is_standard": 1,
- "modified": "2026-04-04 12:00:00.000000",
+ "modified": "2026-05-13 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS Security Dashboard",

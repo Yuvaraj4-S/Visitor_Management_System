@@ -389,23 +389,26 @@ class VisitorPass(Document):
             )
 
         # 1️⃣ BLACKLIST CHECK
-        if self.id_proof_number:
-            blacklist_name = frappe.db.exists(
-                "Visitor Blacklist",
-                {"id_proof_number": self.id_proof_number, "is_active": 1},
-            )
+        # Match by ID proof number first; fall back to visitor_name + id_proof_type so
+        # name-only blacklist entries (created when admin didn't have the number) also block.
+        from visitormanagement.visitor_management.doctype.visitor_blacklist.visitor_blacklist import VisitorBlacklist
+        blacklist_name = VisitorBlacklist.find_active_match(
+            id_proof_number=self.id_proof_number,
+            visitor_name=self.visitor_full_name,
+            id_proof_type=self.id_proof_type,
+        )
 
-            if blacklist_name:
-                bl = frappe.get_doc("Visitor Blacklist", blacklist_name)
-                self._alert_blacklist_match(bl)
-                frappe.throw(
-                    msg=_(
-                        "Visitor: {0}\n"
-                        "Reason: {1}\n\n"
-                        "This person is on the active blacklist. The pass cannot be submitted."
-                    ).format(self.visitor_full_name, bl.reason or _("Not specified")),
-                    title=_("Access Denied — Blacklisted Visitor"),
-                )
+        if blacklist_name:
+            bl = frappe.get_doc("Visitor Blacklist", blacklist_name)
+            self._alert_blacklist_match(bl)
+            frappe.throw(
+                msg=_(
+                    "Visitor: {0}\n"
+                    "Reason: {1}\n\n"
+                    "This person is on the active blacklist. The pass cannot be submitted."
+                ).format(self.visitor_full_name, bl.reason or _("Not specified")),
+                title=_("Access Denied — Blacklisted Visitor"),
+            )
 
         # 3️⃣ VIP Approval Check
         if self.visitor_type == "VIP":

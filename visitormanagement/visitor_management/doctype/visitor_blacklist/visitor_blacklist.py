@@ -26,7 +26,7 @@ class VisitorBlacklist(Document):
 		if not self.blocked_by:
 			self.blocked_by = frappe.session.user
 		if not self.blocked_on:
-			self.blocked_on = str(now_datetime().date())
+			self.blocked_on = now_datetime().date()
 
 		# Prevent duplicate active blacklist for the same ID proof number.
 		if self.id_proof_number and self.is_active:
@@ -47,3 +47,31 @@ class VisitorBlacklist(Document):
 					),
 					title=_("Duplicate Blacklist"),
 				)
+
+	@staticmethod
+	def find_active_match(id_proof_number=None, visitor_name=None, id_proof_type=None):
+		"""Return the name of an active Visitor Blacklist entry matching either
+		(a) the given id_proof_number, or (b) visitor_name + id_proof_type
+		(case-insensitive, trimmed) when no number is provided / no number match.
+		Returns None if no match. Used by VP submit, Security Log Check-In, and the gate API."""
+		if id_proof_number:
+			match = frappe.db.exists(
+				"Visitor Blacklist",
+				{"id_proof_number": id_proof_number, "is_active": 1},
+			)
+			if match:
+				return match
+		if visitor_name and id_proof_type:
+			rows = frappe.db.sql(
+				"""
+				SELECT name FROM `tabVisitor Blacklist`
+				WHERE LOWER(TRIM(visitor_name)) = LOWER(TRIM(%(name)s))
+				  AND id_proof_type = %(type)s
+				  AND is_active = 1
+				LIMIT 1
+				""",
+				{"name": visitor_name, "type": id_proof_type},
+			)
+			if rows:
+				return rows[0][0]
+		return None

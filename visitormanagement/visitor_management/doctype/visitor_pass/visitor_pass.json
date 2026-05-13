@@ -15,8 +15,6 @@
   "status",
   "workflow_state",
   "request_channel",
-  "risk_level",
-  "approval_sla_minutes",
   "visitor_invitation",
   "section_break_identity_details",
   "visitor_full_name",
@@ -190,19 +188,6 @@
    "fieldtype": "Select",
    "label": "Request Channel",
    "options": "Desk\nPortal\nPhone\nEmail"
-  },
-  {
-   "fieldname": "risk_level",
-   "fieldtype": "Select",
-   "hidden": 1,
-   "label": "Risk Level",
-   "options": "Low\nMedium\nHigh\nCritical"
-  },
-  {
-   "fieldname": "approval_sla_minutes",
-   "fieldtype": "Int",
-   "hidden": 1,
-   "label": "Approval SLA (Minutes)"
   },
   {
    "fieldname": "visitor_invitation",
@@ -1014,6 +999,34 @@
    "share": 1,
    "submit": 1,
    "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "if_owner": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Host Employee",
+   "share": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Hospitality Manager",
+   "share": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Facility Manager",
+   "share": 1
   }
  ],
  "row_format": "Dynamic",

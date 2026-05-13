@@ -30,7 +30,6 @@ def run():
     test("30 Visitor Passes", frappe.db.count("Visitor Pass") == 30, f"got {frappe.db.count('Visitor Pass')}")
     test("28 Security Logs (18 in + 10 out)", frappe.db.count("Security Log") == 28, f"got {frappe.db.count('Security Log')}")
     test("18 Contact Trace records", frappe.db.count("Contact Trace Record") >= 18)
-    test("18 Compliance Checks", frappe.db.count("Compliance Check") == 18)
     test("Hospitality Requests auto-created", frappe.db.count("Hospitality Request") >= 1, f"got {frappe.db.count('Hospitality Request')}")
     test("4 Blacklist entries", frappe.db.count("Visitor Blacklist") == 4)
 
@@ -129,11 +128,6 @@ def run():
 
     # ── 12. AUTO-CREATION CHAINS ──
     print("\n--- 12. Auto-Creation Chains ---")
-
-    # Compliance Check scores
-    cc = frappe.db.sql("SELECT MIN(score) mn, MAX(score) mx, AVG(score) av FROM `tabCompliance Check`", as_dict=1)
-    if cc and cc[0].mn is not None:
-        test(f"Compliance scores: min={cc[0].mn}, max={cc[0].mx}, avg={cc[0].av:.0f}", cc[0].mn >= 0)
 
     # Hospitality back-link
     hr_linked = frappe.db.sql("SELECT COUNT(*) c FROM `tabVisitor Pass` WHERE hospitality_request IS NOT NULL AND hospitality_request != ''")[0][0]

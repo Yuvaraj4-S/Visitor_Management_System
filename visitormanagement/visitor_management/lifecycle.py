@@ -4,23 +4,6 @@ from frappe import _
 from frappe.utils import cint, flt, get_datetime, get_time, getdate, now_datetime, nowdate
 
 
-DEFAULT_RISK_BY_TYPE = {
-	"Candidate": "Low",
-	"Contractor": "High",
-	"Customer": "Low",
-	"Supplier": "Medium",
-	"VIP": "Medium",
-}
-
-DEFAULT_SLA_BY_TYPE = {
-	"Candidate": 180,
-	"Contractor": 120,
-	"Customer": 90,
-	"Supplier": 90,
-	"VIP": 30,
-}
-
-COMPLIANCE_OK_STATUSES = {"Completed", "Served", "Closed", "Cancelled"}
 VISITOR_PASS_FOOD_STATUS_FROM_REQUEST = {
 	"Pending": "Pending",
 	"Confirmed": "Ordered",
@@ -66,16 +49,6 @@ def normalize_visitor_pass(doc):
 	# Line 1 (title in Link dropdown) — just the visitor name.
 	doc.visitor_summary = doc.visitor_full_name or "Unnamed"
 
-	expected_risk_level = infer_risk_level(doc)
-	if (
-		not doc.risk_level
-		or (doc.is_new() and doc.risk_level == "Low" and expected_risk_level != "Low")
-	):
-		doc.risk_level = expected_risk_level
-
-	if not doc.approval_sla_minutes:
-		doc.approval_sla_minutes = DEFAULT_SLA_BY_TYPE.get(doc.visitor_type, 120)
-
 	if doc.visitor_type == "Supplier" and not doc.supplier_visit_mode:
 		doc.supplier_visit_mode = "Meeting"
 
@@ -92,10 +65,6 @@ def normalize_visitor_pass(doc):
 		and not doc.is_new()
 	)
 	apply_hospitality_meal_plan(doc, preserve_existing=preserve_hospitality_choices)
-
-
-def infer_risk_level(doc):
-	return DEFAULT_RISK_BY_TYPE.get(doc.visitor_type, "Medium")
 
 
 def should_mark_no_show(doc):
@@ -713,153 +682,3 @@ def get_last_known_location(visitor_pass_name):
 	return frappe.db.get_value("Visitor Pass", visitor_pass_name, "current_location")
 
 
-def _get_latest_security_log(visitor_pass_name, event_types=None):
-	filters = {"visitor_pass": visitor_pass_name}
-	if event_types:
-		filters["event_type"] = ["in", event_types]
-
-	names = frappe.get_all(
-		"Security Log",
-		filters=filters,
-		fields=["name"],
-		order_by="creation desc",
-		limit=1,
-	)
-	return frappe.get_doc("Security Log", names[0].name) if names else None
-
-
-def generate_emergency_muster_records(emergency_event):
-	if not emergency_event or emergency_event.status != "Active":
-		return 0
-
-	active_visitors = frappe.get_all(
-		"Visitor Pass",
-		filters={"status": "Checked-In"},
-		fields=["name", "person_to_visit"],
-	)
-
-	count = 0
-	for visitor in active_visitors:
-		muster_name = frappe.db.get_value(
-			"Evacuation Muster",
-			{"emergency_event": emergency_event.name, "visitor_pass": visitor.name},
-			"name",
-		)
-		doc = (
-			frappe.get_doc("Evacuation Muster", muster_name)
-			if muster_name
-			else frappe.new_doc("Evacuation Muster")
-		)
-		doc.emergency_event = emergency_event.name
-		doc.visitor_pass = visitor.name
-		doc.employee_host = visitor.person_to_visit
-		doc.assembly_point = emergency_event.assembly_point
-		doc.last_known_location = get_last_known_location(visitor.name)
-		if not doc.accounted_status:
-			doc.accounted_status = "Pending"
-
-		if doc.is_new():
-			doc.insert(ignore_permissions=True)
-		else:
-			doc.save(ignore_permissions=True)
-
-		count += 1
-
-	frappe.db.set_value(
-		"Emergency Event",
-		emergency_event.name,
-		{
-			"muster_count": count,
-			"muster_generated_on": now_datetime(),
-		},
-		update_modified=False,
-	)
-	return count
-
-
-def sync_compliance_check(visitor_pass_name, security_log=None):
-	if not visitor_pass_name:
-		return None
-
-	visitor_pass = frappe.get_doc("Visitor Pass", visitor_pass_name)
-	hospitality_status = None
-	if visitor_pass.hospitality_request:
-		hospitality_status = frappe.db.get_value(
-			"Hospitality Request", visitor_pass.hospitality_request, "status"
-		)
-
-	if not security_log:
-		security_log = _get_latest_security_log(visitor_pass.name)
-
-	verification_log = (
-		security_log if security_log and security_log.event_type == "Check-In" else None
-	)
-	if not verification_log:
-		verification_log = _get_latest_security_log(visitor_pass.name, ["Check-In"])
-
-	id_verified = cint(getattr(verification_log, "id_proof_match", 0)) if verification_log else 0
-	pass_photo_verified = cint(getattr(verification_log, "pass_photo_match", 0)) if verification_log else 0
-	gate_photo_captured = 1 if verification_log and getattr(verification_log, "photo_at_gate", None) else 0
-	items_verified = cint(
-		getattr(visitor_pass, "items_verified", 0) or getattr(visitor_pass, "all_items_verified", 0)
-	)
-	hospitality_closed = 1
-	if visitor_pass.hospitality_request:
-		hospitality_closed = cint((hospitality_status or "Pending") in COMPLIANCE_OK_STATUSES)
-
-	no_show = cint(getattr(visitor_pass, "no_show", 0))
-	verification_duration = (
-		getattr(verification_log, "verification_duration", 0) if verification_log else 0
-	)
-
-	missing_requirements = []
-	if no_show:
-		missing_requirements.append("Visitor did not check in")
-	if not id_verified:
-		missing_requirements.append("ID proof verification missing")
-	if not pass_photo_verified:
-		missing_requirements.append("Pass photo verification missing")
-	if not gate_photo_captured:
-		missing_requirements.append("Gate photo capture missing")
-	if not items_verified:
-		missing_requirements.append("Declared items not fully verified")
-	if not hospitality_closed:
-		missing_requirements.append("Hospitality workflow still open")
-
-	if no_show:
-		compliance_status = "No Show"
-	elif missing_requirements:
-		compliance_status = "Needs Review"
-	else:
-		compliance_status = "Compliant"
-
-	score = max(0, 100 - (len(missing_requirements) * 15))
-	check_name = frappe.db.get_value("Compliance Check", {"visitor_pass": visitor_pass.name}, "name")
-	doc = (
-		frappe.get_doc("Compliance Check", check_name)
-		if check_name
-		else frappe.new_doc("Compliance Check")
-	)
-	doc.visitor_pass = visitor_pass.name
-	doc.visit_date = visitor_pass.visit_date
-	doc.visitor_type = visitor_pass.visitor_type
-	doc.host = visitor_pass.person_to_visit
-	doc.compliance_status = compliance_status
-	doc.score = score
-	doc.id_verified = id_verified
-	doc.pass_photo_verified = pass_photo_verified
-	doc.gate_photo_captured = gate_photo_captured
-	doc.items_verified = items_verified
-	doc.hospitality_closed = hospitality_closed
-	doc.no_show = no_show
-	doc.verification_duration = verification_duration or 0
-	doc.current_location = getattr(visitor_pass, "current_location", None)
-	doc.missing_requirements = "\n".join(missing_requirements)
-	doc.exception_reason = getattr(security_log, "exception_reason", None) if security_log else None
-	doc.last_security_log = getattr(security_log, "name", None) if security_log else None
-	doc.last_checked_on = now_datetime()
-	if doc.is_new():
-		doc.insert(ignore_permissions=True)
-	else:
-		doc.save(ignore_permissions=True)
-	return doc.name

@@ -1,3 +1,12 @@
+<table width="100%">
+<tr>
+<td align="left"><img src="docs/images/finstein-logo.png" alt="Finstein" height="40"></td>
+<td align="right"><img src="docs/images/frappe-wordmark.png" alt="Frappe" height="30"></td>
+</tr>
+</table>
+
+---
+
 # Visitor Management
 
 Modern visitor lifecycle for offices, factories, and campuses — from pre-visit invitation, through QR-based gate check-in and identity verification, all the way to hospitality, conference rooms, contact tracing, and audit reports. Built on Frappe & ERPNext.
@@ -50,6 +59,9 @@ All system-wide configuration lives in a single doctype: **VMS Settings**. Open 
 
 ### Configure VMS Settings
 
+<p align="center"><img src="docs/images/02-vms-settings.png" alt="VMS Settings" width="720"></p>
+<p align="center"><em>VMS Settings — General, Gate &amp; Security, and Badge Configuration sections</em></p>
+
 | Field | What to put |
 |---|---|
 | **Enable Badge** | ✅ to enable badge generation per visitor |
@@ -69,6 +81,9 @@ Three approval workflows (Visitor Pass, Hospitality Request, Conference Room Boo
 
 ## Pre-Visit Invitation — invite a visitor in advance
 
+<p align="center"><img src="docs/images/06-visitor-invitation.png" alt="Visitor Invitation" width="720"></p>
+<p align="center"><em>Visitor Invitation — pre-registration link generated for the visitor</em></p>
+
 1. Open the desk Awesome Bar and type "Visitor Invitation".
 2. Click **+ Add Visitor Invitation**.
 3. Fill: **Visitor Name**, **Email**, **Visit Date**, **Purpose**, **Person to Visit**.
@@ -81,6 +96,9 @@ End-to-end takes ~1 minute for the host, ~3 minutes for the visitor.
 
 ## Walk-in Visitor — visitor is at reception
 
+<p align="center"><img src="docs/images/03-visitor-pass.png" alt="Visitor Pass" width="720"></p>
+<p align="center"><em>Visitor Pass — Approved state with QR code and host details</em></p>
+
 1. Open `/app/visitor-pass` and click **+ Add Visitor Pass**.
 2. Fill: **Visitor Name**, **Mobile**, **ID Proof Type + Number**, **Visitor Type**, **Person to Visit**, **Visit Date**.
 3. Tick hospitality flags if applicable (Meal Required, Cab Required, Hotel Required, etc.).
@@ -90,6 +108,9 @@ End-to-end takes ~1 minute for the host, ~3 minutes for the visitor.
 End-to-end takes ~5 minutes including approval.
 
 ## Gate Check-In — visitor arrives
+
+<p align="center"><img src="docs/images/04-security-log-checkin.png" alt="Security Log Check-In" width="720"></p>
+<p align="center"><em>Security Log Check-In — gate photo, identity match, item verification</em></p>
 
 1. Visitor presents QR code at the gate.
 2. Open `/app/security-log` and click **Scan QR Code**.
@@ -114,6 +135,9 @@ Visitors who get blacklisted while still on premises are **allowed to check out*
 
 ## Hospitality flow
 
+<p align="center"><img src="docs/images/09-hospitality-request.png" alt="Hospitality Request" width="720"></p>
+<p align="center"><em>Hospitality Request — auto-created on pass approval when a hospitality flag is set</em></p>
+
 When a Visitor Pass is approved with any hospitality flag set, the system creates a Hospitality Request in `Pending Approval`.
 
 1. Open `/app/hospitality-request`.
@@ -122,6 +146,9 @@ When a Visitor Pass is approved with any hospitality flag set, the system create
 4. Click **Approve** → request becomes Approved + Submitted, an email goes to the assignees.
 
 ## Conference Room flow
+
+<p align="center"><img src="docs/images/05-conference-rooms-workspace.png" alt="Conference Rooms workspace" width="720"></p>
+<p align="center"><em>Conference Rooms workspace — today's bookings, pending approvals, room utilization</em></p>
 
 When a Visitor Pass is approved with a Conference Room selected, the system creates a Conference Room Booking in `Pending Approval`.
 
@@ -231,4 +258,9 @@ MIT — see `license.txt`.
 
 ---
 
-Built with Frappe · by Finstein
+<p align="center">
+  <img src="docs/images/finstein-logo.png" alt="Finstein" height="32">
+  &nbsp;&nbsp;&nbsp;
+  <img src="docs/images/frappe-wordmark.png" alt="Frappe" height="24">
+</p>
+<p align="center"><sub>Built with Frappe · by Finstein</sub></p>

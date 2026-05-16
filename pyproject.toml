@@ -6,7 +6,7 @@ authors = [
 description = "Visitor Management System"
 requires-python = ">=3.10"
 readme = "README.md"
-dynamic = ["version"]
+version = "1.0.0"
 dependencies = [
     # "frappe~=15.0.0" # Installed and managed by bench.
     "qrcode[pil]>=7.4",

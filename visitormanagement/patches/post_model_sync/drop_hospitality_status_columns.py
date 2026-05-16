@@ -25,12 +25,15 @@ VP_COLS = [
 
 
 def _drop_columns(table, columns):
-	existing = [c.get("Field") or c.get("name") for c in frappe.db.sql(f"SHOW COLUMNS FROM `{table}`", as_dict=True)]
+	# `table`/`col` are not user input: they come only from the hardcoded
+	# constant lists and fixed "tab<DocType>" names in this module. SQL
+	# identifiers cannot be bound as parameters, so f-strings are required.
+	existing = [c.get("Field") or c.get("name") for c in frappe.db.sql(f"SHOW COLUMNS FROM `{table}`", as_dict=True)]  # noqa: S608
 	for col in columns:
 		if col not in existing:
 			continue
 		try:
-			frappe.db.sql_ddl(f"ALTER TABLE `{table}` DROP COLUMN `{col}`")
+			frappe.db.sql_ddl(f"ALTER TABLE `{table}` DROP COLUMN `{col}`")  # noqa: S608
 			print(f"Dropped {table}.{col}")
 		except Exception:
 			frappe.log_error(

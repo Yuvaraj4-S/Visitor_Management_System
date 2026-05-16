@@ -1,14 +1,20 @@
 app_name = "visitormanagement"
 app_title = "Visitor Management"
-app_publisher = "VMS"
+app_publisher = "Finstein"
 app_description = "Visitor Management System"
-app_email = "vms@example.com"
-app_license = "mit"
+app_email = "yuvaraj.s@finstein.ai"
+app_license = "MIT"
+app_icon = "octicon octicon-organization"
+app_color = "#1A56DB"
+app_logo_url = "/assets/visitormanagement/images/logo.png"
+source_link = "https://github.com/Yuvaraj4-S/Visitor_Management_System"
+documentation = "https://github.com/Yuvaraj4-S/Visitor_Management_System/blob/main/docs/README.pdf"
+app_version = "1.0.0"
 
 # Apps
 # ------------------
 
-# required_apps = []
+required_apps = ["erpnext", "hrms"]
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [

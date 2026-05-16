@@ -12,7 +12,7 @@
  "icon": "calendar",
  "idx": 0,
  "is_hidden": 0,
- "label": "Facility Management",
+ "label": "Conference Rooms",
  "links": [
   {
    "hidden": 0,
@@ -84,7 +84,7 @@
  "modified": "2026-05-13 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Conference Room",
- "name": "Facility Management",
+ "name": "Conference Rooms",
  "number_cards": [
   {"label": "Today's Conference Bookings", "number_card_name": "Today's Conference Bookings"},
   {"label": "Pending Room Approvals",      "number_card_name": "Pending Room Approvals"},
@@ -106,5 +106,5 @@
   {"label": "Daily Booking Schedule",  "link_to": "Daily Booking Schedule",  "report_ref_doctype": "Conference Room Booking", "type": "Report"},
   {"label": "Room Utilization",        "link_to": "Room Utilization",        "report_ref_doctype": "Conference Room Booking", "type": "Report"}
  ],
- "title": "Facility Management"
+ "title": "Conference Rooms"
 }

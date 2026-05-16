@@ -9,7 +9,6 @@ Verified safe:
 - The only template references (`vms_food_dept_alert.html`, `visitor_itinerary.html`)
   use `or doc.<field>` fallbacks that already evaluate to None today, so dropping
   the column changes nothing user-visible.
-- Diagnostic-only references (`demo/_webform_diag.py`) are not part of any flow.
 
 Idempotent: re-running is a no-op once columns have been dropped.
 """
@@ -43,15 +42,18 @@ SL_ORPHAN_COLS = [
 
 
 def _drop_columns(table, columns):
+    # `table`/`col` are not user input: they come only from the hardcoded
+    # *_ORPHAN_COLS constants and fixed "tab<DocType>" names below. SQL
+    # identifiers cannot be bound as parameters, so f-strings are required.
     existing = {
         c.get("Field") or c.get("name")
-        for c in frappe.db.sql(f"SHOW COLUMNS FROM `{table}`", as_dict=True)
+        for c in frappe.db.sql(f"SHOW COLUMNS FROM `{table}`", as_dict=True)  # noqa: S608
     }
     for col in columns:
         if col not in existing:
             continue
         try:
-            frappe.db.sql_ddl(f"ALTER TABLE `{table}` DROP COLUMN `{col}`")
+            frappe.db.sql_ddl(f"ALTER TABLE `{table}` DROP COLUMN `{col}`")  # noqa: S608
             print(f"Dropped {table}.{col}")
         except Exception:
             frappe.log_error(

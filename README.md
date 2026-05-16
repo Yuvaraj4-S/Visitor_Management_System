@@ -1,9 +1,7 @@
-<table width="100%">
-<tr>
-<td align="left"><img src="docs/images/finstein-logo.png" alt="Finstein" height="40"></td>
-<td align="right"><img src="docs/images/frappe-wordmark.png" alt="Frappe" height="30"></td>
-</tr>
-</table>
+<div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+    <img src="logos/finstein_logo.png" alt="Finstein" height="45">
+    <img src="logos/frappe_logo.png" alt="Frappe" height="52" align="right" >
+</div>
 
 ---
 
@@ -258,9 +256,10 @@ MIT — see `license.txt`.
 
 ---
 
+<p align="center"><strong>Built with Frappe&nbsp; · &nbsp;by Finstein</strong></p>
+ 
 <p align="center">
-  <img src="docs/images/finstein-logo.png" alt="Finstein" height="32">
-  &nbsp;&nbsp;&nbsp;
-  <img src="docs/images/frappe-wordmark.png" alt="Frappe" height="24">
+  <img src="logos/frappe_logo.png" alt="Frappe" height="32">
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="logos/finstein_logo.png" alt="Finstein" height="32">
 </p>
-<p align="center"><sub>Built with Frappe · by Finstein</sub></p>

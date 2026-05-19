@@ -696,12 +696,14 @@ def get_existing_visitor_matches(visitor_type=None, id_proof_number=None, mobile
 
     if id_proof_number:
         by_id = frappe.db.sql(
-            f"""
+            """
             SELECT name, visitor_full_name, visitor_type, mobile_number, id_proof_number
             FROM `tabVisitor Pass`
             WHERE id_proof_number = %(id_proof_number)s
-              {type_filter}
-              {exclude_filter}
+            """
+            + type_filter
+            + exclude_filter
+            + """
             ORDER BY modified DESC
             LIMIT 10
             """,
@@ -713,12 +715,14 @@ def get_existing_visitor_matches(visitor_type=None, id_proof_number=None, mobile
     if mobile_number and len(matches) < 10:
         phone_digits = _normalized_digits(mobile_number)
         by_phone = frappe.db.sql(
-            f"""
+            """
             SELECT name, visitor_full_name, visitor_type, mobile_number, id_proof_number
             FROM `tabVisitor Pass`
             WHERE ifnull(mobile_number, '') != ''
-              {type_filter}
-              {exclude_filter}
+            """
+            + type_filter
+            + exclude_filter
+            + """
             ORDER BY modified DESC
             LIMIT 100
             """,
@@ -768,11 +772,13 @@ def search_visitor_passes(doctype, txt, searchfield, start, page_len, filters):
     # can spot + search by phone, regardless of how stale the cached visitor_summary is.
 
     return frappe.db.sql(
-        f"""SELECT
+        """SELECT
                 name,
                 CONCAT_WS(' · ', NULLIF(visitor_full_name, ''), NULLIF(mobile_number, '')) AS description
             FROM `tabVisitor Pass`
-            WHERE {where}
+            WHERE """
+        + where
+        + """
             ORDER BY modified DESC
             LIMIT %s OFFSET %s""",
         params + [int(page_len), int(start)],

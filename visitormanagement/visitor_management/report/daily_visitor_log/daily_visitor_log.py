@@ -57,7 +57,7 @@ def get_data(filters):
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
     return frappe.db.sql(
-        f"""
+        """
         SELECT
             vp.name AS visitor_pass,
             vp.visit_date,
@@ -75,7 +75,9 @@ def get_data(filters):
             ON sl_in.visitor_pass = vp.name AND sl_in.event_type = 'Check-In'
         LEFT JOIN `tabSecurity Log` sl_out
             ON sl_out.visitor_pass = vp.name AND sl_out.event_type = 'Check-Out'
-        {where}
+        """
+        + where
+        + """
         ORDER BY vp.visit_date DESC, sl_in.check_in_date_time DESC
         """,
         values,

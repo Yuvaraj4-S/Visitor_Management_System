@@ -9,7 +9,6 @@ app_color = "#1A56DB"
 app_logo_url = "/assets/visitormanagement/images/logo.png"
 source_link = "https://github.com/Yuvaraj4-S/Visitor_Management_System"
 documentation = "https://github.com/Yuvaraj4-S/Visitor_Management_System/blob/main/docs/README.pdf"
-app_version = "1.0.0"
 
 # Apps
 # ------------------

@@ -345,7 +345,7 @@ class SecurityLog(Document):
             if not self.photo_at_gate:
                 vp_photo = frappe.db.get_value('Visitor Pass', self.visitor_pass, 'visitor_photo')
                 if vp_photo:
-                    self.photo_at_gate = vp_photo
+                    self.db_set('photo_at_gate', vp_photo)
             self._sync_gate_verification()
             self._sync_item_verification()
 

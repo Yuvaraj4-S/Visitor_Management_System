@@ -1,9 +1,7 @@
-<table width="100%">
-<tr>
-<td align="left"><img src="docs/images/finstein-logo.png" alt="Finstein" height="40"></td>
-<td align="right"><img src="docs/images/frappe-wordmark.png" alt="Frappe" height="30"></td>
-</tr>
-</table>
+<div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+    <img src="logos/finstein_logo.png" alt="Finstein" height="45">
+    <img src="logos/frappe_logo.png" alt="Frappe" height="52" align="right" >
+</div>
 
 ---
 
@@ -28,28 +26,6 @@ ERPNext 15  ·  Frappe 15  ·  license MIT
 **VIP Protocol:** Dedicated **Approved VIP Queue** quick-action at the gate, email notification on pass approval, **protocol notes** carried from the pass through to the gate, pre-allocated meeting room, two-step approval.
 
 **Contact Tracing & Audit Trail:** Every gate event opens or closes a **Contact Trace Record** for the visitor (visited area, time in, time out, exposure risk). Every lifecycle event is logged in the immutable **Visitor Event Log**.
-
-## How to Install
-
-```bash
-cd ~/frappe-bench
-bench get-app https://github.com/Yuvaraj4-S/Visitor_Management_System
-bench --site <your-site> install-app visitormanagement
-bench --site <your-site> migrate
-bench build
-bench restart
-```
-
-**Upgrade later:**
-
-```bash
-cd ~/frappe-bench/apps/visitormanagement
-git pull
-cd ~/frappe-bench
-bench --site <your-site> migrate
-```
-
-Migrations are idempotent — `bench migrate` is safe to run any number of times.
 
 ---
 
@@ -258,9 +234,10 @@ MIT — see `license.txt`.
 
 ---
 
+<p align="center"><strong>Built with Frappe&nbsp; · &nbsp;by Finstein</strong></p>
+ 
 <p align="center">
-  <img src="docs/images/finstein-logo.png" alt="Finstein" height="32">
-  &nbsp;&nbsp;&nbsp;
-  <img src="docs/images/frappe-wordmark.png" alt="Frappe" height="24">
+  <img src="logos/frappe_logo.png" alt="Frappe" height="32">
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="logos/finstein_logo.png" alt="Finstein" height="32">
 </p>
-<p align="center"><sub>Built with Frappe · by Finstein</sub></p>

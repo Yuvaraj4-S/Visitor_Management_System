@@ -90,7 +90,8 @@ class TestConferenceRoomBooking(FrappeTestCase):
             room = frappe.new_doc("Conference Room")
             room.update(spec)
             room.insert(ignore_permissions=True)
-        frappe.db.commit()
+        # Test fixture: shared rooms must persist across all tests in the class.
+        frappe.db.commit()  # nosemgrep: frappe-manual-commit
 
     @classmethod
     def tearDownClass(cls):
@@ -105,7 +106,8 @@ class TestConferenceRoomBooking(FrappeTestCase):
                     )
                 except Exception:
                     pass
-        frappe.db.commit()
+        # Test fixture: persist teardown cleanup of class-level shared rows.
+        frappe.db.commit()  # nosemgrep: frappe-manual-commit
         super().tearDownClass()
 
     # ── Helper ──

@@ -51,7 +51,7 @@ Click **Save**. The app is now configured.
 
 ### Configure Workflows
 
-Three approval workflows (Visitor Pass, Hospitality Request, Conference Room Booking) are pre-loaded as fixtures and activated automatically on `bench migrate` — no setup needed.
+Three approval workflows (Visitor Pass, Hospitality Request, Conference Room Booking) are pre-loaded as fixtures and activated automatically during app migration — no setup needed.
 
 ---
 

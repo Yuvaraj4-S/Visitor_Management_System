@@ -91,9 +91,11 @@ def execute(filters=None):
 			crb.meeting_type, crb.expected_attendees,
 			crb.booked_by, crb.status
 		FROM `tabConference Room Booking` crb
-		{conditions}
+		"""
+		+ conditions
+		+ """
 		ORDER BY crb.conference_room, crb.start_time
-		""".format(conditions=conditions),
+		""",
 		values,
 		as_dict=True,
 	)

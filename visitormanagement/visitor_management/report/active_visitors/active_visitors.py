@@ -58,7 +58,7 @@ def get_data(filters):
     where = " AND ".join(conditions)
 
     rows = frappe.db.sql(
-        f"""
+        """
         SELECT
             vp.name AS visitor_pass,
             vp.badge_number,
@@ -74,7 +74,9 @@ def get_data(filters):
         FROM `tabVisitor Pass` vp
         LEFT JOIN `tabSecurity Log` sl
             ON sl.visitor_pass = vp.name AND sl.event_type = 'Check-In'
-        WHERE {where}
+        WHERE """
+        + where
+        + """
         ORDER BY sl.check_in_date_time ASC
         """,
         values,

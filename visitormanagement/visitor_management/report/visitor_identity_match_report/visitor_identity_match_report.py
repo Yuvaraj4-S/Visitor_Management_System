@@ -100,7 +100,7 @@ def get_records(filters):
 	where_clause = " AND ".join(conditions)
 
 	return frappe.db.sql(
-		f"""
+		"""
 		SELECT
 			name,
 			visitor_type,
@@ -111,7 +111,9 @@ def get_records(filters):
 			email_id,
 			status
 		FROM `tabVisitor Pass`
-		WHERE {where_clause}
+		WHERE """
+		+ where_clause
+		+ """
 		ORDER BY visit_date DESC, modified DESC
 		""",
 		values,

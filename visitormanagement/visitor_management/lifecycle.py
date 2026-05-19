@@ -436,13 +436,12 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 			getattr(visitor_pass, "food_status", None), "Pending"
 		)
 		doc.notes = "\n".join(
-			filter(
-				None,
-				[
-					getattr(visitor_pass, "hospitality_notes", None),
-					getattr(visitor_pass, "refreshment_notes", None),
-				],
-			)
+			note
+			for note in [
+				getattr(visitor_pass, "hospitality_notes", None),
+				getattr(visitor_pass, "refreshment_notes", None),
+			]
+			if note
 		)
 	# Mirror arrangement request flags from Visitor Pass (host-entered intent)
 	for flag in ARRANGEMENT_REQUIRED_FIELDS:
@@ -587,7 +586,7 @@ def _close_active_contact_trace(visitor_pass_name, event_time, notes=None):
 	doc.time_out = event_time
 	doc.status = "Closed"
 	if notes:
-		doc.notes = "\n".join(filter(None, [doc.notes, notes]))
+		doc.notes = "\n".join(part for part in [doc.notes, notes] if part)
 	doc.save(ignore_permissions=True)
 	return doc.name
 
@@ -641,13 +640,12 @@ def sync_contact_trace(visitor_pass_name, security_log=None):
 		else "Low"
 	)
 	doc.notes = "\n".join(
-		filter(
-			None,
-			[
-				getattr(security_log, "remarks", None),
-				getattr(security_log, "verification_notes", None),
-			],
-		)
+		note
+		for note in [
+			getattr(security_log, "remarks", None),
+			getattr(security_log, "verification_notes", None),
+		]
+		if note
 	)
 
 	if doc.is_new():

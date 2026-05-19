@@ -47,13 +47,13 @@ def _drop_columns(table, columns):
     # identifiers cannot be bound as parameters, so f-strings are required.
     existing = {
         c.get("Field") or c.get("name")
-        for c in frappe.db.sql(f"SHOW COLUMNS FROM `{table}`", as_dict=True)  # noqa: S608
+        for c in frappe.db.sql(f"SHOW COLUMNS FROM `{table}`", as_dict=True)  # noqa: S608  # nosemgrep: frappe-sql-format-injection
     }
     for col in columns:
         if col not in existing:
             continue
         try:
-            frappe.db.sql_ddl(f"ALTER TABLE `{table}` DROP COLUMN `{col}`")  # noqa: S608
+            frappe.db.sql_ddl(f"ALTER TABLE `{table}` DROP COLUMN `{col}`")  # noqa: S608  # nosemgrep: frappe-sql-format-injection
             print(f"Dropped {table}.{col}")
         except Exception:
             frappe.log_error(
@@ -89,4 +89,3 @@ def execute():
     _drop_columns("tabHospitality Request", HR_ORPHAN_COLS)
     _drop_columns("tabSecurity Log", SL_ORPHAN_COLS)
     _delete_orphan_property_setters()
-    frappe.db.commit()

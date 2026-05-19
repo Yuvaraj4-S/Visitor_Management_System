@@ -715,7 +715,10 @@ class TestRemovedFeatures(FrappeTestCase):
             ("tabSecurity Log", "health_screening_status"),
         ]:
             with self.subTest(column=f"{table}.{column}"):
-                cols = frappe.db.sql(f"SHOW COLUMNS FROM `{table}` LIKE %s", (column,))
+                # `table` is a hardcoded value from the loop list above (no user
+                # input); SQL identifiers cannot be parameterized. `column` is
+                # passed as a bound parameter.
+                cols = frappe.db.sql(f"SHOW COLUMNS FROM `{table}` LIKE %s", (column,))  # nosemgrep: frappe-sql-format-injection
                 self.assertEqual(cols, (), f"{table}.{column} should stay dropped")
 
     def test_no_orphan_visit_type_doctypes(self):

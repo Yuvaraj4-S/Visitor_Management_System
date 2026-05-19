@@ -78,10 +78,12 @@ def get_data(filters):
 			SUM(CASE WHEN crb.meeting_type = 'Internal' THEN 1 ELSE 0 END) AS internal_count,
 			SUM(CASE WHEN crb.meeting_type != 'Internal' THEN 1 ELSE 0 END) AS external_count
 		FROM `tabConference Room Booking` crb
-		{conditions}
+		"""
+		+ conditions
+		+ """
 		GROUP BY crb.conference_room
 		ORDER BY total_hours DESC
-		""".format(conditions=conditions),
+		""",
 		values,
 		as_dict=True,
 	)

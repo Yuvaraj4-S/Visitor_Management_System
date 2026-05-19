@@ -11,7 +11,10 @@ def execute():
 		"visitor_management",
 		"visitor_management.json",
 	)
-	with open(path) as handle:
+	# `path` is fully hardcoded via frappe.get_app_path() with only literal
+	# segments above - no user input reaches it, so file traversal is not
+	# possible. This patch only reads the app's own bundled workspace JSON.
+	with open(path) as handle:  # nosemgrep: frappe-security-file-traversal
 		expected_links = json.load(handle).get("links", [])
 
 	workspace = frappe.get_doc("Workspace", "Visitor Management")

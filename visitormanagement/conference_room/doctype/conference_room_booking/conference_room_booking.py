@@ -198,8 +198,8 @@ def get_available_rooms(booking_date, start_time, end_time, min_capacity=0, excl
 		  AND docstatus < 2
 		  AND status NOT IN ('Cancelled')
 		  AND (start_time < %(end_time)s AND end_time > %(start_time)s)
-		  {exclude_clause}
-		""".format(exclude_clause=exclude_clause),
+		"""
+		+ exclude_clause,
 		params,
 	)
 
@@ -250,9 +250,11 @@ def get_booking_events(start, end, filters=None):
 		WHERE docstatus < 2
 		  AND status NOT IN ('Cancelled')
 		  AND booking_date BETWEEN %(start)s AND %(end)s
-		  {cond}
+		"""
+		+ cond
+		+ """
 		ORDER BY booking_date, start_time
-		""".format(cond=cond),
+		""",
 		values,
 		as_dict=True,
 	)

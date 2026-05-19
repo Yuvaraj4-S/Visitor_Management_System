@@ -21,10 +21,13 @@ class TestVisitorBlacklist(FrappeTestCase):
 			"Visitor Blacklist",
 			{"visitor_name": ["in", ["Test Blacklist Name Only", "TEST BLACKLIST NAME ONLY"]]},
 		)
-		frappe.db.commit()
+		# Test fixture: persist the cleanup so each test starts from a known
+		# state; tearDown rolls back test-created rows.
+		frappe.db.commit()  # nosemgrep: frappe-manual-commit
 
 	def tearDown(self):
-		frappe.db.rollback()
+		# Test fixture: discard rows created during the test.
+		frappe.db.rollback()  # nosemgrep: frappe-manual-commit
 
 	# ---------------- validations ----------------
 

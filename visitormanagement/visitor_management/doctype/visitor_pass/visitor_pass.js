@@ -691,7 +691,11 @@ window.select_submission = function(submission_name, frm_name) {
 				// Set values in Visitor Pass
 				frappe.set_route('Form', 'Visitor Pass', frm_name);
 				setTimeout(() => {
-					let frm = cur_frm;
+					let formview = frappe.views.formview['Visitor Pass'];
+					let frm = formview && formview.frm;
+					if (!frm) {
+						return;
+					}
 					frm.set_value('visitor_type', data.visitor_type);
 					frm.set_value('visitor_full_name', data.visitor_full_name);
 					frm.set_value('mobile_number', data.mobile_number);

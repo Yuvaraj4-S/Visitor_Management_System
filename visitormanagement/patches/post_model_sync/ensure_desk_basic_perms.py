@@ -21,7 +21,6 @@ _DESK_REQUIRED_PAGE_READS_BY_ROLE = ("Employee",)
 def execute():
 	for role in _DESK_REQUIRED_PAGE_READS_BY_ROLE:
 		_ensure_page_read_perm(role)
-	frappe.db.commit()
 
 
 def _ensure_page_read_perm(role):

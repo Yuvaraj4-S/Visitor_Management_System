@@ -200,6 +200,3 @@ def flag_no_show_passes():
 		except Exception:
 			frappe.log_error(frappe.get_traceback(), "flag_no_show_passes log_visitor_event")
 		flagged += 1
-
-	if flagged:
-		frappe.db.commit()

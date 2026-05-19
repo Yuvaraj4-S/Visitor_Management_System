@@ -28,12 +28,12 @@ def _drop_columns(table, columns):
 	# `table`/`col` are not user input: they come only from the hardcoded
 	# constant lists and fixed "tab<DocType>" names in this module. SQL
 	# identifiers cannot be bound as parameters, so f-strings are required.
-	existing = [c.get("Field") or c.get("name") for c in frappe.db.sql(f"SHOW COLUMNS FROM `{table}`", as_dict=True)]  # noqa: S608
+	existing = [c.get("Field") or c.get("name") for c in frappe.db.sql(f"SHOW COLUMNS FROM `{table}`", as_dict=True)]  # noqa: S608  # nosemgrep: frappe-sql-format-injection
 	for col in columns:
 		if col not in existing:
 			continue
 		try:
-			frappe.db.sql_ddl(f"ALTER TABLE `{table}` DROP COLUMN `{col}`")  # noqa: S608
+			frappe.db.sql_ddl(f"ALTER TABLE `{table}` DROP COLUMN `{col}`")  # noqa: S608  # nosemgrep: frappe-sql-format-injection
 			print(f"Dropped {table}.{col}")
 		except Exception:
 			frappe.log_error(
@@ -45,4 +45,3 @@ def _drop_columns(table, columns):
 def execute():
 	_drop_columns("tabHospitality Request", HOSPITALITY_COLS)
 	_drop_columns("tabVisitor Pass", VP_COLS)
-	frappe.db.commit()

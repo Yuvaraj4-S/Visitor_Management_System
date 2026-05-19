@@ -27,28 +27,6 @@ ERPNext 15  ·  Frappe 15  ·  license MIT
 
 **Contact Tracing & Audit Trail:** Every gate event opens or closes a **Contact Trace Record** for the visitor (visited area, time in, time out, exposure risk). Every lifecycle event is logged in the immutable **Visitor Event Log**.
 
-## How to Install
-
-```bash
-cd ~/frappe-bench
-bench get-app https://github.com/Yuvaraj4-S/Visitor_Management_System
-bench --site <your-site> install-app visitormanagement
-bench --site <your-site> migrate
-bench build
-bench restart
-```
-
-**Upgrade later:**
-
-```bash
-cd ~/frappe-bench/apps/visitormanagement
-git pull
-cd ~/frappe-bench
-bench --site <your-site> migrate
-```
-
-Migrations are idempotent — `bench migrate` is safe to run any number of times.
-
 ---
 
 ## Setup and Use

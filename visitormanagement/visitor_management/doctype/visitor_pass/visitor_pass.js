@@ -1,5 +1,44 @@
 // For license information, please see license.txt
 
+// VMS Settings → home_country rarely changes, so cache it for the desk
+// session instead of re-fetching from the server on every form refresh/
+// field-change.
+let _vms_home_country_cache = null;
+let _vms_home_country_promise = null;
+
+// id_proof_type's full option list, captured once from the field itself
+// (never hardcoded) so it can be restored after being narrowed down for
+// foreign nationals.
+let _id_proof_type_full_options = null;
+
+function get_vms_home_country() {
+	if (_vms_home_country_cache) {
+		return Promise.resolve(_vms_home_country_cache);
+	}
+	if (!_vms_home_country_promise) {
+		_vms_home_country_promise = frappe.db.get_single_value("VMS Settings", "home_country").then((value) => {
+			_vms_home_country_cache = value || "India";
+			return _vms_home_country_cache;
+		});
+	}
+	return _vms_home_country_promise;
+}
+
+// Frappe's core Phone control defaults to the site's System Settings country
+// (e.g. India) the first time it renders, regardless of the visitor's actual
+// nationality. Once custom_nationality is set, nudge the phone widget's
+// displayed flag/ISD prefix to match it.
+function sync_mobile_country_with_nationality(frm) {
+	const country_name = frm.doc.custom_nationality;
+	if (!country_name) {
+		return;
+	}
+	const control = frm.get_field("mobile_number");
+	if (control && control.country_codes && control.country_codes[country_name] && control.country_code_picker) {
+		control.country_code_picker.on_change(country_name, false);
+	}
+}
+
 frappe.ui.form.on("Visitor Pass", {
 	refresh(frm) {
 		ensure_customer_crm_defaults(frm);
@@ -12,6 +51,10 @@ frappe.ui.form.on("Visitor Pass", {
 	visitor_type(frm) {
 		ensure_customer_crm_defaults(frm);
 		setup_supplier_pass_query(frm);
+		apply_visitor_pass_ui(frm);
+	},
+
+	custom_nationality(frm) {
 		apply_visitor_pass_ui(frm);
 	},
 
@@ -409,6 +452,28 @@ function apply_visitor_pass_field_rules(frm) {
 	// special_diet, hospitality_request are always visible (no toggle needed).
 	frm.toggle_display("conference_room", true);
 	frm.toggle_display("hospitality_notes", hospitality_recorded);
+
+	const id_proof_field = frm.get_field("id_proof_type");
+	if (id_proof_field && _id_proof_type_full_options === null) {
+		_id_proof_type_full_options = id_proof_field.df.options;
+	}
+
+	sync_mobile_country_with_nationality(frm);
+
+	get_vms_home_country().then((home_country) => {
+		const is_foreign_national = frm.doc.custom_nationality && frm.doc.custom_nationality !== home_country;
+		frm.toggle_display("custom_visa_copy", is_foreign_national);
+		frm.toggle_reqd("custom_visa_copy", is_foreign_national);
+
+		if (_id_proof_type_full_options !== null) {
+			const restricted_options = is_foreign_national ? "Passport" : _id_proof_type_full_options;
+			frm.set_df_property("id_proof_type", "options", restricted_options);
+			frm.refresh_field("id_proof_type");
+			if (is_foreign_national && frm.doc.id_proof_type && frm.doc.id_proof_type !== "Passport") {
+				frm.set_value("id_proof_type", "");
+			}
+		}
+	});
 }
 
 function refresh_hospitality_plan(frm) {

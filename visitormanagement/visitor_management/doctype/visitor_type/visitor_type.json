@@ -1,0 +1,120 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:visitor_type_name",
+ "creation": "2026-07-09 10:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "field_order": [
+  "visitor_type_name",
+  "is_active",
+  "column_break_basic",
+  "approver_role",
+  "secondary_approver_role",
+  "section_badge",
+  "badge_prefix",
+  "badge_colour",
+  "column_break_badge",
+  "default_gate"
+ ],
+ "fields": [
+  {
+   "fieldname": "visitor_type_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Visitor Type Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Active"
+  },
+  {
+   "fieldname": "column_break_basic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Role that owns and approves Visitor Passes of this type.",
+   "fieldname": "approver_role",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Approver Role",
+   "options": "Role"
+  },
+  {
+   "description": "Optional second role that also owns/approves this type (e.g. an escalation role).",
+   "fieldname": "secondary_approver_role",
+   "fieldtype": "Link",
+   "label": "Secondary Approver Role",
+   "options": "Role"
+  },
+  {
+   "fieldname": "section_badge",
+   "fieldtype": "Section Break",
+   "label": "Badge & Gate"
+  },
+  {
+   "fieldname": "badge_prefix",
+   "fieldtype": "Data",
+   "label": "Badge Prefix"
+  },
+  {
+   "fieldname": "badge_colour",
+   "fieldtype": "Select",
+   "label": "Badge Colour",
+   "options": "Orange\nPurple\nGreen\nTeal\nGold\nBlue\nRed\nGrey"
+  },
+  {
+   "fieldname": "column_break_badge",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "default_gate",
+   "fieldtype": "Select",
+   "label": "Default Gate",
+   "options": "Main Gate\nBack Gate\nVIP Entrance\nLoading Dock\nEmergency Exit"
+  }
+ ],
+ "icon": "fa fa-id-badge",
+ "links": [],
+ "modified": "2026-07-09 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Visitor Type",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Employee",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "show_name_in_global_search": 1,
+ "sort_field": "modified",
+ "sort_order": "ASC",
+ "states": []
+}

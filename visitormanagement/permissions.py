@@ -42,15 +42,16 @@ def get_visitor_pass_permission_query_conditions(user=None):
 	if employee:
 		conditions.append(f"`{table}`.`person_to_visit` = {frappe.db.escape(employee)}")
 
-	# Approver scope — each role owns their visitor_type end-to-end
-	if "System Manager" in roles:
-		conditions.append(f"`{table}`.`visitor_type` in ('Contractor', 'Supplier')")
-	if "HR Manager" in roles:
-		conditions.append(f"`{table}`.`visitor_type` = 'Candidate'")
-	if "Sales Manager" in roles:
-		conditions.append(f"`{table}`.`visitor_type` = 'Customer'")
-	if "HOD" in roles or "CEO" in roles:
-		conditions.append(f"`{table}`.`visitor_type` = 'VIP'")
+	# Approver scope — each role owns the Visitor Types where it is the
+	# configured approver_role/secondary_approver_role, end-to-end.
+	owned_types = frappe.get_all(
+		"Visitor Type",
+		or_filters=[["approver_role", "in", list(roles)], ["secondary_approver_role", "in", list(roles)]],
+		pluck="name",
+	)
+	if owned_types:
+		type_list = ", ".join(frappe.db.escape(t) for t in owned_types)
+		conditions.append(f"`{table}`.`visitor_type` in ({type_list})")
 	if "Security" in roles:
 		conditions.append(f"`{table}`.`status` in ('Approved', 'Items Verified', 'Checked-In', 'Checked-Out')")
 
@@ -85,13 +86,18 @@ def has_visitor_pass_permission(doc, user=None, permission_type=None):
 	):
 		return True
 
-	if "System Manager" in roles and doc.visitor_type in {"Contractor", "Supplier"}:
-		return True
-	if "HR Manager" in roles and doc.visitor_type == "Candidate":
-		return True
-	if "Sales Manager" in roles and doc.visitor_type == "Customer":
-		return True
-	if ("HOD" in roles or "CEO" in roles) and doc.visitor_type == "VIP":
+	# Approver scope — role owns this doc's Visitor Type as approver_role or
+	# secondary_approver_role.
+	visitor_type_doc = None
+	if doc.visitor_type:
+		try:
+			visitor_type_doc = frappe.get_cached_doc("Visitor Type", doc.visitor_type)
+		except frappe.DoesNotExistError:
+			visitor_type_doc = None
+	if visitor_type_doc and (
+		visitor_type_doc.approver_role in roles
+		or (visitor_type_doc.secondary_approver_role and visitor_type_doc.secondary_approver_role in roles)
+	):
 		return True
 	# Security role is read-only on Visitor Pass — gate workflow happens through
 	# Security role is read-only on Visitor Pass. Gate workflow happens through

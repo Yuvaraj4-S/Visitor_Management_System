@@ -32,6 +32,27 @@ ALL_PENDING_LANES = {
     "Pending CEO",
 }
 
+
+def _get_visitor_type_doc(visitor_type_name):
+    """Fetch the linked Visitor Type master record (cached — this is a small,
+    frequently-read doc, so `get_cached_doc` avoids a DB round-trip on every
+    Visitor Pass save)."""
+    if not visitor_type_name:
+        return None
+    try:
+        return frappe.get_cached_doc("Visitor Type", visitor_type_name)
+    except frappe.DoesNotExistError:
+        return None
+
+
+def _get_home_country():
+    """Fetch the configured home country from VMS Settings (cached — this is a
+    small, frequently-read singleton, so `get_cached_doc` avoids a DB
+    round-trip on every Visitor Pass save)."""
+    settings = frappe.get_cached_doc("VMS Settings")
+    return getattr(settings, "home_country", None) or "India"
+
+
 class VisitorPass(Document):
 
     # Aliases used by notification templates and external references.
@@ -104,6 +125,13 @@ class VisitorPass(Document):
                 frappe.throw(
                     _(id_proof_error_message(self.id_proof_type)),
                     title=_("Invalid ID Proof"),
+                )
+
+        if self.id_proof_type and self.custom_nationality and self.custom_nationality != _get_home_country():
+            if self.id_proof_type != "Passport":
+                frappe.throw(
+                    _("Foreign national visitors must use Passport as the ID Proof Type."),
+                    title=_("Invalid ID Proof Type"),
                 )
 
     def _validate_host_active(self):
@@ -212,11 +240,10 @@ class VisitorPass(Document):
                 "Employee", self.person_to_visit, "department"
             )
 
-        # Auto-set badge colour from VMS Settings (or defaults)
+        # Auto-set badge colour from the linked Visitor Type (or defaults)
         if self.visitor_type:
-            settings = frappe.get_cached_doc("VMS Settings")
-            colour_field = f"badge_colour_{self.visitor_type.lower()}"
-            colour = getattr(settings, colour_field, None)
+            visitor_type_doc = _get_visitor_type_doc(self.visitor_type)
+            colour = getattr(visitor_type_doc, "badge_colour", None)
             if not colour:
                 colour = {"Contractor": "Orange", "Candidate": "Purple", "Customer": "Green",
                            "Supplier": "Teal", "VIP": "Gold"}.get(self.visitor_type, "Orange")
@@ -285,6 +312,12 @@ class VisitorPass(Document):
         if not self.mobile_number:
             return
         raw = str(self.mobile_number).strip()
+
+        if self.custom_nationality and self.custom_nationality != _get_home_country():
+            # Foreign national — the number already carries its own country's
+            # ISD prefix from the Phone widget; don't force Indian formatting.
+            return
+
         digits = "".join(c for c in raw if c.isdigit())
         if not digits:
             return
@@ -423,6 +456,15 @@ class VisitorPass(Document):
                     title=_("VIP Notification Required"),
                 )
 
+        # 4️⃣ Foreign National Document Check
+        home_country = _get_home_country()
+        if self.custom_nationality and self.custom_nationality != home_country:
+            if not self.custom_visa_copy:
+                frappe.throw(
+                    _("Visa Copy is required for foreign national visitors."),
+                    title=_("Missing Travel Documents"),
+                )
+
     # ─────────────────────────────────────────────────────────
     # ON SUBMIT
     # ─────────────────────────────────────────────────────────
@@ -470,9 +512,9 @@ class VisitorPass(Document):
         if badge_types and self.visitor_type not in badge_types:
             return
 
-        # Get prefix from settings or use defaults
-        prefix_field = f"badge_prefix_{self.visitor_type.lower()}"
-        p = getattr(settings, prefix_field, None) or {
+        # Get prefix from the linked Visitor Type or use defaults
+        visitor_type_doc = _get_visitor_type_doc(self.visitor_type)
+        p = getattr(visitor_type_doc, "badge_prefix", None) or {
             "Contractor": "CON",
             "Candidate": "CAN",
             "Customer": "CUS",

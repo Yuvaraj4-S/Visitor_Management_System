@@ -405,7 +405,7 @@ class TestHospitalityRequestFlow(FrappeTestCase):
             hr = self._new_hr(self.draft_vp.name)
             hr.insert()
             with self.assertRaises(frappe.ValidationError) as ctx:
-                apply_workflow(hr, "Submit for Approval")
+                apply_workflow(hr, "Submit")
             self.assertIn("Visitor Pass", str(ctx.exception))
         finally:
             frappe.set_user("Administrator")
@@ -415,9 +415,9 @@ class TestHospitalityRequestFlow(FrappeTestCase):
         try:
             hr = self._new_hr(self.approved_vp.name)
             hr.insert()
-            apply_workflow(hr, "Submit for Approval")
+            apply_workflow(hr, "Submit")
             hr.reload()
-            self.assertEqual(hr.workflow_state, "Pending Manager Approval")
+            self.assertEqual(hr.workflow_state, "Pending Approval")
         finally:
             frappe.set_user("Administrator")
 
@@ -426,7 +426,7 @@ class TestHospitalityRequestFlow(FrappeTestCase):
         try:
             hr = self._new_hr(self.approved_vp.name)
             hr.insert()
-            apply_workflow(hr, "Submit for Approval")
+            apply_workflow(hr, "Submit")
         finally:
             frappe.set_user("Administrator")
         frappe.set_user(self.hospmgr_user)

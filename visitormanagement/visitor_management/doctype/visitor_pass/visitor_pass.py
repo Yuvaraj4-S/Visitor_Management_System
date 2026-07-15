@@ -16,21 +16,18 @@ from visitormanagement.visitor_management.validators import (
     validate_id,
 )
 
-PENDING_LANES_BY_VISITOR_TYPE = {
-    "Contractor": ("Pending System Manager",),
-    "Supplier": ("Pending System Manager",),
-    "Customer": ("Pending Sales Manager",),
-    "Candidate": ("Pending HR Manager",),
-    "VIP": ("Pending HOD", "Pending CEO"),
+# Approver role → the workflow pending lane it owns. Lanes are derived from each
+# Visitor Type's approver_role (and secondary_approver_role) so custom types work
+# without touching this map — it only translates a role name to its lane.
+ROLE_TO_PENDING_LANE = {
+    "System Manager": "Pending System Manager",
+    "Sales Manager": "Pending Sales Manager",
+    "HR Manager": "Pending HR Manager",
+    "HOD": "Pending HOD",
+    "CEO": "Pending CEO",
 }
 
-ALL_PENDING_LANES = {
-    "Pending System Manager",
-    "Pending Sales Manager",
-    "Pending HR Manager",
-    "Pending HOD",
-    "Pending CEO",
-}
+ALL_PENDING_LANES = set(ROLE_TO_PENDING_LANE.values())
 
 
 def _get_visitor_type_doc(visitor_type_name):
@@ -67,6 +64,12 @@ class VisitorPass(Document):
         return self.company__organisation
 
     def validate(self):
+        # Nationality is mandatory. It defaults to the configured home country so
+        # that any creation path (portal, API, automation, import) that doesn't
+        # supply it still saves, instead of failing mandatory validation.
+        if not self.custom_nationality:
+            self.custom_nationality = _get_home_country()
+
         normalize_visitor_pass(self)
         self._align_workflow_lane_with_visitor_type()
         self._validate_schedule()
@@ -211,6 +214,22 @@ class VisitorPass(Document):
             and (self.person_to_visit or "") == (invitation.host_employee or "")
         )
 
+    def _pending_lanes_for_type(self):
+        """The pending lane(s) a pass of this visitor type may occupy, derived
+        from the type's approver_role (+ secondary_approver_role). Data-driven,
+        so custom Visitor Types route correctly without a hardcoded map."""
+        visitor_type_doc = _get_visitor_type_doc(self.visitor_type)
+        if not visitor_type_doc:
+            return ()
+        lanes = []
+        primary = ROLE_TO_PENDING_LANE.get(getattr(visitor_type_doc, "approver_role", None))
+        if primary:
+            lanes.append(primary)
+        secondary = ROLE_TO_PENDING_LANE.get(getattr(visitor_type_doc, "secondary_approver_role", None))
+        if secondary and secondary not in lanes:
+            lanes.append(secondary)
+        return tuple(lanes)
+
     def _align_workflow_lane_with_visitor_type(self):
         if not self.visitor_type or not self.workflow_state:
             return
@@ -218,7 +237,7 @@ class VisitorPass(Document):
         if self.workflow_state not in ALL_PENDING_LANES:
             return
 
-        allowed_lanes = PENDING_LANES_BY_VISITOR_TYPE.get(self.visitor_type)
+        allowed_lanes = self._pending_lanes_for_type()
         if not allowed_lanes:
             return
 

@@ -422,8 +422,13 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 	# and the submit permission of whoever happens to be saving.
 	# Only fires while the HR is still in its default Draft lane so we never overwrite
 	# an intentional manual transition (Rejected, Cancelled, etc.) to a "live" state.
+	# Guard on `not is_new()`: a brand-new document must be created in the workflow's
+	# default (Draft) state — Frappe rejects a new doc that starts in a non-default
+	# workflow state (WorkflowPermissionError). A freshly-created request is advanced
+	# by the Submit action; only an already-saved request is auto-advanced here (e.g.
+	# when the parent Visitor Pass later becomes Approved).
 	current_wf = getattr(doc, "workflow_state", None) or "Draft"
-	if current_wf == "Draft":
+	if current_wf == "Draft" and not doc.is_new():
 		vp_status = getattr(visitor_pass, "status", None)
 		if vp_status in ("Approved", "Items Verified", "Checked-In", "Checked-Out"):
 			doc.workflow_state = "Pending Approval"

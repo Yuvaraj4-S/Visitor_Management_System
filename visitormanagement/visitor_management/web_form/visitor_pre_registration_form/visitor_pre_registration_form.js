@@ -20,14 +20,6 @@ const TYPE_SECTION_LABELS = {
 	Candidate: "Candidate Details",
 	VIP: "VIP Details",
 };
-const PENDING_APPROVAL_BY_TYPE = {
-	Contractor: "Pending System Manager",
-	Supplier: "Pending System Manager",
-	Customer: "Pending Sales Manager",
-	Candidate: "Pending HR Manager",
-	VIP: "Pending HOD",
-};
-
 let invitationContextState = {
 	loaded: false,
 	valid: false,
@@ -446,12 +438,12 @@ function getInvitationToken() {
 	return new URLSearchParams(window.location.search).get("token");
 }
 
-function getPortalSubmissionState(visitorType, submissionAction = "submit") {
-	if (submissionAction === "save") {
-		return "Draft";
-	}
-
-	return PENDING_APPROVAL_BY_TYPE[visitorType] || "Pending System Manager";
+function getPortalSubmissionState() {
+	// Portal submissions always land as Draft. The server is authoritative here
+	// (portal._get_portal_submission_state) and staff advance the pass into the
+	// approval workflow from the desk. The approval lane itself is derived from
+	// the Visitor Type's approver_role by the workflow — never hardcoded per type.
+	return "Draft";
 }
 
 function getBootInvitationContext() {

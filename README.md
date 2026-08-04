@@ -9,7 +9,7 @@
 
 Modern visitor lifecycle for offices, factories, and campuses — from pre-visit invitation, through QR-based gate check-in and identity verification, all the way to hospitality, conference rooms, contact tracing, and audit reports. Built on Frappe & ERPNext.
 
-ERPNext 15  ·  Frappe 15  ·  license MIT
+ERPNext 16  ·  Frappe 16  ·  license MIT
 
 ---
 
@@ -220,11 +220,11 @@ Seven query reports are pre-installed:
 
 ## Dependencies
 
-- Frappe v15
-- ERPNext v15
-- HRMS v15 (Employee doctype used for visitor host links)
-- Python 3.10+
-- MariaDB 10.6+ with InnoDB
+- Frappe v16
+- ERPNext v16
+- HRMS v16 (Employee doctype used for visitor host links)
+- Python 3.14+
+- MariaDB 11.8+ with InnoDB
 
 ---
 

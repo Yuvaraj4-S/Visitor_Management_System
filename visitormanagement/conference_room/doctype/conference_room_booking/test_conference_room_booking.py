@@ -1,7 +1,7 @@
 import json
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, today
 
 
@@ -23,7 +23,7 @@ _REQUIRED_ROOMS = (
 )
 
 
-class TestConferenceRoomBooking(FrappeTestCase):
+class TestConferenceRoomBooking(IntegrationTestCase):
 
     _ROOM_NAMES = tuple(spec["room_name"] for spec in _REQUIRED_ROOMS)
 

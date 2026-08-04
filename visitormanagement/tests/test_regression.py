@@ -8,7 +8,7 @@ Run a single class:
     bench --site vms.local run-tests --module visitormanagement.tests.test_regression \\
         --test TestVisitorPassValidation
 
-Each test class targets one concern and uses FrappeTestCase, which wraps every
+Each test class targets one concern and uses IntegrationTestCase, which wraps every
 test method in a transaction that rolls back on completion — so test data
 doesn't leak into the live DB.
 
@@ -25,7 +25,7 @@ from typing import Optional
 
 import frappe
 from frappe.model.workflow import apply_workflow
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, nowdate
 
 
@@ -133,7 +133,7 @@ class _SkipApproval(Exception):
 
 
 # ─── 1. Permission matrix — locks in the design intent for each role ─────
-class TestPermissionMatrix(FrappeTestCase):
+class TestPermissionMatrix(IntegrationTestCase):
     """Each role × doctype combination is the contract this app ships with.
     These checks are role-level (no doc filter)."""
 
@@ -209,7 +209,7 @@ class TestPermissionMatrix(FrappeTestCase):
 
 
 # ─── 2. Visitor Pass validations — bad input is rejected ─────────────────
-class TestVisitorPassValidation(FrappeTestCase):
+class TestVisitorPassValidation(IntegrationTestCase):
 
     def setUp(self):
         self.host = frappe.db.get_value("Employee", {"status": "Active"}, "name")
@@ -295,7 +295,7 @@ class TestVisitorPassValidation(FrappeTestCase):
 
 
 # ─── 3. Visitor Pass approval workflow per visitor type ──────────────────
-class TestVisitorPassWorkflow(FrappeTestCase):
+class TestVisitorPassWorkflow(IntegrationTestCase):
 
     def _run_chain(self, visitor_type: str, id_key: str):
         owner_user = _user_with_role("Employee")
@@ -363,7 +363,7 @@ class TestVisitorPassWorkflow(FrappeTestCase):
 
 
 # ─── 4. Hospitality Request flow + visitor-pass-approved gate ────────────
-class TestHospitalityRequestFlow(FrappeTestCase):
+class TestHospitalityRequestFlow(IntegrationTestCase):
 
     def setUp(self):
         self.employee_user = _user_with_role("Employee")
@@ -439,7 +439,7 @@ class TestHospitalityRequestFlow(FrappeTestCase):
 
 
 # ─── 5. Conference Room Booking gate ─────────────────────────────────────
-class TestConferenceRoomBookingFlow(FrappeTestCase):
+class TestConferenceRoomBookingFlow(IntegrationTestCase):
 
     def setUp(self):
         self.employee_user = _user_with_role("Employee")
@@ -519,7 +519,7 @@ class TestConferenceRoomBookingFlow(FrappeTestCase):
 
 
 # ─── 6. Search helper for the existing_visitor_pass dropdown ─────────────
-class TestSearchHelpers(FrappeTestCase):
+class TestSearchHelpers(IntegrationTestCase):
 
     def test_existing_visitor_pass_dropdown_returns_phone(self):
         from visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass import (
@@ -561,7 +561,7 @@ class TestSearchHelpers(FrappeTestCase):
 
 
 # ─── 7. Lifecycle helper robustness ──────────────────────────────────────
-class TestLifecycleHelpers(FrappeTestCase):
+class TestLifecycleHelpers(IntegrationTestCase):
     """Locks in the strong contract for `_combine_visit_datetime`:
     accepts every shape the system might pass it (time string, full datetime
     string, `datetime.time`, `timedelta`) and always returns a tz-naive
@@ -621,7 +621,7 @@ class TestLifecycleHelpers(FrappeTestCase):
 
 
 # ─── 8. Auto-creation: meal-flagged pass triggers a Hospitality Request ──
-class TestAutoCreation(FrappeTestCase):
+class TestAutoCreation(IntegrationTestCase):
 
     def test_meal_required_pass_creates_hospitality_request(self):
         owner = _user_with_role("Employee")
@@ -645,7 +645,7 @@ class TestAutoCreation(FrappeTestCase):
 
 
 # ─── 9. Workspace + key doctype loadability (smoke check) ────────────────
-class TestWorkspaceAndDoctypes(FrappeTestCase):
+class TestWorkspaceAndDoctypes(IntegrationTestCase):
     """Smoke: every doctype this app cares about loads its meta successfully.
     Catches workspace/JSON breakage that doesn't surface until a form view
     is rendered."""
@@ -689,7 +689,7 @@ class TestWorkspaceAndDoctypes(FrappeTestCase):
 
 
 # ─── 10. Removed features must stay removed ──────────────────────────────
-class TestRemovedFeatures(FrappeTestCase):
+class TestRemovedFeatures(IntegrationTestCase):
     """Health Screening was deliberately removed. These tests fail loudly if
     anyone re-adds the doctype, table, columns, or symbols. Same for the
     five orphan visit-type doctype folders."""

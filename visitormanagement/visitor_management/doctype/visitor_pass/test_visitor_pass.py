@@ -4,12 +4,12 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 
 from visitormanagement.visitor_management import lifecycle
 
 
-class TestVisitorPass(FrappeTestCase):
+class TestVisitorPass(IntegrationTestCase):
 	def test_populate_hospitality_request_from_pass_copies_special_diet(self):
 		visitor_pass = frappe._dict(
 			visit_date="2026-04-09",

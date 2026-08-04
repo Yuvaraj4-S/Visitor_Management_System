@@ -9,7 +9,7 @@
 #   #4/#5  the duplicate "VMS Host Alert" / "VMS Food Dept Alert" notifications
 #          stay disabled (the app code sends those emails once).
 #
-# FrappeTestCase wraps each test in a transaction that is rolled back, so the
+# IntegrationTestCase wraps each test in a transaction that is rolled back, so the
 # test Visitor Types / Passes created here never persist.
 
 import base64
@@ -17,7 +17,7 @@ import json
 
 import frappe
 from frappe.model.workflow import apply_workflow, get_transitions
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import nowdate
 
 from visitormanagement.tests.test_regression import (
@@ -41,7 +41,7 @@ def _active_host():
     return frappe.db.get_value("Employee", {"status": "Active"}, "name")
 
 
-class TestNationalityDefault(FrappeTestCase):
+class TestNationalityDefault(IntegrationTestCase):
     """#1 + #6 — custom_nationality is mandatory; it must default to the home
     country so any creation path saves instead of failing mandatory validation."""
 
@@ -107,7 +107,7 @@ class TestNationalityDefault(FrappeTestCase):
         self.assertIn("Laptop", vp.items_carried or "")
 
 
-class TestBadgeColourPalette(FrappeTestCase):
+class TestBadgeColourPalette(IntegrationTestCase):
     """#2 — a Visitor Type using one of the new colours must not crash the pass."""
 
     def test_pass_of_blue_badge_type_saves(self):
@@ -136,7 +136,7 @@ class TestBadgeColourPalette(FrappeTestCase):
         self.assertEqual(vp.badge_colour, "Blue")
 
 
-class TestCustomTypeApproval(FrappeTestCase):
+class TestCustomTypeApproval(IntegrationTestCase):
     """#3 — approval must route by the Visitor Type's approver_role so a custom
     type is submittable and approvable end-to-end."""
 
@@ -179,7 +179,7 @@ class TestCustomTypeApproval(FrappeTestCase):
         self.assertEqual(vp.docstatus, 1)
 
 
-class TestDuplicateNotificationsDisabled(FrappeTestCase):
+class TestDuplicateNotificationsDisabled(IntegrationTestCase):
     """#4 + #5 — the notifications that duplicate the app's code emails must stay
     disabled so the host / kitchen each get exactly one email."""
 

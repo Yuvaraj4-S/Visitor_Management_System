@@ -1,14 +1,14 @@
 # See license.txt
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 
 from visitormanagement.visitor_management.doctype.visitor_blacklist.visitor_blacklist import (
 	VisitorBlacklist,
 )
 
 
-class TestVisitorBlacklist(FrappeTestCase):
+class TestVisitorBlacklist(IntegrationTestCase):
 	"""Tests for Visitor Blacklist doctype validations and the find_active_match helper."""
 
 	def setUp(self):

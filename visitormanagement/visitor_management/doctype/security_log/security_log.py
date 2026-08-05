@@ -42,6 +42,26 @@ def mask_id_number(raw):
     return "".join(masked)
 
 
+_DEFAULT_GATE_BY_TYPE = {
+    'VIP': 'VIP Entrance',
+    'Supplier': 'Loading Dock',
+    'Contractor': 'Back Gate',
+    'Candidate': 'Main Gate',
+    'Customer': 'Main Gate',
+}
+
+
+def _get_default_gate(visitor_type_name):
+    if visitor_type_name:
+        try:
+            vt = frappe.get_cached_doc("Visitor Type", visitor_type_name)
+            if vt.default_gate:
+                return vt.default_gate
+        except frappe.DoesNotExistError:
+            pass
+    return _DEFAULT_GATE_BY_TYPE.get(visitor_type_name, 'Main Gate')
+
+
 def _get_employee_email(employee_name):
     if not employee_name:
         return None
@@ -160,14 +180,7 @@ class SecurityLog(Document):
 
         # 2. Auto-assign gate
         if vp and not self.gate_name:
-            gate_rules = {
-                'VIP': 'VIP Entrance',
-                'Supplier': 'Loading Dock',
-                'Contractor': 'Back Gate',
-                'Candidate': 'Main Gate',
-                'Customer': 'Main Gate',
-            }
-            self.gate_name = gate_rules.get(vp.visitor_type, 'Main Gate')
+            self.gate_name = _get_default_gate(vp.visitor_type)
             self.gate_auto_assigned = 1
 
         # 3. Auto-stamp datetime and validate status sequence

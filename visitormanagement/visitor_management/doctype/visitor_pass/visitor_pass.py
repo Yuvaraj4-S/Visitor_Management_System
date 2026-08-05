@@ -16,21 +16,39 @@ from visitormanagement.visitor_management.validators import (
     validate_id,
 )
 
-PENDING_LANES_BY_VISITOR_TYPE = {
-    "Contractor": ("Pending System Manager",),
-    "Supplier": ("Pending System Manager",),
-    "Customer": ("Pending Sales Manager",),
-    "Candidate": ("Pending HR Manager",),
-    "VIP": ("Pending HOD", "Pending CEO"),
+# Approver role → the workflow pending lane it owns. Lanes are derived from each
+# Visitor Type's approver_role (and secondary_approver_role) so custom types work
+# without touching this map — it only translates a role name to its lane.
+ROLE_TO_PENDING_LANE = {
+    "System Manager": "Pending System Manager",
+    "Sales Manager": "Pending Sales Manager",
+    "HR Manager": "Pending HR Manager",
+    "HOD": "Pending HOD",
+    "CEO": "Pending CEO",
 }
 
-ALL_PENDING_LANES = {
-    "Pending System Manager",
-    "Pending Sales Manager",
-    "Pending HR Manager",
-    "Pending HOD",
-    "Pending CEO",
-}
+ALL_PENDING_LANES = set(ROLE_TO_PENDING_LANE.values())
+
+
+def _get_visitor_type_doc(visitor_type_name):
+    """Fetch the linked Visitor Type master record (cached — this is a small,
+    frequently-read doc, so `get_cached_doc` avoids a DB round-trip on every
+    Visitor Pass save)."""
+    if not visitor_type_name:
+        return None
+    try:
+        return frappe.get_cached_doc("Visitor Type", visitor_type_name)
+    except frappe.DoesNotExistError:
+        return None
+
+
+def _get_home_country():
+    """Fetch the configured home country from VMS Settings (cached — this is a
+    small, frequently-read singleton, so `get_cached_doc` avoids a DB
+    round-trip on every Visitor Pass save)."""
+    settings = frappe.get_cached_doc("VMS Settings")
+    return getattr(settings, "home_country", None) or "India"
+
 
 class VisitorPass(Document):
 
@@ -46,6 +64,12 @@ class VisitorPass(Document):
         return self.company__organisation
 
     def validate(self):
+        # Nationality is mandatory. It defaults to the configured home country so
+        # that any creation path (portal, API, automation, import) that doesn't
+        # supply it still saves, instead of failing mandatory validation.
+        if not self.custom_nationality:
+            self.custom_nationality = _get_home_country()
+
         normalize_visitor_pass(self)
         self._align_workflow_lane_with_visitor_type()
         self._validate_schedule()
@@ -104,6 +128,13 @@ class VisitorPass(Document):
                 frappe.throw(
                     _(id_proof_error_message(self.id_proof_type)),
                     title=_("Invalid ID Proof"),
+                )
+
+        if self.id_proof_type and self.custom_nationality and self.custom_nationality != _get_home_country():
+            if self.id_proof_type != "Passport":
+                frappe.throw(
+                    _("Foreign national visitors must use Passport as the ID Proof Type."),
+                    title=_("Invalid ID Proof Type"),
                 )
 
     def _validate_host_active(self):
@@ -183,6 +214,22 @@ class VisitorPass(Document):
             and (self.person_to_visit or "") == (invitation.host_employee or "")
         )
 
+    def _pending_lanes_for_type(self):
+        """The pending lane(s) a pass of this visitor type may occupy, derived
+        from the type's approver_role (+ secondary_approver_role). Data-driven,
+        so custom Visitor Types route correctly without a hardcoded map."""
+        visitor_type_doc = _get_visitor_type_doc(self.visitor_type)
+        if not visitor_type_doc:
+            return ()
+        lanes = []
+        primary = ROLE_TO_PENDING_LANE.get(getattr(visitor_type_doc, "approver_role", None))
+        if primary:
+            lanes.append(primary)
+        secondary = ROLE_TO_PENDING_LANE.get(getattr(visitor_type_doc, "secondary_approver_role", None))
+        if secondary and secondary not in lanes:
+            lanes.append(secondary)
+        return tuple(lanes)
+
     def _align_workflow_lane_with_visitor_type(self):
         if not self.visitor_type or not self.workflow_state:
             return
@@ -190,7 +237,7 @@ class VisitorPass(Document):
         if self.workflow_state not in ALL_PENDING_LANES:
             return
 
-        allowed_lanes = PENDING_LANES_BY_VISITOR_TYPE.get(self.visitor_type)
+        allowed_lanes = self._pending_lanes_for_type()
         if not allowed_lanes:
             return
 
@@ -212,11 +259,10 @@ class VisitorPass(Document):
                 "Employee", self.person_to_visit, "department"
             )
 
-        # Auto-set badge colour from VMS Settings (or defaults)
+        # Auto-set badge colour from the linked Visitor Type (or defaults)
         if self.visitor_type:
-            settings = frappe.get_cached_doc("VMS Settings")
-            colour_field = f"badge_colour_{self.visitor_type.lower()}"
-            colour = getattr(settings, colour_field, None)
+            visitor_type_doc = _get_visitor_type_doc(self.visitor_type)
+            colour = getattr(visitor_type_doc, "badge_colour", None)
             if not colour:
                 colour = {"Contractor": "Orange", "Candidate": "Purple", "Customer": "Green",
                            "Supplier": "Teal", "VIP": "Gold"}.get(self.visitor_type, "Orange")
@@ -285,6 +331,12 @@ class VisitorPass(Document):
         if not self.mobile_number:
             return
         raw = str(self.mobile_number).strip()
+
+        if self.custom_nationality and self.custom_nationality != _get_home_country():
+            # Foreign national — the number already carries its own country's
+            # ISD prefix from the Phone widget; don't force Indian formatting.
+            return
+
         digits = "".join(c for c in raw if c.isdigit())
         if not digits:
             return
@@ -423,6 +475,15 @@ class VisitorPass(Document):
                     title=_("VIP Notification Required"),
                 )
 
+        # 4️⃣ Foreign National Document Check
+        home_country = _get_home_country()
+        if self.custom_nationality and self.custom_nationality != home_country:
+            if not self.custom_visa_copy:
+                frappe.throw(
+                    _("Visa Copy is required for foreign national visitors."),
+                    title=_("Missing Travel Documents"),
+                )
+
     # ─────────────────────────────────────────────────────────
     # ON SUBMIT
     # ─────────────────────────────────────────────────────────
@@ -470,9 +531,9 @@ class VisitorPass(Document):
         if badge_types and self.visitor_type not in badge_types:
             return
 
-        # Get prefix from settings or use defaults
-        prefix_field = f"badge_prefix_{self.visitor_type.lower()}"
-        p = getattr(settings, prefix_field, None) or {
+        # Get prefix from the linked Visitor Type or use defaults
+        visitor_type_doc = _get_visitor_type_doc(self.visitor_type)
+        p = getattr(visitor_type_doc, "badge_prefix", None) or {
             "Contractor": "CON",
             "Candidate": "CAN",
             "Customer": "CUS",

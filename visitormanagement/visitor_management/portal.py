@@ -37,14 +37,6 @@ from visitormanagement.visitor_management.validators import (
 	validate_id,
 )
 
-PENDING_APPROVAL_BY_TYPE = {
-	"Contractor": "Pending System Manager",
-	"Supplier": "Pending System Manager",
-	"Candidate": "Pending HR Manager",
-	"Customer": "Pending Sales Manager",
-	"VIP": "Pending HOD",
-}
-
 
 def _extract_file_payload(payload, fallback_filename=None):
 	if not payload:
@@ -299,6 +291,11 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"interpreter_language": data.get("interpreter_language"),
 		"protocol_notes": data.get("protocol_notes"),
 		"vehicle_number": data.get("vehicle_number"),
+		# Pass nationality / visa through if the form supplies them (foreign
+		# nationals). When absent, the Visitor Pass controller defaults nationality
+		# to the home country, so the mandatory field never blocks the submission.
+		"custom_nationality": data.get("custom_nationality"),
+		"custom_visa_copy": data.get("custom_visa_copy"),
 		"id_proof_type": _normalize_id_proof_type(data.get("id_proof_type")),
 		"id_proof_number": data.get("id_proof_number"),
 		"id_proof_scan": id_proof_url,

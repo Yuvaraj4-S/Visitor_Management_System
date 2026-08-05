@@ -1,206 +1,141 @@
-<div class="badge-container">
-    {% set badge_photo = doc.gate_verified_photo or doc.visitor_photo %}
-    <div class="badge-header">
-        <div class="photo-container">
+{%- set colours = {
+    "Orange": "#ea580c", "Purple": "#7c3aed", "Green": "#059669", "Teal": "#0891b2",
+    "Gold": "#ca8a04", "Blue": "#2563eb", "Red": "#dc2626", "Grey": "#64748b"
+} -%}
+{%- set accent = colours.get(doc.badge_colour, "#334155") -%}
+{%- set host_name = frappe.db.get_value("Employee", doc.person_to_visit, "employee_name") or doc.person_to_visit -%}
+{%- set company = frappe.db.get_single_value("Global Defaults", "default_company") or "Visitor Management" -%}
+{%- set badge_photo = doc.gate_verified_photo or doc.visitor_photo -%}
+
+<div class="vb-card" style="--accent: {{ accent }};">
+    <div class="vb-accent"></div>
+
+    <div class="vb-header">
+        <div class="vb-photo">
             {% if badge_photo %}
-            <img src="{{ badge_photo }}" class="visitor-photo">
+                <img src="{{ badge_photo }}" alt="visitor photo">
             {% else %}
-            <div class="photo-placeholder"></div>
+                <div class="vb-photo-empty"></div>
             {% endif %}
         </div>
-        <div class="header-right">
-            <div class="visitor-label">VISITOR</div>
+        <div class="vb-header-right">
+            <div class="vb-label">VISITOR</div>
+            <div class="vb-type-chip">{{ doc.visitor_type or "Guest" }}</div>
             {% if doc.gate_verified_photo %}
-            <div class="verification-chip">Gate Verified Photo</div>
+                <div class="vb-verified">&#10003; Gate Verified</div>
             {% endif %}
-            <div class="company-logo">
-                <img src="/assets/visitormanagement/images/logo.png" onerror="this.style.display='none'">
-                <span class="company-name">Visitor Management</span>
-            </div>
-            <div class="location-name">Main Office</div>
         </div>
     </div>
 
-    <div class="badge-body">
-        <div class="visitor-info">
-            <h1 class="visitor-name">{{ doc.visitor_full_name }}</h1>
-            <div class="info-row">
-                <span class="info-label">From:</span>
-                <span class="info-value">{{ doc.company__organisation or 'N/A' }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Visiting:</span>
-                <span class="info-value">{{ doc.person_to_visit }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Purpose:</span>
-                <span class="info-value">{{ doc.purpose_of_visit }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Date:</span>
-                <span class="info-value">{{ doc.get_formatted("visit_date") }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Validity:</span>
-                <span class="info-value">{{ doc.expected_checkout or 'End of Day' }}</span>
-            </div>
+    <div class="vb-body">
+        <div class="vb-info">
+            <h1 class="vb-name">{{ doc.visitor_full_name }}</h1>
+            <div class="vb-row"><span class="vb-k">From</span><span class="vb-v">{{ doc.company__organisation or "&mdash;" }}</span></div>
+            <div class="vb-row"><span class="vb-k">Host</span><span class="vb-v">{{ host_name or "&mdash;" }}</span></div>
+            <div class="vb-row"><span class="vb-k">Purpose</span><span class="vb-v">{{ doc.purpose_of_visit or "&mdash;" }}</span></div>
+            <div class="vb-row"><span class="vb-k">Date</span><span class="vb-v">{{ doc.get_formatted("visit_date") }}</span></div>
+            <div class="vb-row"><span class="vb-k">Valid&nbsp;till</span><span class="vb-v">{{ doc.get_formatted("expected_checkout") or "End of Day" }}</span></div>
         </div>
 
-        <div class="badge-qr">
+        {% if doc.badge_number %}
+        <div class="vb-badge">
             {% if doc.qr_code_image %}
-            <img src="{{ doc.qr_code_image }}" class="qr-image">
+                <img src="{{ doc.qr_code_image }}" class="vb-qr" alt="QR">
             {% endif %}
-            <div class="badge-id">{{ doc.badge_number }}</div>
+            <div class="vb-id">{{ doc.badge_number }}</div>
         </div>
+        {% endif %}
     </div>
+
+    <div class="vb-footer">{{ company }}</div>
 </div>
 
 <style>
-    .badge-container {
-        width: 450px;
-        height: 280px;
-        background: #f0f0f0;
-        border-radius: 12px;
-        padding: 20px;
-        font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
-        color: #333;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        display: flex;
-        flex-direction: column;
-        border: 1px solid #ddd;
+    .vb-card {
+        width: 460px;
+        min-height: 290px;
+        box-sizing: border-box;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 18px 20px 14px;
+        font-family: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        color: #0f172a;
         position: relative;
         overflow: hidden;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
     }
-
-    .badge-header {
+    .vb-accent {
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 8px;
+        background: var(--accent);
+    }
+    .vb-header {
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
-        margin-bottom: 15px;
+        margin-top: 6px;
+        margin-bottom: 14px;
     }
-
-    .photo-container {
-        width: 100px;
-        height: 100px;
-        border-radius: 50%;
+    .vb-photo {
+        width: 92px; height: 92px;
+        border-radius: 12px;
         overflow: hidden;
-        border: 3px solid #fff;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        border: 3px solid var(--accent);
+        flex-shrink: 0;
     }
-
-    .visitor-photo {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
+    .vb-photo img { width: 100%; height: 100%; object-fit: cover; }
+    .vb-photo-empty { width: 100%; height: 100%; background: #f1f5f9; }
+    .vb-header-right { text-align: right; }
+    .vb-label {
+        font-size: 22px; font-weight: 800; letter-spacing: 3px;
+        color: #0f172a; line-height: 1;
     }
-
-    .photo-placeholder {
-        width: 100%;
-        height: 100%;
-        background: #ccc;
+    .vb-type-chip {
+        display: inline-block; margin-top: 8px;
+        padding: 3px 12px; border-radius: 999px;
+        background: color-mix(in srgb, var(--accent) 14%, transparent);
+        color: var(--accent);
+        font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
     }
-
-    .header-right {
-        text-align: right;
+    .vb-verified {
+        display: inline-block; margin-top: 6px;
+        padding: 3px 9px; border-radius: 999px;
+        background: #ecfdf5; color: #059669;
+        font-size: 11px; font-weight: 700;
     }
-
-    .visitor-label {
-        font-size: 24px;
-        font-weight: 900;
-        text-transform: uppercase;
-        color: #000;
-        letter-spacing: 2px;
-        margin-bottom: 5px;
-    }
-
-    .company-logo {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        margin-bottom: 5px;
-    }
-
-    .verification-chip {
-        display: inline-block;
-        margin-bottom: 6px;
-        padding: 3px 8px;
-        border-radius: 999px;
-        background: #d9f3e4;
-        color: #0d6b3e;
-        font-size: 11px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    .company-name {
-        font-size: 16px;
-        font-weight: 600;
-        color: #444;
-    }
-
-    .location-name {
-        font-size: 18px;
-        font-weight: 700;
-        color: #000;
-        background: #fff;
-        padding: 2px 8px;
-        border-radius: 4px;
-        display: inline-block;
-    }
-
-    .badge-body {
+    .vb-body {
         display: flex;
         justify-content: space-between;
         align-items: flex-end;
-        flex-grow: 1;
+        gap: 14px;
     }
-
-    .visitor-info {
-        max-width: 60%;
+    .vb-info { flex: 1; min-width: 0; }
+    .vb-name {
+        font-size: 22px; font-weight: 800; margin: 0 0 8px;
+        color: #0f172a; line-height: 1.15;
     }
-
-    .visitor-name {
-        font-size: 24px;
-        font-weight: 800;
-        margin: 0 0 10px 0;
-        color: #000;
-        line-height: 1.1;
+    .vb-row {
+        display: flex; gap: 8px; font-size: 12.5px; line-height: 1.7;
     }
-
-    .info-row {
-        margin-bottom: 3px;
-        font-size: 13px;
+    .vb-k { color: #64748b; min-width: 62px; }
+    .vb-v { font-weight: 600; color: #0f172a; }
+    .vb-badge { text-align: center; flex-shrink: 0; }
+    .vb-qr {
+        width: 84px; height: 84px;
+        background: #fff; padding: 4px;
+        border: 1px solid #e2e8f0; border-radius: 8px;
     }
-
-    .info-label {
-        color: #666;
-        margin-right: 5px;
+    .vb-id {
+        margin-top: 5px; font-size: 12px; font-weight: 700;
+        font-family: 'SF Mono', Menlo, Consolas, monospace;
+        color: var(--accent);
     }
-
-    .info-value {
-        font-weight: 700;
-        color: #000;
-    }
-
-    .badge-qr {
-        text-align: center;
-    }
-
-    .qr-image {
-        width: 80px;
-        height: 80px;
-        background: #fff;
-        padding: 5px;
-        border-radius: 4px;
-        border: 1px solid #ddd;
-    }
-
-    .badge-id {
-        font-size: 12px;
-        font-weight: 600;
-        margin-top: 5px;
-        color: #444;
-        font-family: monospace;
+    .vb-footer {
+        margin-top: 12px; padding-top: 10px;
+        border-top: 1px solid #f1f5f9;
+        font-size: 11px; font-weight: 600; letter-spacing: 0.4px;
+        color: #94a3b8; text-transform: uppercase;
     }
 </style>

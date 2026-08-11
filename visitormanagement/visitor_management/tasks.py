@@ -1,22 +1,18 @@
 import frappe
 from frappe.utils import add_to_date, get_datetime, getdate, now_datetime, nowdate
 
+from visitormanagement.visitor_management import settings as vms_settings
 
-DIGEST_RECIPIENTS_BY_ROLE = [
-	"Hospitality Manager",
-	"Hospitality User",
-	"Transport Coordinator",
-	"Front Office Executive",
-	"Factory Tour Coordinator",
-	"Greeting Staff",
-]
+
+# Recipient roles are configured in VMS Settings; see
+# visitor_management.settings.digest_recipient_roles for the fallback list.
 
 
 def _get_recipients():
 	users = frappe.get_all(
 		"Has Role",
 		filters={
-			"role": ("in", DIGEST_RECIPIENTS_BY_ROLE),
+			"role": ("in", vms_settings.digest_recipient_roles()),
 			"parenttype": "User",
 		},
 		fields=["parent"],
@@ -139,6 +135,7 @@ def send_daily_hospitality_digest():
 # checked-in past their expected_checkout + grace window. Marks no_show=1 and
 # logs a Visitor Event so admins can audit. Idempotent: passes already flagged
 # are skipped.
+# Fallback only — the live value comes from VMS Settings.
 NO_SHOW_GRACE_HOURS = 4
 
 
@@ -151,6 +148,7 @@ def flag_no_show_passes():
 	  - no_show is currently 0
 	"""
 	now = now_datetime()
+	grace_hours = vms_settings.no_show_grace_hours()
 	candidates = frappe.get_all(
 		"Visitor Pass",
 		filters={
@@ -177,26 +175,35 @@ def flag_no_show_passes():
 		except Exception:
 			continue
 
-		deadline = add_to_date(deadline, hours=NO_SHOW_GRACE_HOURS)
+		deadline = add_to_date(deadline, hours=grace_hours)
 		if now < deadline:
 			continue
 
+		from visitormanagement.visitor_management.lifecycle import log_visitor_event
+
+		# The audit record is written *before* the flag, so the two cannot
+		# disagree. Previously the flag was applied first and the log wrapped in a
+		# bare try/except: `source_doctype` named "Scheduled Task", which is not a
+		# DocType, so the Dynamic Link raised, the exception was swallowed, and
+		# every pass got flagged with no trace of what did it. Writing the trail
+		# first means a failure here leaves the pass unflagged rather than
+		# flagged-and-unexplained.
+		log_visitor_event(
+			cand.name,
+			"No Show",
+			event_status="Auto-flagged",
+			source_doctype="Scheduled Job Type",
+			source_name=frappe.db.get_value(
+				"Scheduled Job Type",
+				{"method": ["like", "%flag_no_show_passes%"]},
+				"name",
+			),
+			details={"deadline": str(deadline), "grace_hours": grace_hours},
+		)
 		frappe.db.set_value(
 			"Visitor Pass",
 			cand.name,
 			{"no_show": 1, "current_location": "No Show"},
 			update_modified=False,
 		)
-		try:
-			from visitormanagement.visitor_management.lifecycle import log_visitor_event
-			log_visitor_event(
-				cand.name,
-				"No Show",
-				event_status="Auto-flagged",
-				source_doctype="Scheduled Task",
-				source_name="flag_no_show_passes",
-				details={"deadline": str(deadline), "grace_hours": NO_SHOW_GRACE_HOURS},
-			)
-		except Exception:
-			frappe.log_error(frappe.get_traceback(), "flag_no_show_passes log_visitor_event")
 		flagged += 1

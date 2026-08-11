@@ -6,6 +6,7 @@ from frappe.utils import get_datetime, getdate, now_datetime, time_diff_in_secon
 
 import re
 
+from visitormanagement.visitor_management import settings as vms_settings
 from visitormanagement.visitor_management.lifecycle import (
     log_visitor_event,
     sync_contact_trace,
@@ -42,16 +43,13 @@ def mask_id_number(raw):
     return "".join(masked)
 
 
-_DEFAULT_GATE_BY_TYPE = {
-    'VIP': 'VIP Entrance',
-    'Supplier': 'Loading Dock',
-    'Contractor': 'Back Gate',
-    'Candidate': 'Main Gate',
-    'Customer': 'Main Gate',
-}
-
-
 def _get_default_gate(visitor_type_name):
+    """The gate a visitor of this type is routed to.
+
+    Comes from the Visitor Type master. When a type has no gate configured we
+    fall back to the first active Visitor Gate rather than a hardcoded name, so
+    a site that renames or replaces its gates keeps working.
+    """
     if visitor_type_name:
         try:
             vt = frappe.get_cached_doc("Visitor Type", visitor_type_name)
@@ -59,7 +57,11 @@ def _get_default_gate(visitor_type_name):
                 return vt.default_gate
         except frappe.DoesNotExistError:
             pass
-    return _DEFAULT_GATE_BY_TYPE.get(visitor_type_name, 'Main Gate')
+
+    fallback = frappe.get_all(
+        "Visitor Gate", filters={"is_active": 1}, pluck="name", order_by="creation asc", limit=1
+    )
+    return fallback[0] if fallback else None
 
 
 def _get_employee_email(employee_name):
@@ -145,23 +147,41 @@ class SecurityLog(Document):
                 id_proof_number=vp.id_proof_number,
                 visitor_name=vp.visitor_full_name,
                 id_proof_type=vp.id_proof_type,
+                mobile_number=vp.mobile_number,
             )
             if blacklist_name:
                 bl = frappe.get_doc('Visitor Blacklist', blacklist_name)
-                frappe.throw(
-                    msg=(
-                        f"Visitor: {vp.visitor_full_name}\n"
-                        f"Reason: {bl.reason or 'Not specified'}\n"
-                        f"Blocked by: {bl.blocked_by or 'System'}\n\n"
-                        f"ID matches an active blacklist entry. Refuse entry and notify supervisor."
-                    ),
-                    title='Access Denied at Gate — Blacklisted Visitor',
+                detail = (
+                    f"Visitor: {vp.visitor_full_name}\n"
+                    f"Reason: {bl.reason or 'Not specified'}\n"
+                    f"Blocked by: {bl.blocked_by or 'System'}\n\n"
+                    f"ID matches an active blacklist entry."
                 )
+                # VMS Settings decides whether a match stops entry, merely warns,
+                # or is only recorded. This setting used to be ignored — the gate
+                # always blocked regardless of what the admin chose.
+                action = vms_settings.blacklist_action()
+                if action == 'Block Entry':
+                    frappe.throw(
+                        msg=detail + "\nRefuse entry and notify supervisor.",
+                        title='Access Denied at Gate — Blacklisted Visitor',
+                    )
+                elif action == 'Alert Only':
+                    frappe.msgprint(
+                        msg=detail + "\nEntry is allowed but flagged — notify supervisor.",
+                        title='Blacklist Warning',
+                        indicator='orange',
+                    )
+                frappe.log_error(detail, f'VMS Blacklist match at gate: {vp.name}')
 
         # 1. Auto-fetch visitor info and ID details
         if vp:
-            # VIP badges are issued only during the gate check-in flow.
-            if not vp.badge_number and self.event_type == 'Check-In' and vp.visitor_type == 'VIP':
+            # Some Visitor Types mint the badge at the gate rather than on approval.
+            if (
+                not vp.badge_number
+                and self.event_type == 'Check-In'
+                and frappe.db.get_value('Visitor Type', vp.visitor_type, 'issue_badge_at_gate')
+            ):
                 vp.generate_badge_number()
                 vp.reload()
             
@@ -256,31 +276,27 @@ class SecurityLog(Document):
             if emp:
                 self.security_officer = emp
 
-        if self.event_type == 'Check-In':
-            if not self.qr_code_scanned:
-                frappe.throw("Scan the visitor's QR code before saving the check-in.")
+        # Gate verification requirements are configurable — VMS Settings decides
+        # which of these the officer must complete. Previously all four were
+        # unconditional and the three matching settings were ignored entirely.
+        if self.event_type in ('Check-In', 'Check-Out'):
+            movement = 'check-in' if self.event_type == 'Check-In' else 'check-out'
 
-            if not self.photo_at_gate:
-                frappe.throw("Capture a live gate photo before saving the visitor check-in.")
+            if vms_settings.flag('qr_scan_required_at_gate') and not self.qr_code_scanned:
+                frappe.throw(f"Scan the visitor's QR code before saving the {movement}.")
 
-            if not self.id_proof_match:
-                frappe.throw("Confirm that the visitor matches the ID proof before saving the visitor check-in.")
+            if vms_settings.flag('require_visitor_photo') and not self.photo_at_gate:
+                frappe.throw(f"Capture a live gate photo before saving the visitor {movement}.")
 
-            if not self.pass_photo_match:
-                frappe.throw("Confirm that the visitor matches the pass creation photo before saving the visitor check-in.")
-
-        if self.event_type == 'Check-Out':
-            if not self.qr_code_scanned:
-                frappe.throw("Scan the visitor's QR code before saving the check-out.")
-
-            if not self.photo_at_gate:
-                frappe.throw("Capture a live gate photo before saving the visitor check-out.")
-
-            if not self.id_proof_match:
-                frappe.throw("Confirm that the visitor matches the ID proof before saving the visitor check-out.")
-
-            if not self.pass_photo_match:
-                frappe.throw("Confirm that the visitor matches the pass creation photo before saving the visitor check-out.")
+            if vms_settings.flag('block_check_in_without_verification'):
+                if not self.id_proof_match:
+                    frappe.throw(
+                        f"Confirm that the visitor matches the ID proof before saving the visitor {movement}."
+                    )
+                if not self.pass_photo_match:
+                    frappe.throw(
+                        f"Confirm that the visitor matches the pass creation photo before saving the visitor {movement}."
+                    )
 
         if self.event_type == 'Gate Transfer' and not self.visited_area:
             frappe.throw("Visited Area is required for gate transfer tracking.")
@@ -381,7 +397,8 @@ class SecurityLog(Document):
             values['gate_verified_by'] = self.security_officer
 
         visitor_type = frappe.db.get_value('Visitor Pass', self.visitor_pass, 'visitor_type')
-        if visitor_type == 'VIP':
+        if visitor_type and frappe.db.get_value('Visitor Type', visitor_type, 'issue_badge_at_gate'):
+            # Types photographed at the gate have no pre-approval photo to keep.
             values['visitor_photo'] = self.photo_at_gate
 
         frappe.db.set_value('Visitor Pass', self.visitor_pass, values)
@@ -480,10 +497,18 @@ def get_approved_vip_queue(visit_date=None):
 	# get_list (not get_all) applies the Visitor Pass row-level permission model,
 	# so only users entitled to VIP passes (HOD/CEO, or Security for approved/
 	# checked-in passes) receive this roster — not every authenticated user.
+	# "VIP" here means any Visitor Type configured with the VIP layout — not a
+	# type literally named VIP — so a site's own executive type shows up too.
+	vip_types = frappe.get_all(
+		"Visitor Type", filters={"detail_layout": "VIP", "is_active": 1}, pluck="name"
+	)
+	if not vip_types:
+		return []
+
 	return frappe.get_list(
 		"Visitor Pass",
 		filters={
-			"visitor_type": "VIP",
+			"visitor_type": ["in", vip_types],
 			"visit_date": target_date,
 			"status": ["in", ["Approved", "Items Verified", "Checked-In"]],
 		},

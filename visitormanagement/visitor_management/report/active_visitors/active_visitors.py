@@ -3,13 +3,17 @@
 import frappe
 
 
-TYPE_INDICATOR = {
-    "Contractor": "orange",
-    "Candidate": "purple",
-    "Customer": "green",
-    "Supplier": "blue",
-    "VIP": "red",
+# Indicator colours come from Visitor Type.badge_colour so a custom type is
+# coloured by its own configuration instead of falling back to grey.
+_SWATCH_TO_INDICATOR = {
+    "Orange": "orange", "Purple": "purple", "Green": "green", "Teal": "blue",
+    "Gold": "yellow", "Blue": "blue", "Red": "red", "Grey": "grey",
 }
+
+
+def _type_colours():
+    rows = frappe.get_all("Visitor Type", fields=["name", "badge_colour"])
+    return {r.name: _SWATCH_TO_INDICATOR.get(r.badge_colour, "grey") for r in rows}
 
 
 def execute(filters=None):
@@ -54,6 +58,10 @@ def get_data(filters):
     if filters.get("host"):
         conditions.append("vp.person_to_visit = %(host)s")
         values["host"] = filters["host"]
+
+    scope = _visitor_pass_scope("vp")
+    if scope:
+        conditions.append(scope)
 
     where = " AND ".join(conditions)
 
@@ -104,12 +112,17 @@ def get_summary(data):
     for row in data:
         by_type[row.visitor_type] = by_type.get(row.visitor_type, 0) + 1
 
-    vip_count = by_type.get("VIP", 0)
+    # "VIP" is whichever Visitor Types use the VIP layout, not a type literally
+    # named VIP — so a site's own executive type is counted here too.
+    vip_types = set(
+        frappe.get_all("Visitor Type", filters={"detail_layout": "VIP"}, pluck="name")
+    )
+    vip_count = sum(count for vt, count in by_type.items() if vt in vip_types)
     pending_items = sum(1 for r in data if r.item_verification_status in ("Pending", "Partial"))
 
     return [
         {"value": total, "label": "Currently Inside", "indicator": "Green"},
-        {"value": vip_count, "label": "VIP", "indicator": "Red"},
+        {"value": vip_count, "label": "VIP / Executive", "indicator": "Red"},
         {"value": pending_items, "label": "Items Pending", "indicator": "Orange"},
     ]
 
@@ -127,3 +140,24 @@ def get_chart(data):
             "datasets": [{"name": "Visitors", "values": list(by_type.values())}],
         },
     }
+
+
+def _visitor_pass_scope(alias="vp"):
+	"""The caller's Visitor Pass row scope, as a SQL fragment for `alias`.
+
+	Script reports build their rows with raw SQL, which bypasses
+	`permission_query_conditions` entirely — so the row filter the list view
+	applies has to be re-applied here by hand. Without it the report is a way to
+	read every visitor's ID proof regardless of who you are; the roles on the
+	report are the only thing standing in the way, and those are one JSON edit
+	from changing.
+
+	The shared helper writes conditions against the real table name, so they are
+	rewritten to whatever this report aliased it to.
+	"""
+	from visitormanagement.permissions import get_visitor_pass_permission_query_conditions
+
+	condition = get_visitor_pass_permission_query_conditions()
+	if not condition:
+		return None
+	return condition.replace("`tabVisitor Pass`", f"`{alias}`")

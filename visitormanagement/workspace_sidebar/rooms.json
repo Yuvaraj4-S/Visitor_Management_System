@@ -1,0 +1,76 @@
+{
+ "app": "visitormanagement",
+ "doctype": "Workspace Sidebar",
+ "for_user": "",
+ "header_icon": "calendar",
+ "idx": 0,
+ "name": "Rooms",
+ "standard": 1,
+ "items": [
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "home",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Home",
+   "link_to": "Conference Rooms",
+   "link_type": "Workspace",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "grid",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Conference Room",
+   "link_to": "Conference Room",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "calendar",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Conference Room Booking",
+   "link_to": "Conference Room Booking",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "reports",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Daily Booking Schedule",
+   "link_to": "Daily Booking Schedule",
+   "link_type": "Report",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "reports",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Room Utilization",
+   "link_to": "Room Utilization",
+   "link_type": "Report",
+   "show_arrow": 0,
+   "type": "Link"
+  }
+ ],
+ "creation": "2026-08-05 15:00:00.000000",
+ "modified": "2026-08-05 18:00:00.000000",
+ "modified_by": "Administrator",
+ "owner": "Administrator",
+ "docstatus": 0
+}

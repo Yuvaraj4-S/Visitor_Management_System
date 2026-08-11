@@ -8,9 +8,11 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import add_days, get_datetime, get_time, get_url, now_datetime, getdate, today, date_diff
 
+from visitormanagement.visitor_management import settings as vms_settings
 from visitormanagement.visitor_management.lifecycle import derive_hospitality_meal_plan
 
 
+# Fallback only — the live value comes from VMS Settings.
 INVITATION_EXPIRY_DAYS = 7
 
 
@@ -127,23 +129,23 @@ def get_web_form_context(token):
 				"visitor_full_name": existing_pass.visitor_full_name,
 				"mobile_number": existing_pass.mobile_number,
 				"company__organisation": existing_pass.company__organisation,
-				"supplier_link": existing_pass.supplier_link,
+				# NOTE: only fields the portal form actually shows are echoed
+				# back. This response goes to whoever holds the invitation token,
+				# so internal values staff added to the draft pass —
+				# supplier_link / contractor_link / job_applicant_link,
+				# work_order_ref, products_discussed, meeting_outcome,
+				# followup_date, mdceo_notified — are deliberately left out.
+				# They are staff notes and internal record IDs; the visitor has
+				# no reason to see them and no way to have entered them.
 				"supplier_visit_mode": existing_pass.supplier_visit_mode,
 				"visit_category": existing_pass.visit_category,
-				"products_discussed": existing_pass.products_discussed,
-				"meeting_outcome": existing_pass.meeting_outcome,
-				"followup_date": str(existing_pass.followup_date) if existing_pass.followup_date else "",
-				"contractor_link": existing_pass.contractor_link,
-				"work_order_ref": existing_pass.work_order_ref,
 				"tools_list": existing_pass.tools_list,
 				"multi_day_pass": existing_pass.multi_day_pass,
 				"pass_valid_until": str(existing_pass.pass_valid_until) if existing_pass.pass_valid_until else "",
-				"job_applicant_link": existing_pass.job_applicant_link,
 				"position_applied": existing_pass.position_applied,
 				"candidate_interview_type": existing_pass.candidate_interview_type,
 				"interview_panel": existing_pass.interview_panel,
 				"vip_category": existing_pass.vip_category,
-				"mdceo_notified": existing_pass.mdceo_notified,
 				"interpreter_required": existing_pass.interpreter_required,
 				"interpreter_language": existing_pass.interpreter_language,
 				"protocol_notes": existing_pass.protocol_notes,
@@ -200,6 +202,7 @@ class VisitorInvitation(Document):
 		if not self.invitation_status:
 			self.invitation_status = "Draft"
 
+		self._validate_visitor_type()
 		self._validate_visit_date()
 		self._validate_email()
 		self._validate_time_range()
@@ -215,6 +218,17 @@ class VisitorInvitation(Document):
 
 		self._apply_hospitality_defaults()
 
+	def _validate_visitor_type(self):
+		"""Reject a Visitor Type that has been deactivated. `is_active` was
+		previously never enforced anywhere, so retired types stayed selectable."""
+		if not self.visitor_type:
+			return
+		if not frappe.db.get_value("Visitor Type", self.visitor_type, "is_active"):
+			frappe.throw(
+				_("Visitor Type {0} is not active.").format(self.visitor_type),
+				title=_("Inactive Visitor Type"),
+			)
+
 	def _validate_visit_date(self):
 		if not self.visit_date:
 			return
@@ -225,9 +239,10 @@ class VisitorInvitation(Document):
 				_("Visit date {0} is in the past. Cannot send an invitation for a past date.").format(self.visit_date),
 				title=_("Invalid Visit Date"),
 			)
-		if date_diff(visit_date, today_date) > 90:
+		max_days = vms_settings.max_advance_booking_days()
+		if max_days and date_diff(visit_date, today_date) > max_days:
 			frappe.throw(
-				_("Visit date cannot be more than 90 days in the future."),
+				_("Visit date cannot be more than {0} days in the future.").format(max_days),
 				title=_("Invalid Visit Date"),
 			)
 
@@ -276,7 +291,7 @@ class VisitorInvitation(Document):
 		token = secrets.token_urlsafe(24)
 		sent_on = now_datetime()
 		expires_on = _coerce_datetime(self.invitation_expires_on) or add_days(
-			sent_on, INVITATION_EXPIRY_DAYS
+			sent_on, vms_settings.invitation_expiry_days()
 		)
 
 		if expires_on < sent_on:
@@ -287,10 +302,8 @@ class VisitorInvitation(Document):
 		self.db_set(
 			{
 				"invitation_token": token,
-				"invitation_sent_on": sent_on,
 				"invitation_expires_on": expires_on,
 				"portal_submission_url": link,
-				"invitation_status": "Sent",
 			}
 		)
 
@@ -310,10 +323,32 @@ class VisitorInvitation(Document):
 			"",
 			f"This invitation expires on {expires_on}.",
 		]
-		frappe.sendmail(
-			recipients=[self.visitor_email],
-			subject="Visitor Pre-Registration Invitation",
-			message="<br>".join(message),
-			now=True,
-		)
-		return link
+		# `now=True` raises on a site with no outgoing Email Account, and that
+		# rollback would take the token and the Sent status with it — leaving the
+		# host with no link at all. Mint the link regardless and report delivery
+		# separately, so it can still be copied and shared by hand.
+		delivered, error = self._deliver_invitation_mail(message)
+		if delivered:
+			self.db_set({"invitation_sent_on": sent_on, "invitation_status": "Sent"})
+
+		return {"link": link, "delivered": delivered, "error": error}
+
+	def _deliver_invitation_mail(self, message):
+		try:
+			frappe.sendmail(
+				recipients=[self.visitor_email],
+				subject="Visitor Pre-Registration Invitation",
+				message="<br>".join(message),
+				now=True,
+			)
+			return True, None
+		except Exception as exc:
+			frappe.log_error(
+				f"Invitation email failed for {self.name}: {exc}", "VMS Invitation Email"
+			)
+			# sendmail raises via frappe.throw, which also queues its own message
+			# for the client. Drop it — catching the exception is only half the
+			# job; otherwise the host sees a bare "setup Email Account" popup
+			# instead of the link we went to the trouble of minting.
+			frappe.clear_messages()
+			return False, str(exc)

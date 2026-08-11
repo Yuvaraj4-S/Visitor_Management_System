@@ -1,0 +1,19 @@
+{
+ "icon_type": "App",
+ "idx": 25,
+ "label": "Visitor Management",
+ "link": "/desk/visitor-management",
+ "link_type": "External",
+ "logo_url": "/assets/visitormanagement/images/logo-128.png",
+ "name": "Visitor Management",
+ "creation": "2026-08-05 18:00:00.000000",
+ "modified": "2026-08-05 18:00:00.000000",
+ "modified_by": "Administrator",
+ "owner": "Administrator",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "app": "visitormanagement",
+ "standard": 1,
+ "hidden": 0,
+ "roles": []
+}

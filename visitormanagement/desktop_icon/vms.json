@@ -1,0 +1,21 @@
+{
+ "icon": "users",
+ "icon_type": "Link",
+ "idx": 1,
+ "label": "VMS",
+ "link_to": "VMS",
+ "link_type": "Workspace Sidebar",
+ "name": "VMS",
+ "parent_icon": "Visitor Management",
+ "restrict_removal": 0,
+ "creation": "2026-08-05 18:00:00.000000",
+ "modified": "2026-08-05 18:00:00.000000",
+ "modified_by": "Administrator",
+ "owner": "Administrator",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "app": "visitormanagement",
+ "standard": 1,
+ "hidden": 0,
+ "roles": []
+}

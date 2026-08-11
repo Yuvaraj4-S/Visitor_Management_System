@@ -264,6 +264,7 @@ frappe.ui.form.on("Security Log", {
 	visitor_pass(frm) {
 		if (!frm.doc.visitor_pass) {
 			delete frm.__visitor_type;
+			delete frm.__visitor_type_layout;
 			apply_security_log_ui(frm);
 			return;
 		}
@@ -282,6 +283,7 @@ frappe.ui.form.on("Security Log", {
 				"badge_number",
 				"id_proof_type",
 				"visitor_type",
+				"visitor_type_layout",
 				"status",
 				"id_proof_number",
 				"mdceo_notified",
@@ -295,6 +297,9 @@ frappe.ui.form.on("Security Log", {
 				}
 
 				frm.__visitor_type = r.visitor_type;
+				// The layout drives VIP-specific gate behaviour, so a site's own
+				// executive type behaves like VIP without being named "VIP".
+				frm.__visitor_type_layout = r.visitor_type_layout;
 
 				if (r.visitor_photo) frm.set_value("visitor_photo", r.visitor_photo);
 				if (r.id_proof_scan) frm.set_value("id_proof_scan", r.id_proof_scan);
@@ -302,7 +307,7 @@ frappe.ui.form.on("Security Log", {
 
 				if (r.badge_number) {
 					frm.set_value("badge_number", r.badge_number);
-				} else if (r.visitor_type !== "VIP") {
+				} else if (r.visitor_type_layout !== "VIP") {
 					frappe.call({
 						method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.sync_badge_number",
 						args: { visitor_pass: frm.doc.visitor_pass },
@@ -697,7 +702,7 @@ function apply_security_log_ui(frm) {
 	].forEach((fieldname) => frm.set_df_property(fieldname, "read_only", 1));
 
 	const has_pass = !!frm.doc.visitor_pass;
-	const is_vip = frm.__visitor_type === "VIP";
+	const is_vip = frm.__visitor_type_layout === "VIP";
 	const is_check_in = frm.doc.event_type === "Check-In";
 	const is_check_out = frm.doc.event_type === "Check-Out";
 	const has_items = !!(frm.doc.items_verification && frm.doc.items_verification.length);
@@ -884,7 +889,7 @@ function set_security_log_intro(frm, is_check_in, is_check_out) {
 	if (is_check_in) {
 		frm.set_intro(
 			__(
-				frm.__visitor_type === "VIP"
+				frm.__visitor_type_layout === "VIP"
 					? "VIP priority check-in. Review protocol notes, confirm MD/CEO notification, capture gate photo, then save and print the badge."
 					: "Compare the ID proof, pass photo, and live gate capture, complete health screening, then save the check-in and print the badge."
 			),

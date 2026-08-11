@@ -136,7 +136,7 @@
  ],
  "icon": "fa fa-building",
  "links": [],
- "modified": "2026-04-10 12:00:00.000000",
+ "modified": "2026-08-06 10:45:05.852986",
  "modified_by": "Administrator",
  "module": "Conference Room",
  "name": "Conference Room",
@@ -174,5 +174,6 @@
  "show_name_in_global_search": 1,
  "sort_field": "modified",
  "sort_order": "ASC",
- "states": []
+ "states": [],
+ "track_changes": 1
 }

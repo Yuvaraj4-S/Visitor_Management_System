@@ -1,0 +1,63 @@
+{
+ "creation": "2026-08-10 09:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Form Tour",
+ "idx": 0,
+ "is_standard": 1,
+ "modified": "2026-08-10 12:09:38.385524",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "VMS Setup Tour",
+ "owner": "Administrator",
+ "page_route": "[\"Workspaces\", \"Visitor Management\"]",
+ "save_on_complete": 0,
+ "steps": [
+  {
+   "description": "<p>Four things to set before your first visitor arrives. This takes about five minutes, and you can leave at any point — nothing here is locked in.</p>",
+   "element_selector": ".page-head",
+   "position": "Bottom",
+   "title": "Welcome to Visitor Management",
+   "ui_tour": 1
+  },
+  {
+   "description": "<p><b>VMS Settings</b> holds the policy everything else reads: how far ahead a visit can be booked, how long an invitation link lives, the meal windows that decide hospitality, and the colours on the visitor's own page.</p>",
+   "element_selector": "[title='VMS Settings'], a[href*='vms-settings']",
+   "position": "Right",
+   "title": "1 — Set the ground rules",
+   "ui_tour": 1
+  },
+  {
+   "description": "<p><b>Visitor Type</b> is the important one. Each type names the role that approves it, and that single field builds the approval workflow — contractors to one role, candidates to HR, VIPs to two approvers in sequence.</p><p>Add your own types freely; the workflow rebuilds itself.</p>",
+   "element_selector": "[title='Visitor Type'], a[href*='visitor-type']",
+   "position": "Right",
+   "title": "2 — Decide who approves whom",
+   "ui_tour": 1
+  },
+  {
+   "description": "<p><b>Visitor Gate</b> should match the doors you actually have. Point each Visitor Type at its usual gate and security sees the right one already filled in.</p>",
+   "element_selector": "[title='Visitor Gate'], a[href*='visitor-gate']",
+   "position": "Right",
+   "title": "3 — Name your gates",
+   "ui_tour": 1
+  },
+  {
+   "description": "<p><b>Visitor Invitation</b> sends a private link. Your guest fills in their own details and uploads their ID, and the pass arrives in the approver's queue.</p><p>No mail server yet? The link is shown on screen so you can send it yourself.</p>",
+   "element_selector": "[title='Visitor Invitation'], a[href*='visitor-invitation']",
+   "position": "Right",
+   "title": "4 — Invite someone",
+   "ui_tour": 1
+  },
+  {
+   "description": "<p>From here, <b>Visitor Pass</b> is the working record, <b>Security Log</b> is the gate, and <b>Daily Visitor Log</b> shows who is expected today.</p>",
+   "element_selector": ".sidebar-item-container",
+   "position": "Right",
+   "title": "That's the setup",
+   "ui_tour": 1
+  }
+ ],
+ "title": "Set up Visitor Management",
+ "track_steps": 1,
+ "ui_tour": 1,
+ "view_name": "Workspaces",
+ "workspace_name": "Visitor Management"
+}

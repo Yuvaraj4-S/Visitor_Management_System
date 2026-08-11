@@ -54,6 +54,10 @@ def get_data(filters):
         conditions.append("vp.person_to_visit = %(host)s")
         values["host"] = filters["host"]
 
+    scope = _visitor_pass_scope("vp")
+    if scope:
+        conditions.append(scope)
+
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
     return frappe.db.sql(
@@ -113,3 +117,24 @@ def get_chart(data):
             "datasets": [{"name": "Visits", "values": list(by_type.values())}],
         },
     }
+
+
+def _visitor_pass_scope(alias="vp"):
+	"""The caller's Visitor Pass row scope, as a SQL fragment for `alias`.
+
+	Script reports build their rows with raw SQL, which bypasses
+	`permission_query_conditions` entirely — so the row filter the list view
+	applies has to be re-applied here by hand. Without it the report is a way to
+	read every visitor's ID proof regardless of who you are; the roles on the
+	report are the only thing standing in the way, and those are one JSON edit
+	from changing.
+
+	The shared helper writes conditions against the real table name, so they are
+	rewritten to whatever this report aliased it to.
+	"""
+	from visitormanagement.permissions import get_visitor_pass_permission_query_conditions
+
+	condition = get_visitor_pass_permission_query_conditions()
+	if not condition:
+		return None
+	return condition.replace("`tabVisitor Pass`", f"`{alias}`")

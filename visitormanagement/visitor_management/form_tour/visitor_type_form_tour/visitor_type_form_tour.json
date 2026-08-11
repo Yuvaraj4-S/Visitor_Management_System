@@ -1,0 +1,71 @@
+{
+ "creation": "2026-08-10 09:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Form Tour",
+ "idx": 0,
+ "is_standard": 1,
+ "modified": "2026-08-10 12:13:44.968696",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Visitor Type Form Tour",
+ "new_document_form": 1,
+ "owner": "Administrator",
+ "page_route": "[\"Form\", \"Visitor Type\", \"new-*\"]",
+ "reference_doctype": "Visitor Type",
+ "save_on_complete": 1,
+ "steps": [
+  {
+   "description": "Contractor, Candidate, Auditor — whatever your site actually receives.",
+   "element_selector": "[data-fieldname='visitor_type_name']",
+   "fieldname": "visitor_type_name",
+   "fieldtype": "Data",
+   "label": "Visitor Type Name",
+   "position": "Bottom",
+   "title": "Name the kind of visit",
+   "ui_tour": 1
+  },
+  {
+   "description": "<p>The role you choose here gets its own approval lane in the workflow. Passes of this type wait for that role and nobody else.</p>",
+   "element_selector": "[data-fieldname='approver_role']",
+   "fieldname": "approver_role",
+   "fieldtype": "Link",
+   "label": "Approver Role",
+   "position": "Bottom",
+   "title": "Who signs this off",
+   "ui_tour": 1
+  },
+  {
+   "description": "Leave blank for single approval. Set it and the pass goes to this role only after the first has approved — used for VIP visits.",
+   "element_selector": "[data-fieldname='secondary_approver_role']",
+   "fieldname": "secondary_approver_role",
+   "fieldtype": "Link",
+   "label": "Secondary Approver Role",
+   "position": "Bottom",
+   "title": "A second approver, if needed",
+   "ui_tour": 1
+  },
+  {
+   "description": "Prefills the gate on the security log, so the officer is not guessing.",
+   "element_selector": "[data-fieldname='default_gate']",
+   "fieldname": "default_gate",
+   "fieldtype": "Link",
+   "label": "Default Gate",
+   "position": "Bottom",
+   "title": "Where they arrive",
+   "ui_tour": 1
+  },
+  {
+   "description": "Untick if this type gets QR-only access with no printed badge.",
+   "element_selector": "[data-fieldname='requires_badge']",
+   "fieldname": "requires_badge",
+   "fieldtype": "Check",
+   "label": "Requires Badge",
+   "position": "Bottom",
+   "title": "Badge behaviour",
+   "ui_tour": 1
+  }
+ ],
+ "title": "Configuring a Visitor Type",
+ "ui_tour": 1,
+ "view_name": "Form"
+}

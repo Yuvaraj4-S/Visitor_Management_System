@@ -17,14 +17,14 @@ frappe.query_reports["Visitor Identity Match Report"] = {
 		{
 			fieldname: "visitor_type",
 			label: __("Primary Visitor Type"),
-			fieldtype: "Select",
-			options: "\nContractor\nSupplier\nCandidate\nCustomer\nVIP",
+			fieldtype: "Link",
+			options: "Visitor Type",
 		},
 		{
 			fieldname: "matched_visitor_type",
 			label: __("Matched Visitor Type"),
-			fieldtype: "Select",
-			options: "\nContractor\nSupplier\nCandidate\nCustomer\nVIP",
+			fieldtype: "Link",
+			options: "Visitor Type",
 		},
 		{
 			fieldname: "match_scope",

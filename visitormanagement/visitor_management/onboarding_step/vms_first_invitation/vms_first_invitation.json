@@ -1,0 +1,17 @@
+{
+ "action": "Create Entry",
+ "action_label": "Create Visitor Invitation",
+ "creation": "2026-08-10 09:00:00.000000",
+ "description": "#### Try the whole journey\n\nFill in a visitor and send the invitation. They get a private link, complete their own details and upload their ID, and the pass lands in the approver's queue as a draft.\n\nNo email server yet? The link is shown on screen so you can share it by hand.",
+ "docstatus": 0,
+ "doctype": "Onboarding Step",
+ "idx": 0,
+ "modified": "2026-08-10 12:09:38.385524",
+ "modified_by": "Administrator",
+ "name": "VMS First Invitation",
+ "owner": "Administrator",
+ "reference_document": "Visitor Invitation",
+ "show_full_form": 1,
+ "title": "Invite your first visitor",
+ "validate_action": 1
+}

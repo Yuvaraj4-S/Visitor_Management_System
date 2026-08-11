@@ -15,16 +15,18 @@ documentation = "https://github.com/Yuvaraj4-S/Visitor_Management_System/blob/ma
 
 required_apps = ["erpnext", "hrms"]
 
-# Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "visitormanagement",
-# 		"logo": "/assets/visitormanagement/logo.png",
-# 		"title": "Visitor Management",
-# 		"route": "/visitormanagement",
-# 		"has_permission": "visitormanagement.api.permission.has_app_permission"
-# 	}
-# ]
+# Shown as a tile on the /apps screen. Without this the app has no entry point
+# there at all — the workspace was only reachable by typing its URL.
+add_to_apps_screen = [
+    {
+        "name": "visitormanagement",
+        "logo": "/assets/visitormanagement/images/logo-128.png",
+        "title": "Visitor Management",
+        # v16 serves the desk at /desk; erpnext/hrms/india_compliance all use
+        # that prefix here, and /app only works via a redirect.
+        "route": "/desk/visitor-management",
+    }
+]
 
 # Includes in <head>
 # ------------------
@@ -90,7 +92,12 @@ doctype_js = {"Job Applicant": "public/js/job_applicant.js"}
 # ------------
 
 # before_install = "visitormanagement.install.before_install"
-# after_install = "visitormanagement.install.after_install"
+
+# All setup lives in visitormanagement/setup.py — idempotent, and run on both
+# install and migrate. The app deliberately ships no patches: `bench install-app`
+# marks patches complete without running them, so a fresh site would get none of
+# the master data.
+after_install = "visitormanagement.setup.after_install"
 
 # Uninstallation
 # ------------
@@ -133,10 +140,12 @@ doctype_js = {"Job Applicant": "public/js/job_applicant.js"}
 # }
 permission_query_conditions = {
 	"Visitor Pass": "visitormanagement.permissions.get_visitor_pass_permission_query_conditions",
+	"Visitor Invitation": "visitormanagement.permissions.get_visitor_invitation_permission_query_conditions",
 }
 
 has_permission = {
 	"Visitor Pass": "visitormanagement.permissions.has_visitor_pass_permission",
+	"Visitor Invitation": "visitormanagement.permissions.has_visitor_invitation_permission",
 }
 
 # DocType Class
@@ -162,6 +171,12 @@ doc_events = {
 	"Job Applicant": {
 		"after_insert": "visitormanagement.visitor_management.candidate_flow.maybe_create_invitation",
 		"on_update": "visitormanagement.visitor_management.candidate_flow.maybe_create_invitation",
+	},
+	# The visitor portal requires allow_guests_to_upload_files, which is a
+	# site-wide switch. This keeps anonymous uploads to what the portal asks
+	# for; logged-in users of any app are untouched.
+	"File": {
+		"before_insert": "visitormanagement.visitor_management.portal_upload.guard_guest_upload",
 	},
 }
 
@@ -210,7 +225,13 @@ scheduler_events = {
 # Request Events
 # ----------------
 # before_request = ["visitormanagement.utils.before_request"]
-# after_request = ["visitormanagement.utils.after_request"]
+
+# The visitor portal is a guest-facing page that collects ID documents, and the
+# invitation token rides in the query string — see response_headers.py for what
+# this sets and why. Scoped to this app's own routes.
+after_request = [
+	"visitormanagement.visitor_management.response_headers.set_portal_security_headers",
+]
 
 # Job Events
 # ----------
@@ -260,53 +281,89 @@ scheduler_events = {
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+# `import_fixtures` walks the fixtures directory in filename order, so a Workflow
+# would otherwise be imported before the states and actions it links to.
+# fixture_auto_order makes `bench export-fixtures` number each file by its
+# position in the list below, which makes that filename order match this order.
+fixture_auto_order = True
+
 fixtures = [
+    # 1. Roles first — DocType permissions, workflow transitions and notification
+    #    recipients all reference them.
+    {
+        "doctype": "Role",
+        "filters": [
+            ["name", "in", [
+                "CEO",
+                "Facility Manager",
+                "Factory Tour Coordinator",
+                "Front Office Executive",
+                "Greeting Staff",
+                "HOD",
+                "Host Employee",
+                "Hospitality Manager",
+                "Hospitality User",
+                "Security",
+                "Transport Coordinator",
+            ]]
+        ]
+    },
+    # 2. Workflow states.
+    {
+        "doctype": "Workflow State",
+        "filters": [
+            ["name", "in", [
+                "Draft",
+                "Pending Approval",
+                "Pending System Manager",
+                "Pending Sales Manager",
+                "Pending HR Manager",
+                "Pending HOD",
+                "Pending CEO",
+                "Approved",
+                "Rejected",
+                "Cancelled",
+                "Items Verified",
+                "Checked-In",
+                "Checked-Out",
+            ]]
+        ]
+    },
+    # 3. Workflow Action Master holds the action *names* the transitions link to.
+    #    (The similarly-named "Workflow Action" doctype holds per-document pending
+    #    approvals — transactional rows that must never be shipped as fixtures.)
+    {
+        "doctype": "Workflow Action Master",
+        "filters": [
+            ["name", "in", [
+                "Submit",
+                "Approve",
+                "Reject",
+                "Reapply",
+                "Cancel",
+            ]]
+        ]
+    },
+    # 4. Workflows last, once every state, action and role they reference exists.
+    #    "Visitor Pass Approval" is deliberately NOT shipped — its lanes are
+    #    generated from the Visitor Type masters by
+    #    visitor_management/workflow_builder.py, so a fixture would overwrite
+    #    whatever approver roles the site has configured.
     {
         "doctype": "Workflow",
         "filters": [
             ["name", "in", [
-                "Visitor Pass Approval",
                 "Conference Room Booking Approval",
                 "Hospitality Request Approval",
             ]]
         ]
     },
-    {
-        "doctype": "Role",
-        "filters": [
-            ["name", "in", [
-                "Hospitality User",
-                "Facility Manager",
-                "Host Employee",
-                "Hospitality Manager",
-                "Transport Coordinator",
-                "Front Office Executive",
-                "Factory Tour Coordinator",
-                "Greeting Staff",
-            ]]
-        ]
-    },
-    "Workflow State",
-    "Workflow Action",
-    {
-        "doctype": "Custom Field",
-        "filters": [
-            ["name", "in", [
-                "Job Applicant-vms_section_break",
-                "Job Applicant-interview_mode",
-                "Job Applicant-interview_host",
-                "Job Applicant-vms_column_break",
-                "Job Applicant-interview_visit_date",
-                "Job Applicant-interview_checkin_time",
-                "Job Applicant-interview_checkout_time",
-                "Visitor Invitation-reference_job_applicant",
-                "Visitor Invitation-visitor_mobile",
-                "Visitor Invitation-visitor_full_name",
-            ]]
-        ]
-    }
+    # Note: Custom Fields on Job Applicant, and the Visitor Pass property setters,
+    # ship as customisations (visitor_management/custom/*.json) and are applied by
+    # `sync_customizations` — they are deliberately not fixtures.
 ]
 
-after_migrate = [
-    "visitormanagement.patches.post_model_sync.sync_vip_alert_notification.execute",
-]
+# before_migrate clears Custom Fields that have since been promoted into their
+# DocType JSON; after_migrate re-asserts the whole configuration.
+before_migrate = "visitormanagement.setup.before_migrate"
+after_migrate = "visitormanagement.setup.after_migrate"

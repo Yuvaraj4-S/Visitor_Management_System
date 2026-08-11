@@ -1,6 +1,7 @@
 import frappe
 from frappe.utils import escape_html, format_date, format_time
 
+from visitormanagement.visitor_management import settings as vms_settings
 from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation import (
 	get_web_form_context,
 )
@@ -28,6 +29,10 @@ INTERNAL_HIDE_FIELDS = {
 	"host_department",
 }
 
+# Section labels are keyed by the Visitor Type's *layout*, so a custom type that
+# reuses one of the shipped layouts hides the same section. Every one of these is
+# hidden on the public form regardless — the constant exists so the list of
+# type-specific sections stays in one place.
 TYPE_SECTION_LABELS = {
 	"Contractor": "Contractor Details",
 	"Supplier": "Supplier Details",
@@ -88,15 +93,26 @@ def _boot_script(invitation_context, values):
 	"""
 
 
+# Visitor Type.badge_colour is a named swatch; map it to a hex the portal can use.
+BADGE_SWATCHES = {
+	"Orange": "#ea580c",
+	"Purple": "#7c3aed",
+	"Green": "#059669",
+	"Teal": "#0891b2",
+	"Gold": "#ca8a04",
+	"Blue": "#2563eb",
+	"Red": "#dc2626",
+	"Grey": "#64748b",
+}
+
+
 def _visitor_type_badge(visitor_type):
-	colors = {
-		"Contractor": "#ea580c",
-		"Customer": "#059669",
-		"Candidate": "#7c3aed",
-		"Supplier": "#0891b2",
-		"VIP": "#ca8a04",
-	}
-	color = colors.get(visitor_type, "#64748b")
+	"""Colour the badge from the Visitor Type master so a custom type is styled
+	by its own configured colour instead of falling back to grey."""
+	swatch = None
+	if visitor_type:
+		swatch = frappe.db.get_value("Visitor Type", visitor_type, "badge_colour")
+	color = BADGE_SWATCHES.get(swatch, "#64748b")
 	return (
 		f'<span style="display:inline-block; padding:2px 10px; border-radius:6px; '
 		f'font-size:0.78rem; font-weight:700; '
@@ -115,12 +131,61 @@ def _hide_internal_fields(context):
 			field.hidden = 1
 
 
+def _theme_block():
+	"""Inline the site's palette as CSS variables.
+
+	The stylesheet is written against these variables, so a site themes the whole
+	page by setting one colour in VMS Settings — no stylesheet edit, and nothing
+	sector-specific baked into the app.
+	"""
+	p = vms_settings.brand_palette()
+	return (
+		"<style>:root{"
+		f"--vr-brand:{p['brand']};"
+		f"--vr-brand-dark:{p['brand_dark']};"
+		f"--vr-brand-soft:{p['brand_soft']};"
+		f"--vr-brand-border:{p['brand_border']};"
+		f"--vr-brand-rgb:{p['brand_rgb']};"
+		f"--vr-on-brand:{p['on_brand']};"
+		f"--vr-brand-tint:rgba({p['brand_rgb']},0.08);"
+		"}</style>"
+	)
+
+
+def _brand_header():
+	"""Optional logo / organisation lockup above the form title."""
+	b = vms_settings.portal_branding()
+	if not b["logo"] and not b["organisation"]:
+		return ""
+	logo = (
+		f'<img class="vm-brand-logo" src="{escape_html(b["logo"])}" alt="" />'
+		if b["logo"] else ""
+	)
+	org = (
+		f'<span class="vm-brand-name">{escape_html(b["organisation"])}</span>'
+		if b["organisation"] else ""
+	)
+	return f'<div class="vm-brand">{logo}{org}</div>'
+
+
+def _brand_footer():
+	b = vms_settings.portal_branding()
+	if not b["footer_note"]:
+		return ""
+	return f'<div class="vm-portal-footer">{escape_html(b["footer_note"])}</div>'
+
+
 def get_context(context):
 	context.no_cache = 1
+
+	theme = _theme_block() + _brand_header()
+	trailing = _brand_footer()
 
 	token = (frappe.form_dict.get("token") or "").strip()
 	if not token:
 		_hide_internal_fields(context)
+		# Keep whatever introduction the web form record carries, themed.
+		context.introduction_text = theme + (context.introduction_text or "") + trailing
 		return
 
 	invitation_context = get_web_form_context(token)
@@ -130,7 +195,7 @@ def get_context(context):
 
 	if not invitation_context.get("valid"):
 		context.introduction_text = f"""
-			{boot}
+			{theme}{boot}
 			<div class="vm-status-panel vm-status-error">
 				<div class="vm-status-title">Invitation Unavailable</div>
 				<div class="vm-status-message">
@@ -155,7 +220,7 @@ def get_context(context):
 			locked_host_fields.add(fn)
 
 	context.introduction_text = f"""
-		{boot}
+		{theme}{boot}
 		<div class="vm-status-panel vm-status-success">
 			<div class="vm-status-title">Invitation Verified</div>
 			<div class="vm-status-message">
@@ -163,6 +228,7 @@ def get_context(context):
 				Please fill in your personal details, identity documents, and any additional information required.
 			</div>
 		</div>
+		{trailing}
 	"""
 
 	if getattr(context, "web_form_doc", None):

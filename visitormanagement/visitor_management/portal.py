@@ -4,17 +4,20 @@ import json
 import os
 
 import frappe
+from frappe import _
+from frappe.rate_limiter import rate_limit
 from frappe.utils import now_datetime
+
+from visitormanagement.visitor_management import settings as vms_settings
 
 # Guests may only upload genuine images / PDFs for ID proof and photo. We trust
 # neither the file extension nor the client-sent MIME type alone — the decoded
-# content must also start with a matching magic-byte signature.
-ALLOWED_UPLOAD_EXTENSIONS = {".jpg", ".jpeg", ".png", ".pdf"}
-MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB
-_UPLOAD_SIGNATURES = (
-	b"\xff\xd8\xff",        # JPEG
-	b"\x89PNG\r\n\x1a\n",   # PNG
-	b"%PDF-",               # PDF
+# content must also start with a matching magic-byte signature. The policy is
+# defined once in portal_upload, which enforces the same rules at upload time.
+from visitormanagement.visitor_management.portal_upload import (
+	ALLOWED_EXTENSIONS as ALLOWED_UPLOAD_EXTENSIONS,
+	MAX_BYTES as MAX_UPLOAD_BYTES,
+	SIGNATURES as _UPLOAD_SIGNATURES,
 )
 
 
@@ -36,6 +39,121 @@ from visitormanagement.visitor_management.validators import (
 	id_proof_error_message,
 	validate_id,
 )
+
+
+
+# Mirrors the @rate_limit ceiling on submit_pre_registration, but keyed on the
+# socket peer unless a declared proxy forwarded the request.
+MAX_SUBMISSIONS_PER_HOUR = 20
+
+
+def _enforce_submission_rate_limit():
+	from visitormanagement.visitor_management.portal_upload import (
+		_count_or_throw,
+		_rate_limit_identity,
+	)
+
+	_count_or_throw(
+		f"vms:portal-submit:{_rate_limit_identity()}",
+		MAX_SUBMISSIONS_PER_HOUR,
+		_("Too many pre-registrations from this connection. Please wait a while and try again."),
+	)
+
+
+def _looks_like_file_url(payload):
+	"""True when the form sent a reference to a File it already uploaded.
+
+	With `allow_guests_to_upload_files` on (see setup._allow_portal_uploads) the
+	attach controls POST to `upload_file` and put the resulting URL in the doc,
+	instead of inlining the bytes as a data URI. Both shapes have to be accepted:
+	the data URI is still what arrives from any client that could not upload.
+	"""
+	value = (payload or "").strip()
+	if value.startswith(("/files/", "/private/files/")):
+		return True
+	return value.startswith("http") and "/files/" in value[:200]
+
+
+def _adopt_uploaded_file(payload):
+	"""Take over a File the attach control already created.
+
+	Returns (file_url, file_name). The bytes are on disk, so validation reads the
+	stored File rather than a base64 blob, and the file is forced private — the
+	uploader may have created it public, and an ID scan must never sit under a
+	guessable public URL.
+	"""
+	value = (payload or "").strip()
+	file_url = value
+	if value.startswith("http"):
+		file_url = "/" + value.split("/", 3)[3] if len(value.split("/", 3)) > 3 else value
+
+	file_name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+	if not file_name:
+		frappe.throw("The uploaded file could not be found. Please re-upload it.")
+
+	file_doc = frappe.get_doc("File", file_name)
+	_assert_file_is_adoptable(file_doc)
+	# get_content() decodes to str whenever the bytes happen to be decodable,
+	# which breaks the magic-byte check below. Read the file as bytes so the
+	# signature comparison sees exactly what was written.
+	with open(file_doc.get_full_path(), "rb") as handle:
+		content = handle.read(MAX_UPLOAD_BYTES + 1)
+	_validate_upload(file_doc.file_name, content)
+	if not file_doc.is_private:
+		file_doc.db_set("is_private", 1, update_modified=False)
+		file_url = file_doc.file_url
+
+	return file_url, file_name
+
+
+def _claim_invitation(invitation):
+	"""Consume a single-use invitation atomically, or refuse the submission.
+
+	The UPDATE carries the precondition, so concurrent redemptions serialise in
+	the database instead of racing between a read and a later write. `rowcount`
+	is the authority on who won: 0 rows means somebody else already submitted
+	this invitation.
+	"""
+	frappe.db.sql(
+		"""
+		UPDATE `tabVisitor Invitation`
+		SET invitation_status = 'Submitted', form_submitted_on = %(now)s
+		WHERE name = %(name)s AND invitation_status != 'Submitted'
+		""",
+		{"name": invitation.name, "now": now_datetime()},
+	)
+	if not frappe.db._cursor.rowcount:
+		frappe.throw(
+			"This invitation has already been used. Please ask your host for a new link.",
+			frappe.ValidationError,
+		)
+
+
+def _assert_file_is_adoptable(file_doc):
+	"""Refuse to take over a File that belongs to somebody else.
+
+	The submission names its attachments by URL, and the caller is anonymous, so
+	the URL is entirely attacker-chosen. Without this check a guest could name
+	another visitor's ID scan: the file would be re-parented onto the attacker's
+	own pass — detaching it from the victim's record and making it readable to
+	whoever can read the attacker's pass — and any public asset could be flipped
+	private and stolen the same way.
+
+	A file this flow legitimately produced is unattached (it is uploaded before
+	the pass exists) and owned by the same anonymous session that is now
+	submitting. Anything else is somebody else's.
+	"""
+	if file_doc.attached_to_doctype or file_doc.attached_to_name:
+		frappe.throw(
+			"That file is already attached to another record. Please upload your own copy.",
+			frappe.PermissionError,
+		)
+
+	if file_doc.owner != frappe.session.user:
+		frappe.throw(
+			"That file was not uploaded from this form. Please upload your own copy.",
+			frappe.PermissionError,
+		)
 
 
 def _extract_file_payload(payload, fallback_filename=None):
@@ -90,6 +208,18 @@ def _store_file(filename, content):
 	return file_doc.file_url, file_doc.name
 
 
+def _read_upload(payload, fallback_filename):
+	"""Normalise whatever the portal sent for an attachment to (file_url, file_name)."""
+	if not payload:
+		return None, None
+
+	if _looks_like_file_url(payload):
+		return _adopt_uploaded_file(payload)
+
+	filename, content = _extract_file_payload(payload, fallback_filename)
+	return _store_file(filename, content)
+
+
 def _attach_file_to_pass(file_name, pass_name, fieldname):
 	"""Link a stored private File to the Visitor Pass it belongs to, so the
 	framework's file-permission check grants access to anyone who can read the
@@ -124,13 +254,15 @@ def _normalize_mobile_number(number, country_code=None):
 		if country_code_digits and len(digits) == 10:
 			return f"+{country_code_digits}-{digits}"
 
+	local_isd = vms_settings.country_code()
+
 	if len(digits) == 10:
-		return f"+91-{digits}"
+		return f"+{local_isd}-{digits}"
 
 	if 11 <= len(digits) <= 15:
 		# strip leading country code digits if present, reconstruct with hyphen
-		if digits.startswith("91") and len(digits) >= 12:
-			return f"+91-{digits[-10:]}"
+		if digits.startswith(local_isd) and len(digits) >= len(local_isd) + 10:
+			return f"+{local_isd}-{digits[-10:]}"
 		return f"+{digits[:-10]}-{digits[-10:]}"
 
 	frappe.throw("Mobile Number must be 10 digits local or 11-15 digits with country code.")
@@ -323,8 +455,20 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 	}
 
 
+# Unauthenticated endpoint that inserts a Visitor Pass and stores up to two 5 MB
+# files per call. Rate-limited per IP so the pre-registration link cannot be used
+# to flood the site with records or fill the disk. Generous enough for a real
+# visitor who retries a few times, and for a group registering from behind one
+# office or hotel NAT.
 @frappe.whitelist(allow_guest=True)
+@rate_limit(limit=20, seconds=60 * 60)
 def submit_pre_registration(payload=None):
+	# Frappe's own @rate_limit keys on frappe.local.request_ip, which is read
+	# from X-Forwarded-For without trusted-proxy validation — so the decorator
+	# above is defeated by rotating that header. This second limit keys on the
+	# identity the caller cannot rewrite (see portal_upload._rate_limit_identity).
+	_enforce_submission_rate_limit()
+
 	data = payload or frappe.form_dict
 	if isinstance(data, str):
 		data = json.loads(data)
@@ -386,11 +530,11 @@ def submit_pre_registration(payload=None):
 				title="Invalid ID Proof",
 			)
 
-	id_proof_filename, id_proof_content = _extract_file_payload(
+	id_proof_upload = _read_upload(
 		data.get("id_proof_scan"),
 		data.get("id_proof_scan_filename") or "visitor-id-proof.png",
 	)
-	visitor_photo_filename, visitor_photo_content = _extract_file_payload(
+	visitor_photo_upload = _read_upload(
 		data.get("visitor_photo"),
 		data.get("visitor_photo_filename") or "visitor-photo.png",
 	)
@@ -417,9 +561,9 @@ def submit_pre_registration(payload=None):
 	# Store any newly-uploaded files (validated + private) up front so their URLs
 	# are available for the mandatory id_proof_scan / visitor_photo fields at
 	# insert time. They are linked to the pass right after it is saved.
-	id_proof_url, id_proof_file = _store_file(id_proof_filename, id_proof_content)
+	id_proof_url, id_proof_file = id_proof_upload
 	id_proof_url = id_proof_url or (existing_doc.id_proof_scan if existing_doc else None)
-	visitor_photo_url, visitor_photo_file = _store_file(visitor_photo_filename, visitor_photo_content)
+	visitor_photo_url, visitor_photo_file = visitor_photo_upload
 	visitor_photo_url = visitor_photo_url or (existing_doc.visitor_photo if existing_doc else None)
 
 	doc_values = _build_visitor_pass_values(
@@ -442,6 +586,15 @@ def submit_pre_registration(payload=None):
 	# engine. We deliberately do NOT db_set() status/workflow_state here: a raw
 	# write would bypass those checks, and a public API must never manipulate
 	# workflow state directly. Staff advance the pass from the desk UI.
+	# Claim the invitation *before* creating anything from it. Consumption used to
+	# be an unconditional write after the insert, so two redemptions of one token
+	# arriving together both passed the "is it still open?" read and both created
+	# a pass — a single-use link that is not single-use. Making the claim a
+	# conditional UPDATE means the database decides the winner: exactly one caller
+	# sees a row change, and the loser is turned away before any record exists.
+	if invitation and submission_action == "submit":
+		_claim_invitation(invitation)
+
 	if visitor_pass.is_new():
 		visitor_pass.insert(ignore_permissions=True, ignore_mandatory=not require_full_submission)
 	else:
@@ -454,16 +607,16 @@ def submit_pre_registration(payload=None):
 	_attach_file_to_pass(visitor_photo_file, visitor_pass.name, "visitor_photo")
 
 	if invitation:
-		invitation_updates = {
-			"visitor_pass": visitor_pass.name,
-			"invitation_status": "Saved" if submission_action == "save" else "Submitted",
-		}
+		invitation_updates = {"visitor_pass": visitor_pass.name}
+		if submission_action == "save":
+			# A "save" is a draft, not a redemption, so it does not consume the
+			# token — only a real submission does, and _claim_invitation already
+			# recorded that above.
+			invitation_updates["invitation_status"] = "Saved"
 		if not invitation.link_opened_on:
 			invitation_updates["link_opened_on"] = now_datetime()
 		if submission_action == "save":
 			invitation_updates["form_saved_on"] = now_datetime()
-		else:
-			invitation_updates["form_submitted_on"] = now_datetime()
 		invitation.db_set(invitation_updates, update_modified=False)
 
 	saved_values = frappe.db.get_value(

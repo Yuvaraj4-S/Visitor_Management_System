@@ -4,7 +4,7 @@ from frappe.utils import today, add_days, getdate
 
 
 def maybe_create_invitation(doc, method=None):
-	if (doc.get("interview_mode") or "Online") != "Offline":
+	if (doc.get("custom_interview_mode") or "Online") != "Offline":
 		return
 
 	if frappe.db.exists("Visitor Invitation", {"reference_job_applicant": doc.name}):
@@ -13,16 +13,16 @@ def maybe_create_invitation(doc, method=None):
 	if not doc.email_id:
 		frappe.throw(_("Email ID is required to create a Visitor Invitation for an Offline candidate."))
 
-	host = doc.get("interview_host")
+	host = doc.get("custom_interview_host")
 	if not host:
 		frappe.throw(_("Interview Host (Employee) is required when Interview Mode is Offline."))
 
-	visit_date = getdate(doc.get("interview_visit_date") or add_days(today(), 1))
+	visit_date = getdate(doc.get("custom_interview_visit_date") or add_days(today(), 1))
 	if visit_date < getdate(today()):
 		frappe.throw(_("Interview Visit Date cannot be in the past."))
 
-	checkin = doc.get("interview_checkin_time") or "10:00:00"
-	checkout = doc.get("interview_checkout_time") or "11:00:00"
+	checkin = doc.get("custom_interview_checkin_time") or "10:00:00"
+	checkout = doc.get("custom_interview_checkout_time") or "11:00:00"
 	purpose = f"Interview - {doc.get('designation') or doc.get('job_title') or 'Open Position'}"
 
 	inv = frappe.new_doc("Visitor Invitation")

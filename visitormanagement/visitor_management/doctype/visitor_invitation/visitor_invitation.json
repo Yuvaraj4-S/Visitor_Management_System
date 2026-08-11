@@ -6,37 +6,56 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "sec_visitor",
   "visitor_type",
   "visitor_email",
+  "col_visitor",
+  "visitor_full_name",
+  "visitor_mobile",
+  "sec_visit",
   "host_employee",
   "visit_date",
+  "col_visit",
   "expected_checkin",
   "expected_checkout",
+  "sec_purpose",
   "purpose_of_visit",
+  "sec_hospitality",
   "meal_required",
   "meal_type",
   "assigned_meal_slots",
+  "col_hospitality",
   "hospitality_type",
   "refreshments_required",
   "conference_room",
-  "created_by_user",
+  "sec_tracking",
   "invitation_status",
   "invitation_sent_on",
   "invitation_expires_on",
   "link_opened_on",
+  "col_tracking",
   "form_saved_on",
   "form_submitted_on",
+  "created_by_user",
   "portal_submission_url",
+  "sec_links",
   "visitor_pass",
-  "invitation_token"
+  "invitation_token",
+  "col_links",
+  "reference_job_applicant"
  ],
  "fields": [
   {
+   "fieldname": "sec_visitor",
+   "fieldtype": "Section Break",
+   "label": "Visitor"
+  },
+  {
    "fieldname": "visitor_type",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Visitor Type",
-   "options": "Contractor\nCandidate\nCustomer\nSupplier\nVIP",
+   "options": "Visitor Type",
    "reqd": 1
   },
   {
@@ -47,12 +66,35 @@
    "reqd": 1
   },
   {
+   "fieldname": "col_visitor",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "visitor_full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Visitor Full Name"
+  },
+  {
+   "fieldname": "visitor_mobile",
+   "fieldtype": "Data",
+   "label": "Visitor Mobile",
+   "options": "Phone",
+   "description": "Mirrored as typed. It is normalised to the site's ISD format when it flows onto the Visitor Pass."
+  },
+  {
+   "fieldname": "sec_visit",
+   "fieldtype": "Section Break",
+   "label": "Visit Plan"
+  },
+  {
    "fieldname": "host_employee",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Host Employee",
    "options": "Employee",
-   "reqd": 1
+   "reqd": 1,
+   "ignore_user_permissions": 1
   },
   {
    "fieldname": "visit_date",
@@ -60,6 +102,10 @@
    "in_list_view": 1,
    "label": "Visit Date",
    "reqd": 1
+  },
+  {
+   "fieldname": "col_visit",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "expected_checkin",
@@ -74,9 +120,19 @@
    "reqd": 1
   },
   {
+   "fieldname": "sec_purpose",
+   "fieldtype": "Section Break",
+   "label": "Purpose"
+  },
+  {
    "fieldname": "purpose_of_visit",
    "fieldtype": "Small Text",
    "label": "Purpose Of Visit"
+  },
+  {
+   "fieldname": "sec_hospitality",
+   "fieldtype": "Section Break",
+   "label": "Hospitality"
   },
   {
    "default": "0",
@@ -101,6 +157,10 @@
    "read_only": 1
   },
   {
+   "fieldname": "col_hospitality",
+   "fieldtype": "Column Break"
+  },
+  {
    "fieldname": "hospitality_type",
    "fieldtype": "Select",
    "hidden": 1,
@@ -122,10 +182,10 @@
    "label": "Conference Room"
   },
   {
-   "fieldname": "created_by_user",
-   "fieldtype": "Data",
-   "label": "Created By User",
-   "read_only": 1
+   "fieldname": "sec_tracking",
+   "fieldtype": "Section Break",
+   "label": "Invitation Tracking",
+   "collapsible": 1
   },
   {
    "default": "Draft",
@@ -154,6 +214,10 @@
    "read_only": 1
   },
   {
+   "fieldname": "col_tracking",
+   "fieldtype": "Column Break"
+  },
+  {
    "fieldname": "form_saved_on",
    "fieldtype": "Datetime",
    "label": "Form Saved On",
@@ -166,10 +230,22 @@
    "read_only": 1
   },
   {
+   "fieldname": "created_by_user",
+   "fieldtype": "Data",
+   "label": "Created By User",
+   "read_only": 1
+  },
+  {
    "fieldname": "portal_submission_url",
    "fieldtype": "Small Text",
    "label": "Portal Submission URL",
    "read_only": 1
+  },
+  {
+   "fieldname": "sec_links",
+   "fieldtype": "Section Break",
+   "label": "Linked Records",
+   "collapsible": 1
   },
   {
    "fieldname": "visitor_pass",
@@ -183,13 +259,27 @@
    "fieldtype": "Data",
    "hidden": 1,
    "label": "Invitation Token",
-   "read_only": 1
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "col_links",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reference_job_applicant",
+   "fieldtype": "Link",
+   "label": "Reference Job Applicant",
+   "no_copy": 1,
+   "options": "Job Applicant",
+   "read_only": 1,
+   "description": "Set automatically when the invitation is raised from an Offline-interview Job Applicant."
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-10 10:42:40.104275",
+ "modified": "2026-08-08 13:36:55.858448",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Invitation",
@@ -240,5 +330,7 @@
  "rows_threshold_for_grid_search": 20,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "track_changes": 1,
+ "naming_rule": "Expression (old style)"
 }

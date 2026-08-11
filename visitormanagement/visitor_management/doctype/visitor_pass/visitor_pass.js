@@ -6,11 +6,6 @@
 let _vms_home_country_cache = null;
 let _vms_home_country_promise = null;
 
-// id_proof_type's full option list, captured once from the field itself
-// (never hardcoded) so it can be restored after being narrowed down for
-// foreign nationals.
-let _id_proof_type_full_options = null;
-
 function get_vms_home_country() {
 	if (_vms_home_country_cache) {
 		return Promise.resolve(_vms_home_country_cache);
@@ -34,7 +29,18 @@ function sync_mobile_country_with_nationality(frm) {
 		return;
 	}
 	const control = frm.get_field("mobile_number");
-	if (control && control.country_codes && control.country_codes[country_name] && control.country_code_picker) {
+	// `$isd` is the last piece the Phone control builds. Without checking it we
+	// can fire on_change before the control's DOM exists, and core's
+	// set_formatted_input then throws on `this.$isd.text()` — a console error on
+	// every new Visitor Pass form.
+	if (
+		control &&
+		control.country_codes &&
+		control.country_codes[country_name] &&
+		control.country_code_picker &&
+		control.$isd &&
+		control.$isd.length
+	) {
 		control.country_code_picker.on_change(country_name, false);
 	}
 }
@@ -151,16 +157,17 @@ frappe.ui.form.on("Visitor Pass", {
 			frm.set_value("company__organisation", "");
 			frm.set_value("id_proof_type", "");
 			frm.set_value("id_proof_number", "");
-			// Clear type-specific links
-			if (frm.doc.visitor_type === "Supplier") {
+			// Clear type-specific links for whichever layout this type uses
+			const layout = frm.doc.visitor_type_layout || "";
+			if (layout === "Supplier") {
 				frm.set_value("supplier_link", "");
-			} else if (frm.doc.visitor_type === "Customer") {
+			} else if (layout === "Customer") {
 				frm.set_value("crm_reference_type", "");
 				frm.set_value("crm_lead_opportunity", "");
-			} else if (frm.doc.visitor_type === "Contractor") {
+			} else if (layout === "Contractor") {
 				frm.set_value("contractor_link", "");
 				frm.set_value("work_order_ref", "");
-			} else if (frm.doc.visitor_type === "Candidate") {
+			} else if (layout === "Candidate") {
 				frm.set_value("job_applicant_link", "");
 			}
 		}
@@ -233,9 +240,9 @@ frappe.ui.form.on("Visitor Pass", {
 });
 
 function preview_normalised_mobile(frm) {
-	// On save the server normalises the phone to "+91-XXXXXXXXXX". Show the
+	// On save the server normalises the phone to "+<isd>-XXXXXXXXXX". Show the
 	// reception staff what they actually typed *will become*, so they catch
-	// typos before submitting (a wrong +91 number = SMS approvals never land).
+	// typos before submitting (a wrong number = approvals never land).
 	const raw = (frm.doc.mobile_number || "").trim();
 	if (!raw) {
 		frm.set_df_property("mobile_number", "description", "");
@@ -243,16 +250,20 @@ function preview_normalised_mobile(frm) {
 		return;
 	}
 	const digits = raw.replace(/\D/g, "");
-	let normalised = raw;
-	if (digits.length >= 10) {
-		const last10 = digits.slice(-10);
-		normalised = `+91-${last10}`;
-	}
-	const description = (normalised !== raw)
-		? __("Will be saved as: <b>{0}</b>", [normalised])
-		: __("✓ Format looks good");
-	frm.set_df_property("mobile_number", "description", description);
-	frm.refresh_field("mobile_number");
+	// The ISD prefix the server will apply comes from VMS Settings, so preview
+	// it from there rather than assuming +91.
+	frappe.db.get_single_value("VMS Settings", "default_country_code").then((isd) => {
+		const code = String(isd || "91").replace(/\D/g, "") || "91";
+		let normalised = raw;
+		if (digits.length >= 10) {
+			normalised = `+${code}-${digits.slice(-10)}`;
+		}
+		const description = (normalised !== raw)
+			? __("Will be saved as: <b>{0}</b>", [normalised])
+			: __("✓ Format looks good");
+		frm.set_df_property("mobile_number", "description", description);
+		frm.refresh_field("mobile_number");
+	});
 }
 
 function apply_visitor_pass_ui(frm) {
@@ -309,12 +320,12 @@ function apply_badge_visibility(frm) {
 }
 
 function ensure_customer_crm_defaults(frm) {
-	if (frm.doc.visitor_type === "Customer" && frm.doc.entry_type === "New" && !frm.doc.crm_reference_type) {
+	if (frm.doc.visitor_type_layout === "Customer" && frm.doc.entry_type === "New" && !frm.doc.crm_reference_type) {
 		frm.set_value("crm_reference_type", "Lead");
 		return;
 	}
 
-	if (frm.doc.visitor_type !== "Customer" || frm.doc.entry_type !== "New") {
+	if (frm.doc.visitor_type_layout !== "Customer" || frm.doc.entry_type !== "New") {
 		if (frm.doc.crm_reference_type || frm.doc.crm_lead_opportunity) {
 			frm.set_value({
 				crm_reference_type: "",
@@ -325,7 +336,7 @@ function ensure_customer_crm_defaults(frm) {
 }
 
 function fetch_customer_crm_details(frm) {
-	if (frm.doc.visitor_type !== "Customer" || !frm.doc.crm_reference_type || !frm.doc.crm_lead_opportunity) {
+	if (frm.doc.visitor_type_layout !== "Customer" || !frm.doc.crm_reference_type || !frm.doc.crm_lead_opportunity) {
 		return;
 	}
 
@@ -393,11 +404,16 @@ function fetch_customer_crm_details(frm) {
 }
 
 function apply_visitor_pass_field_rules(frm) {
-	const is_supplier_existing = frm.doc.visitor_type === "Supplier" && frm.doc.entry_type === "Existing";
-	const is_existing = ['Supplier','Customer','Contractor','Candidate'].includes(frm.doc.visitor_type) && frm.doc.entry_type === "Existing";
-	const is_follow_up = frm.doc.visitor_type === "Customer" && frm.doc.meeting_outcome === "Follow-Up Needed";
-	const needs_interpreter = frm.doc.visitor_type === "VIP" && !!frm.doc.interpreter_required;
-	const is_multi_day_contractor = frm.doc.visitor_type === "Contractor" && !!frm.doc.multi_day_pass;
+	// Field rules key off the Visitor Type's *layout* (visitor_type_layout, fetched
+	// from Visitor Type.detail_layout) rather than its name, so a site can add a
+	// type that reuses the Supplier/Customer/Contractor/Candidate/VIP layout and
+	// gets the same behaviour with no code change.
+	const layout = frm.doc.visitor_type_layout || "";
+	const is_supplier_existing = layout === "Supplier" && frm.doc.entry_type === "Existing";
+	const is_existing = ["Supplier", "Customer", "Contractor", "Candidate"].includes(layout) && frm.doc.entry_type === "Existing";
+	const is_follow_up = layout === "Customer" && frm.doc.meeting_outcome === "Follow-Up Needed";
+	const needs_interpreter = layout === "VIP" && !!frm.doc.interpreter_required;
+	const is_multi_day_contractor = layout === "Contractor" && !!frm.doc.multi_day_pass;
 	const hospitality_requested =
 		!!frm.doc.meal_required || !!frm.doc.refreshments_required || !!frm.doc.conference_room;
 	const hospitality_recorded = hospitality_requested || !!frm.doc.hospitality_request;
@@ -426,14 +442,14 @@ function apply_visitor_pass_field_rules(frm) {
 	frm.set_df_property("items_verification_status", "hidden", 1);
 	frm.toggle_display("existing_visitor_pass", is_existing);
 	frm.toggle_reqd("existing_visitor_pass", is_existing);
-	frm.toggle_display("supplier_link", frm.doc.visitor_type === "Supplier" && frm.doc.entry_type === "New");
-	frm.toggle_display("crm_reference_type", frm.doc.visitor_type === "Customer" && frm.doc.entry_type === "New");
-	frm.toggle_display("crm_lead_opportunity", frm.doc.visitor_type === "Customer" && frm.doc.entry_type === "New");
-	frm.toggle_display("contractor_link", frm.doc.visitor_type === "Contractor" && frm.doc.entry_type === "New");
-	frm.toggle_display("work_order_ref", frm.doc.visitor_type === "Contractor" && frm.doc.entry_type === "New");
-	frm.toggle_display("job_applicant_link", frm.doc.visitor_type === "Candidate" && frm.doc.entry_type === "New");
+	frm.toggle_display("supplier_link", layout === "Supplier" && frm.doc.entry_type === "New");
+	frm.toggle_display("crm_reference_type", layout === "Customer" && frm.doc.entry_type === "New");
+	frm.toggle_display("crm_lead_opportunity", layout === "Customer" && frm.doc.entry_type === "New");
+	frm.toggle_display("contractor_link", layout === "Contractor" && frm.doc.entry_type === "New");
+	frm.toggle_display("work_order_ref", layout === "Contractor" && frm.doc.entry_type === "New");
+	frm.toggle_display("job_applicant_link", layout === "Candidate" && frm.doc.entry_type === "New");
 	const is_supplier_meeting =
-		frm.doc.visitor_type === "Supplier" && frm.doc.supplier_visit_mode === "Meeting";
+		layout === "Supplier" && frm.doc.supplier_visit_mode === "Meeting";
 	frm.toggle_reqd("meeting_subject", is_supplier_meeting);
 
 	frm.toggle_display("followup_date", is_follow_up);
@@ -453,11 +469,6 @@ function apply_visitor_pass_field_rules(frm) {
 	frm.toggle_display("conference_room", true);
 	frm.toggle_display("hospitality_notes", hospitality_recorded);
 
-	const id_proof_field = frm.get_field("id_proof_type");
-	if (id_proof_field && _id_proof_type_full_options === null) {
-		_id_proof_type_full_options = id_proof_field.df.options;
-	}
-
 	sync_mobile_country_with_nationality(frm);
 
 	get_vms_home_country().then((home_country) => {
@@ -465,13 +476,26 @@ function apply_visitor_pass_field_rules(frm) {
 		frm.toggle_display("custom_visa_copy", is_foreign_national);
 		frm.toggle_reqd("custom_visa_copy", is_foreign_national);
 
-		if (_id_proof_type_full_options !== null) {
-			const restricted_options = is_foreign_national ? "Passport" : _id_proof_type_full_options;
-			frm.set_df_property("id_proof_type", "options", restricted_options);
-			frm.refresh_field("id_proof_type");
-			if (is_foreign_national && frm.doc.id_proof_type && frm.doc.id_proof_type !== "Passport") {
-				frm.set_value("id_proof_type", "");
+		// id_proof_type is a Link to the ID Proof Type master, so the foreign
+		// national restriction is a link filter on the master's own flag rather
+		// than rewriting a hardcoded Select option list.
+		frm.set_query("id_proof_type", () => {
+			const filters = { is_active: 1 };
+			if (is_foreign_national) {
+				filters.valid_for_foreign_nationals = 1;
 			}
+			return { filters };
+		});
+
+		// Clear a now-invalid selection when the visitor turns out to be foreign.
+		if (is_foreign_national && frm.doc.id_proof_type) {
+			frappe.db
+				.get_value("ID Proof Type", frm.doc.id_proof_type, "valid_for_foreign_nationals")
+				.then((r) => {
+					if (r && r.message && !r.message.valid_for_foreign_nationals) {
+						frm.set_value("id_proof_type", "");
+					}
+				});
 		}
 	});
 }
@@ -546,7 +570,7 @@ function set_visitor_pass_intro(frm) {
 	if (stage === "Approved") {
 		frm.set_intro(
 			__(
-				frm.doc.visitor_type === "VIP"
+				frm.doc.visitor_type_layout === "VIP"
 					? "Approved. Security should use the VIP priority lane and issue the badge during gate check-in."
 					: "Approved. Security can now verify declared items, issue the badge, and record the visitor check-in."
 			),
@@ -795,22 +819,26 @@ function resolve_purpose_of_visit(data) {
 		return explicit;
 	}
 
-	if (data.visitor_type === "Supplier") {
+	// Derived from the type's layout, so a custom type reusing e.g. the Supplier
+	// layout gets the same default purpose wording.
+	const layout = data.visitor_type_layout || "";
+
+	if (layout === "Supplier") {
 		if ((data.supplier_visit_mode || "") === "Delivery") {
 			return __("Supplier Delivery");
 		}
 		return __("Supplier Meeting");
 	}
-	if (data.visitor_type === "Customer") {
+	if (layout === "Customer") {
 		return __("Customer Meeting");
 	}
-	if (data.visitor_type === "Contractor") {
+	if (layout === "Contractor") {
 		return __("Contract Work Visit");
 	}
-	if (data.visitor_type === "Candidate") {
+	if (layout === "Candidate") {
 		return __("Interview Visit");
 	}
-	if (data.visitor_type === "VIP") {
+	if (layout === "VIP") {
 		return __("VIP Visit");
 	}
 	return "";
@@ -867,7 +895,7 @@ function apply_existing_pass_data(frm, data) {
 }
 
 function lookup_existing_visitor_match(frm, trigger_field) {
-	if (!frm.doc.visitor_type || !["Supplier", "Customer", "Contractor", "Candidate"].includes(frm.doc.visitor_type)) {
+	if (!frm.doc.visitor_type_layout || !["Supplier", "Customer", "Contractor", "Candidate"].includes(frm.doc.visitor_type_layout)) {
 		return;
 	}
 	if (!frm.doc.mobile_number && !frm.doc.id_proof_number) {

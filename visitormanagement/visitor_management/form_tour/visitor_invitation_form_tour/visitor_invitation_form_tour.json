@@ -1,0 +1,61 @@
+{
+ "creation": "2026-08-10 09:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Form Tour",
+ "idx": 0,
+ "is_standard": 1,
+ "modified": "2026-08-10 12:13:44.968696",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Visitor Invitation Form Tour",
+ "new_document_form": 1,
+ "owner": "Administrator",
+ "page_route": "[\"Form\", \"Visitor Invitation\", \"new-*\"]",
+ "reference_doctype": "Visitor Invitation",
+ "save_on_complete": 1,
+ "steps": [
+  {
+   "description": "This decides who approves the pass once your guest submits it.",
+   "element_selector": "[data-fieldname='visitor_type']",
+   "fieldname": "visitor_type",
+   "fieldtype": "Link",
+   "label": "Visitor Type",
+   "position": "Bottom",
+   "title": "Which kind of visit",
+   "ui_tour": 1
+  },
+  {
+   "description": "Your guest gets a private, single-use link at this address.",
+   "element_selector": "[data-fieldname='visitor_email']",
+   "fieldname": "visitor_email",
+   "fieldtype": "Data",
+   "label": "Visitor Email",
+   "position": "Bottom",
+   "title": "Where the link goes",
+   "ui_tour": 1
+  },
+  {
+   "description": "The visitor cannot change these — you set the schedule, they fill in who they are.",
+   "element_selector": "[data-fieldname='visit_date']",
+   "fieldname": "visit_date",
+   "fieldtype": "Date",
+   "label": "Visit Date",
+   "position": "Bottom",
+   "title": "When they are coming",
+   "ui_tour": 1
+  },
+  {
+   "description": "<p>Save, then <b>Actions &rarr; Send Invitation</b>. If email is not configured yet the link is shown on screen for you to share by hand.</p>",
+   "element_selector": "[data-fieldname='purpose_of_visit']",
+   "fieldname": "purpose_of_visit",
+   "fieldtype": "Small Text",
+   "label": "Purpose Of Visit",
+   "position": "Bottom",
+   "title": "Then send it",
+   "ui_tour": 1
+  }
+ ],
+ "title": "Inviting a visitor",
+ "ui_tour": 1,
+ "view_name": "Form"
+}

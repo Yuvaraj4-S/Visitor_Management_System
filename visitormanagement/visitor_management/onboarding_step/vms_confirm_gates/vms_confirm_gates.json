@@ -1,0 +1,16 @@
+{
+ "action": "Go to Page",
+ "action_label": "Open Visitor Gates",
+ "creation": "2026-08-10 09:00:00.000000",
+ "description": "#### Match the doors you actually have\n\nA few common gates are created for you. Rename them to match your site, and set each Visitor Type's default gate so security sees the right one prefilled when a visitor arrives.",
+ "docstatus": 0,
+ "doctype": "Onboarding Step",
+ "idx": 0,
+ "modified": "2026-08-10 12:09:38.385524",
+ "modified_by": "Administrator",
+ "name": "VMS Confirm Gates",
+ "owner": "Administrator",
+ "path": "visitor-gate",
+ "title": "Name your gates",
+ "validate_action": 1
+}

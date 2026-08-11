@@ -19,8 +19,8 @@ frappe.query_reports["Daily Visitor Log"] = {
 		{
 			fieldname: "visitor_type",
 			label: __("Visitor Type"),
-			fieldtype: "Select",
-			options: "\nContractor\nCandidate\nCustomer\nSupplier\nVIP",
+			fieldtype: "Link",
+			options: "Visitor Type",
 		},
 		{
 			fieldname: "status",

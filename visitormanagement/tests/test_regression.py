@@ -24,6 +24,7 @@ import datetime as _dt
 from typing import Optional
 
 import frappe
+import frappe.permissions  # noqa: F401  — accessed as frappe.permissions.has_permission below
 from frappe.model.workflow import apply_workflow
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, nowdate

@@ -71,11 +71,41 @@ frappe.ui.form.on("Visitor Invitation", {
 						freeze_message: __("Sending visitor invitation..."),
 						callback: ({ message }) => {
 							if (!message) return;
-							frappe.show_alert({
-								message: __("Invitation sent to {0}", [frm.doc.visitor_email]),
-								indicator: "green",
+
+							if (message.delivered) {
+								frappe.show_alert({
+									message: __("Invitation sent to {0}", [frm.doc.visitor_email]),
+									indicator: "green",
+								});
+								frm.reload_doc();
+								return;
+							}
+
+							// The link is always minted, so a site without outgoing
+							// email can still get the visitor registered — show it
+							// and let the host pass it on by hand.
+							frappe.msgprint({
+								title: __("Email Not Sent"),
+								indicator: "orange",
+								message: __(
+									"The invitation link was created, but the email could not be delivered.<br><br>" +
+									"<b>Link:</b><br><a href='{0}' target='_blank'>{0}</a><br><br>" +
+									"Share it with the visitor directly, or configure an outgoing Email Account and resend.<br><br>" +
+									"<span class='text-muted small'>{1}</span>",
+									[message.link, frappe.utils.escape_html(message.error || "")]
+								),
+								primary_action_label: __("Copy Link"),
+								primary_action() {
+									frappe.utils.copy_to_clipboard(message.link);
+									this.hide();
+									// only now — reloading while the dialog is up
+									// re-renders the form and tears it down
+									frm.reload_doc();
+								},
+								// reaching the visitor is what matters; the doc is
+								// refreshed either way once the dialog is gone
+								secondary_action: () => frm.reload_doc(),
 							});
-							frm.reload_doc();
 						},
 					});
 				});

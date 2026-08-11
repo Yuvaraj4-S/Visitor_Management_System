@@ -36,7 +36,8 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Responsible Person",
-   "options": "Employee"
+   "options": "Employee",
+   "ignore_user_permissions": 1
   },
   {
    "fieldname": "remarks",

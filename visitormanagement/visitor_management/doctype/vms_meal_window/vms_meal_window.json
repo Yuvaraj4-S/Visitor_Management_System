@@ -1,0 +1,52 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-04 23:30:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "meal_label",
+  "start_time",
+  "end_time"
+ ],
+ "fields": [
+  {
+   "columns": 3,
+   "fieldname": "meal_label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Meal",
+   "reqd": 1
+  },
+  {
+   "columns": 3,
+   "fieldname": "start_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Serves From",
+   "reqd": 1
+  },
+  {
+   "columns": 3,
+   "fieldname": "end_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Serves Until",
+   "reqd": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-04 23:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "VMS Meal Window",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

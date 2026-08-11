@@ -3,7 +3,9 @@
 import frappe
 
 
-VISITOR_TYPES = ("Contractor", "Supplier", "Candidate", "Customer", "VIP")
+def _visitor_types():
+	"""Active Visitor Types, read from the master rather than a frozen tuple."""
+	return frappe.get_all("Visitor Type", filters={"is_active": 1}, pluck="name", order_by="name asc")
 
 
 def execute(filters=None):
@@ -83,7 +85,7 @@ def get_data(filters):
 
 def get_records(filters):
 	conditions = ["visitor_type in %(visitor_types)s"]
-	values = {"visitor_types": VISITOR_TYPES}
+	values = {"visitor_types": _visitor_types()}
 
 	if filters.get("from_date"):
 		conditions.append("visit_date >= %(from_date)s")

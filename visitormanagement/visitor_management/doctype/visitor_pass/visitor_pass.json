@@ -9,8 +9,11 @@
   "overview_tab",
   "section_break_q9pi",
   "visitor_type",
+  "visitor_type_layout",
   "entry_type",
   "existing_visitor_pass",
+  "custom_nationality",
+  "custom_visa_copy",
   "column_break_request_snapshot",
   "status",
   "workflow_state",
@@ -97,9 +100,9 @@
   "cab_required",
   "hotel_required",
   "factory_tour_required",
+  "arrangements_col_break",
   "buggy_required",
   "greeting_required",
-  "arrangements_col_break",
   "hospitality_overall_status",
   "section_break_gqft",
   "badge_number",
@@ -138,11 +141,22 @@
   },
   {
    "fieldname": "visitor_type",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Visitor Type",
-   "options": "\nContractor\nCandidate\nCustomer\nSupplier\nVIP",
+   "options": "Visitor Type",
    "reqd": 1
+  },
+  {
+   "fieldname": "visitor_type_layout",
+   "fieldtype": "Data",
+   "label": "Visitor Type Layout",
+   "fetch_from": "visitor_type.detail_layout",
+   "fetch_if_empty": 0,
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1,
+   "print_hide": 1
   },
   {
    "default": "New",
@@ -159,6 +173,19 @@
    "fieldtype": "Link",
    "label": "Existing Visitor Pass",
    "options": "Visitor Pass"
+  },
+  {
+   "fieldname": "custom_nationality",
+   "fieldtype": "Link",
+   "label": "Nationality",
+   "options": "Country",
+   "reqd": 1
+  },
+  {
+   "fieldname": "custom_visa_copy",
+   "fieldtype": "Attach",
+   "label": "Visa Copy",
+   "depends_on": "eval:doc.custom_nationality && doc.custom_nationality != 'India'"
   },
   {
    "fieldname": "column_break_request_snapshot",
@@ -230,12 +257,12 @@
    "reqd": 1
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Contractor' || doc.visitor_type == 'Supplier' || doc.visitor_type == 'Customer'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Contractor' || doc.visitor_type_layout == 'Supplier' || doc.visitor_type_layout == 'Customer'",
    "description": "The company the visitor represents (not our facility).",
    "fieldname": "company__organisation",
    "fieldtype": "Data",
    "label": "Company / Organisation",
-   "mandatory_depends_on": "eval:doc.visitor_type == 'Contractor' || doc.visitor_type == 'Supplier' || doc.visitor_type == 'Customer'"
+   "mandatory_depends_on": "eval:doc.visitor_type_layout == 'Contractor' || doc.visitor_type_layout == 'Supplier' || doc.visitor_type_layout == 'Customer'"
   },
   {
    "fieldname": "column_break_identity_details",
@@ -243,16 +270,17 @@
   },
   {
    "fieldname": "id_proof_type",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "label": "ID Proof Type",
-   "options": "Aadhaar\nPAN Card\nPassport\nDriving License",
+   "options": "ID Proof Type",
    "reqd": 1
   },
   {
    "fieldname": "id_proof_number",
    "fieldtype": "Data",
    "label": "ID Proof Number",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "id_proof_scan",
@@ -287,7 +315,8 @@
    "fieldtype": "Link",
    "label": "Person to Visit",
    "options": "Employee",
-   "reqd": 1
+   "reqd": 1,
+   "ignore_user_permissions": 1
   },
   {
    "fetch_from": "person_to_visit.department",
@@ -331,131 +360,136 @@
   },
   {
    "collapsible": 1,
-   "depends_on": "eval:doc.visitor_type == 'Customer'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Customer'",
    "fieldname": "section_break_customer",
    "fieldtype": "Section Break",
    "label": "Customer Visit Details"
   },
   {
    "default": "Lead",
-   "depends_on": "eval:doc.visitor_type == 'Customer' && doc.entry_type == 'New'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Customer' && doc.entry_type == 'New'",
    "fieldname": "crm_reference_type",
    "fieldtype": "Select",
    "label": "CRM Reference Type",
    "options": "Lead\nOpportunity\nCustomer"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Customer' && doc.entry_type == 'New'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Customer' && doc.entry_type == 'New'",
    "fieldname": "crm_lead_opportunity",
    "fieldtype": "Dynamic Link",
    "label": "CRM Lead / Opportunity",
    "options": "crm_reference_type"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Customer'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Customer'",
    "fieldname": "visit_category",
    "fieldtype": "Select",
    "label": "Visit Category",
    "options": "Product Demo\nNegotiation\nSite Visit\nComplaint\nAudit"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Customer'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Customer'",
    "fieldname": "sales_executive",
    "fieldtype": "Link",
    "label": "Sales Executive",
-   "options": "Employee"
+   "options": "Employee",
+   "ignore_user_permissions": 1
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Customer'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Customer'",
    "fieldname": "column_break_customer",
    "fieldtype": "Column Break"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Customer'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Customer'",
    "fieldname": "products_discussed",
    "fieldtype": "Small Text",
-   "label": "Products Discussed"
+   "label": "Products Discussed",
+   "hidden": 1
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Customer'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Customer'",
    "fieldname": "meeting_outcome",
    "fieldtype": "Select",
    "label": "Meeting Outcome",
-   "options": "Pending\nDeal Closed\nFollow-Up Needed\nNo Interest"
+   "options": "Pending\nDeal Closed\nFollow-Up Needed\nNo Interest",
+   "hidden": 1
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Customer'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Customer'",
    "fieldname": "followup_date",
    "fieldtype": "Date",
-   "label": "Follow-Up Date"
+   "label": "Follow-Up Date",
+   "hidden": 1
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Customer'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Customer'",
    "fieldname": "meeting_minutes",
    "fieldtype": "Text Editor",
-   "label": "Meeting Minutes"
+   "label": "Meeting Minutes",
+   "hidden": 1
   },
   {
    "collapsible": 1,
-   "depends_on": "eval:doc.visitor_type == 'Contractor'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Contractor'",
    "fieldname": "section_break_contractor",
    "fieldtype": "Section Break",
    "label": "Contractor Details"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Contractor' && doc.entry_type == 'New'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Contractor' && doc.entry_type == 'New'",
    "fieldname": "contractor_link",
    "fieldtype": "Link",
    "label": "Contractor",
    "options": "Supplier"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Contractor' && doc.entry_type == 'New'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Contractor' && doc.entry_type == 'New'",
    "fieldname": "work_order_ref",
    "fieldtype": "Link",
    "label": "Work Order Ref",
    "options": "Maintenance Visit"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Contractor'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Contractor'",
    "fieldname": "column_break_contractor",
    "fieldtype": "Column Break"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Contractor'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Contractor'",
    "fieldname": "tools_list",
    "fieldtype": "Small Text",
    "label": "Tools List"
   },
   {
    "default": "0",
-   "depends_on": "eval:doc.visitor_type == 'Contractor'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Contractor'",
    "fieldname": "multi_day_pass",
    "fieldtype": "Check",
    "label": "Multi-Day Pass"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Contractor'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Contractor'",
    "fieldname": "pass_valid_until",
    "fieldtype": "Date",
    "label": "Pass Valid Until"
   },
   {
    "collapsible": 1,
-   "depends_on": "eval:doc.visitor_type == 'Candidate'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Candidate'",
    "fieldname": "section_break_candidate",
    "fieldtype": "Section Break",
    "label": "Candidate Details"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Candidate' && doc.entry_type == 'New'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Candidate' && doc.entry_type == 'New'",
    "fieldname": "job_applicant_link",
    "fieldtype": "Link",
    "label": "Job Applicant Link",
    "options": "Job Applicant"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Candidate'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Candidate'",
    "fetch_from": "job_applicant_link.job_title",
    "fieldname": "position_applied",
    "fieldtype": "Data",
@@ -463,32 +497,32 @@
    "read_only": 1
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Candidate'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Candidate'",
    "fieldname": "candidate_interview_type",
    "fieldtype": "Select",
    "label": "Interview Type",
    "options": "Walk-In\nScheduled\nGroup Discussion\nTechnical Round"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Candidate'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Candidate'",
    "fieldname": "column_break_candidate",
    "fieldtype": "Column Break"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Candidate'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Candidate'",
    "fieldname": "interview_panel",
    "fieldtype": "Small Text",
    "label": "Interview Panel"
   },
   {
    "collapsible": 1,
-   "depends_on": "eval:doc.visitor_type == 'Supplier'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Supplier'",
    "fieldname": "section_break_supplier_details",
    "fieldtype": "Section Break",
    "label": "Supplier Details"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Supplier'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Supplier'",
    "fieldname": "supplier_link",
    "fieldtype": "Link",
    "label": "Supplier",
@@ -496,20 +530,20 @@
   },
   {
    "default": "Meeting",
-   "depends_on": "eval:doc.visitor_type == 'Supplier'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Supplier'",
    "fieldname": "supplier_visit_mode",
    "fieldtype": "Select",
    "label": "Meeting Purpose",
    "options": "\nMeeting\nAudit\nService"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode == 'Meeting'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Supplier' && doc.supplier_visit_mode == 'Meeting'",
    "fieldname": "meeting_subject",
    "fieldtype": "Data",
    "label": "Meeting Subject"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Supplier'",
+   "depends_on": "eval:doc.visitor_type_layout == 'Supplier'",
    "fieldname": "column_break_supplier",
    "fieldtype": "Column Break"
   },
@@ -528,13 +562,13 @@
   },
   {
    "collapsible": 1,
-   "depends_on": "eval:doc.visitor_type == 'VIP'",
+   "depends_on": "eval:doc.visitor_type_layout == 'VIP'",
    "fieldname": "section_break_vip_details",
    "fieldtype": "Section Break",
    "label": "VIP Details"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'VIP'",
+   "depends_on": "eval:doc.visitor_type_layout == 'VIP'",
    "description": "Determines protocol level. Board Member, Government Official, and Investor visits warrant MD/CEO notification before approval.",
    "fieldname": "vip_category",
    "fieldtype": "Select",
@@ -543,32 +577,32 @@
   },
   {
    "default": "0",
-   "depends_on": "eval:doc.visitor_type == 'VIP'",
+   "depends_on": "eval:doc.visitor_type_layout == 'VIP'",
    "fieldname": "mdceo_notified",
    "fieldtype": "Check",
    "label": "MD/CEO Notified"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'VIP'",
+   "depends_on": "eval:doc.visitor_type_layout == 'VIP'",
    "fieldname": "column_break_vip",
    "fieldtype": "Column Break"
   },
   {
    "default": "0",
-   "depends_on": "eval:doc.visitor_type == 'VIP'",
+   "depends_on": "eval:doc.visitor_type_layout == 'VIP'",
    "fieldname": "interpreter_required",
    "fieldtype": "Check",
    "label": "Interpreter Required"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'VIP' && doc.interpreter_required",
+   "depends_on": "eval:doc.visitor_type_layout == 'VIP' && doc.interpreter_required",
    "fieldname": "interpreter_language",
    "fieldtype": "Select",
    "label": "Interpreter Language",
    "options": "\nEnglish\nTamil\nHindi\nTelugu\nKannada\nMalayalam\nJapanese\nMandarin\nGerman\nFrench\nArabic"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'VIP'",
+   "depends_on": "eval:doc.visitor_type_layout == 'VIP'",
    "fieldname": "protocol_notes",
    "fieldtype": "Text Editor",
    "label": "Protocol Notes",
@@ -596,134 +630,12 @@
    "label": "Hospitality"
   },
   {
-   "collapsible": 1,
-   "collapsible_depends_on": "eval:doc.approval_date || doc.actual_checkin || doc.docstatus > 0",
-   "fieldname": "section_break_gqft",
-   "fieldtype": "Section Break",
-   "label": "Approval & Gate Audit"
-  },
-  {
-   "fieldname": "badge_number",
-   "fieldtype": "Data",
-   "label": "Badge Number",
-   "read_only": 1
-  },
-  {
-   "fieldname": "badge_colour",
-   "fieldtype": "Select",
-   "label": "Badge Colour",
-   "options": "Orange\nPurple\nGreen\nTeal\nGold"
-  },
-  {
-   "fieldname": "approval_date",
-   "fieldtype": "Datetime",
-   "label": "Approval Date",
-   "read_only": 1
-  },
-  {
-   "fieldname": "approved_by",
-   "fieldtype": "Link",
-   "label": "Approved By",
-   "options": "User",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_badge",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "qr_code_image",
-   "fieldtype": "Attach Image",
-   "label": "QR Code Image",
-   "read_only": 1
-  },
-  {
-   "allow_on_submit": 1,
-   "fieldname": "gate_verified_photo",
-   "fieldtype": "Attach Image",
-   "label": "Gate Verified Photo",
-   "read_only": 1
-  },
-  {
-   "allow_on_submit": 1,
-   "fieldname": "gate_verified_on",
-   "fieldtype": "Datetime",
-   "label": "Gate Verified On",
-   "read_only": 1
-  },
-  {
-   "allow_on_submit": 1,
-   "fieldname": "gate_verified_by",
-   "fieldtype": "Link",
-   "label": "Gate Verified By",
-   "options": "Employee",
-   "read_only": 1
-  },
-  {
-   "allow_on_submit": 1,
-   "fieldname": "actual_checkin",
-   "fieldtype": "Datetime",
-   "label": "Actual Check-In",
-   "read_only": 1
-  },
-  {
-   "allow_on_submit": 1,
-   "fieldname": "actual_checkout",
-   "fieldtype": "Datetime",
-   "label": "Actual Check-Out",
-   "read_only": 1
-  },
-  {
-   "allow_on_submit": 1,
-   "default": "0",
-   "fieldname": "no_show",
-   "fieldtype": "Check",
-   "label": "No Show",
-   "read_only": 1
-  },
-  {
-   "allow_on_submit": 1,
-   "fieldname": "current_location",
-   "fieldtype": "Data",
-   "label": "Current Location",
-   "read_only": 1
-  },
-  {
-   "fieldname": "items_verification_status",
-   "fieldtype": "Select",
-   "hidden": 1,
-   "label": "Items Verification Status",
-   "options": "Pending\nPartial\nAll Verified"
-  },
-  {
-   "default": "Pending",
-   "fieldname": "item_verification_status",
-   "fieldtype": "Select",
-   "label": "Item Verification Status",
-   "options": "Pending\nPartial\nAll Verified",
-   "read_only": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "items_verified",
-   "fieldtype": "Check",
-   "label": "Items Verified",
-   "read_only": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "all_items_verified",
-   "fieldtype": "Check",
-   "label": "All Items Verified",
-   "read_only": 1
-  },
-  {
    "allow_on_submit": 1,
    "collapsible": 0,
-   "description": "Tick any arrangements required for this visit. A Hospitality Request is created automatically once the pass is approved.",
+   "description": "A Hospitality Request is created automatically once the pass is approved.",
    "fieldname": "section_break_khxo",
    "fieldtype": "Section Break",
-   "label": "Hospitality"
+   "label": "Meals & Room"
   },
   {
    "allow_on_submit": 1,
@@ -769,7 +681,8 @@
    "fieldname": "special_diet",
    "fieldtype": "Select",
    "label": "Special Diet",
-   "options": "None\nNon-vegetarian\nVegetarian\nVegan\nGluten Free\nHalal\nJain"
+   "options": "None\nNon-vegetarian\nVegetarian\nVegan\nGluten Free\nHalal\nJain",
+   "depends_on": "eval:doc.meal_required"
   },
   {
    "allow_on_submit": 1,
@@ -803,7 +716,8 @@
    "fieldtype": "Link",
    "hidden": 1,
    "label": "Food Dept Staff Assigned",
-   "options": "Employee"
+   "options": "Employee",
+   "ignore_user_permissions": 1
   },
   {
    "allow_on_submit": 1,
@@ -829,7 +743,6 @@
   },
   {
    "collapsible": 0,
-   "description": "Cab, hotel, factory tour, buggy, or lobby greeting — tick what the visitor needs.",
    "fieldname": "arrangements_section",
    "fieldtype": "Section Break",
    "label": "Additional Arrangements"
@@ -853,6 +766,10 @@
    "label": "Factory Tour Required"
   },
   {
+   "fieldname": "arrangements_col_break",
+   "fieldtype": "Column Break"
+  },
+  {
    "default": "0",
    "fieldname": "buggy_required",
    "fieldtype": "Check",
@@ -865,15 +782,138 @@
    "label": "Greeting Required"
   },
   {
-   "fieldname": "arrangements_col_break",
-   "fieldtype": "Column Break"
-  },
-  {
    "default": "Not Required",
    "fieldname": "hospitality_overall_status",
    "fieldtype": "Select",
    "label": "Hospitality Overall Status",
    "options": "Not Required\nPending\nIn Progress\nCompleted\nCancelled",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "collapsible": 1,
+   "collapsible_depends_on": "eval:doc.approval_date || doc.actual_checkin || doc.docstatus > 0",
+   "fieldname": "section_break_gqft",
+   "fieldtype": "Section Break",
+   "label": "Approval & Gate Audit"
+  },
+  {
+   "fieldname": "badge_number",
+   "fieldtype": "Data",
+   "label": "Badge Number",
+   "read_only": 1,
+   "search_index": 1,
+   "description": "Minted atomically on approval. Must be unique in practice — see the duplicate check in setup."
+  },
+  {
+   "fieldname": "badge_colour",
+   "fieldtype": "Select",
+   "label": "Badge Colour",
+   "options": "Orange\nPurple\nGreen\nTeal\nGold\nBlue\nRed\nGrey",
+   "description": "Copied from the Visitor Type master."
+  },
+  {
+   "fieldname": "approval_date",
+   "fieldtype": "Datetime",
+   "label": "Approval Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_badge",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "qr_code_image",
+   "fieldtype": "Attach Image",
+   "label": "QR Code Image",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "gate_verified_photo",
+   "fieldtype": "Attach Image",
+   "label": "Gate Verified Photo",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "gate_verified_on",
+   "fieldtype": "Datetime",
+   "label": "Gate Verified On",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "gate_verified_by",
+   "fieldtype": "Link",
+   "label": "Gate Verified By",
+   "options": "Employee",
+   "read_only": 1,
+   "ignore_user_permissions": 1
+  },
+  {
+   "fieldname": "items_verification_status",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Items Verification Status",
+   "options": "Pending\nPartial\nAll Verified"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "actual_checkin",
+   "fieldtype": "Datetime",
+   "label": "Actual Check-In",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "actual_checkout",
+   "fieldtype": "Datetime",
+   "label": "Actual Check-Out",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "no_show",
+   "fieldtype": "Check",
+   "label": "No Show",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "current_location",
+   "fieldtype": "Data",
+   "label": "Current Location",
+   "read_only": 1
+  },
+  {
+   "default": "Pending",
+   "fieldname": "item_verification_status",
+   "fieldtype": "Select",
+   "label": "Item Verification Status",
+   "options": "Pending\nPartial\nAll Verified",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "items_verified",
+   "fieldtype": "Check",
+   "label": "Items Verified",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "all_items_verified",
+   "fieldtype": "Check",
+   "label": "All Items Verified",
    "read_only": 1
   },
   {
@@ -887,7 +927,7 @@
    "label": "Declared Items"
   },
   {
-   "description": "e.g. laptop, toolkit \u2014 list the items the visitor will be carrying.",
+   "description": "e.g. laptop, toolkit — list the items the visitor will be carrying.",
    "fieldname": "items_carried",
    "fieldtype": "Small Text",
    "label": "Items"
@@ -914,7 +954,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-15 11:35:42.440403",
+ "modified": "2026-08-08 13:43:16.969820",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Pass",
@@ -997,7 +1037,7 @@
    "report": 1,
    "role": "Employee",
    "share": 1,
-   "submit": 1,
+   "submit": 0,
    "write": 1
   },
   {

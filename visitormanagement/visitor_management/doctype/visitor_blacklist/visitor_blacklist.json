@@ -6,58 +6,88 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "sec_identity",
   "visitor_name",
   "id_proof_type",
   "id_proof_number",
-  "reason",
+  "mobile_number",
+  "col_identity",
   "blocked_by",
   "blocked_on",
-  "is_active"
+  "is_active",
+  "sec_reason",
+  "reason"
  ],
  "fields": [
   {
+   "fieldname": "sec_identity",
+   "fieldtype": "Section Break",
+   "label": "Blacklisted Visitor"
+  },
+  {
    "fieldname": "visitor_name",
    "fieldtype": "Data",
-   "label": "Visitor Name "
+   "label": "Visitor Name",
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "id_proof_type",
-   "fieldtype": "Select",
-   "label": "ID Proof Type ",
-   "options": "\nAadhaar\nPAN Card\nPassport\nDriving License"
+   "fieldtype": "Link",
+   "label": "ID Proof Type",
+   "options": "ID Proof Type"
   },
   {
    "fieldname": "id_proof_number",
    "fieldtype": "Data",
-   "label": "ID Proof Number "
+   "label": "ID Proof Number",
+   "in_list_view": 1
   },
   {
-   "fieldname": "reason",
-   "fieldtype": "Text",
-   "label": " Reason "
+   "fieldname": "mobile_number",
+   "fieldtype": "Data",
+   "label": "Mobile Number",
+   "options": "Phone",
+   "description": "Optional third matching key — a barred visitor often returns on the same number."
+  },
+  {
+   "fieldname": "col_identity",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "blocked_by",
    "fieldtype": "Link",
-   "label": "Blocked By ",
+   "label": "Blocked By",
    "options": "User"
   },
   {
    "fieldname": "blocked_on",
    "fieldtype": "Date",
-   "label": "Blocked On "
+   "label": "Blocked On"
   },
   {
-   "default": "0",
+   "default": "1",
    "fieldname": "is_active",
    "fieldtype": "Check",
-   "label": "Is Active "
+   "label": "Is Active",
+   "description": "Only active entries block entry. Untick to retire an entry without losing the audit record.",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "sec_reason",
+   "fieldtype": "Section Break",
+   "label": "Reason"
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Text",
+   "label": "Reason"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-01 19:47:50.024766",
+ "modified": "2026-08-08 13:31:16.088560",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Blacklist",
@@ -80,5 +110,7 @@
  "rows_threshold_for_grid_search": 20,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "track_changes": 1,
+ "naming_rule": "Expression (old style)"
 }

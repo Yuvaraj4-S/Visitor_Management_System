@@ -55,15 +55,98 @@ def get_visitor_pass_permission_query_conditions(user=None):
 	if "Security" in roles:
 		conditions.append(f"`{table}`.`status` in ('Approved', 'Items Verified', 'Checked-In', 'Checked-Out')")
 
-	return " or ".join(conditions) if conditions else "1=0"
+	# Parenthesised: Frappe ANDs this fragment with its own clauses (User
+	# Permissions, share filters). Unbracketed, `AND` binds tighter than `OR`, so
+	# a User Permission would constrain only the first disjunct and every other
+	# branch would widen the result set past it.
+	return "(" + " or ".join(conditions) + ")" if conditions else "1=0"
 
 
-# Permission types that count as "read-like" — granting these to a role does
-# NOT let the user write/submit/cancel/delete the doc.
-_READ_LIKE_PTYPES = {None, "read", "select", "print", "email", "report", "export", "share"}
+def get_visitor_invitation_permission_query_conditions(user=None):
+	"""Scope Visitor Invitation to the host who raised it.
+
+	An invitation row carries `invitation_token` — the bearer credential that
+	opens the visitor's pre-registration form. Employee holds read+write on this
+	doctype so hosts can invite their own guests, and without a row filter that
+	meant every member of staff could read every token and edit anyone's
+	invitation. The token is a capability, so listing it is disclosing it.
+	"""
+	user = user or frappe.session.user
+	if _is_admin(user):
+		return None
+
+	roles = set(frappe.get_roles(user))
+	table = "tabVisitor Invitation"
+
+	if "System Manager" in roles:
+		return None
+
+	conditions = [_owner_condition(table, user)]
+	employee = _employee_for_user(user)
+	if employee:
+		conditions.append(f"`{table}`.`host_employee` = {frappe.db.escape(employee)}")
+
+	# Approvers oversee the visitor types they are responsible for — the same
+	# scope they get on Visitor Pass, rather than blanket visibility.
+	owned_types = _approver_visitor_types(roles)
+	if owned_types:
+		type_list = ", ".join(frappe.db.escape(t) for t in owned_types)
+		conditions.append(f"`{table}`.`visitor_type` in ({type_list})")
+
+	return "(" + " or ".join(conditions) + ")"
 
 
-def has_visitor_pass_permission(doc, user=None, permission_type=None):
+def _approver_visitor_types(roles):
+	return frappe.get_all(
+		"Visitor Type",
+		or_filters=[["approver_role", "in", list(roles)], ["secondary_approver_role", "in", list(roles)]],
+		pluck="name",
+	)
+
+
+def has_visitor_invitation_permission(doc, user=None, ptype=None, debug=False):
+	user = user or frappe.session.user
+	if _is_admin(user):
+		return True
+
+	roles = set(frappe.get_roles(user))
+	if "System Manager" in roles:
+		return True
+
+	if doc.owner == user:
+		return True
+
+	employee = _employee_for_user(user)
+	if employee and doc.host_employee == employee:
+		return True
+
+	# Approver oversight is visibility, not custody. Without this the approver
+	# branch granted write as well, so any approver role could edit another
+	# host's invitation — including repointing `visitor_email` and triggering a
+	# resend, which mails the bearer token to an address of their choosing.
+	if ptype in _READ_LIKE_PTYPES:
+		return bool(doc.visitor_type and doc.visitor_type in _approver_visitor_types(roles))
+
+	return False
+
+
+# Permission types that count as "read-like" — holding one of these does NOT let
+# the user write/submit/cancel/delete the doc.
+#
+# `None` is deliberately absent. Frappe invokes this hook as
+# `frappe.call(method, doc=..., ptype=..., user=...)`, and `frappe.call` drops
+# any keyword the function does not declare — so while the parameter here was
+# named `permission_type`, it was *always* None, None was in this set, and every
+# read-only branch below returned True for write and submit as well. An unknown
+# permission type now falls through to the deny path instead.
+#
+# `share` is absent for the same reason it matters here: sharing a Visitor
+# Invitation hands over the `invitation_token` inside it, which is a bearer
+# credential, not a view.
+_READ_LIKE_PTYPES = {"read", "select", "print", "email", "report", "export"}
+
+
+def has_visitor_pass_permission(doc, user=None, ptype=None, debug=False):
 	user = user or frappe.session.user
 	if _is_admin(user):
 		return True
@@ -81,7 +164,7 @@ def has_visitor_pass_permission(doc, user=None, permission_type=None):
 	# Facility Manager + Hospitality Manager: read-only on all passes so
 	# Conference Room Booking / Hospitality Request link widgets can render
 	# the visitor's title. Write paths are blocked at role level.
-	if permission_type in _READ_LIKE_PTYPES and (
+	if ptype in _READ_LIKE_PTYPES and (
 		"Facility Manager" in roles or "Hospitality Manager" in roles
 	):
 		return True
@@ -110,6 +193,6 @@ def has_visitor_pass_permission(doc, user=None, permission_type=None):
 		"Checked-In",
 		"Checked-Out",
 	}:
-		return permission_type in _READ_LIKE_PTYPES
+		return ptype in _READ_LIKE_PTYPES
 
 	return False

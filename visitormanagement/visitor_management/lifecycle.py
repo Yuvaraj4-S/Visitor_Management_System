@@ -1,6 +1,9 @@
 import frappe
 from frappe import _
 
+from visitormanagement.visitor_management import settings as vms_settings
+
+from frappe.rate_limiter import rate_limit
 from frappe.utils import cint, flt, get_datetime, get_time, getdate, now_datetime, nowdate
 
 
@@ -26,12 +29,9 @@ ARRANGEMENT_REQUIRED_FIELDS = (
 	"greeting_required",
 )
 ARRANGEMENT_TERMINAL_STATUSES = {"Completed", "Delivered", "Checked Out", "Cancelled"}
-MEAL_WINDOWS = (
-	("Breakfast", "08:00:00", "09:00:00"),
-	("Lunch", "13:00:00", "14:00:00"),
-	("Dinner", "20:00:00", "21:30:00"),
-)
-MEAL_TYPE_SEQUENCE = ("Breakfast", "Lunch", "Dinner")
+# Meal windows are configured in VMS Settings (VMS Meal Window child table).
+# `settings.meal_windows()` falls back to the original Breakfast/Lunch/Dinner
+# slots when a site has not customised them.
 DOUBLE_MEAL_TYPES = {
 	("Breakfast", "Lunch"): "Breakfast + Lunch",
 	("Breakfast", "Dinner"): "Breakfast + Dinner",
@@ -43,13 +43,23 @@ def normalize_visitor_pass(doc):
 	if not doc.status:
 		doc.status = "Draft"
 
+	# VMS Settings carries a default check-out time; apply it when the caller did
+	# not supply one (portal/API/import paths) instead of failing the mandatory
+	# field. This setting previously had no consumer at all.
+	if not getattr(doc, "expected_checkout", None):
+		fallback = vms_settings.default_checkout_time()
+		if fallback:
+			doc.expected_checkout = fallback
+
 	if not doc.request_channel:
 		doc.request_channel = "Desk"
 
 	# Line 1 (title in Link dropdown) — just the visitor name.
 	doc.visitor_summary = doc.visitor_full_name or "Unnamed"
 
-	if doc.visitor_type == "Supplier" and not doc.supplier_visit_mode:
+	# Supplier-layout types default to a meeting visit; keyed on the layout so a
+	# site's own vendor type behaves the same without being named "Supplier".
+	if getattr(doc, "visitor_type_layout", None) == "Supplier" and not doc.supplier_visit_mode:
 		doc.supplier_visit_mode = "Meeting"
 
 	if doc.actual_checkin:
@@ -327,7 +337,7 @@ def derive_hospitality_meal_plan(visitor_pass):
 
 	applicable_meals = []
 	first_service_time = None
-	for meal_label, slot_start, slot_end in MEAL_WINDOWS:
+	for meal_label, slot_start, slot_end in vms_settings.meal_windows():
 		slot_start_dt = _combine_visit_datetime(visit_date, slot_start)
 		slot_end_dt = _combine_visit_datetime(visit_date, slot_end)
 		if _overlaps_time_window(start_dt, end_dt, slot_start_dt, slot_end_dt):
@@ -514,16 +524,43 @@ def _compute_overall_hospitality_status(request_doc):
 
 
 @frappe.whitelist(allow_guest=True)
+@rate_limit(limit=60, seconds=60 * 60)
 def get_hospitality_meal_plan(visit_date=None, expected_checkin=None, expected_checkout=None):
+	"""Preview the meals a visit would qualify for. Reachable without login.
+
+	The portal calls this on every change to the visit times, so it is both
+	anonymous and chatty. Inputs are parsed rather than trusted: a malformed
+	date previously reached dateutil and surfaced as a 500 with a traceback,
+	which told an anonymous caller more about the stack than it should and
+	turned a typo into an error-log entry.
+	"""
 	return derive_hospitality_meal_plan(
 		frappe._dict(
 			{
-				"visit_date": visit_date,
-				"expected_checkin": expected_checkin,
-				"expected_checkout": expected_checkout,
+				"visit_date": _parse_date_arg(visit_date, "Visit Date"),
+				"expected_checkin": _parse_time_arg(expected_checkin, "Expected Check-In"),
+				"expected_checkout": _parse_time_arg(expected_checkout, "Expected Check-Out"),
 			}
 		)
 	)
+
+
+def _parse_date_arg(value, label):
+	if not value:
+		return None
+	try:
+		return getdate(value)
+	except Exception:
+		frappe.throw(_("{0} is not a valid date.").format(_(label)), frappe.ValidationError)
+
+
+def _parse_time_arg(value, label):
+	if not value:
+		return None
+	try:
+		return get_time(value)
+	except Exception:
+		frappe.throw(_("{0} is not a valid time.").format(_(label)), frappe.ValidationError)
 
 
 def log_visitor_event(

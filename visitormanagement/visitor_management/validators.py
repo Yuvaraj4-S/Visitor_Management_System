@@ -124,9 +124,108 @@ _VALIDATORS = {
 }
 
 
+# ─────────────────────────────────────────────────────────────
+# MASTER-DRIVEN TYPES (ID Proof Type doctype)
+# ─────────────────────────────────────────────────────────────
+# The four built-ins above stay as the fallback so this module keeps working
+# standalone (no Frappe import at module scope) and on a site that has not
+# migrated yet. When the `ID Proof Type` master is present it wins, so a site
+# can add its own document types — foreign passports, national IDs, residence
+# permits — with their own pattern, aliases and error text, without a release.
+
+_NORMALISERS = {
+    "Uppercase and strip spaces": lambda v: _strip(v).upper(),
+    "Strip spaces and hyphens": lambda v: _strip_hyphens(v).upper(),
+    "Collapse spaces": lambda v: re.sub(r"\s+", " ", (v or "").strip()).upper(),
+    "None": lambda v: (v or "").strip(),
+}
+
+
+def _load_master():
+    """Return {canonical_name: config} from the ID Proof Type master, or {}.
+
+    Frappe is imported lazily and every failure is swallowed: this module is
+    deliberately usable outside a Frappe request (portal helpers, plain-Python
+    callers, unit tests) and must never hard-depend on a site being connected.
+    """
+    try:
+        import frappe
+    except ImportError:
+        return {}
+
+    try:
+        cached = frappe.cache.get_value("vms_id_proof_types")
+        if cached is not None:
+            return cached
+    except Exception:
+        cached = None
+
+    try:
+        rows = frappe.get_all(
+            "ID Proof Type",
+            filters={"is_active": 1},
+            order_by="creation asc",
+            fields=[
+                "name",
+                "aliases",
+                "validation_method",
+                "validation_regex",
+                "normalisation",
+                "error_message",
+                "valid_for_foreign_nationals",
+            ],
+        )
+    except Exception:
+        return {}
+
+    table = {}
+    for row in rows:
+        table[row["name"]] = {
+            "aliases": [
+                a.strip().lower()
+                for a in (row.get("aliases") or "").splitlines()
+                if a.strip()
+            ],
+            "method": row.get("validation_method") or "Regex",
+            "regex": row.get("validation_regex") or "",
+            "normalisation": row.get("normalisation") or "Uppercase and strip spaces",
+            "error_message": row.get("error_message") or "",
+            "foreign_ok": bool(row.get("valid_for_foreign_nationals")),
+        }
+
+    try:
+        frappe.cache.set_value("vms_id_proof_types", table)
+    except Exception:
+        pass
+    return table
+
+
 def _canonical_type(id_type):
     key = (id_type or "").strip().lower()
+
+    master = _load_master()
+    for name, cfg in master.items():
+        if key == name.strip().lower() or key in cfg["aliases"]:
+            return name
+
     return _CANONICAL.get(key)
+
+
+def _validate_with_master(canonical, number, cfg):
+    normalise = _NORMALISERS.get(cfg["normalisation"], _NORMALISERS["Uppercase and strip spaces"])
+    clean = normalise(str(number or ""))
+
+    method = cfg["method"]
+    if method == "None":
+        return bool(clean)
+    if method == "Aadhaar (Verhoeff)":
+        return validate_aadhaar(clean)
+    if not cfg["regex"]:
+        return False
+    try:
+        return bool(re.match(cfg["regex"], clean))
+    except re.error:
+        return False
 
 
 def validate_id(id_type, number):
@@ -134,15 +233,53 @@ def validate_id(id_type, number):
     canonical = _canonical_type(id_type)
     if not canonical:
         return False
-    return _VALIDATORS[canonical](number)
+
+    cfg = _load_master().get(canonical)
+    if cfg:
+        return _validate_with_master(canonical, number, cfg)
+
+    validator = _VALIDATORS.get(canonical)
+    return validator(number) if validator else False
+
+
+def is_valid_for_foreign_nationals(id_type):
+    """Whether a foreign national may present this document type.
+
+    Falls back to the original hardcoded rule (Passport only) when the master
+    is unavailable.
+    """
+    canonical = _canonical_type(id_type)
+    if not canonical:
+        return False
+    cfg = _load_master().get(canonical)
+    if cfg:
+        return cfg["foreign_ok"]
+    return canonical == "Passport"
+
+
+def foreign_national_id_types():
+    """Types a foreign national may present, for error messages / link filters."""
+    master = _load_master()
+    if master:
+        return [n for n, cfg in master.items() if cfg["foreign_ok"]]
+    return ["Passport"]
+
+
+def active_types():
+    """Usable ID proof types, in master order.
+
+    Order matters for `detect_id_type`: a narrow pattern (Passport) must be
+    tried before a permissive one (Foreign Passport), so the list follows the
+    master's own creation order rather than alphabetical.
+    """
+    master = _load_master()
+    return list(master) if master else list(_VALIDATORS)
 
 
 def detect_id_type(number):
-    """Return the first canonical label whose validator accepts `number`, else None.
-    Order: Aadhaar → PAN → Driving License → Passport.
-    """
-    for label in ("Aadhaar", "PAN Card", "Driving License", "Passport"):
-        if _VALIDATORS[label](number):
+    """Return the first configured type whose validator accepts `number`, else None."""
+    for label in active_types():
+        if validate_id(label, number):
             return label
     return None
 
@@ -173,6 +310,11 @@ _ERROR_MESSAGES = {
 
 def id_proof_error_message(id_type):
     canonical = _canonical_type(id_type) or id_type
+
+    cfg = _load_master().get(canonical)
+    if cfg and cfg["error_message"]:
+        return cfg["error_message"]
+
     return _ERROR_MESSAGES.get(
         canonical,
         f"Unsupported ID Proof Type: {id_type!r}. "

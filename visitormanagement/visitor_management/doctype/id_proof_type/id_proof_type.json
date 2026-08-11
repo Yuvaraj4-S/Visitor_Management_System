@@ -1,0 +1,133 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:id_proof_type_name",
+ "creation": "2026-08-05 11:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "id_proof_type_name",
+  "is_active",
+  "valid_for_foreign_nationals",
+  "column_break_basic",
+  "aliases",
+  "section_validation",
+  "validation_method",
+  "validation_regex",
+  "column_break_validation",
+  "normalisation",
+  "error_message"
+ ],
+ "fields": [
+  {
+   "fieldname": "id_proof_type_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "ID Proof Type",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Active"
+  },
+  {
+   "default": "0",
+   "fieldname": "valid_for_foreign_nationals",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Valid for Foreign Nationals",
+   "description": "Visitors whose nationality differs from the configured home country may only pick a type with this ticked."
+  },
+  {
+   "fieldname": "column_break_basic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "aliases",
+   "fieldtype": "Small Text",
+   "label": "Aliases",
+   "description": "One per line. Alternate spellings accepted from portals/imports, e.g. 'PAN' for 'PAN Card'."
+  },
+  {
+   "fieldname": "section_validation",
+   "fieldtype": "Section Break",
+   "label": "Validation"
+  },
+  {
+   "default": "Regex",
+   "fieldname": "validation_method",
+   "fieldtype": "Select",
+   "label": "Validation Method",
+   "options": "Regex\nAadhaar (Verhoeff)\nNone",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.validation_method == 'Regex'",
+   "fieldname": "validation_regex",
+   "fieldtype": "Data",
+   "label": "Validation Regex",
+   "description": "Anchored pattern applied after normalisation, e.g. ^[A-Z]{5}[0-9]{4}[A-Z]$"
+  },
+  {
+   "fieldname": "column_break_validation",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Uppercase and strip spaces",
+   "fieldname": "normalisation",
+   "fieldtype": "Select",
+   "label": "Normalisation",
+   "options": "Uppercase and strip spaces\nStrip spaces and hyphens\nCollapse spaces\nNone",
+   "reqd": 1
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Small Text",
+   "label": "Error Message",
+   "description": "Shown when the number fails validation."
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-06 10:45:17.633644",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "ID Proof Type",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Security",
+   "select": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Employee",
+   "select": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1,
+ "naming_rule": "By fieldname"
+}

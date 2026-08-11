@@ -7,6 +7,7 @@
  "field_order": [
   "section_general",
   "admin_email",
+  "home_country",
   "food_dept_email",
   "column_break_general",
   "default_checkout_time",
@@ -18,10 +19,27 @@
   "block_check_in_without_verification",
   "column_break_gate",
   "blacklist_action",
-  "gate_list",
   "section_badge",
   "enable_badge",
-  "badge_required_for"
+  "badge_required_for",
+  "section_policy",
+  "max_advance_booking_days",
+  "invitation_expiry_days",
+  "column_break_policy",
+  "no_show_grace_hours",
+  "default_country_code",
+  "section_meals",
+  "meal_windows",
+  "section_notify",
+  "security_alert_roles",
+  "column_break_notify",
+  "digest_recipient_roles",
+  "section_branding",
+  "portal_brand_colour",
+  "portal_logo",
+  "column_break_branding",
+  "portal_organisation_name",
+  "portal_footer_note"
  ],
  "fields": [
   {
@@ -34,6 +52,14 @@
    "fieldtype": "Data",
    "label": "Admin Email",
    "options": "Email"
+  },
+  {
+   "default": "India",
+   "description": "Visitors with a nationality other than this country are treated as foreign nationals.",
+   "fieldname": "home_country",
+   "fieldtype": "Link",
+   "label": "Home Country",
+   "options": "Country"
   },
   {
    "fieldname": "food_dept_email",
@@ -49,7 +75,8 @@
    "default": "18:00:00",
    "fieldname": "default_checkout_time",
    "fieldtype": "Time",
-   "label": "Default Checkout Time"
+   "label": "Default Checkout Time",
+   "description": "Used as the expected check-out when a pass or invitation does not specify one."
   },
   {
    "default": "12",
@@ -98,11 +125,6 @@
    "options": "Block Entry\nAlert Only\nLog Only"
   },
   {
-   "fieldname": "gate_list",
-   "fieldtype": "Small Text",
-   "label": "Gate List"
-  },
-  {
    "fieldname": "section_badge",
    "fieldtype": "Section Break",
    "label": "Badge Configuration"
@@ -117,10 +139,118 @@
   {
    "default": "Contractor\nCandidate\nCustomer\nSupplier\nVIP",
    "depends_on": "eval:doc.enable_badge",
-   "description": "Select which visitor types require a physical badge. Unselected types will get QR-only access.",
+   "description": "Superseded by 'Requires Physical Badge' on each Visitor Type. Retained only for sites that have not yet set that flag.",
    "fieldname": "badge_required_for",
    "fieldtype": "Small Text",
-   "label": "Badge Required For"
+   "label": "Badge Required For (legacy)",
+   "hidden": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_policy",
+   "fieldtype": "Section Break",
+   "label": "Visit Policy"
+  },
+  {
+   "fieldname": "max_advance_booking_days",
+   "fieldtype": "Int",
+   "label": "Max Advance Booking (days)",
+   "default": "90",
+   "description": "How far ahead a visit may be scheduled. 0 = no limit."
+  },
+  {
+   "fieldname": "invitation_expiry_days",
+   "fieldtype": "Int",
+   "label": "Invitation Link Expiry (days)",
+   "default": "7"
+  },
+  {
+   "fieldname": "column_break_policy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "no_show_grace_hours",
+   "fieldtype": "Int",
+   "label": "No-Show Grace (hours)",
+   "default": "4"
+  },
+  {
+   "fieldname": "default_country_code",
+   "fieldtype": "Data",
+   "label": "Default Phone Country Code",
+   "default": "91",
+   "description": "ISD code applied to local mobile numbers, without '+'."
+  },
+  {
+   "fieldname": "section_meals",
+   "fieldtype": "Section Break",
+   "label": "Meal Windows",
+   "description": "Visit windows overlapping these slots auto-derive the meal plan."
+  },
+  {
+   "fieldname": "meal_windows",
+   "fieldtype": "Table",
+   "label": "Meal Windows",
+   "options": "VMS Meal Window"
+  },
+  {
+   "fieldname": "section_notify",
+   "fieldtype": "Section Break",
+   "label": "Notification Recipients",
+   "description": "Who receives VMS alerts. Leave a table empty to fall back to the built-in role list."
+  },
+  {
+   "fieldname": "security_alert_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Security Alert Roles",
+   "options": "VMS Notification Role",
+   "description": "Notified when a blacklisted visitor is matched."
+  },
+  {
+   "fieldname": "column_break_notify",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "digest_recipient_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Hospitality Digest Roles",
+   "options": "VMS Notification Role",
+   "description": "Receive the daily hospitality schedule digest."
+  },
+  {
+   "fieldname": "section_branding",
+   "fieldtype": "Section Break",
+   "label": "Portal Branding",
+   "description": "Controls how the public pre-registration page looks. The whole palette is derived from the brand colour, so one setting themes the page."
+  },
+  {
+   "fieldname": "portal_brand_colour",
+   "fieldtype": "Color",
+   "label": "Brand Colour",
+   "default": "#1A56DB",
+   "description": "Used for step markers, focus rings and the submit button."
+  },
+  {
+   "fieldname": "portal_logo",
+   "fieldtype": "Attach Image",
+   "label": "Portal Logo",
+   "description": "Shown above the form title. Leave blank to show no logo."
+  },
+  {
+   "fieldname": "column_break_branding",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "portal_organisation_name",
+   "fieldtype": "Data",
+   "label": "Organisation Name",
+   "description": "Shown beside the logo and in the page footer."
+  },
+  {
+   "fieldname": "portal_footer_note",
+   "fieldtype": "Small Text",
+   "label": "Footer Note",
+   "description": "Optional line under the form — e.g. a privacy statement or help contact."
   }
  ],
  "grid_page_length": 50,

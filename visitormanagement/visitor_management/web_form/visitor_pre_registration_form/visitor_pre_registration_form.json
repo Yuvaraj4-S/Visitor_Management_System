@@ -10,17 +10,17 @@
  "button_label": "Submit Pre-Registration",
  "condition_json": "[]",
  "creation": "2026-04-10 16:30:43.245603",
- "custom_css": "\n:root {\n  --vr-primary: #1e40af;\n  --vr-primary-light: #3b82f6;\n  --vr-primary-bg: rgba(30,64,175,0.06);\n  --vr-surface: #ffffff;\n  --vr-bg: #f1f5f9;\n  --vr-text: #0f172a;\n  --vr-text-muted: #64748b;\n  --vr-border: #e2e8f0;\n  --vr-radius: 16px;\n  --vr-radius-sm: 10px;\n  --vr-success: #059669;\n  --vr-danger: #dc2626;\n}\n\nbody {\n  background: var(--vr-bg);\n  color: var(--vr-text);\n  font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif;\n}\n\n.page_content { padding: 2rem 0 4rem; }\n.page-footer, footer { display: none; }\n.web-form-container { max-width: 860px; margin: 0 auto; }\n\n.web-form-header { text-align: center; margin-bottom: 0.5rem; }\n.web-form-head { padding-bottom: 0; border: none; }\n\n.web-form-title h1 {\n  font-size: 1.75rem;\n  font-weight: 700;\n  color: var(--vr-text);\n  letter-spacing: -0.02em;\n  margin-bottom: 0.25rem;\n}\n\n/* Hide Frappe's \"Not Saved\" indicator pill in the web form header */\n.web-form-head .indicator-pill,\n.web-form-header .indicator-pill { display: none !important; }\n\n/* Clean centered header: stack title over description, no floating pills */\n.web-form-head .title {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 0.25rem;\n  text-align: center;\n}\n.web-form-head .title .web-form-title { width: 100%; }\n.web-form-head .title .web-form-actions { display: none; }\n\n.web-form-introduction {\n  max-width: 640px;\n  margin: 0 auto;\n  font-size: 0.92rem;\n  line-height: 1.6;\n  color: var(--vr-text-muted);\n}\n\n.web-form {\n  background: var(--vr-surface);\n  border: 1px solid var(--vr-border);\n  border-radius: 20px;\n  padding: 2rem 2rem 1.5rem;\n  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.04);\n  margin-top: 1.5rem;\n}\n\n.row.form-section {\n  margin: 0 0 1.5rem;\n  padding: 1.25rem 1.25rem 0.75rem;\n  border: 1px solid var(--vr-border);\n  border-radius: var(--vr-radius);\n  background: #fafbfc;\n}\n\n/* Hide empty section wrappers (sections that contain only hidden fields and have no visible section-head label) */\n.row.form-section:not(:has(.section-head)) {\n  display: none !important;\n}\n\n.section-head {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 0.78rem;\n  font-weight: 700;\n  letter-spacing: 0.08em;\n  text-transform: uppercase;\n  color: var(--vr-primary);\n  margin-bottom: 1rem;\n  padding-bottom: 0.75rem;\n  border-bottom: 1px solid var(--vr-border);\n}\n\n.row.form-section .section-head::before {\n  content: counter(vr-step);\n  counter-increment: vr-step;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 24px;\n  height: 24px;\n  border-radius: 50%;\n  background: var(--vr-primary);\n  color: #fff;\n  font-size: 0.72rem;\n  font-weight: 700;\n  letter-spacing: 0;\n  flex-shrink: 0;\n}\n.web-form { counter-reset: vr-step; }\n\n.form-group { margin-bottom: 1rem; }\n\n.control-label {\n  font-size: 0.82rem;\n  font-weight: 600;\n  color: var(--vr-text);\n  margin-bottom: 6px;\n}\n\n.form-control,\n.form-select,\n.like-disabled-input {\n  min-height: 44px;\n  border-radius: var(--vr-radius-sm) !important;\n  border: 1px solid var(--vr-border) !important;\n  background: #fff;\n  font-size: 0.9rem;\n  color: var(--vr-text);\n  box-shadow: none !important;\n  transition: border-color 0.15s ease, box-shadow 0.15s ease;\n}\n\n.form-control:focus,\n.form-select:focus {\n  border-color: var(--vr-primary-light) !important;\n  box-shadow: 0 0 0 3px rgba(59,130,246,0.1) !important;\n}\n\n.form-control:disabled,\n.form-control[readonly] {\n  background: #f8fafc;\n  color: var(--vr-text-muted);\n}\n\n.control-input-wrapper .control-value.like-disabled-input { display: none !important; }\n\n.help-box.small.text-muted {\n  font-size: 0.72rem;\n  color: var(--vr-text-muted) !important;\n  margin-top: 4px;\n}\n\n.file-upload-area,\n.attached-file {\n  border-radius: var(--vr-radius-sm) !important;\n  border: 2px dashed var(--vr-border) !important;\n  background: #fafbfc !important;\n  min-height: 80px;\n  transition: border-color 0.15s ease;\n}\n.file-upload-area:hover { border-color: var(--vr-primary-light) !important; }\n.btn-file-upload { color: var(--vr-primary); font-weight: 600; }\n\n.frappe-control[data-fieldtype=\"Check\"] .control-input-wrapper {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n.frappe-control[data-fieldtype=\"Check\"] .control-input-wrapper input[type=\"checkbox\"] {\n  width: 18px;\n  height: 18px;\n  accent-color: var(--vr-primary);\n}\n\n.vm-status-panel {\n  margin-bottom: 1.25rem;\n  padding: 1rem 1.25rem;\n  border-radius: var(--vr-radius-sm);\n  border: 1px solid var(--vr-border);\n}\n.vm-status-title {\n  font-size: 0.9rem;\n  font-weight: 700;\n  margin-bottom: 4px;\n}\n.vm-status-message {\n  font-size: 0.85rem;\n  line-height: 1.5;\n  color: var(--vr-text-muted);\n}\n.vm-status-success {\n  background: #f0fdf4;\n  border-color: #bbf7d0;\n}\n.vm-status-success .vm-status-title { color: var(--vr-success); }\n.vm-status-error {\n  background: #fef2f2;\n  border-color: #fecaca;\n}\n.vm-status-error .vm-status-title { color: var(--vr-danger); }\n\n.vm-locked-sections { margin-bottom: 1rem; }\n.vm-locked-section {\n  padding: 1.25rem;\n  border: 1px solid var(--vr-border);\n  border-radius: var(--vr-radius);\n  background: #fafbfc;\n}\n.vm-locked-section-title {\n  font-size: 0.78rem;\n  font-weight: 700;\n  letter-spacing: 0.08em;\n  text-transform: uppercase;\n  color: var(--vr-primary);\n  margin-bottom: 1rem;\n  padding-bottom: 0.5rem;\n  border-bottom: 1px solid var(--vr-border);\n}\n.vm-locked-grid {\n  display: grid;\n  grid-template-columns: repeat(2, 1fr);\n  gap: 10px;\n}\n.vm-locked-card {\n  padding: 10px 14px;\n  border: 1px solid var(--vr-border);\n  border-radius: var(--vr-radius-sm);\n  background: #fff;\n}\n.vm-locked-label {\n  font-size: 0.78rem;\n  font-weight: 700;\n  letter-spacing: 0.06em;\n  text-transform: uppercase;\n  color: var(--vr-text-muted);\n  margin-bottom: 4px;\n}\n.vm-locked-value {\n  font-size: 0.95rem;\n  font-weight: 600;\n  color: var(--vr-text);\n}\n\n.vm-locked-display {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-height: 44px;\n  padding: 8px 14px;\n  border-radius: var(--vr-radius-sm);\n  border: 1px solid #c7d2fe;\n  background: #eef2ff;\n  color: var(--vr-text);\n  font-weight: 600;\n}\n.vm-locked-display::before {\n  content: '';\n  display: inline-block;\n  width: 14px;\n  height: 14px;\n  flex-shrink: 0;\n  background-image: url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231e40af'><path d='M12 1a5 5 0 0 0-5 5v3H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-2V6a5 5 0 0 0-5-5zm-3 8V6a3 3 0 0 1 6 0v3H9z'/></svg>\");\n  background-size: contain;\n  background-repeat: no-repeat;\n}\n.vm-host-field .control-label::after {\n  content: 'Set by host';\n  margin-left: 6px;\n  font-size: 0.68rem;\n  font-weight: 700;\n  letter-spacing: 0.04em;\n  text-transform: uppercase;\n  color: var(--vr-primary);\n  background: var(--vr-primary-bg);\n  padding: 2px 8px;\n  border-radius: 4px;\n}\n.vm-mobile-error {\n  margin-top: 4px;\n  font-size: 0.78rem;\n  color: var(--vr-danger);\n  display: none;\n}\n.vm-mobile-error.visible { display: block; }\n.vm-success-panel {\n  margin: 1rem auto;\n  max-width: 640px;\n  padding: 1.5rem;\n  border-radius: var(--vr-radius);\n  background: #f0fdf4;\n  border: 1px solid #bbf7d0;\n  text-align: center;\n}\n.vm-success-ref {\n  display: inline-block;\n  margin-top: 0.75rem;\n  padding: 6px 14px;\n  border-radius: var(--vr-radius-sm);\n  background: #fff;\n  border: 1px solid #bbf7d0;\n  font-family: 'SF Mono', Menlo, Consolas, monospace;\n  font-weight: 700;\n  color: var(--vr-success);\n}\n.vm-success-next {\n  margin-top: 1rem;\n  font-size: 0.88rem;\n  color: var(--vr-text-muted);\n  line-height: 1.6;\n  text-align: left;\n}\n.vm-success-next ol { margin: 0.5rem 0 0 1.25rem; padding: 0; }\n.vm-success-next li { margin-bottom: 4px; }\n.vm-locked-field .control-input { display: none !important; }\n\n.vm-custom-block {\n  margin-bottom: 1.5rem;\n  padding: 1.25rem;\n  border: 1px solid var(--vr-border);\n  border-radius: var(--vr-radius);\n  background: #fafbfc;\n}\n\n/* Intro/prompt text inside visitor items section — readable, not tiny */\n.vm-items-intro {\n  font-size: 0.88rem;\n  line-height: 1.5;\n  color: var(--vr-text);\n  margin-top: 0.25rem;\n  margin-bottom: 0.25rem;\n}\n.vm-visitor-item-row {\n  padding: 1rem;\n  border: 1px solid var(--vr-border);\n  border-radius: var(--vr-radius-sm);\n  background: #fff;\n  margin-bottom: 10px;\n}\n\n.web-form-footer {\n  margin-top: 1.25rem;\n  padding-top: 1.25rem;\n  border-top: 1px solid var(--vr-border);\n}\n\n.discard-btn.btn,\n.submit-btn.btn {\n  min-height: 48px;\n  border-radius: var(--vr-radius-sm);\n  padding: 10px 28px;\n  font-weight: 700;\n  font-size: 0.9rem;\n}\n.discard-btn.btn {\n  background: #fff;\n  border: 1px solid var(--vr-border);\n  color: var(--vr-text);\n}\n.submit-btn.btn {\n  background: var(--vr-primary);\n  border: none;\n  color: #fff;\n  box-shadow: 0 2px 8px rgba(30,64,175,0.2);\n}\n.submit-btn.btn:hover {\n  background: #1e3a8a;\n  box-shadow: 0 4px 12px rgba(30,64,175,0.3);\n}\n\n.vm-form-hidden { display: none !important; }\n\n@media (max-width: 768px) {\n  .page_content { padding: 1rem 0 2rem; }\n  .web-form { padding: 1.25rem 1rem 1rem; border-radius: 16px; }\n  .row.form-section { padding: 1rem 0.75rem 0.5rem; }\n  .vm-locked-grid { grid-template-columns: 1fr; }\n  .web-form-title h1 { font-size: 1.4rem; }\n  .submit-btn.btn, .discard-btn.btn { width: 100%; }\n  .web-form-footer .right-area { display: grid; gap: 8px; width: 100%; }\n}\n",
+ "custom_css": "/* ── Visitor Pre-Registration portal ──────────────────────────────────────────\n   Public-facing form. Restyles Frappe's v16 web form without replacing any of\n   its markup, so the framework keeps owning validation, uploads and save.\n\n   The alignment fix is the `display: contents` block below: Frappe nests fields\n   as .section-body > .form-column > form > .form-group, and flexed columns let\n   the two sides drift out of step. Flattening both wrappers turns the fields\n   into direct grid items, so every row lines up regardless of how many fields\n   sit in each column.\n   ------------------------------------------------------------------------- */\n\n:root {\n  /* Overridden per-site by the theme block that get_context injects. These are\n     only the fallback, so the page still renders if settings are unreadable. */\n  --vr-brand: #1a56db;\n  --vr-brand-dark: #1443ae;\n  --vr-brand-soft: #e4ebfb;\n  --vr-brand-border: #a8bff1;\n  --vr-brand-rgb: 26, 86, 219;\n  --vr-on-brand: #ffffff;\n  --vr-brand-tint: rgba(26, 86, 219, 0.08);\n  --vr-ink: #0f172a;\n  --vr-muted: #64748b;\n  --vr-faint: #94a3b8;\n  --vr-line: #e2e8f0;\n  --vr-surface: #ffffff;\n  --vr-canvas: #f1f5f9;\n  --vr-field-bg: #ffffff;\n  --vr-field-bg-off: #f8fafc;\n  --vr-ok: #059669;\n  --vr-danger: #dc2626;\n  --vr-radius: 14px;\n  --vr-radius-sm: 10px;\n  --vr-field-h: 46px;\n}\n\nbody {\n  background: var(--vr-canvas);\n  color: var(--vr-ink);\n  font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif;\n  -webkit-font-smoothing: antialiased;\n}\n\n.page_content { padding: 1.75rem 0 6rem; }\n.page-footer, footer { display: none; }\n\n/* This is a single-purpose public page reached from an emailed link — the site\n   navbar (Home / Login) is noise for a visitor and its mobile toggle renders as\n   an empty box. */\n.navbar, header.sticky-top { display: none !important; }\n.web-form-container { max-width: 860px; margin: 0 auto; padding: 0 1rem; }\n\n/* ── header ───────────────────────────────────────────────────────────────── */\n.web-form-head { padding-bottom: 0; border: none; }\n.web-form-header { text-align: center; margin-bottom: 0.75rem; }\n\n.web-form-head .title {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 0.2rem;\n  text-align: center;\n}\n.web-form-head .title .web-form-title { width: 100%; }\n.web-form-head .title .web-form-actions { display: none; }\n.web-form-head .indicator-pill,\n.web-form-header .indicator-pill { display: none !important; }\n\n.web-form-title h1 {\n  font-size: 1.7rem;\n  font-weight: 750;\n  letter-spacing: -0.025em;\n  color: var(--vr-ink);\n  margin-bottom: 0.15rem;\n  /* Frappe truncates the page title with ellipsis; a public form should wrap\n     it instead of hiding half the heading on a phone. */\n  white-space: normal;\n  overflow: visible;\n  text-overflow: clip;\n  overflow-wrap: break-word;\n}\n\n.web-form-introduction {\n  max-width: 640px;\n  margin: 0 auto;\n  font-size: 0.9rem;\n  line-height: 1.55;\n  color: var(--vr-muted);\n}\n.web-form-introduction p { margin-bottom: 0.5rem; }\n.web-form-introduction p:last-child { margin-bottom: 0; }\n\n/* ── brand lockup ─────────────────────────────────────────────────────────── */\n.vm-brand {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: 10px;\n  margin-bottom: 0.85rem;\n}\n.vm-brand-logo { max-height: 40px; max-width: 190px; width: auto; object-fit: contain; }\n.vm-brand-name {\n  font-size: 0.95rem;\n  font-weight: 700;\n  letter-spacing: -0.01em;\n  color: var(--vr-ink);\n}\n.vm-portal-footer {\n  margin-top: 1rem;\n  font-size: 0.78rem;\n  line-height: 1.5;\n  color: var(--vr-faint);\n  text-align: center;\n}\n\n/* ── the form card ────────────────────────────────────────────────────────── */\n.web-form {\n  background: var(--vr-surface);\n  border: 1px solid var(--vr-line);\n  border-radius: 20px;\n  padding: 0.5rem 1.75rem 1.5rem;\n  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px rgba(15, 23, 42, 0.05);\n  margin-top: 1.25rem;\n  counter-reset: vr-step;\n}\n\n/* ── sections ─────────────────────────────────────────────────────────────── */\n.form-section {\n  margin: 0;\n  padding: 1.5rem 0 0.35rem;\n  border: none;\n  background: transparent;\n}\n\n/* A section whose fields are all hidden must not leave a stray divider. */\n.form-section:not(:has(.section-head)) { display: none !important; }\n\n/* Separator only between two sections that both render — :first-of-type would\n   match a hidden one and leave a rule above the first visible section. */\n.form-section:has(.section-head) ~ .form-section:has(.section-head) {\n  border-top: 1px solid var(--vr-line);\n}\n\n.section-head {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  font-size: 0.95rem;\n  font-weight: 700;\n  letter-spacing: -0.01em;\n  text-transform: none;\n  color: var(--vr-ink);\n  margin-bottom: 1.15rem;\n  padding-bottom: 0;\n  border-bottom: none;\n}\n\n/* numbered step chip */\n.form-section .section-head::before {\n  counter-increment: vr-step;\n  content: counter(vr-step);\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 26px;\n  height: 26px;\n  flex-shrink: 0;\n  border-radius: 50%;\n  background: var(--vr-brand);\n  color: var(--vr-on-brand);\n  font-size: 0.75rem;\n  font-weight: 700;\n  letter-spacing: 0;\n}\n.section-head .collapse-indicator { display: none; }\n\n/* ── alignment: flatten Frappe's column wrappers into one grid ────────────── */\n.web-form .form-section .section-body {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  column-gap: 1.5rem;\n  row-gap: 0.35rem;\n  align-items: start;\n}\n.web-form .form-section .section-body > .form-column,\n.web-form .form-section .section-body > .form-column > form { display: contents; }\n\n/* fields that read better across the full width */\n.web-form [data-fieldname=\"purpose_of_visit\"],\n.web-form [data-fieldname=\"protocol_notes\"],\n.web-form [data-fieldname=\"interview_panel\"],\n.web-form [data-fieldname=\"tools_list\"],\n.web-form [data-fieldname=\"items_carried\"] { grid-column: 1 / -1; }\n\n/* ── fields ───────────────────────────────────────────────────────────────── */\n.form-group { margin-bottom: 1rem; }\n\n.control-label {\n  font-size: 0.82rem;\n  font-weight: 600;\n  color: var(--vr-ink);\n  margin-bottom: 6px;\n  letter-spacing: -0.005em;\n}\n.control-label .reqd,\n.control-label > .text-danger { color: var(--vr-danger); }\n\n.form-control,\n.form-select,\n.like-disabled-input {\n  min-height: var(--vr-field-h);\n  border-radius: var(--vr-radius-sm) !important;\n  border: 1px solid var(--vr-line) !important;\n  background: var(--vr-field-bg) !important;\n  font-size: 0.92rem;\n  color: var(--vr-ink);\n  padding: 0.5rem 0.85rem;\n  box-shadow: none !important;\n  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;\n}\ntextarea.form-control { min-height: 96px; padding-top: 0.6rem; line-height: 1.5; }\n\n.form-control:hover:not(:disabled):not([readonly]) { border-color: #cbd5e1 !important; }\n.form-control:focus,\n.form-select:focus {\n  border-color: var(--vr-brand) !important;\n  box-shadow: 0 0 0 3px var(--vr-brand-tint) !important;\n  outline: none;\n}\n.form-control:disabled,\n.form-control[readonly] {\n  background: #f8fafc !important;\n  color: var(--vr-muted);\n  cursor: not-allowed;\n}\n\n.help-box,\n.help-box.small.text-muted {\n  font-size: 0.755rem;\n  line-height: 1.45;\n  color: var(--vr-faint) !important;\n  margin-top: 5px;\n}\n\n.control-input-wrapper .control-value.like-disabled-input { display: none !important; }\n\n/* Frappe applies .has-error to mandatory-empty fields on load, so styling it\n   would paint every untouched field red. Flag the field only once the visitor\n   has actually left it empty. */\n.has-error .form-control:not(:placeholder-shown),\n.has-error .form-control:focus { border-color: var(--vr-danger) !important; }\n\n/* ── uploads: turn the bare Attach button into a real dropzone ─────────────── */\n.frappe-control[data-fieldtype=\"Attach\"] .control-input,\n.frappe-control[data-fieldtype=\"Attach Image\"] .control-input { width: 100%; }\n\n.frappe-control[data-fieldtype=\"Attach\"] .btn-sm,\n.frappe-control[data-fieldtype=\"Attach Image\"] .btn-sm,\n.frappe-control[data-fieldtype=\"Attach\"] .btn-file-upload,\n.frappe-control[data-fieldtype=\"Attach Image\"] .btn-file-upload {\n  display: flex !important;\n  align-items: center;\n  justify-content: center;\n  gap: 8px;\n  width: 100%;\n  min-height: 84px;\n  padding: 0.75rem 1rem;\n  border: 1.5px dashed #cbd5e1 !important;\n  border-radius: var(--vr-radius-sm);\n  background: #fafbfc !important;\n  color: var(--vr-brand) !important;\n  font-size: 0.86rem;\n  font-weight: 600;\n  transition: border-color 0.15s ease, background 0.15s ease;\n}\n.frappe-control[data-fieldtype=\"Attach\"] .btn-sm:hover,\n.frappe-control[data-fieldtype=\"Attach Image\"] .btn-sm:hover {\n  border-color: var(--vr-brand) !important;\n  background: var(--vr-brand-tint) !important;\n}\n.attached-file {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-height: 56px;\n  padding: 0.6rem 0.85rem;\n  border: 1px solid #bbf7d0 !important;\n  border-radius: var(--vr-radius-sm) !important;\n  background: #f0fdf4 !important;\n  font-size: 0.83rem;\n}\n.attached-file .attached-file-link {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: var(--vr-ok);\n  font-weight: 600;\n}\n\n/* ── checkboxes ───────────────────────────────────────────────────────────── */\n.frappe-control[data-fieldtype=\"Check\"] .control-input-wrapper {\n  display: flex;\n  align-items: center;\n  gap: 9px;\n  min-height: var(--vr-field-h);\n}\n.frappe-control[data-fieldtype=\"Check\"] input[type=\"checkbox\"] {\n  width: 18px;\n  height: 18px;\n  accent-color: var(--vr-brand);\n  cursor: pointer;\n}\n.frappe-control[data-fieldtype=\"Check\"] .label-area {\n  font-size: 0.88rem;\n  font-weight: 500;\n  cursor: pointer;\n}\n\n/* ── status panels (JS-driven) ────────────────────────────────────────────── */\n.vm-status-panel {\n  display: flex;\n  gap: 12px;\n  margin: 0 0 1.25rem;\n  padding: 0.95rem 1.15rem;\n  border-radius: var(--vr-radius-sm);\n  border: 1px solid var(--vr-line);\n  border-left-width: 4px;\n  text-align: left;\n}\n.vm-status-title { font-size: 0.9rem; font-weight: 700; margin-bottom: 3px; }\n.vm-status-message { font-size: 0.84rem; line-height: 1.5; color: var(--vr-muted); }\n.vm-status-success { background: #f0fdf4; border-color: #bbf7d0; border-left-color: var(--vr-ok); }\n.vm-status-success .vm-status-title { color: var(--vr-ok); }\n.vm-status-error { background: #fef2f2; border-color: #fecaca; border-left-color: var(--vr-danger); }\n.vm-status-error .vm-status-title { color: var(--vr-danger); }\n\n/* ── host-locked fields ───────────────────────────────────────────────────── */\n.vm-locked-sections { margin-bottom: 1rem; }\n.vm-locked-section {\n  padding: 1.15rem 1.25rem;\n  border: 1px solid var(--vr-line);\n  border-radius: var(--vr-radius);\n  background: #fafbfc;\n}\n.vm-locked-section-title {\n  font-size: 0.78rem;\n  font-weight: 700;\n  letter-spacing: 0.06em;\n  text-transform: uppercase;\n  color: var(--vr-brand);\n  margin-bottom: 0.9rem;\n  padding-bottom: 0.5rem;\n  border-bottom: 1px solid var(--vr-line);\n}\n.vm-locked-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }\n.vm-locked-card {\n  padding: 10px 14px;\n  border: 1px solid var(--vr-line);\n  border-radius: var(--vr-radius-sm);\n  background: var(--vr-surface);\n}\n.vm-locked-label {\n  font-size: 0.7rem;\n  font-weight: 700;\n  letter-spacing: 0.06em;\n  text-transform: uppercase;\n  color: var(--vr-faint);\n  margin-bottom: 3px;\n}\n.vm-locked-value { font-size: 0.92rem; font-weight: 600; color: var(--vr-ink); }\n\n.vm-locked-display {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-height: var(--vr-field-h);\n  padding: 0.5rem 0.85rem;\n  border-radius: var(--vr-radius-sm);\n  border: 1px solid var(--vr-brand-border);\n  background: var(--vr-brand-soft);\n  color: var(--vr-ink);\n  font-weight: 600;\n  font-size: 0.92rem;\n}\n.vm-locked-display::before {\n  content: '';\n  display: inline-block;\n  width: 13px;\n  height: 13px;\n  flex-shrink: 0;\n  /* currentColor keeps the padlock on-brand whatever the site's colour is */\n  background-color: currentColor;\n  -webkit-mask-image: url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 1a5 5 0 0 0-5 5v3H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-2V6a5 5 0 0 0-5-5zm-3 8V6a3 3 0 0 1 6 0v3H9z'/></svg>\");\n  mask-image: url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 1a5 5 0 0 0-5 5v3H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-2V6a5 5 0 0 0-5-5zm-3 8V6a3 3 0 0 1 6 0v3H9z'/></svg>\");\n  -webkit-mask-size: contain;\n  mask-size: contain;\n  color: var(--vr-brand);\n}\n.vm-locked-field .control-input { display: none !important; }\n.vm-host-field .control-label::after {\n  content: 'Set by host';\n  margin-left: 6px;\n  font-size: 0.64rem;\n  font-weight: 700;\n  letter-spacing: 0.04em;\n  text-transform: uppercase;\n  color: var(--vr-brand);\n  background: var(--vr-brand-tint);\n  padding: 2px 7px;\n  border-radius: 4px;\n  vertical-align: 1px;\n}\n\n.vm-mobile-error { margin-top: 5px; font-size: 0.76rem; color: var(--vr-danger); display: none; }\n.vm-mobile-error.visible { display: block; }\n\n/* ── injected blocks (visitor items, hospitality) ─────────────────────────── */\n.vm-custom-block {\n  grid-column: 1 / -1;\n  margin: 0.35rem 0 1.15rem;\n  padding: 1.15rem 1.25rem;\n  border: 1px solid var(--vr-line);\n  border-radius: var(--vr-radius);\n  background: #fafbfc;\n}\n.vm-items-intro {\n  font-size: 0.86rem;\n  line-height: 1.55;\n  color: var(--vr-muted);\n  margin: 0 0 0.85rem;\n}\n/* The items block is injected outside the form-section flow, so give it the\n   same visual weight as a real section instead of a nested card. */\n.vm-visitor-items-section.vm-custom-block {\n  margin: 0;\n  padding: 1.5rem 0 0.35rem;\n  border: none;\n  border-top: 1px solid var(--vr-line);\n  border-radius: 0;\n  background: transparent;\n}\n.vm-visitor-items-section .vm-locked-section-title {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  font-size: 0.95rem;\n  font-weight: 700;\n  letter-spacing: -0.01em;\n  text-transform: none;\n  color: var(--vr-ink);\n  margin-bottom: 0.5rem;\n  padding-bottom: 0;\n  border-bottom: none;\n}\n.vm-visitor-items-section .vm-locked-section-title::before {\n  content: '4';\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 26px;\n  height: 26px;\n  flex-shrink: 0;\n  border-radius: 50%;\n  background: var(--vr-brand);\n  color: var(--vr-on-brand);\n  font-size: 0.75rem;\n  font-weight: 700;\n}\n.vm-visitor-items-list { display: grid; gap: 10px; }\n.vm-visitor-item-row,\n.vm-visitor-item-row.vm-hospitality-card {\n  padding: 0.9rem 1rem;\n  border: 1px solid var(--vr-line);\n  border-radius: var(--vr-radius-sm);\n  background: var(--vr-surface);\n}\n.vm-item-name { font-weight: 600; font-size: 0.9rem; }\n.vm-hospitality-card {\n  padding: 0.9rem 1rem;\n  border: 1px solid var(--vr-brand-border);\n  border-radius: var(--vr-radius-sm);\n  background: var(--vr-brand-soft);\n  font-size: 0.86rem;\n}\n\n/* ── success ──────────────────────────────────────────────────────────────── */\n.vm-success-panel {\n  margin: 1rem auto;\n  max-width: 620px;\n  padding: 1.75rem 1.5rem;\n  border-radius: var(--vr-radius);\n  background: #f0fdf4;\n  border: 1px solid #bbf7d0;\n  text-align: center;\n}\n.vm-success-ref {\n  display: inline-block;\n  margin-top: 0.75rem;\n  padding: 7px 15px;\n  border-radius: var(--vr-radius-sm);\n  background: var(--vr-surface);\n  border: 1px solid #bbf7d0;\n  font-family: 'SF Mono', Menlo, Consolas, monospace;\n  font-weight: 700;\n  color: var(--vr-ok);\n}\n.vm-success-next {\n  margin-top: 1.15rem;\n  font-size: 0.87rem;\n  color: var(--vr-muted);\n  line-height: 1.6;\n  text-align: left;\n}\n.vm-success-next ol { margin: 0.5rem 0 0 1.15rem; padding: 0; }\n.vm-success-next li { margin-bottom: 5px; }\n\n/* ── footer / submit ──────────────────────────────────────────────────────── */\n.web-form-footer {\n  margin-top: 1.25rem;\n  padding-top: 1.25rem;\n  border-top: 1px solid var(--vr-line);\n}\n.web-form-footer .left-area { display: none; }\n\n.discard-btn.btn,\n.submit-btn.btn {\n  min-height: 48px;\n  border-radius: var(--vr-radius-sm);\n  padding: 10px 28px;\n  font-weight: 650;\n  font-size: 0.9rem;\n  letter-spacing: -0.005em;\n  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;\n}\n.discard-btn.btn { background: var(--vr-surface); border: 1px solid var(--vr-line); color: var(--vr-ink); }\n.submit-btn.btn {\n  background: var(--vr-brand);\n  border: none;\n  color: var(--vr-on-brand);\n  box-shadow: 0 2px 8px rgba(var(--vr-brand-rgb), 0.22);\n}\n.submit-btn.btn:hover { background: var(--vr-brand-dark); box-shadow: 0 4px 14px rgba(var(--vr-brand-rgb), 0.3); }\n.submit-btn.btn:active { transform: translateY(1px); }\n.submit-btn.btn:focus-visible,\n.discard-btn.btn:focus-visible { outline: 3px solid var(--vr-brand-tint); outline-offset: 2px; }\n\n.vm-form-hidden { display: none !important; }\n\n/* ── responsive ───────────────────────────────────────────────────────────── */\n@media (max-width: 768px) {\n  .page_content { padding: 0.75rem 0 7rem; }\n  .web-form-container { padding: 0 0.75rem; }\n  .web-form { padding: 0.35rem 1.1rem 1.25rem; border-radius: 16px; }\n  .web-form-title h1 { font-size: 1.35rem; }\n  .web-form-introduction { font-size: 0.85rem; }\n\n  /* one field per row on a phone */\n  .web-form .form-section .section-body { grid-template-columns: 1fr; row-gap: 0; }\n  .vm-locked-grid { grid-template-columns: 1fr; }\n  .form-section { padding-top: 1.25rem; }\n\n  /* keep the primary action reachable without scrolling to the end */\n  .web-form-footer {\n    position: sticky;\n    bottom: 0;\n    margin: 1rem -1.1rem -1.25rem;\n    padding: 0.85rem 1.1rem calc(0.85rem + env(safe-area-inset-bottom, 0px));\n    background: rgba(255, 255, 255, 0.97);\n    backdrop-filter: blur(8px);\n    border-top: 1px solid var(--vr-line);\n    z-index: 5;\n  }\n  .web-form-footer .right-area { display: grid; gap: 8px; width: 100%; }\n  .submit-btn.btn, .discard-btn.btn { width: 100%; }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  * { transition: none !important; animation: none !important; }\n}\n\n/* ── dark mode ────────────────────────────────────────────────────────────────\n   Only the neutrals flip; the brand colour is whatever the site configured, so\n   it stays recognisable. Surfaces lighten with depth rather than going pure\n   black, which keeps fields legible on OLED phones.\n\n   Frappe's own website bundle paints .web-form and friends through a 5-class\n   selector we cannot outrank without !important everywhere. Rather than fight\n   it rule by rule, we retarget the core custom properties it reads — one\n   change covers the card, the footer, the skeleton and anything core adds\n   later. */\n@media (prefers-color-scheme: dark) {\n  :root {\n    --vr-ink: #e6edf6;\n    --vr-muted: #97a4b8;\n    --vr-faint: #6f7d92;\n    --vr-line: #263243;\n    --vr-surface: #131a24;\n    --vr-canvas: #0b1017;\n    --vr-field-bg: #0f1620;\n    --vr-field-bg-off: #0c121a;\n\n    /* core Frappe tokens */\n    --fg-color: #131a24;\n    --card-bg: #131a24;\n    --bg-color: #0b1017;\n    --control-bg: #0f1620;\n    --subtle-fg: #1a2331;\n    --border-color: #263243;\n    --text-color: #e6edf6;\n    --text-muted: #97a4b8;\n    --heading-color: #e6edf6;\n    --gray-300: #334054;\n  }\n\n  .web-form,\n  .web-form-header { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.35); }\n\n  .form-control,\n  .form-select,\n  .like-disabled-input {\n    border-color: var(--vr-line) !important;\n    color: var(--vr-ink);\n  }\n  .form-control::placeholder { color: var(--vr-faint); }\n  .form-control:hover:not(:disabled):not([readonly]) { border-color: #33405480 !important; }\n  .form-control:disabled,\n  .form-control[readonly] { background: var(--vr-field-bg-off) !important; color: var(--vr-muted); }\n\n  .frappe-control[data-fieldtype=\"Attach\"] .btn-sm,\n  .frappe-control[data-fieldtype=\"Attach Image\"] .btn-sm,\n  .frappe-control[data-fieldtype=\"Attach\"] .btn-file-upload,\n  .frappe-control[data-fieldtype=\"Attach Image\"] .btn-file-upload {\n    background: var(--vr-field-bg) !important;\n    border-color: #33405480 !important;\n    color: var(--vr-muted);\n  }\n  .attached-file { background: #0d1f18 !important; border-color: #1c4532 !important; }\n\n  .vm-locked-section,\n  .vm-custom-block { background: var(--vr-field-bg); }\n  .vm-locked-display,\n  .vm-hospitality-card {\n    background: rgba(var(--vr-brand-rgb), 0.14);\n    border-color: rgba(var(--vr-brand-rgb), 0.4);\n  }\n  .vm-host-field .control-label::after { background: rgba(var(--vr-brand-rgb), 0.18); }\n\n  .vm-status-success,\n  .vm-success-panel { background: #0d1f18; border-color: #1c4532; }\n  .vm-status-error { background: #26120f; border-color: #4c1d1d; }\n  .vm-success-ref { border-color: #1c4532; }\n\n  .discard-btn.btn { border-color: var(--vr-line); color: var(--vr-ink); }\n  .web-form-footer { background: rgba(19, 26, 36, 0.97); }\n}\n",
  "doc_type": "Visitor Pass",
  "docstatus": 0,
  "doctype": "Web Form",
  "idx": 0,
- "introduction_text": "<div>Welcome! Complete this short form to pre-register your visit.<br><br><b>What to keep ready:</b> a valid government ID (Aadhaar, PAN, Passport, or Driving License) and a recent photo of yourself. Your visitor type has been pre-set by your host — you don't need to change it.<br><br>Once you submit, your host will be notified for approval. You'll receive an email and can show that confirmation at the gate when you arrive.</div>",
+ "introduction_text": "<div>Complete this short form before your visit. Have a <b>government photo ID</b> and a <b>recent photo of yourself</b> ready — you'll upload both in step 3. Your host is notified as soon as you submit.</div>",
  "is_standard": 1,
  "list_columns": [],
  "login_required": 0,
  "max_attachment_size": 5,
- "modified": "2026-05-08 12:00:00.000000",
+ "modified": "2026-08-11 10:11:35.085340",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "visitor-pre-registration-form",
@@ -33,33 +33,6 @@
  "success_message": "Your pre-registration has been received. We've sent a confirmation to your email. Your host will be notified for approval; you'll get an email once it's approved. Show that email at the gate when you arrive.",
  "title": "Visitor Access Pre-Registration",
  "web_form_fields": [
-  {
-   "allow_read_on_all_link_options": 0,
-   "fieldname": "visitor_invitation",
-   "fieldtype": "Link",
-   "hidden": 1,
-   "label": "Visitor Invitation",
-   "max_length": 0,
-   "max_value": 0,
-   "read_only": 1,
-   "reqd": 0,
-   "show_in_filter": 0,
-   "options": "Visitor Invitation"
-  },
-  {
-   "allow_read_on_all_link_options": 0,
-   "fieldname": "entry_type",
-   "fieldtype": "Select",
-   "hidden": 1,
-   "label": "Entry Type",
-   "max_length": 0,
-   "max_value": 0,
-   "read_only": 1,
-   "reqd": 0,
-   "show_in_filter": 0,
-   "options": "New\nExisting",
-   "default": "New"
-  },
   {
    "allow_read_on_all_link_options": 0,
    "fieldname": "",
@@ -83,6 +56,19 @@
    "read_only": 0,
    "reqd": 1,
    "show_in_filter": 0
+  },
+  {
+   "allow_read_on_all_link_options": 0,
+   "fieldname": "visitor_type",
+   "fieldtype": "Link",
+   "hidden": 0,
+   "label": "Visitor Type",
+   "max_length": 0,
+   "max_value": 0,
+   "read_only": 1,
+   "reqd": 1,
+   "show_in_filter": 0,
+   "options": "Visitor Type"
   },
   {
    "allow_read_on_all_link_options": 0,
@@ -112,10 +98,10 @@
   },
   {
    "allow_read_on_all_link_options": 0,
-   "fieldname": "",
-   "fieldtype": "Column Break",
+   "fieldname": "company__organisation",
+   "fieldtype": "Data",
    "hidden": 0,
-   "label": "",
+   "label": "Company / Organisation",
    "max_length": 0,
    "max_value": 0,
    "read_only": 0,
@@ -124,23 +110,10 @@
   },
   {
    "allow_read_on_all_link_options": 0,
-   "fieldname": "visitor_type",
-   "fieldtype": "Select",
+   "fieldname": "",
+   "fieldtype": "Column Break",
    "hidden": 0,
-   "label": "Visitor Type",
-   "max_length": 0,
-   "max_value": 0,
-   "read_only": 1,
-   "reqd": 1,
-   "show_in_filter": 0,
-   "options": "Contractor\nCandidate\nCustomer\nSupplier\nVIP"
-  },
-  {
-   "allow_read_on_all_link_options": 0,
-   "fieldname": "company__organisation",
-   "fieldtype": "Data",
-   "hidden": 0,
-   "label": "Company / Organisation",
+   "label": "",
    "max_length": 0,
    "max_value": 0,
    "read_only": 0,
@@ -173,6 +146,19 @@
   },
   {
    "allow_read_on_all_link_options": 0,
+   "fieldname": "person_to_visit",
+   "fieldtype": "Link",
+   "hidden": 0,
+   "label": "Person to Visit",
+   "max_length": 0,
+   "max_value": 0,
+   "read_only": 1,
+   "reqd": 1,
+   "show_in_filter": 0,
+   "options": "Employee"
+  },
+  {
+   "allow_read_on_all_link_options": 0,
    "fieldname": "expected_checkin",
    "fieldtype": "Time",
    "hidden": 0,
@@ -194,31 +180,6 @@
    "read_only": 1,
    "reqd": 1,
    "show_in_filter": 0
-  },
-  {
-   "allow_read_on_all_link_options": 0,
-   "fieldname": "",
-   "fieldtype": "Column Break",
-   "hidden": 0,
-   "label": "",
-   "max_length": 0,
-   "max_value": 0,
-   "read_only": 0,
-   "reqd": 0,
-   "show_in_filter": 0
-  },
-  {
-   "allow_read_on_all_link_options": 0,
-   "fieldname": "person_to_visit",
-   "fieldtype": "Link",
-   "hidden": 0,
-   "label": "Person to Visit",
-   "max_length": 0,
-   "max_value": 0,
-   "read_only": 1,
-   "reqd": 1,
-   "show_in_filter": 0,
-   "options": "Employee"
   },
   {
    "allow_read_on_all_link_options": 0,
@@ -249,6 +210,18 @@
   {
    "allow_read_on_all_link_options": 0,
    "fieldname": "",
+   "fieldtype": "Column Break",
+   "hidden": 0,
+   "label": "",
+   "max_length": 0,
+   "max_value": 0,
+   "read_only": 0,
+   "reqd": 0,
+   "show_in_filter": 0
+  },
+  {
+   "allow_read_on_all_link_options": 0,
+   "fieldname": "",
    "fieldtype": "Section Break",
    "hidden": 0,
    "label": "Identity Documents",
@@ -261,7 +234,7 @@
   {
    "allow_read_on_all_link_options": 0,
    "fieldname": "id_proof_type",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "hidden": 0,
    "label": "ID Proof Type",
    "max_length": 0,
@@ -269,7 +242,7 @@
    "read_only": 0,
    "reqd": 1,
    "show_in_filter": 0,
-   "options": "Aadhaar\nPAN Card\nPassport\nDriving License"
+   "options": "ID Proof Type"
   },
   {
    "allow_read_on_all_link_options": 0,
@@ -283,18 +256,6 @@
    "reqd": 1,
    "show_in_filter": 0,
    "description": "Type the number exactly as printed on your ID."
-  },
-  {
-   "allow_read_on_all_link_options": 0,
-   "fieldname": "",
-   "fieldtype": "Column Break",
-   "hidden": 0,
-   "label": "",
-   "max_length": 0,
-   "max_value": 0,
-   "read_only": 0,
-   "reqd": 0,
-   "show_in_filter": 0
   },
   {
    "allow_read_on_all_link_options": 0,
@@ -324,31 +285,15 @@
   },
   {
    "allow_read_on_all_link_options": 0,
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "hidden": 1,
-   "label": "Status",
+   "fieldname": "",
+   "fieldtype": "Column Break",
+   "hidden": 0,
+   "label": "",
    "max_length": 0,
    "max_value": 0,
-   "read_only": 1,
+   "read_only": 0,
    "reqd": 0,
-   "show_in_filter": 0,
-   "options": "Draft\nPending System Manager\nPending HR Manager\nPending Sales Manager\nPending HOD\nPending CEO\nApproved\nConverted",
-   "default": "Draft"
-  },
-  {
-   "allow_read_on_all_link_options": 0,
-   "fieldname": "request_channel",
-   "fieldtype": "Select",
-   "hidden": 1,
-   "label": "Request Channel",
-   "max_length": 0,
-   "max_value": 0,
-   "read_only": 1,
-   "reqd": 0,
-   "show_in_filter": 0,
-   "options": "Portal\nDesk\nKiosk\nPhone",
-   "default": "Portal"
+   "show_in_filter": 0
   },
   {
    "allow_read_on_all_link_options": 0,
@@ -522,19 +467,6 @@
    "reqd": 0,
    "show_in_filter": 0,
    "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode != 'Delivery'"
-  },
-  {
-   "allow_read_on_all_link_options": 0,
-   "fieldname": "goods_description",
-   "fieldtype": "Small Text",
-   "hidden": 0,
-   "label": "Goods Description",
-   "max_length": 0,
-   "max_value": 0,
-   "read_only": 0,
-   "reqd": 0,
-   "show_in_filter": 0,
-   "depends_on": "eval:doc.visitor_type == 'Supplier' && doc.supplier_visit_mode == 'Delivery'"
   },
   {
    "allow_read_on_all_link_options": 0,

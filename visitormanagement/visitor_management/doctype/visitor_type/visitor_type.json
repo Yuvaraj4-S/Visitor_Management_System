@@ -16,8 +16,12 @@
   "section_badge",
   "badge_prefix",
   "badge_colour",
+  "requires_badge",
+  "issue_badge_at_gate",
+  "requires_executive_notification",
   "column_break_badge",
-  "default_gate"
+  "default_gate",
+  "detail_layout"
  ],
  "fields": [
   {
@@ -76,14 +80,42 @@
   },
   {
    "fieldname": "default_gate",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "label": "Default Gate",
-   "options": "Main Gate\nBack Gate\nVIP Entrance\nLoading Dock\nEmergency Exit"
+   "options": "Visitor Gate"
+  },
+  {
+   "default": "1",
+   "fieldname": "requires_badge",
+   "fieldtype": "Check",
+   "label": "Requires Physical Badge",
+   "description": "Unticked types get QR-only access with no badge number."
+  },
+  {
+   "default": "0",
+   "fieldname": "issue_badge_at_gate",
+   "fieldtype": "Check",
+   "label": "Issue Badge at Gate",
+   "description": "Badge number is minted during gate check-in instead of on approval."
+  },
+  {
+   "default": "0",
+   "fieldname": "requires_executive_notification",
+   "fieldtype": "Check",
+   "label": "Requires Executive Notification",
+   "description": "Pass cannot be submitted until 'MD/CEO Notified' is ticked."
+  },
+  {
+   "fieldname": "detail_layout",
+   "fieldtype": "Select",
+   "label": "Detail Layout",
+   "options": "\nSupplier\nCustomer\nContractor\nCandidate\nVIP",
+   "description": "Which extra detail section the Visitor Pass form shows for this type. Leave blank for a type that needs only the common fields."
   }
  ],
  "icon": "fa fa-id-badge",
  "links": [],
- "modified": "2026-07-09 10:00:00.000000",
+ "modified": "2026-08-06 10:45:05.834235",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Type",
@@ -102,19 +134,18 @@
    "write": 1
   },
   {
-   "create": 1,
    "email": 1,
    "print": 1,
    "read": 1,
    "report": 1,
    "role": "Employee",
-   "share": 1,
-   "write": 1
+   "share": 0
   }
  ],
  "quick_entry": 1,
  "show_name_in_global_search": 1,
  "sort_field": "modified",
  "sort_order": "ASC",
- "states": []
+ "states": [],
+ "track_changes": 1
 }

@@ -108,6 +108,15 @@ class ConferenceRoomBooking(Document):
 	# -- Overlap Validation ----
 
 	def validate_overlap(self):
+		"""Reject a booking that collides with one already held on this room.
+
+		`FOR UPDATE` is what makes the rule true under load. Read-then-insert is a
+		time-of-check/time-of-use race: two people booking the same room and slot
+		at the same moment both find it free and both commit, which is exactly the
+		double-booking this method exists to prevent. The locking read holds the
+		matching range until the transaction commits, so the second booking waits
+		and then sees the first.
+		"""
 		overlap = frappe.db.sql(
 			"""
 			SELECT name, meeting_title, start_time, end_time
@@ -119,6 +128,7 @@ class ConferenceRoomBooking(Document):
 			  AND status NOT IN ('Cancelled', 'Rejected')
 			  AND (start_time < %(end_time)s AND end_time > %(start_time)s)
 			LIMIT 1
+			FOR UPDATE
 			""",
 			{
 				"room": self.conference_room,

@@ -5,14 +5,14 @@ frappe.query_reports["Active Visitors"] = {
 		{
 			fieldname: "visitor_type",
 			label: __("Visitor Type"),
-			fieldtype: "Select",
-			options: "\nContractor\nCandidate\nCustomer\nSupplier\nVIP",
+			fieldtype: "Link",
+			options: "Visitor Type",
 		},
 		{
 			fieldname: "gate_name",
 			label: __("Gate"),
-			fieldtype: "Select",
-			options: "\nMain Gate\nBack Gate\nVIP Entrance\nLoading Dock\nEmergency Exit",
+			fieldtype: "Link",
+			options: "Visitor Gate",
 		},
 		{
 			fieldname: "host",

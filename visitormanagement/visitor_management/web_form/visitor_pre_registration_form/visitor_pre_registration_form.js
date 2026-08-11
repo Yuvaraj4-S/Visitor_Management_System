@@ -27,6 +27,11 @@ let invitationContextState = {
 	values: {},
 	afterLoadTriggered: false,
 	hooksAttached: false,
+	// The WebForm object our overrides are currently installed on. Core builds
+	// its instance after this script first runs and assigns it to
+	// frappe.web_form, discarding whatever we patched onto the earlier one — so
+	// remembering *which* object we patched is the only reliable latch.
+	patchedForm: null,
 };
 let hospitalityWatchState = {
 	started: false,
@@ -55,7 +60,13 @@ function isValidMobile(value) {
 
 function attachMobileValidator() {
 	const field = frappe.web_form?.fields_dict?.mobile_number;
-	if (!field || field._vmMobileValidatorBound) {
+	if (!field) {
+		return;
+	}
+	// Do this before anything else touches the control — core throws on its own
+	// first render, whether or not we are prefilling a value.
+	guardPhoneControl(field);
+	if (field._vmMobileValidatorBound) {
 		return;
 	}
 	field._vmMobileValidatorBound = true;
@@ -322,6 +333,17 @@ async function setFieldValue(fieldname, value) {
 		setFieldInputDirectly(field, value);
 		frappe.web_form.doc[fieldname] = value;
 		field.refresh?.();
+		clearStaleError(field);
+		return;
+	}
+
+	// Phone is handled on its own path: core's set_formatted_input throws while
+	// the control is still building its ISD element, which both loses the value
+	// and floods the console. Wait for the control, then write it directly.
+	if (field.df?.fieldtype === "Phone") {
+		frappe.web_form.doc[fieldname] = value;
+		await ensurePhoneValueApplied(field, value);
+		clearStaleError(field);
 		return;
 	}
 
@@ -336,6 +358,62 @@ async function setFieldValue(fieldname, value) {
 
 	frappe.web_form.doc[fieldname] = value;
 	field.refresh?.();
+	clearStaleError(field);
+}
+
+// A mandatory control is painted has-error while it is empty. Filling it from an
+// invitation never runs the validation that clears that flag, so a perfectly
+// valid prefilled value greets the visitor outlined in red. Drop the flag once
+// we have actually put something in the field.
+function clearStaleError(field) {
+	if (!field?.$wrapper) {
+		return;
+	}
+	const filled = field.value ?? frappe.web_form?.doc?.[field.df?.fieldname];
+	if (filled !== undefined && filled !== null && String(filled).trim() !== "") {
+		field.$wrapper.removeClass("has-error");
+	}
+}
+
+// Core's Phone control builds its ISD element asynchronously. When a prefilled
+// value arrives before that finishes, set_formatted_input throws on `this.$isd`
+// and leaves the input blank — the visitor then sees an empty Mobile Number on
+// an invitation link. Re-apply the value once the control has rendered.
+// Frappe's own ControlPhone.set_formatted_input reads `this.$isd.text()`, and
+// on a web form the ISD element is built after the first render — so core throws
+// a TypeError on a page an anonymous visitor is looking at. The value still
+// lands (see ensurePhoneValueApplied), but the console error is noise on a
+// guest-facing page and would mask a real one during support.
+//
+// Guard the instance, not the class: once the ISD element exists core's own
+// implementation takes over again.
+function guardPhoneControl(field) {
+	if (!field || field._vmPhoneGuarded || typeof field.set_formatted_input !== "function") {
+		return;
+	}
+	field._vmPhoneGuarded = true;
+	const original = field.set_formatted_input.bind(field);
+	field.set_formatted_input = function (value) {
+		if (!this.$isd || !this.$isd.length) {
+			this.value = value;
+			if (this.$input) {
+				this.$input.val(value == null ? "" : value);
+			}
+			return;
+		}
+		return original(value);
+	};
+}
+
+async function ensurePhoneValueApplied(field, value) {
+	guardPhoneControl(field);
+	for (let attempt = 0; attempt < 25; attempt++) {
+		if (field.$isd && field.$isd.length && field.$input) {
+			break;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 100));
+	}
+	setFieldInputDirectly(field, value);
 }
 
 async function syncHospitalityFieldsFromMealToggle() {
@@ -686,7 +764,10 @@ async function handleInvitationAfterLoad() {
 		values: {},
 	};
 
-	frappe.web_form.set_df_property("visitor_invitation", "hidden", 1);
+	// `visitor_invitation` is no longer one of the form's fields — it is set
+	// server-side from the token, so it is not bound from the request body at
+	// all. Core's set_df_property dereferences the control without checking it
+	// exists, so calling it for a field that was never rendered throws.
 	$(".discard-btn").hide();
 	setSubmitDisabled(true);
 	setFormVisibility(false);
@@ -749,10 +830,14 @@ async function handleInvitationAfterLoad() {
 }
 
 function setupInvitationHooks() {
-	if (!frappe.web_form || invitationContextState.hooksAttached) {
+	if (!frappe.web_form || invitationContextState.patchedForm === frappe.web_form) {
 		return;
 	}
 
+	// A swapped-in instance is a fresh form: its fields are unlocked and its
+	// save() is core's again, so the after-load work has to run over.
+	invitationContextState.patchedForm = frappe.web_form;
+	invitationContextState.afterLoadTriggered = false;
 	invitationContextState.hooksAttached = true;
 	frappe.web_form.after_load = handleInvitationAfterLoad;
 
@@ -887,7 +972,12 @@ function bootstrapInvitationHooks(retries = 40) {
 		handleInvitationAfterLoad();
 	}
 
-	if ((!invitationContextState.hooksAttached || !invitationContextState.afterLoadTriggered) && retries > 0) {
+	// Keep polling for the whole window even once the hooks are on, rather than
+	// stopping at the first success: core can replace frappe.web_form after we
+	// have already patched, and setupInvitationHooks() re-installs on the new
+	// instance when it sees one. Bailing early is what left the form running
+	// core's plain save(), so the invitation was never marked submitted.
+	if (retries > 0) {
 		setTimeout(() => bootstrapInvitationHooks(retries - 1), 100);
 	}
 }

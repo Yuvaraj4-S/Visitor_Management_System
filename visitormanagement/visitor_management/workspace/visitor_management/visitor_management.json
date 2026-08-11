@@ -1,14 +1,35 @@
 {
  "charts": [
-  {"chart_name": "Visitor Pass Trend",          "label": "Visitor Pass Trend"},
-  {"chart_name": "Visitors by Type",            "label": "Visitors by Type"},
-  {"chart_name": "Check-Ins by Day",            "label": "Check-Ins by Day"},
-  {"chart_name": "Pending Approvals by Type",   "label": "Pending Approvals by Type"},
-  {"chart_name": "Pending Approvals by Department", "label": "Pending Approvals by Department"},
-  {"chart_name": "Security Events by Gate",     "label": "Security Events by Gate"},
-  {"chart_name": "Invitation Funnel",           "label": "Invitation Funnel"}
+  {
+   "chart_name": "Visitor Pass Trend",
+   "label": "Visitor Pass Trend"
+  },
+  {
+   "chart_name": "Visitors by Type",
+   "label": "Visitors by Type"
+  },
+  {
+   "chart_name": "Check-Ins by Day",
+   "label": "Check-Ins by Day"
+  },
+  {
+   "chart_name": "Pending Approvals by Type",
+   "label": "Pending Approvals by Type"
+  },
+  {
+   "chart_name": "Pending Approvals by Department",
+   "label": "Pending Approvals by Department"
+  },
+  {
+   "chart_name": "Security Events by Gate",
+   "label": "Security Events by Gate"
+  },
+  {
+   "chart_name": "Invitation Funnel",
+   "label": "Invitation Funnel"
+  }
  ],
- "content": "[{\"id\":\"vms-h-ops\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Today's Operations</b></span>\",\"col\":12}},{\"id\":\"vms-c-today\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Today's Visitors\",\"col\":3}},{\"id\":\"vms-c-checkedin\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Checked-In Visitors\",\"col\":3}},{\"id\":\"vms-c-tomorrow\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Tomorrow's Arrivals\",\"col\":3}},{\"id\":\"vms-c-pending\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending Visitor Approvals\",\"col\":3}},{\"id\":\"vms-h-risk\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Security &amp; Risk</b></span>\",\"col\":12}},{\"id\":\"vms-c-noshow\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"No-Show Passes\",\"col\":3}},{\"id\":\"vms-c-blacklist\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Blacklist Alerts Today\",\"col\":3}},{\"id\":\"vms-c-alerts\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Security Alerts\",\"col\":3}},{\"id\":\"vms-c-photo\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Passes Missing Photo\",\"col\":3}},{\"id\":\"vms-h-hosp\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Hospitality Today</b></span>\",\"col\":12}},{\"id\":\"vms-c-phr\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending Hospitality Requests\",\"col\":3}},{\"id\":\"vms-c-cabs\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Today's Cabs\",\"col\":3}},{\"id\":\"vms-c-tours\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Today's Factory Tours\",\"col\":3}},{\"id\":\"vms-c-greet\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending Greetings\",\"col\":3}},{\"id\":\"vms-h-fac\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Facilities &amp; VIPs Today</b></span>\",\"col\":12}},{\"id\":\"vms-c-rooms\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Today's Conference Bookings\",\"col\":4}},{\"id\":\"vms-c-hotel\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Active Hotel Bookings\",\"col\":4}},{\"id\":\"vms-c-vips\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"VIPs Today\",\"col\":4}},{\"id\":\"vms-h-ana\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Visit Analytics</b></span>\",\"col\":12}},{\"id\":\"vms-ch-trend\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Visitor Pass Trend\",\"col\":12}},{\"id\":\"vms-ch-type\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Visitors by Type\",\"col\":6}},{\"id\":\"vms-ch-day\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Check-Ins by Day\",\"col\":6}},{\"id\":\"vms-ch-ptype\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Pending Approvals by Type\",\"col\":6}},{\"id\":\"vms-ch-pdept\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Pending Approvals by Department\",\"col\":6}},{\"id\":\"vms-h-ops2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Operations &amp; Hospitality Analytics</b></span>\",\"col\":12}},{\"id\":\"vms-ch-gate\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Security Events by Gate\",\"col\":12}},{\"id\":\"vms-ch-funnel\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Invitation Funnel\",\"col\":12}},{\"id\":\"vms-sp-1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vms-h-quick\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Access</b></span>\",\"col\":12}},{\"id\":\"vms-s-vp\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Visitor Pass\",\"col\":2}},{\"id\":\"vms-s-sl\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Security Log\",\"col\":2}},{\"id\":\"vms-s-hr\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Hospitality Request\",\"col\":2}},{\"id\":\"vms-s-av\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Active Visitors\",\"col\":2}},{\"id\":\"vms-s-dvl\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Daily Visitor Log\",\"col\":2}},{\"id\":\"vms-s-vms\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"VMS Settings\",\"col\":2}},{\"id\":\"vms-sp-2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vms-h-mods\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Modules by Business Flow</b></span>\",\"col\":12}},{\"id\":\"vms-m-1\",\"type\":\"card\",\"data\":{\"card_name\":\"Pre-Visit & Registration\",\"col\":4}},{\"id\":\"vms-m-2\",\"type\":\"card\",\"data\":{\"card_name\":\"Gate & Security Operations\",\"col\":4}},{\"id\":\"vms-m-3\",\"type\":\"card\",\"data\":{\"card_name\":\"Hospitality\",\"col\":4}},{\"id\":\"vms-m-5\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup & Configuration\",\"col\":4}}]",
+ "content": "[{\"id\": \"vmsOnboard01\", \"type\": \"onboarding\", \"data\": {\"onboarding_name\": \"Visitor Management Onboarding\", \"col\": 12}}, {\"id\": \"vms-h-ops\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Today's Operations</b></span>\", \"col\": 12}}, {\"id\": \"vms-c-today\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Today's Visitors\", \"col\": 3}}, {\"id\": \"vms-c-checkedin\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Checked-In Visitors\", \"col\": 3}}, {\"id\": \"vms-c-tomorrow\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Tomorrow's Arrivals\", \"col\": 3}}, {\"id\": \"vms-c-pending\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Pending Visitor Approvals\", \"col\": 3}}, {\"id\": \"vms-h-risk\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Security &amp; Risk</b></span>\", \"col\": 12}}, {\"id\": \"vms-c-noshow\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"No-Show Passes\", \"col\": 3}}, {\"id\": \"vms-c-blacklist\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Blacklist Alerts Today\", \"col\": 3}}, {\"id\": \"vms-c-alerts\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Security Alerts\", \"col\": 3}}, {\"id\": \"vms-c-photo\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Passes Missing Photo\", \"col\": 3}}, {\"id\": \"vms-h-hosp\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Hospitality Today</b></span>\", \"col\": 12}}, {\"id\": \"vms-c-phr\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Pending Hospitality Requests\", \"col\": 3}}, {\"id\": \"vms-c-cabs\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Today's Cabs\", \"col\": 3}}, {\"id\": \"vms-c-tours\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Today's Factory Tours\", \"col\": 3}}, {\"id\": \"vms-c-greet\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Pending Greetings\", \"col\": 3}}, {\"id\": \"vms-h-fac\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Facilities &amp; VIPs Today</b></span>\", \"col\": 12}}, {\"id\": \"vms-c-rooms\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Today's Conference Bookings\", \"col\": 4}}, {\"id\": \"vms-c-hotel\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Active Hotel Bookings\", \"col\": 4}}, {\"id\": \"vms-c-vips\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"VIPs Today\", \"col\": 4}}, {\"id\": \"vms-h-ana\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Visit Analytics</b></span>\", \"col\": 12}}, {\"id\": \"vms-ch-trend\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Visitor Pass Trend\", \"col\": 12}}, {\"id\": \"vms-ch-type\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Visitors by Type\", \"col\": 6}}, {\"id\": \"vms-ch-day\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Check-Ins by Day\", \"col\": 6}}, {\"id\": \"vms-ch-ptype\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Pending Approvals by Type\", \"col\": 6}}, {\"id\": \"vms-ch-pdept\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Pending Approvals by Department\", \"col\": 6}}, {\"id\": \"vms-h-ops2\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Operations &amp; Hospitality Analytics</b></span>\", \"col\": 12}}, {\"id\": \"vms-ch-gate\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Security Events by Gate\", \"col\": 12}}, {\"id\": \"vms-ch-funnel\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Invitation Funnel\", \"col\": 12}}, {\"id\": \"vms-sp-1\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"vms-h-quick\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Quick Access</b></span>\", \"col\": 12}}, {\"id\": \"vms-s-vp\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Visitor Pass\", \"col\": 2}}, {\"id\": \"vms-s-sl\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Security Log\", \"col\": 2}}, {\"id\": \"vms-s-hr\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Hospitality Request\", \"col\": 2}}, {\"id\": \"vms-s-av\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Active Visitors\", \"col\": 2}}, {\"id\": \"vms-s-dvl\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Daily Visitor Log\", \"col\": 2}}, {\"id\": \"vms-s-vms\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"VMS Settings\", \"col\": 2}}, {\"id\": \"vms-sp-2\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"vms-h-mods\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Modules by Business Flow</b></span>\", \"col\": 12}}, {\"id\": \"vms-card-pre-visit-and-registration\", \"type\": \"card\", \"data\": {\"card_name\": \"Pre-Visit & Registration\", \"col\": 4}}, {\"id\": \"vms-card-gate-and-security\", \"type\": \"card\", \"data\": {\"card_name\": \"Gate & Security\", \"col\": 4}}, {\"id\": \"vms-card-hospitality-and-facilities\", \"type\": \"card\", \"data\": {\"card_name\": \"Hospitality & Facilities\", \"col\": 4}}, {\"id\": \"vms-card-masters\", \"type\": \"card\", \"data\": {\"card_name\": \"Masters\", \"col\": 4}}, {\"id\": \"vms-card-reports\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}, {\"id\": \"vms-card-setup\", \"type\": \"card\", \"data\": {\"card_name\": \"Setup\", \"col\": 4}}]",
  "creation": "2026-04-13 16:22:51.988967",
  "custom_blocks": [],
  "docstatus": 0,
@@ -24,59 +45,64 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Pre-Visit & Registration",
-   "link_count": 0,
-   "link_type": "DocType",
+   "link_count": 2,
    "onboard": 0,
    "type": "Card Break"
   },
   {
    "dependencies": "",
-   "description": "Pre-register candidates, customers and VIPs with a token-based invitation link.",
    "hidden": 0,
    "is_query_report": 0,
    "label": "Visitor Invitation",
    "link_count": 0,
    "link_to": "Visitor Invitation",
    "link_type": "DocType",
-   "onboard": 1,
+   "onboard": 0,
    "type": "Link"
   },
   {
    "dependencies": "",
-   "description": "Primary visitor record — walk-in or portal; drives approval, badge, QR, gate flow.",
    "hidden": 0,
    "is_query_report": 0,
    "label": "Visitor Pass",
    "link_count": 0,
    "link_to": "Visitor Pass",
    "link_type": "DocType",
-   "onboard": 1,
+   "onboard": 0,
    "type": "Link"
   },
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Gate & Security Operations",
-   "link_count": 0,
-   "link_type": "DocType",
+   "label": "Gate & Security",
+   "link_count": 4,
    "onboard": 0,
    "type": "Card Break"
   },
   {
    "dependencies": "",
-   "description": "Gate events — check-in/out, gate transfer, alerts, identity & item verification.",
    "hidden": 0,
    "is_query_report": 0,
    "label": "Security Log",
    "link_count": 0,
    "link_to": "Security Log",
    "link_type": "DocType",
-   "onboard": 1,
+   "onboard": 0,
    "type": "Link"
   },
   {
    "dependencies": "",
-   "description": "Tracks areas each visitor moves through for health/safety contact tracing.",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Visitor Event Log",
+   "link_count": 0,
+   "link_to": "Visitor Event Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
    "hidden": 0,
    "is_query_report": 0,
    "label": "Contact Trace Record",
@@ -88,61 +114,6 @@
   },
   {
    "dependencies": "",
-   "description": "Immutable audit trail of every lifecycle event for a visitor pass.",
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Visitor Event Log",
-   "link_count": 0,
-   "link_to": "Visitor Event Log",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Hospitality",
-   "link_count": 0,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "dependencies": "",
-   "description": "Meals, cab, hotel, factory tour, buggy, greeting — auto-synced from the pass.",
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Hospitality Request",
-   "link_count": 0,
-   "link_to": "Hospitality Request",
-   "link_type": "DocType",
-   "onboard": 1,
-   "type": "Link"
-  },
-  {
-   "dependencies": "",
-   "description": "Areas available for factory tours — route planning & safety briefings.",
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Factory Tour Area",
-   "link_count": 0,
-   "link_to": "Factory Tour Area",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Setup & Configuration",
-   "link_count": 0,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "dependencies": "",
-   "description": "Blocked visitor list — checked on pass submission and again at gate check-in.",
    "hidden": 0,
    "is_query_report": 0,
    "label": "Visitor Blacklist",
@@ -153,8 +124,182 @@
    "type": "Link"
   },
   {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hospitality & Facilities",
+   "link_count": 3,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
    "dependencies": "",
-   "description": "System-wide VMS policy — gates, badge rules, max visit hours, blacklist behaviour.",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hospitality Request",
+   "link_count": 0,
+   "link_to": "Hospitality Request",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Conference Room Booking",
+   "link_count": 0,
+   "link_to": "Conference Room Booking",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Conference Room",
+   "link_count": 0,
+   "link_to": "Conference Room",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Masters",
+   "link_count": 3,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Visitor Type",
+   "link_count": 0,
+   "link_to": "Visitor Type",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Visitor Gate",
+   "link_count": 0,
+   "link_to": "Visitor Gate",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "ID Proof Type",
+   "link_count": 0,
+   "link_to": "ID Proof Type",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reports",
+   "link_count": 7,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "Visitor Pass",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Active Visitors",
+   "link_count": 0,
+   "link_to": "Active Visitors",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "Visitor Pass",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Daily Visitor Log",
+   "link_count": 0,
+   "link_to": "Daily Visitor Log",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "Visitor Pass",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Visitor Identity Match Report",
+   "link_count": 0,
+   "link_to": "Visitor Identity Match Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "Security Log",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Gate Wise Count",
+   "link_count": 0,
+   "link_to": "Gate Wise Count",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "Hospitality Request",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Daily Hospitality Schedule",
+   "link_count": 0,
+   "link_to": "Daily Hospitality Schedule",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "Conference Room Booking",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Daily Booking Schedule",
+   "link_count": 0,
+   "link_to": "Daily Booking Schedule",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "Conference Room Booking",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Room Utilization",
+   "link_count": 0,
+   "link_to": "Room Utilization",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Setup",
+   "link_count": 1,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
    "hidden": 0,
    "is_query_report": 0,
    "label": "VMS Settings",
@@ -165,26 +310,71 @@
    "type": "Link"
   }
  ],
- "modified": "2026-05-13 00:00:00.000000",
+ "modified": "2026-08-10 12:16:28.078008",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Management",
  "number_cards": [
-  {"label": "Today's Visitors",              "number_card_name": "Today's Visitors"},
-  {"label": "Checked-In Visitors",           "number_card_name": "Checked-In Visitors"},
-  {"label": "Tomorrow's Arrivals",           "number_card_name": "Tomorrow's Arrivals"},
-  {"label": "Pending Visitor Approvals",     "number_card_name": "Pending Visitor Approvals"},
-  {"label": "No-Show Passes",                "number_card_name": "No-Show Passes"},
-  {"label": "Blacklist Alerts Today",        "number_card_name": "Blacklist Alerts Today"},
-  {"label": "Security Alerts",               "number_card_name": "Security Alerts"},
-  {"label": "Passes Missing Photo",          "number_card_name": "Passes Missing Photo"},
-  {"label": "Pending Hospitality Requests",  "number_card_name": "Pending Hospitality Requests"},
-  {"label": "Today's Cabs",                  "number_card_name": "Today's Cabs"},
-  {"label": "Today's Factory Tours",         "number_card_name": "Today's Factory Tours"},
-  {"label": "Pending Greetings",             "number_card_name": "Pending Greetings"},
-  {"label": "Today's Conference Bookings",   "number_card_name": "Today's Conference Bookings"},
-  {"label": "Active Hotel Bookings",         "number_card_name": "Active Hotel Bookings"},
-  {"label": "VIPs Today",                    "number_card_name": "VIPs Today"}
+  {
+   "label": "Today's Visitors",
+   "number_card_name": "Today's Visitors"
+  },
+  {
+   "label": "Checked-In Visitors",
+   "number_card_name": "Checked-In Visitors"
+  },
+  {
+   "label": "Tomorrow's Arrivals",
+   "number_card_name": "Tomorrow's Arrivals"
+  },
+  {
+   "label": "Pending Visitor Approvals",
+   "number_card_name": "Pending Visitor Approvals"
+  },
+  {
+   "label": "No-Show Passes",
+   "number_card_name": "No-Show Passes"
+  },
+  {
+   "label": "Blacklist Alerts Today",
+   "number_card_name": "Blacklist Alerts Today"
+  },
+  {
+   "label": "Security Alerts",
+   "number_card_name": "Security Alerts"
+  },
+  {
+   "label": "Passes Missing Photo",
+   "number_card_name": "Passes Missing Photo"
+  },
+  {
+   "label": "Pending Hospitality Requests",
+   "number_card_name": "Pending Hospitality Requests"
+  },
+  {
+   "label": "Today's Cabs",
+   "number_card_name": "Today's Cabs"
+  },
+  {
+   "label": "Today's Factory Tours",
+   "number_card_name": "Today's Factory Tours"
+  },
+  {
+   "label": "Pending Greetings",
+   "number_card_name": "Pending Greetings"
+  },
+  {
+   "label": "Today's Conference Bookings",
+   "number_card_name": "Today's Conference Bookings"
+  },
+  {
+   "label": "Active Hotel Bookings",
+   "number_card_name": "Active Hotel Bookings"
+  },
+  {
+   "label": "VIPs Today",
+   "number_card_name": "VIPs Today"
+  }
  ],
  "owner": "Administrator",
  "parent_page": "",
@@ -194,12 +384,50 @@
  "roles": [],
  "sequence_id": 25.0,
  "shortcuts": [
-  {"label": "Visitor Pass",        "link_to": "Visitor Pass",        "type": "DocType"},
-  {"label": "Security Log",        "link_to": "Security Log",        "type": "DocType"},
-  {"label": "Hospitality Request", "link_to": "Hospitality Request", "type": "DocType"},
-  {"label": "Active Visitors",     "link_to": "Active Visitors",     "report_ref_doctype": "Visitor Pass", "type": "Report"},
-  {"label": "Daily Visitor Log",   "link_to": "Daily Visitor Log",   "report_ref_doctype": "Visitor Pass", "type": "Report"},
-  {"label": "VMS Settings",        "type": "URL",                    "url": "/app/vms-settings"}
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Visitor Pass",
+   "link_to": "Visitor Pass",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Security Log",
+   "link_to": "Security Log",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Hospitality Request",
+   "link_to": "Hospitality Request",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Visitor Type",
+   "link_to": "Visitor Type",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Active Visitors",
+   "link_to": "Active Visitors",
+   "type": "Report"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "VMS Settings",
+   "link_to": "VMS Settings",
+   "type": "DocType"
+  }
  ],
- "title": "Visitor Management"
+ "title": "Visitor Management",
+ "app": "visitormanagement",
+ "type": "Workspace"
 }

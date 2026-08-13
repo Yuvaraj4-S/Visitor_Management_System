@@ -18,6 +18,25 @@ class ConferenceRoomBooking(Document):
 		self.validate_operating_hours()
 		self.auto_set_service_flags()
 		self._validate_visitor_pass_approved()
+		self._sync_status_with_workflow()
+
+	def _sync_status_with_workflow(self):
+		"""Keep `status` in step with the workflow.
+
+		The workflow's states carry no `update_field`, so only on_submit and
+		on_cancel ever wrote `status` — leaving "Pending Approval" and "Rejected"
+		unreachable even though both are declared options on the field.
+
+		That is not cosmetic. validate_overlap excludes
+		`status NOT IN ('Cancelled', 'Rejected')`, so a rejected booking whose
+		status stayed "Draft" went on holding its room slot forever and the
+		exclusion was dead code. `status` is also in_list_view and
+		in_standard_filter, so the list showed a booking awaiting approval as
+		"Draft".
+		"""
+		state = getattr(self, "workflow_state", None)
+		if state in ("Draft", "Pending Approval", "Approved", "Rejected", "Cancelled"):
+			self.status = state
 
 	# Real-world rule: a room booking tied to a visitor cannot move to Pending
 	# Approval until that visitor is confirmed. Drafts and bookings without any

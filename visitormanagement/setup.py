@@ -23,6 +23,8 @@ with fields now declared on the DocType itself.
 import frappe
 from frappe.permissions import add_permission, update_permission_property
 
+from visitormanagement.visitor_management.email_theme import repaint_email_html
+
 # ─────────────────────────────────────────────────────────
 # Reference data
 # ─────────────────────────────────────────────────────────
@@ -49,6 +51,23 @@ EMPLOYEE_READERS = [
 # Link widgets on Conference Room Booking / Hospitality Request show the
 # visitor's title, so these roles need read on Visitor Pass.
 VISITOR_PASS_READERS = ["Facility Manager", "Hospitality Manager"]
+
+# Layout-specific link fields on Visitor Pass point at masters owned by other
+# apps, and none of the roles that actually raise a pass could select from them:
+# `contractor_link`/`supplier_link` -> Supplier, `work_order_ref` ->
+# Maintenance Visit, `job_applicant_link` -> Job Applicant. The dropdown threw
+# "Insufficient Permission", so linking a pass to an existing record was dead on
+# the Contractor, Supplier and Candidate layouts.
+#
+# `select` rather than `read` on purpose: it makes the doctype pickable in a
+# link field without granting the list. add_permission copies the existing
+# standard permissions into Custom DocPerm first, so the owning app's own roles
+# keep their access.
+LINK_TARGET_PICKERS = {
+	"Supplier": ["Host Employee", "Front Office Executive"],
+	"Maintenance Visit": ["Host Employee", "Front Office Executive"],
+	"Job Applicant": ["Host Employee", "Front Office Executive"],
+}
 
 VISITOR_TYPES = [
 	{"visitor_type_name": "Contractor", "approver_role": "System Manager", "badge_prefix": "CON",
@@ -116,7 +135,21 @@ POLICY_DEFAULTS = {
 
 # These duplicate emails the app already sends from code, so the Notification
 # engine copies stay off. `enabled` is preserved across migrates once set.
-DISABLED_NOTIFICATIONS = ["VMS Host Alert", "VMS Food Dept Alert"]
+# Each of these duplicates an email the app already sends from code — the code
+# versions carry attachments and per-type detail the Notification cannot build,
+# so the Notification copy is the one that goes. Without this the visitor got
+# two "Visit Approved" emails for the same pass.
+DISABLED_NOTIFICATIONS = ["VMS Host Alert", "VMS Food Dept Alert", "VMS Approval Email"]
+
+# Doctypes whose timelines carry alerts this app sends. Used to scope the
+# repaint of already-sent messages so no other app's mail is touched.
+VMS_ALERT_DOCTYPES = [
+	"Visitor Pass",
+	"Visitor Invitation",
+	"Hospitality Request",
+	"Conference Room Booking",
+	"Security Log",
+]
 
 # Custom Fields promoted into their DocType JSON. A DocField and a Custom Field
 # of the same name collide, so these must go before the schema is applied.
@@ -247,11 +280,14 @@ def setup_visitor_management():
 	_clear_stale_layout_fields()
 	_allow_portal_uploads()
 	_configure_notifications()
+	_repaint_notification_history()
+	_backfill_host_email()
 	_activate_blacklist_entries()
 	_build_workflow()
 	# After the Visitor Types are seeded and the workflow is generated, so the
 	# approver set it reads is the same one the lanes were built from.
 	_align_visitor_pass_submit()
+	_sync_approval_notification_recipients()
 	frappe.db.commit()
 
 
@@ -299,6 +335,9 @@ def _revoke(doctype, role, ptypes):
 def _ensure_permissions():
 	for role in EMPLOYEE_READERS:
 		_grant("Employee", role)
+	for doctype, roles in LINK_TARGET_PICKERS.items():
+		for role in roles:
+			_grant(doctype, role, "select")
 	for role in VISITOR_PASS_READERS:
 		_grant("Visitor Pass", role)
 	_restore_core_page_permissions()
@@ -362,6 +401,45 @@ def _align_visitor_pass_submit():
 		):
 			_grant("Visitor Pass", role, "submit")
 			print(f"  granted submit on Visitor Pass to approver role {role}")
+
+
+def _sync_approval_notification_recipients():
+	"""Point the approval alert at whoever the Visitor Types actually name.
+
+	The recipient rows were written by hand for the five roles that existed when
+	the workflow was static. The workflow is generated from the Visitor Type
+	masters now, so a site that points a type at any other role gets a lane with
+	nobody watching it — an Auditor pass sat in the Facility Manager's queue and
+	no Facility Manager was ever told.
+
+	Rebuilt from the same source the lanes come from, so the two cannot drift.
+	"""
+	name = "VMS PRR Submitted"
+	if not frappe.db.exists("Notification", name):
+		return
+
+	from visitormanagement.visitor_management.workflow_builder import approver_roles, lane_for_role
+
+	roles = [r for r in approver_roles() if frappe.db.exists("Role", r)]
+	if not roles:
+		return
+
+	doc = frappe.get_doc("Notification", name)
+	wanted = {(r, f"doc.workflow_state == {lane_for_role(r)!r}") for r in roles}
+	current = {(r.receiver_by_role, (r.condition or "").strip()) for r in doc.recipients}
+	if wanted == current:
+		return
+
+	doc.set("recipients", [])
+	for role in roles:
+		doc.append("recipients", {
+			"receiver_by_role": role,
+			"condition": f"doc.workflow_state == {lane_for_role(role)!r}",
+		})
+	doc.save(ignore_permissions=True)
+	added = sorted(r for r, _ in wanted - current)
+	if added:
+		print(f"  approval alert now also reaches: {', '.join(added)}")
 
 
 def _seed_gates():
@@ -487,6 +565,137 @@ def _configure_notifications():
 	for name in DISABLED_NOTIFICATIONS:
 		if frappe.db.exists("Notification", name):
 			frappe.db.set_value("Notification", name, "enabled", 0, update_modified=False)
+
+	_repair_notification_conditions()
+
+
+def _repaint_notification_history():
+	"""Apply the same repaint to alerts already sitting in document timelines.
+
+	A Communication stores the HTML as it was rendered at send time, so fixing
+	the templates only helps future alerts — every message already in a timeline
+	stays unreadable. This changes presentation only: the wrapper gains a
+	background, headings and links gain the colour they were already meant to
+	have. No wording, recipient or timestamp is touched.
+	"""
+	rows = frappe.get_all(
+		"Communication",
+		filters={
+			"communication_type": "Automated Message",
+			"reference_doctype": ("in", VMS_ALERT_DOCTYPES),
+		},
+		fields=["name", "content"],
+	)
+
+	repainted = 0
+	for row in rows:
+		fixed = repaint_email_html(row.content)
+		if fixed and fixed != row.content:
+			frappe.db.set_value("Communication", row.name, "content", fixed, update_modified=False)
+			repainted += 1
+
+	if repainted:
+		print(f"  repainted {repainted} alert(s) already in timelines so they read in dark mode")
+
+
+def _backfill_host_email():
+	"""Fill host_email on passes that predate the field.
+
+	Notifications address the host through this field because Frappe resolves
+	`receiver_by_document_field` by running the field's *value* through
+	validate_email_address — it does not follow links. `person_to_visit` holds
+	an Employee ID, so every alert aimed at the host was being dropped with no
+	error and no log line.
+
+	fetch_from only populates on save, so rows written before the field existed
+	stay empty and would keep silently notifying nobody.
+	"""
+	stale = frappe.get_all(
+		"Visitor Pass",
+		filters={"person_to_visit": ("is", "set"), "host_email": ("in", [None, ""])},
+		fields=["name", "person_to_visit"],
+	)
+	if not stale:
+		return
+
+	emails = dict(
+		frappe.get_all(
+			"Employee",
+			filters={"name": ("in", list({r.person_to_visit for r in stale}))},
+			fields=["name", "user_id"],
+			as_list=True,
+		)
+	)
+
+	filled = 0
+	for row in stale:
+		email = emails.get(row.person_to_visit)
+		if not email:
+			continue
+		frappe.db.set_value("Visitor Pass", row.name, "host_email", email, update_modified=False)
+		filled += 1
+
+	missing = len(stale) - filled
+	print(f"  backfilled host_email on {filled} visitor pass(es)")
+	if missing:
+		print(
+			f"  {missing} pass(es) still have no host_email — their Employee has no "
+			"linked user, so host alerts for them cannot be delivered"
+		)
+
+
+def _repair_notification_conditions():
+	"""Re-arm conditions that a null condition_type had silently switched off.
+
+	v16 splits the old single `condition` into `condition_type` + `condition`,
+	and evaluate_alert now reads:
+
+	    if alert.condition_type == "Python" and alert.condition: ...
+	    elif alert.condition_type == "Filters" and alert.filters: ...
+
+	Neither branch matches when condition_type is null, so the condition is not
+	merely mis-evaluated — it is never consulted, and the alert sends on every
+	single trigger. Rows written before the field existed carry that null, and
+	the field default only applies to newly created documents, so nothing
+	backfilled them on upgrade.
+
+	The visible symptom was a rejection email arriving the moment a pass was
+	sent for approval: "VMS Pass Rejected" ignored its own
+	`workflow_state == 'Rejected'` test and fired on any value change.
+
+	Only this app's notifications are repaired. Others on the site can carry the
+	same null and are reported rather than changed, because silently altering
+	another app's alerting during our migrate is a decision for the operator.
+	"""
+	ours = set(
+		frappe.get_all(
+			"Notification",
+			filters={"module": ("in", frappe.get_module_list("visitormanagement"))},
+			pluck="name",
+		)
+	)
+
+	broken = frappe.get_all(
+		"Notification",
+		filters={"condition_type": ("in", [None, ""]), "condition": ("!=", "")},
+		fields=["name", "module"],
+	)
+
+	repaired = [n.name for n in broken if n.name in ours]
+	for name in repaired:
+		frappe.db.set_value("Notification", name, "condition_type", "Python", update_modified=False)
+	if repaired:
+		print(f"  re-armed ignored conditions on: {', '.join(sorted(repaired))}")
+
+	foreign = sorted(f"{n.name} ({n.module})" for n in broken if n.name not in ours)
+	if foreign:
+		print(
+			"  NOTE: these non-VMS notifications also have a null condition_type, so "
+			"their conditions are ignored and they fire on every trigger. Left "
+			"unchanged — set condition_type to 'Python' on each to re-arm them:"
+		)
+		for entry in foreign:
+			print(f"    - {entry}")
 
 
 def _activate_blacklist_entries():

@@ -239,33 +239,39 @@ def _attach_file_to_pass(file_name, pass_name, fieldname):
 
 
 def _normalize_mobile_number(number, country_code=None):
-	number = (number or "").strip()
-	country_code = (country_code or "").strip()
-	if not number:
-		return number
+	"""Validate and normalise a number submitted through the public portal.
 
-	digits = "".join(char for char in number if char.isdigit())
-	if not digits:
-		return number
+	This used to assume the last ten digits were the subscriber number and
+	everything before them a country code, which turned malformed input into a
+	confident-looking result (`999999999999999` became `+99999-9999999999`) and
+	rejected valid numbers from countries that do not use ten digits.
+	"""
+	from visitormanagement.visitor_management import phone
 
-	# Frappe Phone widget requires "+{isd}-{number}" (hyphen separator)
-	if country_code:
-		country_code_digits = "".join(char for char in country_code if char.isdigit())
-		if country_code_digits and len(digits) == 10:
-			return f"+{country_code_digits}-{digits}"
+	value = (number or "").strip()
+	if not value:
+		return value
 
-	local_isd = vms_settings.country_code()
+	region = None
+	code = "".join(c for c in (country_code or "") if c.isdigit())
+	if code:
+		# The portal's ISD selector wins over the site default when the visitor
+		# has chosen one.
+		region = phonenumbers_region_for_code(code)
 
-	if len(digits) == 10:
-		return f"+{local_isd}-{digits}"
+	return phone.validate_mobile(value, _("Mobile Number"), region=region)
 
-	if 11 <= len(digits) <= 15:
-		# strip leading country code digits if present, reconstruct with hyphen
-		if digits.startswith(local_isd) and len(digits) >= len(local_isd) + 10:
-			return f"+{local_isd}-{digits[-10:]}"
-		return f"+{digits[:-10]}-{digits[-10:]}"
 
-	frappe.throw("Mobile Number must be 10 digits local or 11-15 digits with country code.")
+def phonenumbers_region_for_code(calling_code):
+	"""Map a numeric calling code (91) to a region libphonenumber accepts (IN)."""
+	import phonenumbers
+
+	try:
+		region = phonenumbers.region_code_for_country_code(int(calling_code))
+	except (TypeError, ValueError):
+		return None
+	# ZZ is libphonenumber's "unknown region" sentinel.
+	return None if not region or region == "ZZ" else region
 
 
 def _resolve_employee_link(value):

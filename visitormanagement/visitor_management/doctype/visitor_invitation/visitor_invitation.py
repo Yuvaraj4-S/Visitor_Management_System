@@ -205,6 +205,7 @@ class VisitorInvitation(Document):
 		self._validate_visitor_type()
 		self._validate_visit_date()
 		self._validate_email()
+		self._validate_mobile()
 		self._validate_time_range()
 		self._validate_host_active()
 
@@ -253,6 +254,17 @@ class VisitorInvitation(Document):
 				title=_("Invalid Email"),
 			)
 
+	def _validate_mobile(self):
+		"""Check the visitor's number is real before the invitation goes out.
+
+		The number typed here is what reaches the Visitor Pass and, from there,
+		the gate. Nothing validated it, so a string of digits could travel the
+		whole way and only be discovered when security tried to phone the visitor.
+		"""
+		from visitormanagement.visitor_management import phone
+
+		self.visitor_mobile = phone.validate_mobile(self.visitor_mobile, _("Visitor Mobile"))
+
 	def _validate_time_range(self):
 		if self.expected_checkin and self.expected_checkout:
 			if get_time(self.expected_checkin) >= get_time(self.expected_checkout):
@@ -288,7 +300,13 @@ class VisitorInvitation(Document):
 		if not self.visitor_email:
 			frappe.throw("Visitor Email is required before sending invitation.")
 
-		token = secrets.token_urlsafe(24)
+		# Reuse a token that is already live. Minting a fresh one on every send
+		# silently invalidates the link the visitor may already be holding — and
+		# because the record stays Draft when delivery fails, the button keeps
+		# reading "Send Invitation", so a second click is the natural thing for a
+		# host to do. An expired invitation cannot reach here anyway: the expiry
+		# check below throws before any token is used.
+		token = self.invitation_token or secrets.token_urlsafe(24)
 		sent_on = now_datetime()
 		expires_on = _coerce_datetime(self.invitation_expires_on) or add_days(
 			sent_on, vms_settings.invitation_expiry_days()

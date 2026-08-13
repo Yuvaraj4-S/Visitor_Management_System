@@ -343,25 +343,21 @@ class SecurityLog(Document):
             self._sync_gate_verification()
             self._sync_item_verification()
             # Also update the Pass status to Checked-In
-            frappe.db.set_value(
-                'Visitor Pass',
-                self.visitor_pass,
+            self._advance_pass(
                 {
                     'status': 'Checked-In',
                     'actual_checkin': self.check_in_date_time or now_datetime(),
                     'no_show': 0,
-                },
+                }
             )
             self._notify_host_arrival()
 
         elif self.event_type == 'Check-Out':
-            frappe.db.set_value(
-                'Visitor Pass',
-                self.visitor_pass,
+            self._advance_pass(
                 {
                     'status': 'Checked-Out',
                     'actual_checkout': self.check_out_date_time or now_datetime(),
-                },
+                }
             )
 
         self._record_lifecycle_event()
@@ -371,10 +367,16 @@ class SecurityLog(Document):
 
     def on_update(self):
         if self.event_type == 'Check-In' and self.visitor_pass:
-            if not self.photo_at_gate:
-                vp_photo = frappe.db.get_value('Visitor Pass', self.visitor_pass, 'visitor_photo')
-                if vp_photo:
-                    self.db_set('photo_at_gate', vp_photo)
+            # `photo_at_gate` used to fall back to the visitor's own
+            # pre-registration photo whenever the officer had not captured one.
+            # That photo was then stamped onto the pass as `gate_verified_photo`
+            # with a time and an officer's name, so the record asserted a gate
+            # verification that never happened — and the "does the visitor match
+            # their pass photo?" check compared an image against itself, which it
+            # can never fail. A gate photo now exists only if somebody took one;
+            # the badge already falls back to the pass photo for display, and its
+            # "gate verified" marker is keyed on this field, so it now means what
+            # it says.
             self._sync_gate_verification()
             self._sync_item_verification()
 
@@ -465,6 +467,37 @@ class SecurityLog(Document):
                 indicator='green'
             )
 
+    def _advance_pass(self, updates):
+        """Move the pass to its next state and let the alerts see the transition.
+
+        `status` is not allow_on_submit, so a submitted pass cannot be advanced
+        with a save — the write has to go through db.set_value. That is plain
+        SQL: it never loads the document, so on_change never runs and every
+        Notification watching `status` is skipped. Check-out was therefore
+        silently sending nothing, and the visitor's thank-you mail had never
+        gone out on any real visit.
+
+        Re-running the value-change pass by hand needs a before-image, since
+        that is what evaluate_alert diffs against to decide a field changed.
+
+        A failing alert must never strand a visitor at the gate, so delivery
+        problems are logged rather than raised — the state change is already
+        committed by then, and blocking check-out on a broken email template
+        would be worse than a missing email.
+        """
+        before = frappe.get_doc('Visitor Pass', self.visitor_pass)
+        frappe.db.set_value('Visitor Pass', self.visitor_pass, updates)
+
+        after = frappe.get_doc('Visitor Pass', self.visitor_pass)
+        after._doc_before_save = before
+        try:
+            after.run_notifications('on_change')
+        except Exception:
+            frappe.log_error(
+                title=f'Visitor Pass alert failed after {self.event_type}',
+                message=frappe.get_traceback(with_context=True),
+            )
+
     def _notify_host_arrival(self):
         if self.event_type != 'Check-In' or not self.visitor_pass:
             return
@@ -489,6 +522,24 @@ class SecurityLog(Document):
                 "exception_reason": self.exception_reason,
             },
         )
+
+
+@frappe.whitelist()
+def get_gate_policy():
+	"""What this site actually requires before a gate event may be saved.
+
+	The badge checklist used to hardcode its own list, which demanded a photo and
+	both identity confirmations regardless of configuration. On a site that
+	requires none of them the officer could save the check-in and then be told to
+	go back and complete steps — on a record that locks itself on save, so the
+	instruction could never be carried out.
+	"""
+	frappe.has_permission("Security Log", "read", throw=True)
+	return {
+		"qr_scan_required": bool(vms_settings.flag("qr_scan_required_at_gate")),
+		"photo_required": bool(vms_settings.flag("require_visitor_photo")),
+		"identity_match_required": bool(vms_settings.flag("block_check_in_without_verification")),
+	}
 
 
 @frappe.whitelist()

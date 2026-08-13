@@ -122,6 +122,7 @@ class VisitorPass(Document):
 
         self._force_draft_for_untrusted_creation()
         self._sanitize_free_text()
+        self._sync_status_with_workflow()
         normalize_visitor_pass(self)
         self._clear_fields_from_other_layouts()
         self._align_workflow_lane_with_visitor_type()
@@ -204,6 +205,36 @@ class VisitorPass(Document):
             cleaned = strip_html(value).strip()
             if cleaned != value:
                 self.set(fieldname, cleaned)
+
+    def _sync_status_with_workflow(self):
+        """Keep `status` telling the same story as `workflow_state`.
+
+        The two had drifted apart: the workflow moved Draft -> Pending -> Rejected
+        while `status` sat on "Draft" the whole way, so a rejected pass still
+        reported itself as a draft in every list, report and dashboard. `status`
+        did not even carry a Rejected option, which meant a notification condition
+        written as `doc.status == 'Rejected'` could never be true.
+
+        Only the approval half is derived here. Once a pass is approved the gate
+        owns `status` — Items Verified, Checked-In and Checked-Out are movements,
+        not approval states, and must not be overwritten by a later save.
+        """
+        state = self.workflow_state
+        if not state:
+            return
+
+        if state in pending_lanes():
+            self.status = "Pending Approval"
+        elif state == "Rejected":
+            self.status = "Rejected"
+        elif state == "Draft":
+            # Reapply returns a rejected pass to Draft; the status has to come
+            # back with it rather than stay stuck on Rejected.
+            if self.status in (None, "", "Rejected", "Pending Approval"):
+                self.status = "Draft"
+        elif state == "Approved":
+            if self.status not in ("Items Verified", "Checked-In", "Checked-Out", "Cancelled"):
+                self.status = "Approved"
 
     def _clear_fields_from_other_layouts(self):
         """Drop values belonging to a layout this pass is not using.
@@ -771,9 +802,27 @@ class VisitorPass(Document):
         `update_status=True` means this was called from the items-verification flow
         (Security Log) — move the pass to "Items Verified".
         `update_status=False` means called from on_submit — keep status as "Approved".
+
+        The items-verification path may only run against a pass the workflow
+        actually approved. `sync_badge_number` checks this too; repeating it here
+        is deliberate defence in depth, because the `db_set` below writes
+        `status` straight past validation, and any future caller would otherwise
+        inherit the same hole. on_submit is unaffected — it passes
+        `update_status=False`, and it is itself what moves the document to
+        docstatus 1.
         """
         if self.badge_number:
             return
+
+        if update_status and not (
+            cint(self.docstatus) == 1 and self.workflow_state in GATE_APPROVED_STATES
+        ):
+            frappe.throw(
+                _("Visitor Pass {0} is not approved (currently {1}), so no badge can be issued.").format(
+                    self.name, self.workflow_state or _("Draft")
+                ),
+                frappe.PermissionError,
+            )
 
         # Check VMS Settings — is badge enabled for this visitor type?
         settings = frappe.get_cached_doc("VMS Settings")
@@ -1198,6 +1247,12 @@ def get_existing_visitor_pass_details(visitor_pass, visitor_type=None):
     return {field: doc.get(field) for field in fields}
 
 
+# The workflow states that genuinely represent an approved pass. Mirrors
+# visitor_gate.APPROVED_STATES; kept local so this module has no import cycle
+# with the API layer.
+GATE_APPROVED_STATES = ("Approved",)
+
+
 @frappe.whitelist()
 def sync_badge_number(visitor_pass):
     """Generate badge number for a visitor pass if not already set.
@@ -1218,6 +1273,24 @@ def sync_badge_number(visitor_pass):
     vp = frappe.get_doc("Visitor Pass", visitor_pass)
     if vp.badge_number:
         return vp.badge_number
+
+    # Minting a badge also advances the pass to "Items Verified", which is one
+    # of the two states Security Log's check-in gate accepts — so an unguarded
+    # call here hands the gate a pass the workflow never approved. The client
+    # fires this the moment a pass is selected on a new Security Log, so the
+    # caller need not save anything, and a deep link or QR scan reaches passes
+    # the link dropdown would never have offered.
+    #
+    # Corroborate against what the workflow engine actually recorded, exactly as
+    # visitor_gate.visitor_checkin does, rather than trusting `status` alone:
+    # `status` is written here with db_set, which skips validation entirely.
+    if not (cint(vp.docstatus) == 1 and vp.workflow_state in GATE_APPROVED_STATES):
+        frappe.throw(
+            _("Visitor Pass {0} is not approved (currently {1}), so no badge can be issued.").format(
+                visitor_pass, vp.workflow_state or _("Draft")
+            ),
+            frappe.PermissionError,
+        )
 
     vp.generate_badge_number()
     vp.reload()

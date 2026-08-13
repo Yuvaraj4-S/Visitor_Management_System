@@ -119,24 +119,48 @@ frappe.ui.form.on("Security Log", {
 			return;
 		}
 
-		if (frm.doc.event_type === "Check-In") {
-			const checks = [
-				{
-					ok: Boolean(frm.doc.photo_at_gate),
-					label: __("Capture the live gate photo"),
-				},
-				{
-					ok: Boolean(frm.doc.id_proof_match) && Boolean(frm.doc.pass_photo_match),
-					label: __("Confirm both identity matches (ID proof + pass photo)"),
-				},
-				{
-					ok: !(frm.is_new() || frm.is_dirty()),
-					label: __("Save the check-in (so the gate photo is locked into the badge)"),
-				},
-			];
+		if (frm.doc.event_type !== "Check-In") {
+			open_badge(frm);
+			return;
+		}
 
-			const pending = checks.filter((c) => !c.ok);
-			if (pending.length) {
+		// Ask the server what this site actually requires. The checklist used to
+		// hardcode all three, so on a site that requires none of them the officer
+		// was told to finish steps on a record that had already saved and locked
+		// itself — an instruction that could not be carried out.
+		frappe.call({
+			method: "visitormanagement.visitor_management.doctype.security_log.security_log.get_gate_policy",
+			callback: ({ message: policy = {} }) => {
+				const checks = [];
+
+				if (policy.photo_required) {
+					checks.push({
+						ok: Boolean(frm.doc.photo_at_gate),
+						label: __("Capture the live gate photo"),
+					});
+				}
+				if (policy.identity_match_required) {
+					checks.push({
+						ok: Boolean(frm.doc.id_proof_match) && Boolean(frm.doc.pass_photo_match),
+						label: __("Confirm both identity matches (ID proof + pass photo)"),
+					});
+				}
+				if (policy.qr_scan_required) {
+					checks.push({
+						ok: Boolean(frm.doc.qr_code_scanned),
+						label: __("Scan the visitor's QR code"),
+					});
+				}
+				checks.push({
+					ok: !(frm.is_new() || frm.is_dirty()),
+					label: __("Save the check-in"),
+				});
+
+				const pending = checks.filter((c) => !c.ok);
+				if (!pending.length) {
+					open_badge(frm);
+					return;
+				}
 				const items = checks
 					.map(
 						(c) =>
@@ -150,14 +174,8 @@ frappe.ui.form.on("Security Log", {
 					message: `<ul style="padding-left:18px; margin:0;">${items}</ul>`,
 					indicator: "orange",
 				});
-				return;
-			}
-		}
-
-		const url = frappe.urllib.get_full_url(
-			`/printview?doctype=Visitor%20Pass&name=${encodeURIComponent(frm.doc.visitor_pass)}&format=Visitor%20Badge&no_letterhead=1`
-		);
-		window.open(url, "_blank");
+			},
+		});
 	},
 
 	qr_code_value(frm) {
@@ -1007,4 +1025,11 @@ function render_vip_queue_preview(dialog, vip_queue) {
 			</div>
 		</div>
 	`);
+}
+
+function open_badge(frm) {
+	const url = frappe.urllib.get_full_url(
+		`/printview?doctype=Visitor%20Pass&name=${encodeURIComponent(frm.doc.visitor_pass)}&format=Visitor%20Badge&no_letterhead=1`
+	);
+	window.open(url, "_blank");
 }

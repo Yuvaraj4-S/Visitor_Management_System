@@ -2,7 +2,8 @@
  "attach_files": "",
  "attach_print": 0,
  "channel": "Email",
- "condition": "doc.workflow_state == 'Rejected' or doc.status == 'Rejected'",
+ "condition": "doc.workflow_state == 'Rejected'",
+ "condition_type": "Python",
  "creation": "2026-04-13 12:00:00.000000",
  "days_in_advance": 0,
  "docstatus": 0,
@@ -12,9 +13,9 @@
  "event": "Value Change",
  "idx": 0,
  "is_standard": 1,
- "message": "<div style=\"font-family: Arial, sans-serif; font-size: 13px; color: #1f2933;\">\n<h3>Visitor Pass Rejected</h3>\n<p>The following visitor pass request has been rejected.</p>\n\n<table style=\"border-collapse: collapse; width: 100%; margin: 12px 0;\">\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Pass ID</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.name }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Visitor</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.visitor_full_name }}</td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Visit Date</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.visit_date }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Purpose</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.purpose_of_visit }}</td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b>Status</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\"><b style=\"color: #dc3545;\">Rejected</b></td></tr>\n</table>\n\n<p>If your visit still needs to happen, please <b>contact your host directly</b> (or your HR / Administration team) for the reason and next steps. You can submit a new pre-registration once you have the details.</p>\n</div>",
+ "message": "<div style=\"font-family: Arial, sans-serif; font-size: 13px; color: #1f2933; background-color: #ffffff; padding: 16px; border-radius: 6px;\">\n<h3 style=\"color: #102a43;\">Visitor Pass Rejected</h3>\n<p>The following visitor pass request has been rejected.</p>\n\n<table style=\"border-collapse: collapse; width: 100%; margin: 12px 0;\">\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b style=\"color: #1f2933;\">Pass ID</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.name }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b style=\"color: #1f2933;\">Visitor</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.visitor_full_name }}</td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b style=\"color: #1f2933;\">Visit Date</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.visit_date }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b style=\"color: #1f2933;\">Purpose</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.purpose_of_visit }}</td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b style=\"color: #1f2933;\">Status</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\"><b style=\"color: #dc3545;\">Rejected</b></td></tr>\n</table>\n\n<p>If your visit still needs to happen, please <b style=\"color: #1f2933;\">contact your host directly</b> (or your HR / Administration team) for the reason and next steps. You can submit a new pre-registration once you have the details.</p>\n</div>",
  "message_type": "HTML",
- "modified": "2026-05-08 12:05:00.000000",
+ "modified": "2026-08-12 19:55:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS Pass Rejected",
@@ -24,11 +25,11 @@
    "receiver_by_document_field": "owner"
   },
   {
-   "receiver_by_document_field": "person_to_visit"
+   "receiver_by_document_field": "host_email"
   }
  ],
  "send_system_notification": 1,
  "send_to_all_assignees": 0,
- "subject": "Visitor Pass Rejected: {{ doc.visitor_full_name }} \u2014 {{ doc.visit_date }}",
+ "subject": "Visitor Pass Rejected: {{ doc.visitor_full_name }} — {{ doc.visit_date }}",
  "value_changed": "workflow_state"
 }

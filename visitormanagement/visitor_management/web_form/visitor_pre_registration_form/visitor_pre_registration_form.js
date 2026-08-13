@@ -137,6 +137,20 @@ function checkAttachmentSize(fieldname, label) {
 	return null;
 }
 
+
+// Frappe prepares the success message with `frappe.db.escape()` — a *SQL* string
+// escaper — before handing it to the HTML template (web_form.py:461). Every
+// apostrophe therefore reaches the page as a literal backslash: a visitor who
+// submits is told "We\'ve sent a confirmation". The stored text is clean; the
+// damage happens on the way out, so it is undone on the way in.
+function unescapeSuccessMessage() {
+	document.querySelectorAll(".success-message, .success-title").forEach((el) => {
+		if (el.textContent && el.textContent.includes("\\'")) {
+			el.textContent = el.textContent.replace(/\\'/g, "'").replace(/\\"/g, '"');
+		}
+	});
+}
+
 function renderSuccessPanel(reference) {
 	const ref = reference ? escapeHtml(reference) : "";
 	const html = `
@@ -983,4 +997,7 @@ function bootstrapInvitationHooks(retries = 40) {
 }
 
 bootstrapInvitationHooks();
-frappe.ready(() => bootstrapInvitationHooks());
+frappe.ready(() => {
+	bootstrapInvitationHooks();
+	unescapeSuccessMessage();
+});

@@ -35,6 +35,7 @@
   "purpose_of_visit",
   "person_to_visit",
   "host_department",
+  "host_email",
   "column_break_visit_plan",
   "visit_date",
   "expected_checkin",
@@ -197,7 +198,7 @@
    "hidden": 1,
    "in_list_view": 1,
    "label": "Status",
-   "options": "Draft\nPending Approval\nApproved\nItems Verified\nChecked-In\nChecked-Out\nCancelled",
+   "options": "Draft\nPending Approval\nRejected\nApproved\nItems Verified\nChecked-In\nChecked-Out\nCancelled",
    "read_only": 1
   },
   {
@@ -324,6 +325,15 @@
    "fieldtype": "Data",
    "label": "Host Department",
    "read_only": 1
+  },
+  {
+   "fetch_from": "person_to_visit.user_id",
+   "fieldname": "host_email",
+   "fieldtype": "Data",
+   "label": "Host Email",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Filled from the host's linked user. Notifications address the host here — a Link field holds an Employee ID, which is not a deliverable address. Not format-validated on purpose: a bad value should cost an email, not block a gate operation."
   },
   {
    "fieldname": "column_break_visit_plan",
@@ -954,7 +964,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-08 13:43:16.969820",
+ "modified": "2026-08-12 18:50:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Pass",

@@ -346,11 +346,19 @@ def derive_hospitality_meal_plan(visitor_pass):
 				first_service_time = slot_start_dt
 
 	meal_required = 1 if applicable_meals else 0
-	if len(applicable_meals) == 3:
+	# Meal windows are admin-configurable, so any combination is reachable, but
+	# DOUBLE_MEAL_TYPES only names the three built-in pairs. Joining the labels
+	# for anything else produced values like "Lunch + Snacks" that are not
+	# options on the meal_type Select, and Frappe refused the save outright —
+	# a site with a fourth meal window could not record an ordinary 10:00-17:00
+	# visit for any visitor type. "All Day" is the catch-all the field already
+	# offers. `>= 3` rather than `== 3` so a fifth window cannot fall through to
+	# the else branch and leave meal_required set with no meal named.
+	if len(applicable_meals) >= 3:
 		derived_meal_type = "All Day"
 		hospitality_type = "Full Day"
 	elif len(applicable_meals) == 2:
-		derived_meal_type = DOUBLE_MEAL_TYPES.get(tuple(applicable_meals), " + ".join(applicable_meals))
+		derived_meal_type = DOUBLE_MEAL_TYPES.get(tuple(applicable_meals)) or "All Day"
 		hospitality_type = "Two Meals"
 	elif len(applicable_meals) == 1:
 		derived_meal_type = applicable_meals[0]
@@ -438,18 +446,41 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 	# by the Submit action; only an already-saved request is auto-advanced here (e.g.
 	# when the parent Visitor Pass later becomes Approved).
 	current_wf = getattr(doc, "workflow_state", None) or "Draft"
-	if current_wf == "Draft" and not doc.is_new():
+
+	# Only auto-promote a request that was ALREADY sitting in Draft. Without the
+	# before-save check this also fires mid-transition: Reapply sets the state to
+	# "Draft" and saves, this block immediately rewrote it to "Pending Approval",
+	# and Frappe then compared the pre-save state ("Rejected") against that
+	# mutated target, found no single-hop transition, and threw. Reapply was
+	# therefore impossible whenever the parent pass was Approved — which is
+	# always, since reaching "Rejected" requires passing through "Pending
+	# Approval", which _validate_visitor_pass_approved only allows once the pass
+	# is approved. Submit escaped this only because its own target is already
+	# "Pending Approval".
+	before = doc.get_doc_before_save()
+	was_already_draft = (getattr(before, "workflow_state", None) or "Draft") == "Draft" if before else True
+
+	if current_wf == "Draft" and was_already_draft and not doc.is_new():
 		vp_status = getattr(visitor_pass, "status", None)
 		if vp_status in ("Approved", "Items Verified", "Checked-In", "Checked-Out"):
 			doc.workflow_state = "Pending Approval"
-		elif vp_status == "Rejected":
-			doc.workflow_state = "Rejected"
+		# A rejected parent must NOT force this request to "Rejected". The
+		# Hospitality Request workflow only reaches that state from "Pending
+		# Approval", so writing it from "Draft" makes validate_workflow throw —
+		# and because this runs inside the parent pass's own save, that throw
+		# rolled the whole rejection back. An approver could not reject any pass
+		# that had requested a meal, a room or any arrangement, and the error even
+		# named a different doctype's states, so it was undiagnosable. The outcome
+		# is recorded on `status` below instead — this document's own field, which
+		# needs no workflow transition.
 
 	if sync_management_fields:
 		doc.assigned_staff = getattr(visitor_pass, "food_dept_staff_assigned", None)
 		doc.status = HOSPITALITY_REQUEST_STATUS_FROM_PASS.get(
 			getattr(visitor_pass, "food_status", None), "Pending"
 		)
+		if getattr(visitor_pass, "status", None) == "Rejected":
+			doc.status = "Cancelled"
 		doc.notes = "\n".join(
 			note
 			for note in [

@@ -63,10 +63,14 @@ VISITOR_PASS_READERS = ["Facility Manager", "Hospitality Manager"]
 # link field without granting the list. add_permission copies the existing
 # standard permissions into Custom DocPerm first, so the owning app's own roles
 # keep their access.
+# System Manager is included deliberately: it is the configured approver_role for
+# the Supplier and Contractor visitor types, so it opens those passes routinely —
+# and it held no read on Supplier or Maintenance Visit either, because those are
+# gated to Purchase/Accounts/Stock and Maintenance roles respectively.
 LINK_TARGET_PICKERS = {
-	"Supplier": ["Host Employee", "Front Office Executive"],
-	"Maintenance Visit": ["Host Employee", "Front Office Executive"],
-	"Job Applicant": ["Host Employee", "Front Office Executive"],
+	"Supplier": ["Host Employee", "Front Office Executive", "System Manager"],
+	"Maintenance Visit": ["Host Employee", "Front Office Executive", "System Manager"],
+	"Job Applicant": ["Host Employee", "Front Office Executive", "System Manager"],
 }
 
 VISITOR_TYPES = [
@@ -282,6 +286,7 @@ def setup_visitor_management():
 	_configure_notifications()
 	_repaint_notification_history()
 	_backfill_host_email()
+	_backfill_host_name()
 	_activate_blacklist_entries()
 	_build_workflow()
 	# After the Visitor Types are seeded and the workflow is generated, so the
@@ -596,6 +601,40 @@ def _repaint_notification_history():
 
 	if repainted:
 		print(f"  repainted {repainted} alert(s) already in timelines so they read in dark mode")
+
+
+def _backfill_host_name():
+	"""Fill host_name on passes that predate the field.
+
+	Messages print the host's name rather than `person_to_visit`, which stores an
+	Employee ID — meaningless to a visitor and an internal identifier to leak.
+	fetch_from only populates on save, so existing rows would keep rendering the
+	raw ID in every alert until someone happened to re-save them.
+	"""
+	stale = frappe.get_all(
+		"Visitor Pass",
+		filters={"person_to_visit": ("is", "set"), "host_name": ("in", [None, ""])},
+		fields=["name", "person_to_visit"],
+	)
+	if not stale:
+		return
+
+	names = dict(
+		frappe.get_all(
+			"Employee",
+			filters={"name": ("in", list({r.person_to_visit for r in stale}))},
+			fields=["name", "employee_name"],
+			as_list=True,
+		)
+	)
+	filled = 0
+	for row in stale:
+		who = names.get(row.person_to_visit)
+		if not who:
+			continue
+		frappe.db.set_value("Visitor Pass", row.name, "host_name", who, update_modified=False)
+		filled += 1
+	print(f"  backfilled host_name on {filled} visitor pass(es)")
 
 
 def _backfill_host_email():

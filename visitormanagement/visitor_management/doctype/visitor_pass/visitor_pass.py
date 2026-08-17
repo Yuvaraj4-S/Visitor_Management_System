@@ -626,24 +626,74 @@ class VisitorPass(Document):
             return
 
         if text:
-            current_first = rows[0] if rows else None
-            current_first_name = (current_first.item_name or "").strip() if current_first else ""
-            if current_first_name == text and len(rows) == 1:
+            parsed = self._parse_items_carried(text)
+            if not parsed:
                 return
-            preserved_verified = current_first.verified_by_security if current_first else 0
-            preserved_remarks = current_first.verification_remarks if current_first else None
+
+            current = [
+                ((r.item_name or "").strip(), int(r.quantity or 1)) for r in rows
+            ]
+            wanted = [(p["item_name"], p["quantity"]) for p in parsed]
+            if current == wanted:
+                return
+
+            # Keep whatever the gate already confirmed, matched by item name, so
+            # editing the text does not silently un-verify an item an officer
+            # has already checked.
+            previous = {
+                (r.item_name or "").strip().casefold(): r for r in rows
+            }
+
             self.set("visitor_items", [])
-            row = self.append("visitor_items", {
-                "item_name": text,
-                "quantity": 1,
-            })
-            if preserved_verified:
-                row.verified_by_security = 1
-            if preserved_remarks:
-                row.verification_remarks = preserved_remarks
+            for item in parsed:
+                row = self.append("visitor_items", {
+                    "item_name": item["item_name"],
+                    "quantity": item["quantity"],
+                })
+                prior = previous.get(item["item_name"].casefold())
+                if prior is not None:
+                    if prior.verified_by_security:
+                        row.verified_by_security = 1
+                    if prior.verification_remarks:
+                        row.verification_remarks = prior.verification_remarks
+
+            # Write the normalised summary back so the next save sees itself as
+            # already in sync; otherwise "Lap,mobile" and "Lap, mobile" differ
+            # forever and every save rebuilds the rows.
+            self.items_carried = self._summarise_items(self.visitor_items)
         elif rows:
             # items_carried empty but rows exist (portal flow) → derive summary
             self.items_carried = auto_summary
+
+    @staticmethod
+    def _parse_items_carried(text):
+        """Split the free-text list into one entry per item.
+
+        A visitor typing "Lap, mobile" means two things, not one. Storing the
+        whole string as a single row gave the gate officer one checklist line
+        covering two physical items — so a laptop and a phone could not be
+        verified, or found missing, independently. It also read back to the
+        visitor as "Lap,mobile (Qty: 1.0)" in the approval mail.
+
+        Understands the "(xN)" suffix `_summarise_items` writes, so parsing this
+        function's own output round-trips to the same rows and repeated saves
+        stay stable.
+        """
+        items = []
+        for chunk in re.split(r"[,\n;]+", text or ""):
+            name = chunk.strip()
+            if not name:
+                continue
+
+            quantity = 1
+            match = re.search(r"\(\s*x\s*(\d+)\s*\)\s*$", name, re.IGNORECASE)
+            if match:
+                quantity = int(match.group(1)) or 1
+                name = name[: match.start()].strip()
+
+            if name:
+                items.append({"item_name": name, "quantity": quantity})
+        return items
 
     @staticmethod
     def _summarise_items(rows):
@@ -943,10 +993,18 @@ class VisitorPass(Document):
         details_rows = [
             ("Date", self.visit_date or ""),
             ("Time", time_value),
-            ("Host", self.person_to_visit or ""),
+            # The visitor reading this has no idea what "HR-EMP-00001" means, and
+            # it leaks an internal identifier outside the organisation. Show who
+            # they are actually meeting, and how to reach them.
+            ("Host", self._host_display()),
             ("Purpose", self.purpose_of_visit or ""),
             ("Pass ID", self.name or ""),
         ]
+        # Where to go is the single most useful thing a visitor needs on arrival,
+        # and the site already configured it per Visitor Type.
+        arrival_gate = self._arrival_gate()
+        if arrival_gate:
+            details_rows.insert(2, ("Entry Gate", arrival_gate))
         details_html = (
             "<table style='border-collapse: collapse; width: 100%; margin: 0 0 12px 0;'>"
         )
@@ -976,6 +1034,41 @@ class VisitorPass(Document):
 
         self._send_approval_mail(details_html, items_section, contractor_li, attachments)
 
+    def _arrival_gate(self):
+        """The gate this visitor should actually report to.
+
+        Every Visitor Type names its own entry point — a VIP is met at the
+        executive lobby, a contractor at the goods entrance — and the gate
+        officer's Security Log already auto-assigns from this same field. So the
+        site has already decided where each visitor goes; telling them all to
+        find "the security gate" throws that away and sends a VIP to the wrong
+        door.
+        """
+        if not self.visitor_type:
+            return None
+        return frappe.db.get_value("Visitor Type", self.visitor_type, "default_gate") or None
+
+    def _host_display(self):
+        """The host as a person: name, and email when we have one.
+
+        `person_to_visit` stores an Employee ID. It is the correct value to keep
+        on the record, but it is the wrong thing to print in a message — a
+        visitor cannot act on "HR-EMP-00001", and it exposes an internal
+        identifier to an external recipient.
+
+        Falls back through name, then email, then the ID, so the row is never
+        blank on an Employee with incomplete data.
+        """
+        name = (self.host_name or "").strip()
+        email = (self.host_email or "").strip()
+
+        if not name and self.person_to_visit:
+            name = frappe.db.get_value("Employee", self.person_to_visit, "employee_name") or ""
+
+        if name and email:
+            return f"{name} ({email})"
+        return name or email or (self.person_to_visit or "")
+
     def _send_approval_mail(self, details_html, items_section, contractor_li, attachments):
         """Deliver the visitor's approval mail.
 
@@ -993,6 +1086,17 @@ class VisitorPass(Document):
             )
 
     def _deliver_approval_mail(self, details_html, items_section, contractor_li, attachments):
+        # Name the gate the visitor is actually expected at. Falls back to the
+        # generic wording only when a Visitor Type has no default gate set, so a
+        # half-configured site still gets a sensible sentence.
+        arrival_gate = self._arrival_gate()
+        gate_phrase = f"<b>{arrival_gate}</b>" if arrival_gate else "the security gate"
+        badge_phrase = (
+            f"at the security desk at <b>{arrival_gate}</b>"
+            if arrival_gate
+            else "at the security desk"
+        )
+
         frappe.sendmail(
             recipients=[self.email_id],
             subject=f"Visit Approved: {self.visit_date} — Pass {self.name}",
@@ -1006,8 +1110,8 @@ class VisitorPass(Document):
                 f"<h3 style='margin: 16px 0 6px; font-size: 14px;'>On Arrival</h3>"
                 f"<ul style='margin: 0 0 12px 20px; padding: 0;'>"
                 f"<li>Please carry a valid photo ID matching the one you registered with.</li>"
-                f"<li>Scan the <b>QR code attached to this email</b> at the security gate.</li>"
-                f"<li>Your physical badge will be issued at the security desk after item verification.</li>"
+                f"<li>Scan the <b>QR code attached to this email</b> at {gate_phrase}.</li>"
+                f"<li>Your physical badge will be issued {badge_phrase} after item verification.</li>"
                 f"{contractor_li}"
                 f"</ul>"
                 f"<p>We look forward to welcoming you.</p>"

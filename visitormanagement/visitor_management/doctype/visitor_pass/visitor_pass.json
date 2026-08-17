@@ -34,6 +34,7 @@
   "section_break_visit_plan",
   "purpose_of_visit",
   "person_to_visit",
+  "host_name",
   "host_department",
   "host_email",
   "column_break_visit_plan",
@@ -318,6 +319,15 @@
    "options": "Employee",
    "reqd": 1,
    "ignore_user_permissions": 1
+  },
+  {
+   "fetch_from": "person_to_visit.employee_name",
+   "fieldname": "host_name",
+   "fieldtype": "Data",
+   "label": "Host Name",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "The host's name, for emails and alerts. person_to_visit holds an Employee ID, which is meaningless to a visitor reading a message."
   },
   {
    "fetch_from": "person_to_visit.department",
@@ -964,7 +974,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-12 18:50:00.000000",
+ "modified": "2026-08-14 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Pass",

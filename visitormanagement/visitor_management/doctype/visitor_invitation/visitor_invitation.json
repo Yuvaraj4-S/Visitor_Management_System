@@ -127,7 +127,9 @@
   {
    "fieldname": "purpose_of_visit",
    "fieldtype": "Small Text",
-   "label": "Purpose Of Visit"
+   "label": "Purpose of Visit",
+   "reqd": 1,
+   "description": "Required: the visitor's pre-registration form needs it, and Visitor Pass will not save without one."
   },
   {
    "fieldname": "sec_hospitality",
@@ -279,7 +281,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-08 13:36:55.858448",
+ "modified": "2026-08-13 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Invitation",

@@ -1,6 +1,7 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.model.document import Document
 from frappe.utils import get_datetime, getdate, now_datetime, time_diff_in_seconds
 
@@ -333,6 +334,14 @@ class SecurityLog(Document):
         else:
             self.all_items_confirmed = 1
 
+        # Deliberately last: the rows above are built during this same save, so
+        # a check placed with the other gate validations would inspect an empty
+        # table and pass every time.
+        if self.event_type in ('Check-In', 'Check-Out'):
+            self._assert_items_verified(
+                'check-in' if self.event_type == 'Check-In' else 'check-out', vp
+            )
+
     # --------------------------------------------------
 
     def after_insert(self):
@@ -466,6 +475,59 @@ class SecurityLog(Document):
                 alert=True,
                 indicator='green'
             )
+
+    def _assert_items_verified(self, movement, visitor_pass=None):
+        """Refuse a gate event while a declared item is still unverified.
+
+        Declaring items exists to answer one question — did what came in also go
+        out. The system already computed the answer (`all_items_confirmed`, and
+        `item_verification_status` left at "Pending") and simply never acted on
+        it, so a visitor could be checked in and back out with tools nobody
+        looked at, and the record only said so afterwards.
+
+        `block_check_in_without_verification` is not this check despite the
+        name — it gates `id_proof_match` and `pass_photo_match`, which are
+        identity, not items. There was no item equivalent at all.
+
+        The two events have to be checked differently. Check-In owns the
+        verification rows: they are built on this very save from the pass's
+        declared items, so the rows are the source of truth. Check-Out has no
+        rows of its own — nothing populates `items_verification` for it — so
+        asking the log would always find nothing. It has to ask the pass, which
+        carries the outcome of the check-in verification.
+
+        Off by default. Turning it on makes the gate stricter, and a queue of
+        visitors waiting while an officer ticks boxes is a real cost only the
+        site can weigh.
+        """
+        if not vms_settings.flag('block_gate_without_item_verification'):
+            return
+
+        if self.event_type == 'Check-In':
+            outstanding = [
+                (row.item_name or _('Item'))
+                for row in (self.items_verification or [])
+                if not row.item_verified
+            ]
+        else:
+            # Ask the pass: were the declared items ever confirmed at entry?
+            if not visitor_pass:
+                return
+            outstanding = [
+                (item.item_name or _('Item'))
+                for item in (visitor_pass.get('visitor_items') or [])
+                if not item.get('verified_by_security')
+            ]
+
+        if not outstanding:
+            return
+
+        frappe.throw(
+            _("Verify every declared item before saving the visitor {0}. Still "
+              "unverified: {1}. Tick <b>Item Verified</b> on each row of Items "
+              "Verification.").format(movement, ", ".join(outstanding)),
+            title=_("Items Not Verified"),
+        )
 
     def _advance_pass(self, updates):
         """Move the pass to its next state and let the alerts see the transition.

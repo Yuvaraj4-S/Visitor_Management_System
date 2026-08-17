@@ -321,20 +321,40 @@ def _parse_visitor_items(items):
 		if not item_name:
 			continue
 
-		parsed_items.append(
-			{
-				"item_code": row.get("item_code"),
-				"item_name": item_name,
-				"item_category": row.get("item_category"),
-				"quantity": row.get("quantity") or 1,
-				"unit_of_measure": row.get("unit_of_measure"),
-				"description": row.get("description"),
-				"is_new_item": row.get("is_new_item") or 0,
-				"serial_number": row.get("serial_number"),
-				"estimated_value": row.get("estimated_value"),
-				"verification_remarks": row.get("verification_remarks"),
-			}
+		# The portal offers a single box and its own placeholder invites a list
+		# — "e.g. Dell laptop, USB drive, toolkit" — so one submitted value
+		# routinely describes several physical items. Kept whole, the gate
+		# officer gets one checklist line covering all of them and cannot verify
+		# or flag any of them separately. Split it exactly as the desk field is.
+		from visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass import (
+			VisitorPass,
 		)
+
+		parts = VisitorPass._parse_items_carried(item_name) or [
+			{"item_name": item_name, "quantity": 1}
+		]
+
+		for part in parts:
+			# A quantity typed on the row only makes sense when that row turned
+			# out to describe a single item; "(x2)" inside the text always wins.
+			quantity = part["quantity"]
+			if quantity == 1 and len(parts) == 1:
+				quantity = row.get("quantity") or 1
+
+			parsed_items.append(
+				{
+					"item_code": row.get("item_code"),
+					"item_name": part["item_name"],
+					"item_category": row.get("item_category"),
+					"quantity": quantity,
+					"unit_of_measure": row.get("unit_of_measure"),
+					"description": row.get("description"),
+					"is_new_item": row.get("is_new_item") or 0,
+					"serial_number": row.get("serial_number") if len(parts) == 1 else None,
+					"estimated_value": row.get("estimated_value") if len(parts) == 1 else None,
+					"verification_remarks": row.get("verification_remarks"),
+				}
+			)
 
 	return parsed_items
 
@@ -410,7 +430,15 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"expected_checkin": _normalize_time(str(invitation.expected_checkin) if invitation else data.get("expected_checkin")),
 		"expected_checkout": _normalize_time(str(invitation.expected_checkout) if invitation else data.get("expected_checkout")),
 		"person_to_visit": person_to_visit,
-		"purpose_of_visit": invitation.purpose_of_visit if invitation else data.get("purpose_of_visit"),
+		# Fall back to what the visitor typed when the host left this blank.
+		# `purpose_of_visit` is optional on Visitor Invitation but mandatory on
+		# Visitor Pass, so an invitation raised without one used to substitute
+		# its own empty value over the visitor's answer and then fail the pass's
+		# mandatory check — leaving the visitor stuck on a form that showed the
+		# field as editable and required, with nothing they typed ever used.
+		# A host-set value still wins, which is what keeps the field locked.
+		"purpose_of_visit": (invitation.purpose_of_visit if invitation else None)
+		or data.get("purpose_of_visit"),
 		"visitor_type": visitor_type,
 		"supplier_link": data.get("supplier_link"),
 		"supplier_visit_mode": data.get("supplier_visit_mode"),

@@ -4,10 +4,25 @@
 	its own. Fetching the linked pass unconditionally therefore handed the
 	visitor's name, company, host and schedule to anyone who could print the
 	request — including users who get a 403 on the Visitor Pass itself.
+
+	That guard was written with `frappe.has_permission`, which is NOT exposed in
+	the print sandbox, so this format raised on every single render — "module has
+	no attribute 'has_permission'" — and the View Itinerary button never opened
+	anything at all. `frappe.get_list` IS exposed and applies the same permission
+	rules, returning no rows when the reader may not see the pass. Same
+	guarantee, and it actually runs.
 -#}
-{%- set vp = frappe.get_doc("Visitor Pass", doc.visitor_pass)
-	if doc.visitor_pass and frappe.has_permission("Visitor Pass", "read", doc=doc.visitor_pass)
-	else None -%}
+{%- set vp_rows = frappe.get_list(
+		"Visitor Pass",
+		filters={"name": doc.visitor_pass},
+		fields=[
+			"visitor_full_name", "company__organisation", "visit_date",
+			"expected_checkin", "expected_checkout", "hospitality_overall_status",
+			"host_name", "person_to_visit",
+		],
+		limit_page_length=1,
+	) if doc.visitor_pass else [] -%}
+{%- set vp = vp_rows[0] if vp_rows else None -%}
 <div style="font-family: Arial, sans-serif; color: #1f2933; font-size: 12px; line-height: 1.5;">
 	<div style="border-bottom: 3px solid #102a43; padding-bottom: 10px; margin-bottom: 15px;">
 		<h2 style="margin: 0; color: #102a43;">Visitor Itinerary</h2>
@@ -26,7 +41,7 @@
 			<td style="padding: 6px 10px; border: 1px solid #d9e2ec; background: #f0f4f8;"><strong>Visit Date</strong></td>
 			<td style="padding: 6px 10px; border: 1px solid #d9e2ec;">{{ vp.visit_date or '-' }}</td>
 			<td style="padding: 6px 10px; border: 1px solid #d9e2ec; background: #f0f4f8;"><strong>Host</strong></td>
-			<td style="padding: 6px 10px; border: 1px solid #d9e2ec;">{{ vp.person_to_visit or '-' }}</td>
+			<td style="padding: 6px 10px; border: 1px solid #d9e2ec;">{{ vp.host_name or vp.person_to_visit or "-" }}</td>
 		</tr>
 		<tr>
 			<td style="padding: 6px 10px; border: 1px solid #d9e2ec; background: #f0f4f8;"><strong>Check-in</strong></td>

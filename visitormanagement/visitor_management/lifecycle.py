@@ -105,9 +105,29 @@ def ensure_hospitality_request(visitor_pass):
 	if not requires_service:
 		return None
 
-	request_name = visitor_pass.hospitality_request or frappe.db.get_value(
-		"Hospitality Request", {"visitor_pass": visitor_pass.name}, "name"
-	)
+	# Read-then-insert is a time-of-check/time-of-use race. Two saves arriving
+	# together — a portal submission alongside a desk edit, or a double-clicked
+	# workflow action — both find nothing here and both insert, leaving one pass
+	# with two hospitality requests (HOSP-…-130826 and HOSP-…-130826-2, Frappe
+	# suffixing the naming collision). `FOR UPDATE` takes a gap lock on the
+	# visitor_pass index range, so the second transaction waits and then sees the
+	# first one's row. This is the same guard `_validate_duplicate_pass` already
+	# uses on Visitor Pass for exactly this failure.
+	#
+	# The index on `visitor_pass` is what keeps the lock narrow — without it
+	# InnoDB escalates to locking the whole table on every save.
+	request_name = visitor_pass.hospitality_request
+	if not request_name:
+		locked = frappe.db.sql(
+			"""
+			SELECT name FROM `tabHospitality Request`
+			WHERE visitor_pass = %s
+			LIMIT 1
+			FOR UPDATE
+			""",
+			visitor_pass.name,
+		)
+		request_name = locked[0][0] if locked else None
 	is_new_request = not request_name
 	if request_name:
 		doc = frappe.get_doc("Hospitality Request", request_name)

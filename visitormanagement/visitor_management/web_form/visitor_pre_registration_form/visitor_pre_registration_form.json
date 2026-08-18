@@ -20,7 +20,7 @@
  "list_columns": [],
  "login_required": 0,
  "max_attachment_size": 5,
- "modified": "2026-08-12 15:50:48.597940",
+ "modified": "2026-08-18 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "visitor-pre-registration-form",
@@ -417,19 +417,6 @@
   },
   {
    "allow_read_on_all_link_options": 0,
-   "fieldname": "interview_panel",
-   "fieldtype": "Small Text",
-   "hidden": 0,
-   "label": "Interview Panel",
-   "max_length": 0,
-   "max_value": 0,
-   "read_only": 0,
-   "reqd": 0,
-   "show_in_filter": 0,
-   "depends_on": "eval:doc.visitor_type == 'Candidate'"
-  },
-  {
-   "allow_read_on_all_link_options": 0,
    "fieldname": "",
    "fieldtype": "Section Break",
    "hidden": 0,
@@ -483,20 +470,6 @@
   },
   {
    "allow_read_on_all_link_options": 0,
-   "fieldname": "vip_category",
-   "fieldtype": "Select",
-   "hidden": 0,
-   "label": "VIP Category",
-   "max_length": 0,
-   "max_value": 0,
-   "read_only": 0,
-   "reqd": 0,
-   "show_in_filter": 0,
-   "options": "Board Member\nGovernment Official\nInvestor\nMedia\nGuest Speaker\nPartner",
-   "depends_on": "eval:doc.visitor_type == 'VIP'"
-  },
-  {
-   "allow_read_on_all_link_options": 0,
    "fieldname": "interpreter_required",
    "fieldtype": "Check",
    "hidden": 0,
@@ -522,19 +495,6 @@
    "show_in_filter": 0,
    "options": "Tamil\nEnglish",
    "depends_on": "eval:doc.visitor_type == 'VIP' && doc.interpreter_required"
-  },
-  {
-   "allow_read_on_all_link_options": 0,
-   "fieldname": "protocol_notes",
-   "fieldtype": "Text Editor",
-   "hidden": 0,
-   "label": "Protocol Notes",
-   "max_length": 0,
-   "max_value": 0,
-   "read_only": 0,
-   "reqd": 0,
-   "show_in_filter": 0,
-   "depends_on": "eval:doc.visitor_type == 'VIP'"
   }
  ]
 }

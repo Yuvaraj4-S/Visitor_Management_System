@@ -691,13 +691,26 @@ def sync_contact_trace(visitor_pass_name, security_log=None):
 	if security_log.event_type not in {"Check-In", "Gate Transfer", "Check-Out"}:
 		return None
 
-	event_time = (
-		getattr(security_log, "check_in_date_time", None)
-		or getattr(security_log, "check_out_date_time", None)
-		or getattr(security_log, "modified", None)
-		or now_datetime()
+	# Read the timestamp that belongs to the event being recorded. This used to
+	# take `check_in_date_time` first whatever the event was, so a Check-Out that
+	# also carried a check-in time closed the trace at the moment the visitor
+	# *arrived*. On a visit spanning midnight — in yesterday, out today — that
+	# time_out precedes the record's own time_in, and Contact Trace Record
+	# rightly refuses it, which blocked the check-out itself.
+	#
+	# The Desk form only fills the field matching the event, so this did not
+	# surface there; an API caller or a hand-edited log reaches it.
+	if security_log.event_type == "Check-Out":
+		event_time = getattr(security_log, "check_out_date_time", None) or getattr(
+			security_log, "check_in_date_time", None
+		)
+	else:
+		event_time = getattr(security_log, "check_in_date_time", None) or getattr(
+			security_log, "check_out_date_time", None
+		)
+	event_time = get_datetime(
+		event_time or getattr(security_log, "modified", None) or now_datetime()
 	)
-	event_time = get_datetime(event_time)
 
 	if security_log.event_type == "Check-Out":
 		_close_active_contact_trace(visitor_pass_name, event_time, notes="Visitor checked out")

@@ -12,9 +12,9 @@
  "event": "New",
  "idx": 0,
  "is_standard": 0,
- "message": "<div style=\"font-family: Arial, sans-serif; font-size: 13px; color: #1f2933; line-height: 1.5; background-color: #ffffff; padding: 16px; border-radius: 6px;\">\n\t<p>Your visitor has completed their pre-registration and the pass is waiting for you to review it.</p>\n\t<table style=\"border-collapse: collapse; margin: 12px 0;\">\n\t\t<tr><td style=\"padding: 4px 12px 4px 0;\"><b style=\"color: #1f2933;\">Visitor</b></td><td>{{ doc.visitor_full_name }}</td></tr>\n\t\t<tr><td style=\"padding: 4px 12px 4px 0;\"><b style=\"color: #1f2933;\">Company</b></td><td>{{ doc.company__organisation or '-' }}</td></tr>\n\t\t<tr><td style=\"padding: 4px 12px 4px 0;\"><b style=\"color: #1f2933;\">Type</b></td><td>{{ doc.visitor_type }}</td></tr>\n\t\t<tr><td style=\"padding: 4px 12px 4px 0;\"><b style=\"color: #1f2933;\">Visit date</b></td><td>{{ doc.visit_date }}</td></tr>\n\t\t<tr><td style=\"padding: 4px 12px 4px 0;\"><b style=\"color: #1f2933;\">Expected</b></td><td>{{ doc.expected_checkin }} &ndash; {{ doc.expected_checkout }}</td></tr>\n\t\t<tr><td style=\"padding: 4px 12px 4px 0;\"><b style=\"color: #1f2933;\">Purpose</b></td><td>{{ doc.purpose_of_visit or '-' }}</td></tr>\n\t</table>\n\t<p>Open the pass, check the details they entered, then use <b style=\"color: #1f2933;\">Actions &rarr; Submit</b> to send it for approval.</p>\n</div>",
+ "message": "<div style=\"font-family: Arial, sans-serif; font-size: 13px; color: #1f2933; line-height: 1.5; background-color: #ffffff; padding:14px; border-radius:6px;max-width:520px;\">\n\t<p>Your visitor has completed their pre-registration and the pass is waiting for you to review it.</p>\n\t<table style=\"border-collapse: collapse; margin: 12px 0;table-layout:fixed;\">\n\t\t<tr><td style=\"padding: 4px 12px 4px 0;word-break:break-word;width:40%;\"><b style=\"color:#5b6b7b;\">Visitor</b></td><td>{{ doc.visitor_full_name }}</td></tr>\n\t\t<tr><td style=\"padding: 4px 12px 4px 0;word-break:break-word;width:40%;\"><b style=\"color:#5b6b7b;\">Company</b></td><td>{{ doc.company__organisation or '-' }}</td></tr>\n\t\t<tr><td style=\"padding: 4px 12px 4px 0;word-break:break-word;width:40%;\"><b style=\"color:#5b6b7b;\">Type</b></td><td>{{ doc.visitor_type }}</td></tr>\n\t\t<tr><td style=\"padding: 4px 12px 4px 0;word-break:break-word;width:40%;\"><b style=\"color:#5b6b7b;\">Visit date</b></td><td>{{ doc.visit_date }}</td></tr>\n\t\t<tr><td style=\"padding: 4px 12px 4px 0;word-break:break-word;width:40%;\"><b style=\"color:#5b6b7b;\">Expected</b></td><td>{{ doc.expected_checkin }} &ndash; {{ doc.expected_checkout }}</td></tr>\n\t\t<tr><td style=\"padding: 4px 12px 4px 0;word-break:break-word;width:40%;\"><b style=\"color:#5b6b7b;\">Purpose</b></td><td>{{ doc.purpose_of_visit or '-' }}</td></tr>\n\t</table>\n\t<p>Open the pass, check the details they entered, then use <b style=\"color: #1f2933;\">Actions &rarr; Submit</b> to send it for approval.</p>\n</div>",
  "message_type": "HTML",
- "modified": "2026-08-12 19:55:00.000000",
+ "modified": "2026-08-18 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS Portal Submission",
@@ -26,5 +26,5 @@
  ],
  "send_system_notification": 1,
  "send_to_all_assignees": 0,
- "subject": "Pre-registration received: {{ doc.visitor_full_name }} — {{ doc.visit_date }}"
+ "subject": "Pre-registration: {{ doc.visitor_full_name | truncate(34, True) }}"
 }

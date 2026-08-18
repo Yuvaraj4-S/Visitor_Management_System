@@ -82,6 +82,7 @@
   "greeting_cost",
   "section_break_status",
   "status",
+  "workflow_state",
   "notes",
   "amended_from"
  ],
@@ -598,6 +599,14 @@
    "in_list_view": 1,
    "label": "Status",
    "options": "Pending\nConfirmed\nServed\nCompleted\nCancelled"
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Workflow State",
+   "options": "Workflow State",
+   "read_only": 1
   },
   {
    "fieldname": "notes",

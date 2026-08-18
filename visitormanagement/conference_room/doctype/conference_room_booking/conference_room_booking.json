@@ -15,6 +15,7 @@
   "column_break_basic",
   "meeting_type",
   "status",
+  "workflow_state",
   "section_schedule",
   "booking_date",
   "start_time",
@@ -101,6 +102,14 @@
    "in_standard_filter": 1,
    "label": "Status",
    "options": "Draft\nPending Approval\nApproved\nRejected\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Workflow State",
+   "options": "Workflow State",
    "read_only": 1
   },
   {

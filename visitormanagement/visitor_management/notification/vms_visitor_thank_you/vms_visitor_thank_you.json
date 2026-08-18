@@ -12,9 +12,9 @@
  "event": "Value Change",
  "idx": 0,
  "is_standard": 0,
- "message": "<div style=\"font-family: Arial, sans-serif; font-size: 14px; color: #1f2933; max-width: 600px; background-color: #ffffff; padding: 16px; border-radius: 6px;\">\n<h2  style=\"color: #1e40af;\">Thank you for visiting us, {{ doc.visitor_full_name }}!</h2>\n<p>We appreciate your time today and hope your visit with <b style=\"color: #1f2933;\">{{ doc.host_name or 'our team' }}</b> was productive.</p>\n<table style=\"border-collapse: collapse; width: 100%; margin: 16px 0;\">\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b style=\"color: #1f2933;\">Visit Date</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.visit_date }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><b style=\"color: #1f2933;\">Checked In</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.actual_checkin or '-' }}</td></tr>\n<tr style=\"background: #f4f5f7;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><b style=\"color: #1f2933;\">Checked Out</b></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ doc.actual_checkout or '-' }}</td></tr>\n</table>\n<p>If you need to plan another visit, please contact your host directly.</p>\n<p style=\"margin-top: 24px; color: #6b7280; font-size: 12px;\">— Visitor Management Team</p>\n</div>",
+ "message": "<div style=\"font-family: Arial, sans-serif; font-size: 14px; color: #1f2933; max-width: 600px; background-color: #ffffff; padding:14px; border-radius: 6px;\">\n<h2  style=\"color: #1e40af;\">Thank you for visiting us, {{ doc.visitor_full_name }}!</h2>\n<p>We appreciate your time today and hope your visit with <b style=\"color: #1f2933;\">{{ doc.host_name or 'our team' }}</b> was productive.</p>\n<table style=\"border-collapse: collapse; width: 100%; margin: 16px 0;table-layout:fixed;\">\n<tr style=\"\"><td style=\"padding:5px 2px; border-bottom:1px solid #edf0f2;word-break:break-word;width:40%;\"><b style=\"color:#5b6b7b;\">Visit Date</b></td><td style=\"padding:5px 2px; border-bottom:1px solid #edf0f2;word-break:break-word;\">{{ doc.visit_date }}</td></tr>\n<tr><td style=\"padding:5px 2px; border-bottom:1px solid #edf0f2;word-break:break-word;width:40%;\"><b style=\"color:#5b6b7b;\">Checked In</b></td><td style=\"padding:5px 2px; border-bottom:1px solid #edf0f2;word-break:break-word;\">{{ doc.actual_checkin or '-' }}</td></tr>\n<tr style=\"\"><td style=\"padding:5px 2px; border-bottom:1px solid #edf0f2;word-break:break-word;width:40%;\"><b style=\"color:#5b6b7b;\">Checked Out</b></td><td style=\"padding:5px 2px; border-bottom:1px solid #edf0f2;word-break:break-word;\">{{ doc.actual_checkout or '-' }}</td></tr>\n</table>\n<p>If you need to plan another visit, please contact your host directly.</p>\n<p style=\"margin-top: 24px; color: #6b7280; font-size: 12px;\">— Visitor Management Team</p>\n</div>",
  "message_type": "HTML",
- "modified": "2026-08-14 09:05:00.000000",
+ "modified": "2026-08-18 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS Visitor Thank You",
@@ -26,6 +26,6 @@
  ],
  "send_system_notification": 0,
  "send_to_all_assignees": 0,
- "subject": "Thank you for visiting — {{ doc.visit_date }}",
+ "subject": "Thank you for visiting",
  "value_changed": "status"
 }

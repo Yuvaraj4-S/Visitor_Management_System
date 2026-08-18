@@ -355,6 +355,8 @@ class VisitorInvitation(Document):
 		try:
 			frappe.sendmail(
 				recipients=[self.visitor_email],
+				reference_doctype=self.doctype,
+				reference_name=self.name,
 				subject="Visitor Pre-Registration Invitation",
 				message="<br>".join(message),
 				now=True,

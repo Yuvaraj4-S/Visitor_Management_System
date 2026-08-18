@@ -210,6 +210,16 @@
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc; width: 20%;"><strong>Diet</strong></td>
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.special_diet or '-' }}</td>
 		</tr>
+		{#- Allergies and accessibility are recorded on this request but appeared
+		    on no printout, notification or report, so whoever actually serves the
+		    visitor never saw them. Allergies are shown in red: it is the one line
+		    on this page that carries a safety consequence. -#}
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Allergies</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; {% if doc.dietary_allergies %}color: #b42318; font-weight: bold;{% endif %}">{{ doc.dietary_allergies or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Accessibility</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.accessibility_requirements or '-' }}</td>
+		</tr>
 		<tr>
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Conference Room</strong></td>
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.conference_room or '-' }}</td>

@@ -201,7 +201,9 @@ def get_available_rooms(booking_date, start_time, end_time, min_capacity=0, excl
 
 	min_cap = cint(min_capacity) or 1
 
-	rooms = frappe.get_all(
+	# get_list, not get_all: get_all bypasses the permission layer entirely, so
+	# the room master was readable by anyone who could reach the endpoint.
+	rooms = frappe.get_list(
 		"Conference Room",
 		filters={"is_active": 1, "capacity": [">=", min_cap]},
 		fields=["name", "room_name", "capacity", "location", "floor", "room_type"],
@@ -238,7 +240,10 @@ def get_available_rooms(booking_date, start_time, end_time, min_capacity=0, excl
 @frappe.whitelist()
 def get_room_schedule(conference_room, booking_date):
 	"""Get all bookings for a room on a given date."""
-	return frappe.get_all(
+	# Returns meeting_title and booked_by, so it must respect whatever the site
+	# decides Conference Room Booking visibility should be. get_all ignored that
+	# and handed every meeting title on any room to any authenticated caller.
+	return frappe.get_list(
 		"Conference Room Booking",
 		filters={
 			"conference_room": conference_room,
@@ -257,6 +262,11 @@ def get_room_schedule(conference_room, booking_date):
 @frappe.whitelist()
 def get_booking_events(start, end, filters=None):
 	"""Calendar view event source."""
+	# Raw SQL below bypasses both DocPerm and any permission_query_conditions,
+	# so the check has to be explicit — otherwise a future decision to scope
+	# bookings would be silently undone by this one endpoint.
+	frappe.has_permission("Conference Room Booking", "read", throw=True)
+
 	cond = ""
 	values = {"start": start, "end": end}
 

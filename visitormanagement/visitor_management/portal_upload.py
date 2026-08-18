@@ -53,6 +53,7 @@ def guard_guest_upload(doc, method=None):
 	# point — the portal is identified by the form the request came from.
 	_reject_unless_portal_request()
 	_enforce_rate_limit()
+	_reject_foreign_attachment_target(doc)
 
 	extension = os.path.splitext(doc.file_name or "")[1].lower()
 	if extension not in ALLOWED_EXTENSIONS:
@@ -88,6 +89,56 @@ def guard_guest_upload(doc, method=None):
 	# Visitor IDs and photographs are personal documents; they must not be
 	# readable by URL guessing, whatever the caller asked for.
 	doc.is_private = 1
+
+
+# The only fields on the only doctype this portal ever asks a visitor to attach
+# something to. Everything else is somebody else's record.
+PORTAL_ATTACH_DOCTYPE = "Visitor Pass"
+PORTAL_ATTACH_FIELDS = ("id_proof_scan", "visitor_photo")
+
+
+def _reject_foreign_attachment_target(doc):
+	"""Refuse to let an anonymous upload land on an arbitrary record.
+
+	`allow_guests_to_upload_files` is what makes the portal work, and Frappe's
+	`upload_file` handler reads that setting as blanket authority: for a Guest it
+	sets `ignore_permissions = True` and then *skips `check_write_permission`
+	entirely* (frappe/handler.py) — not relaxes it, skips it. The target itself is
+	pure form data:
+
+	    doctype  = frappe.form_dict.doctype
+	    docname  = frappe.form_dict.docname
+	    fieldname = frappe.form_dict.fieldname
+
+	So turning this setting on for the visitor portal handed the whole bench an
+	unauthenticated write primitive: any caller could POST a genuine JPG with
+	`doctype=Employee&docname=HR-EMP-00060` and have it attach, with no permission
+	check anywhere in the chain. Confirmed against this site — the file landed on
+	the Employee record. The checks above did not stop it: they inspect the file's
+	*content*, never where it is going, and the Referer check says in its own
+	docstring that it is not a boundary.
+
+	The portal itself never needs this. Frappe's attach control only sends a
+	doctype/docname when it has a `frm` (frappe/public/js/frappe/form/controls/
+	attach.js) and a web form has none, so a visitor's ID scan and photo arrive
+	unattached and are linked afterwards by `_attach_file_to_pass` — which writes
+	through `db.set_value` and never reaches this hook. Whitelisting the target
+	therefore costs the legitimate flow nothing.
+	"""
+	target_doctype = (doc.attached_to_doctype or "").strip()
+	target_field = (doc.attached_to_field or "").strip()
+
+	# Unattached is the normal case: the pass does not exist yet.
+	if not target_doctype and not (doc.attached_to_name or "").strip():
+		return
+
+	if target_doctype == PORTAL_ATTACH_DOCTYPE and (not target_field or target_field in PORTAL_ATTACH_FIELDS):
+		return
+
+	frappe.throw(
+		_("Files uploaded from the visitor form cannot be attached to that record."),
+		frappe.PermissionError,
+	)
 
 
 def _rate_limit_identity():

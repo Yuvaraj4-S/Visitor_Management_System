@@ -101,6 +101,8 @@ def _send_host_checkin_email(visitor_pass, security_log):
     try:
         frappe.sendmail(
             recipients=[host_email],
+            reference_doctype="Visitor Pass",
+            reference_name=visitor_pass.name,
             subject=f"Visitor Arrived: {visitor_pass.visitor_full_name}",
             message=(
                 f"<p>Visitor <b>{visitor_pass.visitor_full_name}</b> has checked in.</p>"
@@ -212,14 +214,25 @@ class SecurityLog(Document):
         if vp:
             current_status = vp.status
             if self.event_type == 'Check-In':
+                # Order matters. "Checked-In" and "Checked-Out" are both outside
+                # {Approved, Items Verified}, so testing the general case first
+                # meant it always won and the two precise messages below were
+                # unreachable. A guard scanning an already-admitted visitor was
+                # told the pass "must be approved" — which is both wrong and
+                # unactionable, since it already is.
+                if current_status == 'Checked-In':
+                    frappe.throw(
+                        f"Visitor {self.visitor_name or vp.visitor_full_name} is already Checked-In."
+                    )
+                if current_status == 'Checked-Out':
+                    frappe.throw(
+                        f"Visitor {self.visitor_name or vp.visitor_full_name} has already Checked-Out "
+                        "and the pass is now inactive."
+                    )
                 if current_status not in {'Approved', 'Items Verified'}:
                     frappe.throw(
                         f"Visitor {self.visitor_name or vp.visitor_full_name} must be approved before check-in. (Current Status: {current_status})"
                     )
-                if current_status == 'Checked-In':
-                    frappe.throw(f"Visitor {self.visitor_name} is already Checked-In.")
-                if current_status == 'Checked-Out':
-                    frappe.throw(f"Visitor {self.visitor_name} has already Checked-Out and the pass is now inactive.")
                 
                 if not self.check_in_date_time:
                     self.check_in_date_time = now
@@ -245,6 +258,13 @@ class SecurityLog(Document):
                     )
 
             elif self.event_type == 'Check-Out':
+                # Same reasoning as check-in: name the actual situation rather
+                # than restating the precondition. A second check-out is a
+                # different mistake from checking out someone who never entered.
+                if current_status == 'Checked-Out':
+                    frappe.throw(
+                        f"Visitor {self.visitor_name or vp.visitor_full_name} has already Checked-Out."
+                    )
                 if current_status != 'Checked-In':
                     frappe.throw(f"Visitor {self.visitor_name} must be 'Checked-In' before they can 'Check-Out'. (Current Status: {current_status})")
 
@@ -500,7 +520,11 @@ class SecurityLog(Document):
         visitors waiting while an officer ticks boxes is a real cost only the
         site can weigh.
         """
-        if not vms_settings.flag('block_gate_without_item_verification'):
+        # Enforced by default. The setting is an opt-out, not an opt-in: a site
+        # that declares items and then admits the visitor without checking them
+        # has recorded a promise it never kept, and the gate officer gets one
+        # tick-box for however many physical objects the visitor is carrying.
+        if vms_settings.flag('allow_gate_without_item_verification'):
             return
 
         if self.event_type == 'Check-In':

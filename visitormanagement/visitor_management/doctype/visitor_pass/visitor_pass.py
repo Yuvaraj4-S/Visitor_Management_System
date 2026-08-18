@@ -68,6 +68,21 @@ LAYOUT_FIELDS = {
         "candidate_interview_type",
         "interview_panel",
     ],
+    # The VIP layout was missing from this map entirely, which meant its fields
+    # were the only ones never cleared when a pass belonged to some other type.
+    # Combined with `vip_category` being a Select whose options did not start
+    # with a blank line — so Frappe assigned the first option, "Board Member",
+    # to every pass that left it empty — 145 Contractor, Customer, Auditor,
+    # Supplier and Candidate passes on this site were carrying
+    # `vip_category = Board Member` in reports and exports, on records where the
+    # VIP section is not even displayed.
+    "VIP": [
+        "vip_category",
+        "mdceo_notified",
+        "interpreter_required",
+        "interpreter_language",
+        "protocol_notes",
+    ],
 }
 
 
@@ -1099,6 +1114,12 @@ class VisitorPass(Document):
 
         frappe.sendmail(
             recipients=[self.email_id],
+            # Without a reference, frappe.sendmail leaves no Communication behind,
+            # so an approval that really was emailed shows nothing in the pass's
+            # Activity timeline and there is no record of what went to whom. The
+            # send itself worked; it was simply unauditable after the fact.
+            reference_doctype=self.doctype,
+            reference_name=self.name,
             subject=f"Visit Approved: {self.visit_date} — Pass {self.name}",
             message=(
                 f"<div style='font-family: Arial, sans-serif; font-size: 14px; color: #1f2933; line-height: 1.5;'>"
@@ -1127,14 +1148,65 @@ class VisitorPass(Document):
     # PRIVATE: NOTIFY FOOD DEPT
     # ─────────────────────────────────────────────────────────
     def _notify_food_dept(self):
+        """Tell the kitchen what they actually need to serve this visitor.
+
+        This used to send only "Meal Type: Lunch / Visitor Pass: VP-…", which
+        does not let anyone prepare anything: no headcount, no service time, and
+        — the reason this matters — no allergies. `dietary_allergies` is a
+        visible, editable field on the Hospitality Request, so a host can record
+        "severe nut allergy" in good faith and it would reach nobody. A form that
+        asks and then discards the answer is worse than one that never asked.
+        """
         food_email = frappe.db.get_single_value("VMS Settings", "food_dept_email")
         if not food_email:
             return
+
+        allergies = accessibility = None
+        if self.hospitality_request:
+            allergies, accessibility = frappe.db.get_value(
+                "Hospitality Request",
+                self.hospitality_request,
+                ["dietary_allergies", "accessibility_requirements"],
+            ) or (None, None)
+
+        rows = [
+            ("Visitor", self.visitor_full_name),
+            ("Visit Date", self.visit_date),
+            ("Meal", self.meal_type),
+            ("Serving Slots", self.assigned_meal_slots),
+            ("Service Time", self.service_time),
+            ("Number of People", self.number_of_people or 1),
+            ("Dietary Preference", self.special_diet),
+            ("Allergies", allergies),
+            ("Accessibility", accessibility),
+            ("Notes", self.hospitality_notes),
+            ("Visitor Pass", self.name),
+        ]
+        body = "".join(
+            # Allergies are the one line a cook must not miss, so it is called out
+            # rather than left to blend into the table.
+            f"<tr><td style='padding:6px 10px;border:1px solid #ddd;'><b>{label}</b></td>"
+            f"<td style='padding:6px 10px;border:1px solid #ddd;"
+            f"{'color:#b42318;font-weight:bold;' if label == 'Allergies' and value else ''}'>"
+            f"{value}</td></tr>"
+            for label, value in rows
+            if value not in (None, "")
+        )
+
         try:
             frappe.sendmail(
                 recipients=[food_email],
-                subject=f"Meal Required: {self.visitor_full_name}",
-                message=f"Meal Type: {self.meal_type}<br>Visitor Pass: {self.name}",
+                reference_doctype=self.doctype,
+                reference_name=self.name,
+                subject=f"Meal Required: {self.visitor_full_name} — {self.visit_date}",
+                message=(
+                    "<div style='font-family:Arial,sans-serif;font-size:13px;color:#1f2933;"
+                    "background-color:#ffffff;padding:16px;border-radius:6px;'>"
+                    "<h3 style='margin:0 0 10px;color:#102a43;'>Meal Request for Visitor</h3>"
+                    "<table style='border-collapse:collapse;width:100%;'>"
+                    f"{body}"
+                    "</table></div>"
+                ),
             )
         except Exception as exc:
             frappe.log_error(f"Food dept notification failed for {self.name}: {exc}", "VMS Food Dept Notification")

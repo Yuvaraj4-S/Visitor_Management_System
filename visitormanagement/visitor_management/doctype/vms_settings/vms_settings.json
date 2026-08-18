@@ -17,7 +17,7 @@
   "qr_scan_required_at_gate",
   "require_item_declaration",
   "block_check_in_without_verification",
-  "block_gate_without_item_verification",
+  "allow_gate_without_item_verification",
   "column_break_gate",
   "blacklist_action",
   "section_badge",
@@ -116,10 +116,10 @@
   },
   {
    "default": "0",
-   "fieldname": "block_gate_without_item_verification",
+   "fieldname": "allow_gate_without_item_verification",
    "fieldtype": "Check",
-   "label": "Block Gate Events Without Item Verification",
-   "description": "Refuse a Check-In or Check-Out while any declared item is still unverified. Off by default: it makes the gate stricter, and a queue waiting on an officer ticking boxes is a real operational cost."
+   "label": "Allow Gate Events Without Item Verification",
+   "description": "Leave OFF (the default) to require every declared item to be verified before a Check-In or Check-Out can be saved. Tick only if your site deliberately admits visitors without checking their declared items."
   },
   {
    "fieldname": "column_break_gate",
@@ -265,7 +265,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-13 10:00:00.000000",
+ "modified": "2026-08-17 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS Settings",

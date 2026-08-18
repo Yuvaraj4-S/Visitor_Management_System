@@ -57,6 +57,8 @@ def _send_hospitality_assignment_mail(doc):
 	try:
 		frappe.sendmail(
 			recipients=[email],
+			reference_doctype=doc.doctype,
+			reference_name=doc.name,
 			subject=subject,
 			message="<br>".join(lines),
 			now=True,
@@ -261,6 +263,50 @@ class HospitalityRequest(Document):
 		)
 		if conflict:
 			frappe.throw(f"Buggy {self.buggy_number} already booked at {self.buggy_datetime} ({conflict})")
+
+	def before_cancel(self):
+		"""Let the Cancel action actually complete.
+
+		The workflow offers Approved --Cancel--> Cancelled, but the parent
+		Visitor Pass carries a `hospitality_request` link back to this document,
+		and Frappe refuses to cancel anything another record still links to.
+		So Cancel raised LinkExistsError for everyone, every time — the second
+		of two reasons that button never worked (the first was that no role held
+		the `cancel` permission at all).
+
+		The back-link is descriptive, not a dependency: the pass records which
+		request belongs to it, and a cancelled request is still the right answer
+		to that question. `sync_hospitality_to_pass` keeps the pass's own
+		hospitality status in step, so the pass is not left claiming an
+		arrangement that was called off.
+
+		`before_cancel` rather than later: Frappe runs the back-link check at
+		document.py:1384, immediately after `on_cancel`, so the flag has to be set
+		before the cancel save gets that far.
+		"""
+		self.ignore_linked_doctypes = ("Visitor Pass",)
+
+	def on_cancel(self):
+		"""Move the fulfilment status too, not just the workflow state.
+
+		`status` is what the hospitality team actually works from — it is the
+		Pending/Confirmed/Served queue. Cancelling only moved `workflow_state`,
+		so a called-off request still read as "Pending" and the kitchen would
+		keep preparing a meal for a visit that is not happening.
+
+		db_set because the document is cancelled by this point and a normal save
+		would be refused.
+
+		`sync_hospitality_to_pass` has to be called by hand for the same reason:
+		db_set writes straight to the row without running `on_update`, so the
+		sync that normally rides on it never fired on cancel. The Visitor Pass was
+		left reading `hospitality_overall_status = Confirmed` for an arrangement
+		that had just been called off — and the Visitor Itinerary print format
+		shows that field to the gate. The sync itself is `db.set_value`, so it is
+		safe against a document that is already cancelled.
+		"""
+		self.db_set("status", "Cancelled", update_modified=False)
+		sync_hospitality_to_pass(self)
 
 	def on_update(self):
 		sync_hospitality_to_pass(self)

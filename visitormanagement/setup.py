@@ -52,6 +52,15 @@ EMPLOYEE_READERS = [
 # visitor's title, so these roles need read on Visitor Pass.
 VISITOR_PASS_READERS = ["Facility Manager", "Hospitality Manager"]
 
+# The Hospitality Request workflow offers Approved --Cancel--> Cancelled to the
+# Hospitality Manager, but no DocPerm row on that doctype grants `cancel` to
+# anyone. So the action appeared in the Actions menu and threw "No permission
+# for Hospitality Request" every time it was clicked — a button that could never
+# work. Conference Room Booking gets this right: Facility Manager holds cancel
+# and amend to match its own Cancel transition. Amend comes along because a
+# cancelled request that can never be amended is a dead end.
+HOSPITALITY_CANCELLERS = ["Hospitality Manager", "System Manager"]
+
 # Layout-specific link fields on Visitor Pass point at masters owned by other
 # apps, and none of the roles that actually raise a pass could select from them:
 # `contractor_link`/`supplier_link` -> Supplier, `work_order_ref` ->
@@ -169,6 +178,14 @@ SUPERSEDED_CUSTOM_FIELDS = [
 	# its data carry over untouched.
 	("Visitor Pass", "custom_nationality"),
 	("Visitor Pass", "custom_visa_copy"),
+	# Same reasoning, one step removed. Frappe's workflow engine auto-creates a
+	# `workflow_state` Custom Field on any doctype a Workflow is built for, so
+	# these two carried a field that appeared nowhere in their DocType JSON —
+	# invisible to anyone reading the schema, and owned by a Workflow record
+	# rather than by the app. Visitor Pass already declared its own; these now
+	# match it. The fieldname is unchanged, so the column and its data carry over.
+	("Hospitality Request", "workflow_state"),
+	("Conference Room Booking", "workflow_state"),
 ]
 
 # Custom Fields dropped outright rather than promoted: unused, no data.
@@ -340,6 +357,9 @@ def _revoke(doctype, role, ptypes):
 def _ensure_permissions():
 	for role in EMPLOYEE_READERS:
 		_grant("Employee", role)
+	for role in HOSPITALITY_CANCELLERS:
+		_grant("Hospitality Request", role, "cancel")
+		_grant("Hospitality Request", role, "amend")
 	for doctype, roles in LINK_TARGET_PICKERS.items():
 		for role in roles:
 			_grant(doctype, role, "select")
@@ -543,6 +563,29 @@ def _clear_stale_layout_fields():
 	)
 	if frappe.db._cursor.rowcount > 0:
 		print(f"  cleared stray CRM fields on {frappe.db._cursor.rowcount} visitor pass(es)")
+
+	# Same class of problem, different cause. `vip_category` is a Select whose
+	# options began with "Board Member" rather than a blank line, so Frappe
+	# assigned the first option to every pass that left the field empty — and the
+	# VIP layout was absent from VisitorPass.LAYOUT_FIELDS, so unlike every other
+	# layout its fields were never cleared for passes of another type. The result
+	# on this site: 145 Contractor / Customer / Auditor / Supplier / Candidate
+	# passes filed as "Board Member" in reports and exports, on records whose VIP
+	# section does not even render. Both causes are fixed going forward; this
+	# clears what is already stored.
+	frappe.db.sql(
+		"""
+		UPDATE `tabVisitor Pass`
+		SET vip_category = NULL, protocol_notes = NULL, interpreter_language = NULL,
+		    mdceo_notified = 0, interpreter_required = 0
+		WHERE IFNULL(visitor_type_layout, '') != 'VIP'
+		  AND (IFNULL(vip_category, '') != '' OR IFNULL(protocol_notes, '') != ''
+		       OR IFNULL(interpreter_language, '') != ''
+		       OR IFNULL(mdceo_notified, 0) != 0 OR IFNULL(interpreter_required, 0) != 0)
+		"""
+	)
+	if frappe.db._cursor.rowcount > 0:
+		print(f"  cleared stray VIP fields on {frappe.db._cursor.rowcount} visitor pass(es)")
 
 
 def _allow_portal_uploads():

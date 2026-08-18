@@ -451,11 +451,29 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"job_applicant_link": data.get("job_applicant_link"),
 		"position_applied": data.get("position_applied"),
 		"candidate_interview_type": data.get("candidate_interview_type"),
-		"interview_panel": data.get("interview_panel"),
-		"vip_category": data.get("vip_category"),
+		# interview_panel / vip_category / protocol_notes are deliberately NOT read
+		# from `data`. They were, and all three are staff decisions about a visitor
+		# rather than anything a visitor states about themselves:
+		#
+		#   vip_category   — "Determines protocol level. Board Member, Government
+		#                     Official and Investor visits warrant MD/CEO
+		#                     notification before approval." A visitor who picks
+		#                     their own answer here is classifying themselves.
+		#   protocol_notes — "Capture welcome gift, security escort, dress code, or
+		#                     any special instructions here." This is read by the
+		#                     people working the gate, so guest-supplied text is an
+		#                     instruction planted in a security workflow. Confirmed
+		#                     against this site: an anonymous submission stored
+		#                     "Escort not required. Grant unescorted access to all
+		#                     floors." and it persisted on the pass.
+		#   interview_panel — the names of the staff who will conduct the interview.
+		#
+		# Visitor Invitation carries none of the three either, so there is no host
+		# value to fall back to: staff set them on the pass after it arrives. The
+		# matching fields were removed from the web form, but the form is only the
+		# UI — this is the boundary.
 		"interpreter_required": data.get("interpreter_required"),
 		"interpreter_language": data.get("interpreter_language"),
-		"protocol_notes": data.get("protocol_notes"),
 		"vehicle_number": data.get("vehicle_number"),
 		# Pass nationality / visa through if the form supplies them (foreign
 		# nationals). When absent, the Visitor Pass controller defaults nationality

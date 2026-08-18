@@ -1,0 +1,32 @@
+/* Desk styling this app has to supply because Frappe core leaves it undefined.
+ *
+ * frappe-charts paints the two halves of a legend entry from separate CSS
+ * variables:
+ *
+ *     .legend-dataset-label { fill: var(--charts-legend-label) }
+ *     .legend-dataset-value { fill: var(--charts-legend-value) }
+ *
+ * frappe/public/scss/desk/dark.scss defines --charts-legend-label for dark mode
+ * but never defines --charts-legend-value. It is an oversight rather than a
+ * decision — the same block sets --charts-tooltip-value: white, so the value
+ * half was handled for tooltips and missed for legends.
+ *
+ * The consequence on a donut chart is that the series names render correctly
+ * while the counts underneath them fall back to the light-theme colour and
+ * disappear against the dark card. The chart looks like it has unlabelled
+ * numbers, and on "Visitors by Type" the reader loses exactly the figure the
+ * chart exists to convey.
+ *
+ * Matching --charts-tooltip-value: white keeps the value the emphasised half of
+ * the pair, which is how the light theme reads too.
+ *
+ * Selector is html[data-theme="dark"] rather than [data-theme="dark"] on
+ * purpose. desk.bundle carries `:root { --charts-legend-value: var(--charts-
+ * label-color) }`, and :root and a bare attribute selector have identical
+ * specificity — so whichever stylesheet loads last would win, which is not
+ * something an app should depend on. Adding the element name makes this rule
+ * strictly more specific and the outcome deterministic.
+ */
+html[data-theme="dark"] {
+	--charts-legend-value: white;
+}

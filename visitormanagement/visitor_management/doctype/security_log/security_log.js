@@ -406,7 +406,18 @@ frappe.ui.form.on("Security Log", {
 
 		if (frm.is_new() && (!frm.doc.items_verification || frm.doc.items_verification.length === 0)) {
 			frappe.model.with_doc("Visitor Pass", frm.doc.visitor_pass, () => {
+				// The pass may be gone by the time this resolves: picking a pass
+				// that is already checked out shows "Already Scanned" and clears
+				// the field, and that clear can land first. Reading
+				// `vp.visitor_items` off the resulting undefined threw a
+				// TypeError into the console on every such re-selection.
+				if (!frm.doc.visitor_pass) {
+					return;
+				}
 				const vp = frappe.model.get_doc("Visitor Pass", frm.doc.visitor_pass);
+				if (!vp) {
+					return;
+				}
 				if (vp.visitor_items && vp.visitor_items.length > 0) {
 					frm.clear_table("items_verification");
 					vp.visitor_items.forEach((item) => {

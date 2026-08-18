@@ -32,7 +32,9 @@ add_to_apps_screen = [
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/visitormanagement/css/visitormanagement.css"
+# Desk CSS. Currently one rule: a chart legend variable Frappe leaves
+# undefined in dark mode, which made donut chart values invisible.
+app_include_css = "/assets/visitormanagement/css/visitormanagement.css"
 # app_include_js = "/assets/visitormanagement/js/visitormanagement.js"
 
 # include js, css files in header of web template

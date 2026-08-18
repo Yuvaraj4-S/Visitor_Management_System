@@ -13,9 +13,9 @@
  "event": "Value Change",
  "idx": 0,
  "is_standard": 0,
- "message": "<div style=\"font-family: Arial, sans-serif; font-size: 13px; color: #1f2933; line-height: 1.5; background-color: #ffffff; padding: 16px; border-radius: 6px;\"><b style=\"color: #1f2933;\">NEW APPROVED VISITOR — ITEM VERIFICATION REQUIRED</b><br><br>\n\nName    : {{ doc.visitor_full_name }}<br>\nCompany : {{ doc.company__organisation or 'N/A' }}<br>\nType    : {{ doc.visitor_type }}<br>\nMeets   : {{ doc.host_name or doc.person_to_visit }} | Dept: {{ doc.host_department }}<br>\nPurpose : {{ doc.purpose_of_visit }}<br>\nDate    : {{ doc.visit_date }} | Arrival: {{ doc.expected_checkin }}<br>\nID Type : {{ doc.id_proof_type }}<br><br>\n\n<b style=\"color: #1f2933;\">Items Declared by Visitor:</b><br>\n\n{% if doc.visitor_items %}\n    {% for item in doc.visitor_items %}\n        - {{ item.item_name }} | Qty: {{ item.quantity }} {{ item.unit_of_measure or '' }}\n        {% if item.serial_number %} | S/N: {{ item.serial_number }}{% endif %}<br>\n    {% endfor %}\n{% else %}\n    No items declared.<br>\n{% endif %}\n\n<br><b style=\"color: #1f2933;\">Please verify all declared items before issuing badge.</b></div>",
+ "message": "<div style=\"font-family: Arial, sans-serif; font-size: 13px; color: #1f2933; line-height: 1.5; background-color: #ffffff; padding:14px; border-radius:6px;max-width:520px;\"><b style=\"color: #1f2933;\">NEW APPROVED VISITOR — ITEM VERIFICATION REQUIRED</b><br><br>\n\nName    : {{ doc.visitor_full_name }}<br>\nCompany : {{ doc.company__organisation or 'N/A' }}<br>\nType    : {{ doc.visitor_type }}<br>\nMeets   : {{ doc.host_name or doc.person_to_visit }} | Dept: {{ doc.host_department }}<br>\nPurpose : {{ doc.purpose_of_visit }}<br>\nDate    : {{ doc.visit_date }} | Arrival: {{ doc.expected_checkin }}<br>\nID Type : {{ doc.id_proof_type }}<br><br>\n\n<b style=\"color: #1f2933;\">Items Declared by Visitor:</b><br>\n\n{% if doc.visitor_items %}\n    {% for item in doc.visitor_items %}\n        - {{ item.item_name }} | Qty: {{ item.quantity }} {{ item.unit_of_measure or '' }}\n        {% if item.serial_number %} | S/N: {{ item.serial_number }}{% endif %}<br>\n    {% endfor %}\n{% else %}\n    No items declared.<br>\n{% endif %}\n\n<br><b style=\"color: #1f2933;\">Please verify all declared items before issuing badge.</b></div>",
  "message_type": "HTML",
- "modified": "2026-08-14 09:05:00.000000",
+ "modified": "2026-08-18 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Gate Security Alert",
@@ -27,6 +27,6 @@
  ],
  "send_system_notification": 0,
  "send_to_all_assignees": 0,
- "subject": "Visitor Approved: {{ doc.visitor_full_name }} — Verify Items Required",
+ "subject": "Verify items: {{ doc.visitor_full_name | truncate(34, True) }}",
  "value_changed": "approval_date"
 }

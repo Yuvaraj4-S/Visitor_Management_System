@@ -299,6 +299,7 @@ def setup_visitor_management():
 	_seed_settings()
 	_drop_stale_property_setters()
 	_clear_stale_layout_fields()
+	_rewrite_event_log_details()
 	_allow_portal_uploads()
 	_configure_notifications()
 	_repaint_notification_history()
@@ -586,6 +587,47 @@ def _clear_stale_layout_fields():
 	)
 	if frappe.db._cursor.rowcount > 0:
 		print(f"  cleared stray VIP fields on {frappe.db._cursor.rowcount} visitor pass(es)")
+
+
+
+def _rewrite_event_log_details():
+	"""Turn the stored JSON payloads in Visitor Event Log into readable lines.
+
+	`log_visitor_event` used to write `frappe.as_json(details)`, so the Details
+	section of every event showed the raw object — braces, quoted keys, a
+	`"exception_reason": null` line whenever nothing had gone wrong, and the
+	security officer as `HR-EMP-00001` rather than by name. New events are
+	written as prose now; this converts the ones already on disk, which staff
+	would otherwise keep reading in the old form forever.
+
+	Anything that does not parse as JSON is left exactly as it is: it is either
+	already converted or was written by hand.
+	"""
+	import json
+
+	from visitormanagement.visitor_management.lifecycle import _format_event_details
+
+	rows = frappe.get_all(
+		"Visitor Event Log",
+		filters={"details": ("like", "{%")},
+		fields=["name", "details"],
+	)
+	rewritten = 0
+	for row in rows:
+		try:
+			payload = json.loads(row.details)
+		except (ValueError, TypeError):
+			continue
+		if not isinstance(payload, dict):
+			continue
+		frappe.db.set_value(
+			"Visitor Event Log", row.name, "details",
+			_format_event_details(payload), update_modified=False,
+		)
+		rewritten += 1
+
+	if rewritten:
+		print(f"  rewrote details on {rewritten} visitor event log(s)")
 
 
 def _allow_portal_uploads():

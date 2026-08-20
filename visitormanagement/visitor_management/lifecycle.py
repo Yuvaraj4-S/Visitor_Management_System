@@ -614,6 +614,65 @@ def _parse_time_arg(value, label):
 		frappe.throw(_("{0} is not a valid time.").format(_(label)), frappe.ValidationError)
 
 
+# Keys in an event's `details` that hold a record ID rather than something a
+# person recognises. The log is read by security staff, so the ID alone is not
+# an answer to "who was on the gate".
+_DETAIL_LINKS = {
+	"security_officer": ("Employee", "employee_name"),
+	"gate_verified_by": ("Employee", "employee_name"),
+	"assigned_staff": ("Employee", "employee_name"),
+}
+
+# Keys whose humanised label reads better spelled out.
+_DETAIL_LABELS = {
+	"gate_name": "Gate",
+	"visited_area": "Visited Area",
+	"exception_reason": "Exception",
+	"grace_hours": "Grace (hours)",
+}
+
+
+def _format_event_details(details):
+	"""Render an event's details as something a person can read.
+
+	These were stored with `frappe.as_json`, so the Details section of every
+	Visitor Event Log showed the raw payload — braces, quoted keys, and a
+	`"exception_reason": null` line for the common case where nothing went
+	wrong. It also printed `"security_officer": "HR-EMP-00001"`, which is an
+	internal identifier, not a person.
+
+	The structured data is not lost by writing prose here: every log carries
+	`source_doctype`/`source_name` back to the document the event came from,
+	and that document still holds the fields themselves.
+	"""
+	if not details:
+		return ""
+	if isinstance(details, str):
+		return details
+
+	lines = []
+	for key, value in details.items():
+		# An empty value means "not applicable to this event", which is noise in
+		# a log meant to be skimmed.
+		if value is None or value == "":
+			continue
+
+		label = _DETAIL_LABELS.get(key) or key.replace("_", " ").title()
+		text = value
+
+		link = _DETAIL_LINKS.get(key)
+		if link:
+			doctype, display_field = link
+			display = frappe.db.get_value(doctype, value, display_field)
+			# Keep the ID alongside the name: staff search by one and recognise
+			# the other.
+			text = f"{display} ({value})" if display else value
+
+		lines.append(f"{label}: {text}")
+
+	return "\n".join(lines)
+
+
 def log_visitor_event(
 	visitor_pass_name,
 	event_type,
@@ -632,7 +691,7 @@ def log_visitor_event(
 		"source_doctype": source_doctype,
 		"source_name": source_name,
 		"event_time": now_datetime(),
-		"details": frappe.as_json(details or {}),
+		"details": _format_event_details(details),
 	}
 
 	log_name = None

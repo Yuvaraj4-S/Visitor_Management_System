@@ -664,9 +664,11 @@ def _format_event_details(details):
 		if link:
 			doctype, display_field = link
 			display = frappe.db.get_value(doctype, value, display_field)
-			# Keep the ID alongside the name: staff search by one and recognise
-			# the other.
-			text = f"{display} ({value})" if display else value
+			# The name only. `HR-EMP-00060` is an internal identifier — it means
+			# nothing to the person reading the log, and printing it next to the
+			# name just puts the code back in front of them. The Employee record
+			# is still reachable through the linked source document.
+			text = display or value
 
 		lines.append(f"{label}: {text}")
 

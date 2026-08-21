@@ -1,32 +1,64 @@
 {
  "based_on": "",
  "chart_name": "Visitors by Type",
- "chart_type": "Group By",
+ "chart_type": "Custom",
  "creation": "2026-04-04 12:00:00.000000",
  "docstatus": 0,
  "doctype": "Dashboard Chart",
  "document_type": "Visitor Pass",
  "dynamic_filters_json": "[]",
  "filters_json": "[]",
- "group_by_based_on": "visitor_type",
- "group_by_type": "Count",
+ "group_by_based_on": "",
+ "group_by_type": "",
  "idx": 0,
  "is_public": 1,
  "is_standard": 1,
  "last_synced_on": "2026-04-04 12:00:00.000000",
- "modified": "2026-04-04 12:00:00.000000",
+ "modified": "2026-08-20 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitors by Type",
- "number_of_groups": 0,
+ "number_of_groups": 10,
  "owner": "Administrator",
- "roles": [],
- "source": "",
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "HOD"
+  },
+  {
+   "role": "HR Manager"
+  },
+  {
+   "role": "Sales Manager"
+  },
+  {
+   "role": "Employee"
+  },
+  {
+   "role": "Host Employee"
+  },
+  {
+   "role": "CEO"
+  },
+  {
+   "role": "Facility Manager"
+  },
+  {
+   "role": "Hospitality Manager"
+  },
+  {
+   "role": "Security"
+  }
+ ],
+ "source": "Visitor Passes by Type",
  "time_interval": "Monthly",
  "timeseries": 0,
  "timespan": "Last Month",
- "type": "Donut",
+ "type": "Bar",
  "use_report_chart": 0,
  "value_based_on": "",
- "y_axis": []
+ "y_axis": [],
+ "color": "#2563eb"
 }

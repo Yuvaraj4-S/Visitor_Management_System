@@ -604,25 +604,36 @@ def _rewrite_event_log_details():
 	already converted or was written by hand.
 	"""
 	import json
+	import re
 
 	from visitormanagement.visitor_management.lifecycle import _format_event_details
 
 	rows = frappe.get_all(
 		"Visitor Event Log",
-		filters={"details": ("like", "{%")},
+		or_filters=[["details", "like", "{%"], ["details", "like", "%(HR-EMP%"]],
 		fields=["name", "details"],
 	)
 	rewritten = 0
 	for row in rows:
+		details = row.details or ""
 		try:
-			payload = json.loads(row.details)
+			payload = json.loads(details)
 		except (ValueError, TypeError):
-			continue
-		if not isinstance(payload, dict):
-			continue
+			payload = None
+
+		if isinstance(payload, dict):
+			rewritten_text = _format_event_details(payload)
+		else:
+			# Already prose, but written while the formatter still appended the
+			# Employee ID after the name. Drop the trailing "(HR-EMP-…)" so old
+			# entries read the same way new ones do.
+			rewritten_text = re.sub(r"\s*\(HR-EMP-[^)]*\)", "", details)
+			if rewritten_text == details:
+				continue
+
 		frappe.db.set_value(
 			"Visitor Event Log", row.name, "details",
-			_format_event_details(payload), update_modified=False,
+			rewritten_text, update_modified=False,
 		)
 		rewritten += 1
 

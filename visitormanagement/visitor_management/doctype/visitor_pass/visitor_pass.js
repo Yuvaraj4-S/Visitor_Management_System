@@ -19,6 +19,36 @@ function get_vms_home_country() {
 	return _vms_home_country_promise;
 }
 
+// Approval-lane vocabulary (which role a Visitor Type's pass is currently
+// awaiting) is generated server-side from the Visitor Type masters
+// (workflow_builder.approver_roles() / lane_for_role()) -- it is NOT a fixed
+// list. This file used to hardcode a 5-entry map keyed on Visitor Type name
+// (Contractor/Supplier/Customer/Candidate/VIP); any type routed to another
+// approver role -- e.g. "Auditor" -> Facility Manager -- showed no approver
+// name here, and the same hardcoded list in show_web_submissions_dialog's
+// filter meant passes sitting in that lane never appeared in the Pending Web
+// Submissions dialog at all. Fetched once and cached for the desk session,
+// same pattern as get_vms_home_country above -- a Visitor Type's approver
+// role changes rarely, and a normal page reload after such a change is
+// expected (same as any other masters-driven Desk vocabulary).
+let _visitor_type_approver_cache = null;
+let _visitor_type_approver_promise = null;
+
+function get_visitor_type_approvers() {
+	if (_visitor_type_approver_cache) {
+		return Promise.resolve(_visitor_type_approver_cache);
+	}
+	if (!_visitor_type_approver_promise) {
+		_visitor_type_approver_promise = frappe
+			.call({ method: "visitormanagement.visitor_management.workflow_builder.get_visitor_type_approvers" })
+			.then((r) => {
+				_visitor_type_approver_cache = r.message || {};
+				return _visitor_type_approver_cache;
+			});
+	}
+	return _visitor_type_approver_promise;
+}
+
 // Frappe's core Phone control defaults to the site's System Settings country
 // (e.g. India) the first time it renders, regardless of the visitor's actual
 // nationality. Once custom_nationality is set, nudge the phone widget's
@@ -52,6 +82,7 @@ frappe.ui.form.on("Visitor Pass", {
 		apply_visitor_pass_ui(frm);
 		add_action_buttons(frm);
 		add_hospitality_buttons(frm);
+		add_gate_buttons(frm);
 	},
 
 	visitor_type(frm) {
@@ -539,7 +570,6 @@ function refresh_hospitality_plan(frm) {
 
 function set_visitor_pass_intro(frm) {
 	const stage = get_pass_stage(frm);
-	const approval_lane = get_approval_lane(frm.doc.visitor_type);
 
 	// Clear approver card at the start; it's re-rendered only for Pending stages.
 	clear_approver_context_card(frm);
@@ -555,15 +585,26 @@ function set_visitor_pass_intro(frm) {
 	}
 
 	if (stage.startsWith("Pending")) {
-		frm.set_intro(
-			approval_lane
-				? __("Awaiting approval from {0}. Review the request snapshot and visit-specific details carefully.", [
-						approval_lane,
-				  ])
-				: __("Awaiting approval. Review the visitor details before taking action."),
-			"orange"
-		);
+		// Generic text first (correct for every lane, including one from a
+		// Visitor Type created seconds ago), upgraded to the specific approver
+		// name once the server-driven lane map resolves.
+		frm.set_intro(__("Awaiting approval. Review the visitor details before taking action."), "orange");
 		render_approver_context_card(frm);
+
+		get_visitor_type_approvers().then((approvers) => {
+			// The form may have moved on (record switched, or no longer
+			// pending) while this call was in flight -- don't stomp its intro.
+			if (!get_pass_stage(frm).startsWith("Pending")) return;
+			const approval_lane = approvers[frm.doc.visitor_type];
+			if (approval_lane) {
+				frm.set_intro(
+					__("Awaiting approval from {0}. Review the request snapshot and visit-specific details carefully.", [
+						approval_lane,
+					]),
+					"orange"
+				);
+			}
+		});
 		return;
 	}
 
@@ -697,21 +738,20 @@ function get_pass_stage(frm) {
 	return frm.doc.workflow_state || frm.doc.status || __("Draft");
 }
 
-function get_approval_lane(visitor_type) {
-	const lane = {
-		Contractor: __("System Manager"),
-		Supplier: __("System Manager"),
-		Customer: __("Sales Manager"),
-		Candidate: __("HR Manager"),
-		VIP: __("HOD / CEO"),
-	};
-
-	return lane[visitor_type];
-}
+// get_approval_lane(visitor_type) used to live here as a hardcoded 5-entry
+// map. Removed: its one caller (set_visitor_pass_intro) now resolves the
+// approver name through get_visitor_type_approvers() above, which reads the
+// live Visitor Type -> approver-role vocabulary instead of a fixed list.
 
 function get_pass_stage_color(stage) {
+	// Pending-lane state names are generated as `Pending <approver role>` for
+	// every role a Visitor Type configures (workflow_builder.lane_for_role) --
+	// there is no fixed list to enumerate, and the generic status fallback
+	// ("Pending Approval") shares the same prefix. The prefix IS the shared
+	// vocabulary: this used to be a hardcoded 6-entry list that silently
+	// stopped matching the moment a Visitor Type routed to a role outside it.
 	if (["Approved", "Checked-In"].includes(stage)) return "green";
-	if (["Pending Approval", "Pending System Manager", "Pending Sales Manager", "Pending HR Manager", "Pending HOD", "Pending CEO"].includes(stage)) return "orange";
+	if (String(stage || "").startsWith("Pending")) return "orange";
 	if (["Rejected", "Cancelled"].includes(stage)) return "red";
 	if (["Items Verified", "Checked-Out"].includes(stage)) return "blue";
 	return "gray";
@@ -724,7 +764,20 @@ function show_web_submissions_dialog(frm) {
 			doctype: 'Visitor Pass',
 			filters: [
 				['request_channel', '=', 'Portal'],
-				['workflow_state', 'in', ['Pending System Manager', 'Pending Sales Manager', 'Pending HR Manager', 'Pending HOD', 'Pending CEO', 'Draft']]
+			],
+			// Was `['workflow_state', 'in', [<6 hardcoded lane names>, 'Draft']]`.
+			// That list mirrored only the 5 approver roles the old hardcoded
+			// workflow vocabulary knew about (see the removed get_approval_lane
+			// above) -- a portal submission routed to any other approver role
+			// (e.g. "Auditor" -> Facility Manager, "Researcher" -> Hospitality
+			// Manager) silently never appeared in this dialog, with no error
+			// anywhere. Every pending lane is named `Pending <role>`
+			// (workflow_builder.lane_for_role), so matching the prefix covers
+			// every lane the current Visitor Type configuration can produce,
+			// present or future, with no list to keep in sync.
+			or_filters: [
+				['workflow_state', 'like', 'Pending%'],
+				['workflow_state', '=', 'Draft'],
 			],
 			fields: ['name', 'visitor_full_name', 'visitor_type', 'mobile_number', 'email_id', 'visit_date']
 		},
@@ -981,5 +1034,37 @@ function add_hospitality_buttons(frm) {
 				__("Hospitality")
 			);
 		}
+	}
+}
+
+// Gate check-in/out: visitor_gate.visitor_checkin/visitor_checkout validate the
+// movement server-side and hand back the prefilled Security Log route where the
+// officer completes qr_code_scanned/photo_at_gate/id_proof_match/pass_photo_match
+// (SecurityLog.before_save requires all four, so these endpoints deliberately do
+// not insert the log themselves -- see visitor_gate.py's module docstring).
+function call_gate_endpoint(frm, method) {
+	frappe.call({
+		method: `visitormanagement.visitor_management.api.visitor_gate.${method}`,
+		args: { docname: frm.doc.name },
+		freeze: true,
+		callback: (r) => {
+			if (!r.message) return;
+			frappe.show_alert({ message: r.message.message, indicator: "green" });
+			window.location.href = r.message.route;
+		},
+	});
+}
+
+function add_gate_buttons(frm) {
+	if (frm.is_new()) return;
+
+	const stage = frm.doc.status;
+
+	if (["Approved", "Items Verified"].includes(stage)) {
+		frm.add_custom_button(__("Check In"), () => call_gate_endpoint(frm, "visitor_checkin"));
+	}
+
+	if (stage === "Checked-In") {
+		frm.add_custom_button(__("Check Out"), () => call_gate_endpoint(frm, "visitor_checkout"));
 	}
 }

@@ -12,10 +12,6 @@ from visitormanagement.visitor_management import settings as vms_settings
 from visitormanagement.visitor_management.lifecycle import derive_hospitality_meal_plan
 
 
-# Fallback only — the live value comes from VMS Settings.
-INVITATION_EXPIRY_DAYS = 7
-
-
 def _coerce_datetime(value):
 	if not value:
 		return None
@@ -53,7 +49,11 @@ def get_valid_invitation_by_token(token):
 		return None
 
 	doc = frappe.get_doc("Visitor Invitation", name)
-	if doc.invitation_status in {"Submitted", "Expired"}:
+	# "Cancelled" is a revocation: a host who mailed the link to the wrong address
+	# needs it dead now, not at natural expiry. The status option is useless
+	# unless the token check honours it — without this line the invitation would
+	# read "Cancelled" in the list while its link kept working.
+	if doc.invitation_status in {"Submitted", "Expired", "Cancelled"}:
 		return None
 
 	expires_on = _coerce_datetime(doc.invitation_expires_on)
@@ -325,10 +325,17 @@ class VisitorInvitation(Document):
 			}
 		)
 
+		# Same branding VMS Settings already supplies to the public web form
+		# (visitor_pre_registration_form.py: _brand_header / _brand_footer) —
+		# the invitation email is the visitor's first touchpoint and should not
+		# read as generic where the customer has already configured an identity.
+		branding = vms_settings.portal_branding()
+		organisation = branding["organisation"] or "our company"
+
 		message = [
 			"Dear Visitor,",
 			"",
-			"You have received a visitor pre-registration invitation from our company.",
+			f"You have received a visitor pre-registration invitation from {organisation}.",
 			f"Visitor Type: {self.visitor_type or '-'}",
 			f"Host: {self.host_employee or '-'}",
 			f"Visit Date: {self.visit_date or '-'}",
@@ -341,6 +348,8 @@ class VisitorInvitation(Document):
 			"",
 			f"This invitation expires on {expires_on}.",
 		]
+		if branding["footer_note"]:
+			message += ["", branding["footer_note"]]
 		# `now=True` raises on a site with no outgoing Email Account, and that
 		# rollback would take the token and the Sent status with it — leaving the
 		# host with no link at all. Mint the link regardless and report delivery

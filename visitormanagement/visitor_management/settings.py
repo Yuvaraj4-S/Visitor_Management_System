@@ -11,7 +11,7 @@ every Visitor Pass save.
 """
 
 import frappe
-from frappe.utils import cint
+from frappe.utils import cint, flt
 
 # Values the app hardcoded before these became settings.
 DEFAULT_MEAL_WINDOWS = (
@@ -24,6 +24,8 @@ DEFAULT_INVITATION_EXPIRY_DAYS = 7
 DEFAULT_NO_SHOW_GRACE_HOURS = 4
 DEFAULT_COUNTRY_CODE = "91"
 DEFAULT_HOME_COUNTRY = "India"
+DEFAULT_FEVER_THRESHOLD_C = 37.5
+DEFAULT_MAX_PORTAL_SUBMISSIONS_PER_HOUR = 20
 
 
 def _settings():
@@ -39,6 +41,14 @@ def _int(fieldname, fallback):
 	if not doc:
 		return fallback
 	value = cint(getattr(doc, fieldname, 0))
+	return value if value else fallback
+
+
+def _float(fieldname, fallback):
+	doc = _settings()
+	if not doc:
+		return fallback
+	value = flt(getattr(doc, fieldname, 0))
 	return value if value else fallback
 
 
@@ -71,6 +81,26 @@ def invitation_expiry_days():
 
 def no_show_grace_hours():
 	return _int("no_show_grace_hours", DEFAULT_NO_SHOW_GRACE_HOURS)
+
+
+def fever_threshold_c():
+	"""°C at/above which a Contact Trace Record's exposure risk is classified High.
+
+	Used to be hardcoded (37.5) in lifecycle.py. Health policy differs by site
+	and authority, so it is configurable; 0 is read as unset, same as every
+	other numeric setting in this module.
+	"""
+	return _float("fever_threshold_c", DEFAULT_FEVER_THRESHOLD_C)
+
+
+def max_portal_submissions_per_hour():
+	"""Guest pre-registration submissions allowed per identity, per hour.
+
+	Used to be the literal 20 written independently in two places in portal.py
+	(a module constant and an `@rate_limit` decorator argument), which could
+	drift from each other. Both now read this one setting.
+	"""
+	return _int("max_portal_submissions_per_hour", DEFAULT_MAX_PORTAL_SUBMISSIONS_PER_HOUR)
 
 
 def country_code():

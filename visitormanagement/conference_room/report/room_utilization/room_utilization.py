@@ -46,10 +46,10 @@ def get_columns():
 			"width": 100,
 		},
 		{
-			"label": _("External"),
+			"label": _("External / Hybrid"),
 			"fieldname": "external_count",
 			"fieldtype": "Int",
-			"width": 100,
+			"width": 120,
 		},
 	]
 

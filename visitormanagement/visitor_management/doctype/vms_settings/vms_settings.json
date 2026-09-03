@@ -29,6 +29,8 @@
   "column_break_policy",
   "no_show_grace_hours",
   "default_country_code",
+  "fever_threshold_c",
+  "max_portal_submissions_per_hour",
   "section_meals",
   "meal_windows",
   "section_notify",
@@ -188,6 +190,20 @@
    "label": "Default Phone Country Code",
    "default": "91",
    "description": "ISD code applied to local mobile numbers, without '+'."
+  },
+  {
+   "fieldname": "fever_threshold_c",
+   "fieldtype": "Float",
+   "label": "Fever Threshold (°C)",
+   "default": "37.5",
+   "description": "Body temperature at or above which a Contact Trace Record's exposure risk is classified High. Health policy differs by site and authority."
+  },
+  {
+   "fieldname": "max_portal_submissions_per_hour",
+   "fieldtype": "Int",
+   "label": "Max Portal Submissions per Hour",
+   "default": "20",
+   "description": "Guest pre-registration submissions allowed per identity, per hour, before the public portal rate-limits further attempts. 0 is read as unset (falls back to the default), not as no limit."
   },
   {
    "fieldname": "section_meals",

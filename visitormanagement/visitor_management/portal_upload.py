@@ -48,6 +48,17 @@ def guard_guest_upload(doc, method=None):
 	if frappe.session.user != "Guest":
 		return
 
+	# No HTTP request means no upload: this is server-side code creating a File
+	# while the session happens to be Guest — a scheduled job, a test, another
+	# app's own logic. The whole point of this guard is to constrain what an
+	# anonymous *caller* can POST to `upload_file`, and there is no such caller
+	# here. Failing closed on this path made the app reject every Guest-context
+	# File insert on the whole site, which broke Frappe's own core File tests
+	# (test_list_private_guest_single_file, test_list_private_guest_attachment)
+	# and would break any other app that creates a File for a website visitor.
+	if not frappe.request:
+		return
+
 	# A guest who is not filling in the portal has no business uploading at all.
 	# Files arrive before the Visitor Pass exists, so they are unattached at this
 	# point — the portal is identified by the form the request came from.

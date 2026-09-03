@@ -19,7 +19,7 @@ from frappe import _
 from frappe.utils.dashboard import cache_source
 
 
-def get_visitor_pass_counts_by_type(status: str | None = None) -> tuple[list[str], list[int]]:
+def get_visitor_pass_counts_by_type(workflow_state_like: str | None = None) -> tuple[list[str], list[int]]:
 	"""Count Visitor Pass rows per active Visitor Type, zero-filled and sorted.
 
 	Both queries here go through `frappe.get_list` (never `frappe.get_all` or raw
@@ -31,8 +31,15 @@ def get_visitor_pass_counts_by_type(status: str | None = None) -> tuple[list[str
 	so a role with nothing visible correctly gets all-zero counts here rather
 	than being special-cased.
 
-	:param status: optional Visitor Pass `status` to filter on (e.g. "Pending
-		Approval"). Omit for an all-status count.
+	:param workflow_state_like: optional `workflow_state` LIKE pattern to filter
+		on (e.g. "Pending%"). Omit for an all-state count. `workflow_state`, not
+		`status`, is the authoritative approval field — `status` is derived from
+		it in `visitor_pass._sync_status_with_workflow` — so every "pending
+		approval" widget on this workspace (the number card, the by-department
+		chart and this by-type chart) filters on the same field. Two widgets
+		reading two different fields for "pending" is exactly how the by-department
+		chart and the "Pending Visitor Approvals" number card were once able to
+		disagree (15 vs 14) on the same site.
 	:return: (labels, values) — active Visitor Type names and their matching
 		Visitor Pass counts, sorted by count descending, ties broken by name.
 	"""
@@ -43,8 +50,8 @@ def get_visitor_pass_counts_by_type(status: str | None = None) -> tuple[list[str
 	# to every chart via `filters.append([doctype, "docstatus", "<", 2])`. Visitor
 	# Pass is submittable (is_submittable=1), so this matters here too.
 	filters = [["visitor_type", "in", visitor_types], ["docstatus", "<", 2]]
-	if status:
-		filters.append(["status", "=", status])
+	if workflow_state_like:
+		filters.append(["workflow_state", "like", workflow_state_like])
 
 	counted = frappe.get_list(
 		"Visitor Pass",

@@ -3,6 +3,7 @@ from frappe import _
 
 from visitormanagement.visitor_management import settings as vms_settings
 
+from frappe.model.workflow import apply_workflow
 from frappe.rate_limiter import rate_limit
 from frappe.utils import cint, flt, get_datetime, get_time, getdate, now_datetime, nowdate
 
@@ -28,7 +29,6 @@ ARRANGEMENT_REQUIRED_FIELDS = (
 	"buggy_required",
 	"greeting_required",
 )
-ARRANGEMENT_TERMINAL_STATUSES = {"Completed", "Delivered", "Checked Out", "Cancelled"}
 # Meal windows are configured in VMS Settings (VMS Meal Window child table).
 # `settings.meal_windows()` falls back to the original Breakfast/Lunch/Dinner
 # slots when a site has not customised them.
@@ -141,6 +141,34 @@ def ensure_hospitality_request(visitor_pass):
 		doc.insert(ignore_permissions=True)
 	else:
 		doc.save(ignore_permissions=True)
+
+	# Once the parent Visitor Pass is Approved (or beyond), move this request out
+	# of Draft and into the Hospitality Manager's queue. Done as its own step,
+	# AFTER the save above has already committed, and through the workflow's real
+	# "Submit" transition (`apply_workflow`) rather than a raw field assignment —
+	# see the long comment in `populate_hospitality_request_from_pass` for why a
+	# raw assignment inside that save used to throw and roll back the parent's
+	# approval/rejection.
+	#
+	# `apply_workflow` is role-checked against whoever is currently saving the
+	# Visitor Pass, who is not necessarily the Hospitality Request's owner and may
+	# not even hold the "Employee" role the Submit transition requires. That is a
+	# legitimate way for this to fail (not a bug in this function), so it is
+	# caught and logged rather than allowed to undo the Visitor Pass approval that
+	# triggered it. `status` above already reflects the real-world outcome
+	# regardless of whether this transition succeeds; a request left behind here
+	# still needs a human to Submit it from the Hospitality Request itself.
+	current_wf = getattr(doc, "workflow_state", None) or "Draft"
+	vp_status = getattr(visitor_pass, "status", None)
+	if current_wf == "Draft" and vp_status in ("Approved", "Items Verified", "Checked-In", "Checked-Out"):
+		try:
+			apply_workflow(doc, "Submit")
+		except Exception as exc:
+			frappe.log_error(
+				f"Hospitality Request {doc.name} auto-promotion to Pending Approval failed "
+				f"for Visitor Pass {visitor_pass.name}: {exc}",
+				"VMS Hospitality Auto-Promote",
+			)
 
 	if visitor_pass.hospitality_request != doc.name:
 		visitor_pass.db_set("hospitality_request", doc.name, update_modified=False)
@@ -453,46 +481,32 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 	doc.conference_room = getattr(visitor_pass, "conference_room", None)
 	doc.seating_capacity = getattr(visitor_pass, "number_of_people", None)
 	doc.service_time = meal_plan["service_time"]
-	# Once the parent Visitor Pass is Approved (or beyond), the Hospitality Request
-	# becomes ready for the Hospitality Manager to review — move it from Draft into
-	# Pending Approval so it shows up in the manager's queue. We do NOT force it to
-	# Approved here: that bypasses the workflow (no Draft→Approved transition exists)
-	# and the submit permission of whoever happens to be saving.
-	# Only fires while the HR is still in its default Draft lane so we never overwrite
-	# an intentional manual transition (Rejected, Cancelled, etc.) to a "live" state.
-	# Guard on `not is_new()`: a brand-new document must be created in the workflow's
-	# default (Draft) state — Frappe rejects a new doc that starts in a non-default
-	# workflow state (WorkflowPermissionError). A freshly-created request is advanced
-	# by the Submit action; only an already-saved request is auto-advanced here (e.g.
-	# when the parent Visitor Pass later becomes Approved).
-	current_wf = getattr(doc, "workflow_state", None) or "Draft"
-
-	# Only auto-promote a request that was ALREADY sitting in Draft. Without the
-	# before-save check this also fires mid-transition: Reapply sets the state to
-	# "Draft" and saves, this block immediately rewrote it to "Pending Approval",
-	# and Frappe then compared the pre-save state ("Rejected") against that
-	# mutated target, found no single-hop transition, and threw. Reapply was
-	# therefore impossible whenever the parent pass was Approved — which is
-	# always, since reaching "Rejected" requires passing through "Pending
-	# Approval", which _validate_visitor_pass_approved only allows once the pass
-	# is approved. Submit escaped this only because its own target is already
-	# "Pending Approval".
-	before = doc.get_doc_before_save()
-	was_already_draft = (getattr(before, "workflow_state", None) or "Draft") == "Draft" if before else True
-
-	if current_wf == "Draft" and was_already_draft and not doc.is_new():
-		vp_status = getattr(visitor_pass, "status", None)
-		if vp_status in ("Approved", "Items Verified", "Checked-In", "Checked-Out"):
-			doc.workflow_state = "Pending Approval"
-		# A rejected parent must NOT force this request to "Rejected". The
-		# Hospitality Request workflow only reaches that state from "Pending
-		# Approval", so writing it from "Draft" makes validate_workflow throw —
-		# and because this runs inside the parent pass's own save, that throw
-		# rolled the whole rejection back. An approver could not reject any pass
-		# that had requested a meal, a room or any arrangement, and the error even
-		# named a different doctype's states, so it was undiagnosable. The outcome
-		# is recorded on `status` below instead — this document's own field, which
-		# needs no workflow transition.
+	# This function must NOT touch `workflow_state`. It used to force Draft ->
+	# "Pending Approval" here whenever the parent pass was Approved, but assigning
+	# the field and letting the following `doc.save()` validate it is not a real
+	# workflow transition — Frappe's `validate_workflow` only recognises a hop that
+	# matches a `Workflow Transition` role-checked against the CURRENT session
+	# user, so it refused the assignment as an unrecognised jump
+	# (WorkflowPermissionError) and, because this function runs inside every save
+	# of this doctype (including the Hospitality Request's own `validate()`, and a
+	# rejected pass's `doc.save()` in `ensure_hospitality_request`), that throw
+	# rolled back whatever outer save triggered it — once making Reapply on a
+	# rejected pass impossible (Reapply itself sets workflow_state to "Draft" and
+	# saves; this code immediately rewrote it to "Pending Approval" mid-transition
+	# and Frappe compared the real pre-save state, "Rejected", against that
+	# mutated target and threw), and separately making it impossible to reject any
+	# pass that had requested a meal, a room or any arrangement.
+	#
+	# The fix keeps this function to pure field population. The one place that is
+	# allowed to promote a Hospitality Request out of Draft is
+	# `ensure_hospitality_request`, below, and only via `apply_workflow` (a real,
+	# role-checked transition) performed AFTER this document's own save has
+	# already committed — so a promotion that the approving user isn't entitled to
+	# (e.g. they lack the "Employee" role the Hospitality Request workflow's
+	# Submit transition requires) is caught and logged there instead of blowing up
+	# here and rolling back the Visitor Pass approval that triggered it. The
+	# outcome of a rejected/approved parent is recorded on `status` below instead
+	# — this document's own field, which needs no workflow transition.
 
 	if sync_management_fields:
 		doc.assigned_staff = getattr(visitor_pass, "food_dept_staff_assigned", None)
@@ -557,8 +571,7 @@ def _compute_overall_hospitality_status(request_doc):
 	# Individual per-service statuses were removed. Overall status now derives
 	# from the Hospitality Request's main `status` field plus whether any
 	# arrangement was requested at all.
-	required_flags = ("cab_required", "hotel_required", "factory_tour_required", "buggy_required", "greeting_required")
-	any_required = any(cint(getattr(request_doc, f, 0)) for f in required_flags)
+	any_required = any(cint(getattr(request_doc, f, 0)) for f in ARRANGEMENT_REQUIRED_FIELDS)
 	has_food_or_room = cint(getattr(request_doc, "meal_required", 0)) or getattr(request_doc, "conference_room", None)
 
 	if not any_required and not has_food_or_room:
@@ -745,6 +758,29 @@ def _close_active_contact_trace(visitor_pass_name, event_time, notes=None):
 	return doc.name
 
 
+# Fallback only — the live value comes from VMS Settings (fever_threshold_c()).
+# Health policy on what counts as "fever" differs by site and authority (some
+# use 38.0C, some record Fahrenheit), so this must not stay a bare literal.
+DEFAULT_FEVER_THRESHOLD_C = 37.5
+
+
+def _fever_threshold_c():
+	"""vms_settings.fever_threshold_c(), read defensively.
+
+	That accessor may not exist yet on a site mid-deploy (or in a test run
+	against an older settings.py), and this exposure-risk calculation must never
+	break because of it — fall back to the previous hardcoded value instead.
+	"""
+	getter = getattr(vms_settings, "fever_threshold_c", None)
+	if not callable(getter):
+		return DEFAULT_FEVER_THRESHOLD_C
+	try:
+		value = flt(getter())
+	except Exception:
+		return DEFAULT_FEVER_THRESHOLD_C
+	return value if value else DEFAULT_FEVER_THRESHOLD_C
+
+
 def sync_contact_trace(visitor_pass_name, security_log=None):
 	if not visitor_pass_name or not security_log:
 		return None
@@ -802,7 +838,7 @@ def sync_contact_trace(visitor_pass_name, security_log=None):
 	doc.status = "Active"
 	doc.exposure_risk = (
 		"High"
-		if flt(getattr(security_log, "temperature", 0) or 0) >= 37.5
+		if flt(getattr(security_log, "temperature", 0) or 0) >= _fever_threshold_c()
 		or cint(getattr(security_log, "symptoms_flag", 0))
 		else "Low"
 	)

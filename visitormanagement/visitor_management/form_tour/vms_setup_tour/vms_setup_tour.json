@@ -4,7 +4,7 @@
  "doctype": "Form Tour",
  "idx": 0,
  "is_standard": 1,
- "modified": "2026-08-10 12:09:38.385524",
+ "modified": "2026-08-31 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS Setup Tour",
@@ -57,7 +57,7 @@
  ],
  "title": "Set up Visitor Management",
  "track_steps": 1,
- "ui_tour": 1,
+ "ui_tour": 0,
  "view_name": "Workspaces",
  "workspace_name": "Visitor Management"
 }

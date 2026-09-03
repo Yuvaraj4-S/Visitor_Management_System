@@ -6,12 +6,19 @@ frappe.query_reports["Visitor Identity Match Report"] = {
 			fieldname: "from_date",
 			label: __("From Date"),
 			fieldtype: "Date",
-			default: frappe.datetime.add_months(frappe.datetime.get_today(), -3),
+			reqd: 1,
+			// 30 days, not the old 3-month default: the query is O(rows) to fetch and
+			// O(k^2) per duplicate-key group to pair-match, so a wide default range is
+			// how this report used to OOM the worker. reqd is a UI convenience only —
+			// the real boundary is enforced server-side in execute() regardless of what
+			// reaches this filter.
+			default: frappe.datetime.add_days(frappe.datetime.get_today(), -30),
 		},
 		{
 			fieldname: "to_date",
 			label: __("To Date"),
 			fieldtype: "Date",
+			reqd: 1,
 			default: frappe.datetime.get_today(),
 		},
 		{
@@ -28,7 +35,7 @@ frappe.query_reports["Visitor Identity Match Report"] = {
 		},
 		{
 			fieldname: "match_scope",
-			label: __("Match Scope"),
+			label: __("Type Comparison"),
 			fieldtype: "Select",
 			options: "\nSame Type\nDifferent Type",
 		},

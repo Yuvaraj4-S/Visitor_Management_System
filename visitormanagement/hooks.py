@@ -143,11 +143,13 @@ after_install = "visitormanagement.setup.after_install"
 permission_query_conditions = {
 	"Visitor Pass": "visitormanagement.permissions.get_visitor_pass_permission_query_conditions",
 	"Visitor Invitation": "visitormanagement.permissions.get_visitor_invitation_permission_query_conditions",
+	"Hospitality Request": "visitormanagement.permissions.get_hospitality_request_permission_query_conditions",
 }
 
 has_permission = {
 	"Visitor Pass": "visitormanagement.permissions.has_visitor_pass_permission",
 	"Visitor Invitation": "visitormanagement.permissions.has_visitor_invitation_permission",
+	"Hospitality Request": "visitormanagement.permissions.has_hospitality_request_permission",
 }
 
 # DocType Class
@@ -192,7 +194,11 @@ scheduler_events = {
 		]
 	},
 	"hourly": [
-		"visitormanagement.visitor_management.tasks.flag_no_show_passes"
+		"visitormanagement.visitor_management.tasks.flag_no_show_passes",
+		# The mirror of the no-show job: that one catches the visitor who never
+		# arrived, this one the visitor who arrived and never left. Nothing chased
+		# the second case, so the building's own answer to "who is inside" drifted.
+		"visitormanagement.visitor_management.tasks.flag_overstaying_visitors",
 	]
 }
 
@@ -283,10 +289,13 @@ after_request = [
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
-# `import_fixtures` walks the fixtures directory in filename order, so a Workflow
-# would otherwise be imported before the states and actions it links to.
-# fixture_auto_order makes `bench export-fixtures` number each file by its
-# position in the list below, which makes that filename order match this order.
+# `import_fixtures` walks the fixtures directory in filename order — every
+# `*.json` file physically present there, not just what is declared below (see
+# the note further down, next to why Workflow was removed from this list) — so
+# a doctype that links to Role/Workflow State/Workflow Action Master would
+# otherwise be imported before the records it links to. fixture_auto_order
+# makes `bench export-fixtures` number each file by its position in the list
+# below, which keeps filename order matching this order.
 fixture_auto_order = True
 
 fixtures = [
@@ -346,20 +355,43 @@ fixtures = [
             ]]
         ]
     },
-    # 4. Workflows last, once every state, action and role they reference exists.
-    #    "Visitor Pass Approval" is deliberately NOT shipped — its lanes are
-    #    generated from the Visitor Type masters by
-    #    visitor_management/workflow_builder.py, so a fixture would overwrite
-    #    whatever approver roles the site has configured.
-    {
-        "doctype": "Workflow",
-        "filters": [
-            ["name", "in", [
-                "Conference Room Booking Approval",
-                "Hospitality Request Approval",
-            ]]
-        ]
-    },
+    # Workflow is deliberately NOT in this list — for all three of this app's
+    # workflows now, not just Visitor Pass Approval.
+    #
+    # "Visitor Pass Approval" was already excluded: its lanes are generated at
+    # runtime from the Visitor Type masters by
+    # visitor_management/workflow_builder.py, so a fixture would overwrite
+    # whatever approver roles the site has configured.
+    #
+    # "Conference Room Booking Approval" and "Hospitality Request Approval"
+    # used to be shipped here as fixtures (as `fixtures/4_workflow.json`),
+    # which turned out to have the same failure mode by a different route:
+    # any Desk edit to their approver roles, an added approval level, or
+    # `allow_self_approval` was silently discarded on the next migrate.
+    #
+    # Removing the doctype from THIS list is not what fixed it, and is not
+    # what is keeping it fixed — this list only tells `bench export-fixtures`
+    # what to write out. Import is not driven by this list at all:
+    # `frappe.utils.fixtures.import_fixtures` globs every `*.json` file
+    # physically present in the app's `fixtures/` directory and
+    # force-imports each one (`import_file_by_path(..., force=True)`,
+    # bypassing the `modified` guard entirely) on every migrate, regardless
+    # of what this list says. Deleting the hooks.py entry while the JSON file
+    # stayed in `fixtures/` would have kept clobbering both workflows exactly
+    # as before — this was verified by editing `allow_self_approval` on a
+    # live transition and watching a migrate silently discard it even with
+    # the entry removed from here.
+    #
+    # Unlike Visitor Pass, these two have no master data to regenerate them
+    # from, so full runtime generation is not the right fix; a one-time seed
+    # is. The fix that actually works: the seed file was moved OUT of
+    # `fixtures/` to `visitormanagement/workflow_seed.json`, so Frappe's
+    # fixture importer never sees it, and
+    # `visitormanagement.setup._seed_static_workflows` reads it directly —
+    # once, on whichever migrate first finds the Workflow missing, never
+    # again after that. Edit `workflow_seed.json` by hand if the seeded
+    # starting point ever needs to change.
+    #
     # Note: Custom Fields on Job Applicant, and the Visitor Pass property setters,
     # ship as customisations (visitor_management/custom/*.json) and are applied by
     # `sync_customizations` — they are deliberately not fixtures.

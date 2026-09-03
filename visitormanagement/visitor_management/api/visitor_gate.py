@@ -18,13 +18,19 @@ import frappe
 from frappe import _
 from frappe.utils import cint, getdate, today, urlencode
 
+from visitormanagement.visitor_management.workflow_builder import APPROVED_STATES
+
 
 ENTRY_STATUSES = ("Approved", "Items Verified")
 
-# The workflow states that genuinely represent an approved pass. Checked
-# alongside docstatus so the gate corroborates `status` against what the
-# workflow engine itself recorded, rather than trusting a single mutable field.
-APPROVED_STATES = ("Approved",)
+# APPROVED_STATES -- the workflow states that genuinely represent an approved
+# pass, checked alongside docstatus so the gate corroborates `status` against
+# what the workflow engine itself recorded -- is imported from
+# workflow_builder, the module that actually generates the "Approved" state,
+# rather than redefined here. It used to be a separate `("Approved",)` literal
+# in this file AND another one in visitor_pass.py (as GATE_APPROVED_STATES);
+# changing the state name would have had to touch three places to stay
+# correct, with nothing forcing that.
 
 
 def _assert_gate_permission():

@@ -7,6 +7,14 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
+from visitormanagement.visitor_management import phone as vms_phone
+
+# Floor below which a digit tail is too short to trust as a subscriber-number
+# match — a bare 5-6 digit tail would collide across many unrelated numbers.
+# National significant numbers for real mobile ranges run about 7-10 digits,
+# so this stays under every country's minimum without risking false positives.
+MIN_MOBILE_MATCH_DIGITS = 7
+
 
 class VisitorBlacklist(Document):
 	def validate(self):
@@ -98,19 +106,20 @@ class VisitorBlacklist(Document):
 				return rows[0][0]
 
 		if mobile_number:
-			digits = _digits_only(mobile_number)
-			if len(digits) >= 10:
-				# Compare on the last 10 digits so a stored local number still
-				# matches the same person arriving with a country code.
+			tail = _mobile_match_tail(mobile_number)
+			if tail:
+				# Compare on the trailing `len(tail)` digits (the country-appropriate
+				# subscriber-number length, not a hardcoded 10) so a stored local
+				# number still matches the same person arriving with a country code.
 				rows = frappe.db.sql(
 					"""
 					SELECT name FROM `tabVisitor Blacklist`
 					WHERE is_active = 1
 					  AND IFNULL(mobile_number, '') != ''
-					  AND RIGHT(REGEXP_REPLACE(mobile_number, '[^0-9]', ''), 10) = %(tail)s
+					  AND RIGHT(REGEXP_REPLACE(mobile_number, '[^0-9]', ''), %(len)s) = %(tail)s
 					LIMIT 1
 					""",
-					{"tail": digits[-10:]},
+					{"tail": tail, "len": len(tail)},
 				)
 				if rows:
 					return rows[0][0]
@@ -130,3 +139,31 @@ def _normalise_name(value):
 
 def _digits_only(value):
 	return re.sub(r"\D", "", value or "")
+
+
+def _mobile_match_tail(mobile_number):
+	"""Country-aware subscriber-number digits to match on, or None if untrustworthy.
+
+	The previous logic assumed every country's mobile number is 10 digits and
+	compared on a fixed last-10-digit tail. Outside that assumption (see
+	phone.py's module docstring for why it does not hold) the length gate was
+	never satisfied and the phone-match check silently never fired — a security
+	control failing open with no warning.
+
+	This parses the number with the same libphonenumber-backed helper the rest
+	of the app already uses (visitormanagement.visitor_management.phone), and
+	matches on the actual national significant number for that number's country
+	— still stripped of country code, so a stored local number keeps matching
+	the same person arriving with one. When the number cannot be parsed at all
+	(garbage input, or a pre-existing row that never went through validation),
+	this falls back to the raw digit string so those rows are not silently
+	excluded, gated by MIN_MOBILE_MATCH_DIGITS to avoid matching on a
+	near-meaningless short tail.
+
+	Only the incoming number is parsed here — once per call, not once per
+	Visitor Blacklist row — so this keeps the same cost profile as the query it
+	replaces, which is called on every Visitor Pass submit and gate check-in.
+	"""
+	parsed = vms_phone.parse(mobile_number)
+	digits = str(parsed.national_number) if parsed else _digits_only(mobile_number)
+	return digits if len(digits) >= MIN_MOBILE_MATCH_DIGITS else None

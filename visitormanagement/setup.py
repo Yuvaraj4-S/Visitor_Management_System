@@ -61,6 +61,36 @@ VISITOR_PASS_READERS = ["Facility Manager", "Hospitality Manager"]
 # cancelled request that can never be amended is a dead end.
 HOSPITALITY_CANCELLERS = ["Hospitality Manager", "System Manager"]
 
+# The same trap, one doctype over. The Visitor Pass workflow now offers
+# Approved --Cancel--> Cancelled, but no DocPerm row granted `cancel` on Visitor
+# Pass to anyone, so the action would appear in the Actions menu and then be
+# refused at `check_permission("cancel")` — a button that can never work, which
+# is exactly the defect HOSPITALITY_CANCELLERS above exists to fix.
+#
+# Granted to the roles that approve a pass, since cancelling one is the same
+# authority exercised in reverse. Deliberately NOT Security: Security is
+# read-only on Visitor Pass by design (the gate acts through Security Log), and
+# handing it `write` purely to enable a cancel would undo that boundary.
+# Roles that may cancel an Approved pass, in ADDITION to whichever roles the
+# Visitor Types currently name as approvers. Those are read at runtime rather
+# than listed here: `workflow_builder` generates one Approved --Cancel-->
+# Cancelled transition per approver role, so a literal list here goes stale the
+# moment an admin points a Visitor Type at a new role — and the result is a
+# Cancel button that appears and is then refused at check_permission("cancel"),
+# exactly the defect HOSPITALITY_CANCELLERS above exists to prevent.
+VISITOR_PASS_CANCEL_ADMINS = ["System Manager"]
+
+# `visitor_management.settings.DEFAULT_DIGEST_ROLES` emails these roles the
+# 07:00 hospitality digest, but the roles held no permission on Hospitality
+# Request (or anything else in the module) — a fresh install would mail them a
+# summary of records that refuse them on click. Hospitality Manager and Front
+# Office Executive are left out here: Hospitality Manager already gets
+# read/write on Hospitality Request above, and Front Office Executive's gap
+# is a separate, unreported finding, not part of this fix.
+HOSPITALITY_DIGEST_READERS = [
+	"Transport Coordinator", "Factory Tour Coordinator", "Greeting Staff", "Hospitality User",
+]
+
 # Layout-specific link fields on Visitor Pass point at masters owned by other
 # apps, and none of the roles that actually raise a pass could select from them:
 # `contractor_link`/`supplier_link` -> Supplier, `work_order_ref` ->
@@ -137,22 +167,48 @@ MEAL_WINDOWS = [
 ]
 
 # Int settings read back as 0 when unset, and 0 means "no limit" for the
-# booking ceiling — so an unseeded site would silently lose the guard.
+# booking ceiling — so an unseeded site would silently lose the guard. The
+# same ambiguity applies to max_portal_submissions_per_hour (0 reads as
+# unset, not as "block everything") and, in practice, fever_threshold_c —
+# see settings.py's `_int`/`_float` helpers, which every accessor here goes
+# through. `_seed_settings` below only fills a field that is still blank, so
+# none of this overwrites a value an admin has already typed in.
 POLICY_DEFAULTS = {
 	"max_advance_booking_days": 90,
 	"invitation_expiry_days": 7,
 	"no_show_grace_hours": 4,
 	"default_country_code": "91",
 	"home_country": "India",
+	"fever_threshold_c": 37.5,
+	"max_portal_submissions_per_hour": 20,
 }
 
-# These duplicate emails the app already sends from code, so the Notification
-# engine copies stay off. `enabled` is preserved across migrates once set.
 # Each of these duplicates an email the app already sends from code — the code
 # versions carry attachments and per-type detail the Notification cannot build,
 # so the Notification copy is the one that goes. Without this the visitor got
-# two "Visit Approved" emails for the same pass.
+# two "Visit Approved" emails for the same pass. Disabled once at setup time,
+# same as everything else `enabled=0` — after that, an admin who re-enables
+# one through the Desk keeps it enabled; see `_configure_notifications`.
 DISABLED_NOTIFICATIONS = ["VMS Host Alert", "VMS Food Dept Alert", "VMS Approval Email"]
+
+# Records that setup has already had its one say about
+# `allow_guests_to_upload_files`, so a later migrate cannot override an
+# administrator who deliberately turned it off. Stored as a Frappe default
+# rather than a field on VMS Settings because it is a fact about the install,
+# not a setting anyone should see or edit. See `_allow_portal_uploads`.
+_PORTAL_UPLOADS_MARKER = "vms_portal_uploads_configured"
+
+# Same one-time-say pattern as `_PORTAL_UPLOADS_MARKER`, for the historical
+# blacklist backfill. See `_activate_blacklist_entries`.
+_BLACKLIST_BACKFILL_MARKER = "vms_blacklist_backfill_done"
+
+# Same pattern again, one per notification: each of DISABLED_NOTIFICATIONS
+# gets disabled at most once. See `_configure_notifications`.
+_NOTIFICATION_DISABLED_MARKER = "vms_notification_disabled_once:{name}"
+
+# Same pattern again, keyed per (doctype, role, ptype): each specific
+# privilege is asserted at most once. See `_grant`.
+_GRANT_MARKER = "vms_grant_once:{doctype}:{role}:{ptype}"
 
 # Doctypes whose timelines carry alerts this app sends. Used to scope the
 # repaint of already-sent messages so no other app's mail is touched.
@@ -293,6 +349,7 @@ def setup_visitor_management():
 	"""Create/refresh everything the app needs to actually work."""
 	_ensure_roles()
 	_ensure_permissions()
+	_add_performance_indexes()
 	_seed_gates()
 	_seed_visitor_types()
 	_seed_id_proof_types()
@@ -305,12 +362,17 @@ def setup_visitor_management():
 	_repaint_notification_history()
 	_backfill_host_email()
 	_backfill_host_name()
+	_backfill_mobile_digits()
+	_repair_pending_status_drift()
 	_activate_blacklist_entries()
+	_seed_static_workflows()
 	_build_workflow()
 	# After the Visitor Types are seeded and the workflow is generated, so the
-	# approver set it reads is the same one the lanes were built from.
+	# approver set these read is the same one the lanes were built from. Same three
+	# steps, in the same order, as `Visitor Type.on_update` -> `_sync_approver_wiring`.
 	_align_visitor_pass_submit()
 	_sync_approval_notification_recipients()
+	_grant_visitor_pass_cancel()
 	frappe.db.commit()
 
 
@@ -324,15 +386,32 @@ def _ensure_roles():
 
 
 def _grant(doctype, role, ptype="read"):
-	"""Grant one privilege, and only that privilege.
+	"""Grant one privilege, and only that privilege — and only once per site.
 
 	`add_permission` creates a Custom DocPerm from the Role Permission defaults,
 	and `export` defaults to 1 — so a plain `_grant(dt, role)` intended as
 	"let them read" silently also let them bulk-export the whole table. Read
 	access to a master and the right to download it in full are different
 	decisions; callers now have to ask for `export` explicitly.
+
+	Used to re-assert `ptype = 1` unconditionally on every migrate, even when
+	the Custom DocPerm row already existed. That silently undid an admin who
+	tightened this exact privilege through the Role Permission Manager — the
+	permission came back the next deploy with no log line explaining why. Each
+	(doctype, role, ptype) triple is now granted at most once per site, the
+	same marker pattern as `_allow_portal_uploads`, `_activate_blacklist_entries`
+	and `_configure_notifications`: we assert it once, remember that we did,
+	and the Role Permission Manager owns it from then on — including a later
+	"Reset Permissions" on the doctype, which is as deliberate a site decision
+	as unchecking one box.
+
+	`_revoke`, below, is deliberately NOT changed: it is a security floor that
+	must keep closing a privilege on every migrate, not a one-time grant.
 	"""
 	if not frappe.db.exists("Role", role):
+		return
+	marker = _GRANT_MARKER.format(doctype=doctype, role=role, ptype=ptype)
+	if frappe.db.get_default(marker):
 		return
 	created = False
 	if not frappe.db.exists("Custom DocPerm", {"parent": doctype, "role": role, "permlevel": 0}):
@@ -341,6 +420,7 @@ def _grant(doctype, role, ptype="read"):
 	update_permission_property(doctype, role, 0, ptype, 1)
 	if created and ptype != "export":
 		update_permission_property(doctype, role, 0, "export", 0)
+	frappe.db.set_default(marker, "1")
 
 
 def _revoke(doctype, role, ptypes):
@@ -361,11 +441,23 @@ def _ensure_permissions():
 	for role in HOSPITALITY_CANCELLERS:
 		_grant("Hospitality Request", role, "cancel")
 		_grant("Hospitality Request", role, "amend")
+	# _grant_visitor_pass_cancel() is deliberately NOT called here. It reads the
+	# approver roles off the Visitor Type masters, and `_seed_visitor_types()` has
+	# not run yet at this point in `setup_visitor_management()` — so on a FRESH
+	# install that table is empty and the call granted `cancel` to nothing beyond
+	# VISITOR_PASS_CANCEL_ADMINS. Every approver role then had a Cancel button that
+	# was refused at check_permission("cancel") until somebody happened to run a
+	# second migrate — exactly the defect VISITOR_PASS_CANCEL_ADMINS' own comment
+	# says this app is trying to avoid. It now runs after `_build_workflow()`,
+	# beside the other two approver-wiring steps that already wait for the same
+	# masters.
 	for doctype, roles in LINK_TARGET_PICKERS.items():
 		for role in roles:
 			_grant(doctype, role, "select")
 	for role in VISITOR_PASS_READERS:
 		_grant("Visitor Pass", role)
+	for role in HOSPITALITY_DIGEST_READERS:
+		_grant("Hospitality Request", role)
 	_restore_core_page_permissions()
 
 	# Visitor Type decides which role approves which visitor — it is access
@@ -376,6 +468,121 @@ def _ensure_permissions():
 	# the privilege on sites that already installed the permissive version,
 	# because a stored Custom DocPerm overrides what the doctype ships.
 	_revoke("Visitor Type", "Employee", ("write", "create", "delete", "submit", "cancel"))
+
+
+def _add_performance_indexes():
+	"""Composite indexes for the app's hottest filter+sort patterns.
+
+	Frappe v16 does not auto-index Link/Select/Date columns, and this app
+	filters almost exclusively on those — a perf audit that seeded 500k
+	Visitor Pass / 1M Security Log / 1.5M Visitor Event Log rows found full
+	table scans everywhere: a 21-minute Active Visitors report and a
+	~39-hour overstay scheduler run (its per-row `Visitor Event Log` lookup
+	in `tasks.flag_overstaying_visitors` is exactly `(visitor_pass,
+	event_type)` below).
+
+	`frappe.db.add_index` checks `has_index` before issuing the ALTER, so
+	this is idempotent and safe to call on every migrate. It also commits
+	internally — never call it inside a transaction you care about.
+
+	Column order is load-bearing: the equality/filter column goes first, the
+	sort or range column last, so MariaDB can serve the filter and the
+	ORDER BY / range from one index without a filesort. Do not reorder.
+	"""
+	indexes = [
+		("Visitor Pass", ["status", "visit_date"]),
+		("Visitor Pass", ["person_to_visit", "modified"]),
+		("Visitor Pass", ["owner", "modified"]),
+		("Visitor Pass", ["workflow_state", "docstatus"]),
+		("Visitor Pass", ["no_show", "status"]),
+		("Security Log", ["visitor_pass", "event_type"]),
+		("Security Log", ["event_type", "check_in_date_time"]),
+		# The gate-wise count filters an OR of two branches — Check-In on
+		# check_in_date_time, Check-Out on check_out_date_time — so indexing
+		# only the first left the Check-Out half scanning every Check-Out row
+		# whatever the date range. Both branches need their own composite.
+		("Security Log", ["event_type", "check_out_date_time"]),
+		("Visitor Event Log", ["visitor_pass", "event_type"]),
+	]
+	for doctype, fields in indexes:
+		frappe.db.add_index(doctype, fields)
+
+
+def _backfill_mobile_digits():
+	"""Populate `mobile_digits` on passes saved before the column existed.
+
+	The duplicate-visitor check matches on this column now, so a pass whose
+	digits were never derived is invisible to it — which would reintroduce, for
+	historical rows, exactly the silent "no match" the column was added to fix.
+
+	Deliberately raw SQL rather than a loop of `set_value`: this is one
+	statement over the whole table instead of a round trip per pass, and it must
+	NOT touch `modified`. The dedupe query orders by `modified DESC`, so
+	bumping it here would reorder every visitor's history at migrate time.
+
+	Idempotent by construction — the WHERE clause matches only rows whose stored
+	digits disagree with their number, so a second run updates nothing. It also
+	self-heals a row edited by raw SQL elsewhere, which bypasses `before_save`.
+	"""
+	digits = "regexp_replace(ifnull(mobile_number, ''), '[^0-9]', '')"
+	frappe.db.sql(
+		f"""
+		update `tabVisitor Pass`
+		set mobile_digits = {digits}
+		where ifnull(mobile_number, '') != ''
+		  and ifnull(mobile_digits, '') != {digits}
+		"""  # nosemgrep: frappe-sql-format-injection - no user input, fixed expression
+	)
+
+
+def _repair_pending_status_drift():
+	"""Realign `status` on passes still sitting in a pending approval lane.
+
+	`status` is derived from `workflow_state` by
+	`visitor_pass._sync_status_with_workflow`, but that runs in `validate` — so
+	any path writing `status` through `db_set` skips it and the two fields drift.
+	Badge generation did exactly that: it set "Items Verified" via `db_set`, and
+	before the docstatus/workflow_state guard now in `generate_badge_number`
+	existed, it could do so on a pass that had never been approved.
+
+	The visible symptom was two widgets on one dashboard disagreeing — the
+	"Pending Visitor Approvals" card counts `workflow_state like 'Pending%'` and
+	read 15, while the "Pending Approvals by Department" chart counted
+	`status = 'Pending Approval'` and read 14. A pass reported as approved-enough
+	to have its items verified, while still awaiting an approver, is also simply
+	wrong on its own terms.
+
+	Only the pending lanes are repaired, and only in that one direction. Once a
+	pass is Approved the gate legitimately owns `status` — "Items Verified",
+	"Checked-In" and "Checked-Out" are movements, not approval states, and
+	rewriting them would erase a real visit. That is why the 77 rows here sitting
+	at workflow_state "Approved" with a later status are left untouched.
+
+	Idempotent: the WHERE clause matches only rows that still disagree, so a
+	second run updates nothing. `update_modified=False` keeps the repair out of
+	the passes' modification history — it corrects a derived field, it is not a
+	business event.
+	"""
+	from visitormanagement.visitor_management.workflow_builder import pending_lanes
+
+	lanes = sorted(pending_lanes())
+	if not lanes:
+		return
+
+	drifted = frappe.get_all(
+		"Visitor Pass",
+		filters={
+			"workflow_state": ("in", lanes),
+			"status": ("!=", "Pending Approval"),
+			"docstatus": ("<", 2),
+		},
+		pluck="name",
+	)
+	for name in drifted:
+		frappe.db.set_value("Visitor Pass", name, "status", "Pending Approval", update_modified=False)
+
+	if drifted:
+		print(f"  realigned status on {len(drifted)} pass(es) still awaiting approval")
 
 
 def _restore_core_page_permissions():
@@ -655,17 +862,59 @@ def _allow_portal_uploads():
 	which holds guest uploads to the same file types and size limit the portal
 	advertises. Never turned back off — a site that deliberately disabled it
 	after install keeps its choice on the next migrate.
+
+	That last sentence used to be a lie. The old body was "if the setting is
+	off, turn it on", which cannot tell "never configured" apart from
+	"an administrator switched this off on purpose", so it silently re-enabled
+	a site-wide guest upload flag on *every* migrate — the opposite of what
+	this docstring promised, and invisible in the deploy log because nothing
+	recorded who changed it. A one-time marker is what makes the promise true:
+	we enable it once, remember that we did, and afterwards the site's own
+	choice wins.
 	"""
-	if frappe.db.get_single_value("System Settings", "allow_guests_to_upload_files"):
+	already_enabled = frappe.db.get_single_value("System Settings", "allow_guests_to_upload_files")
+
+	if frappe.db.get_default(_PORTAL_UPLOADS_MARKER):
+		# We have had our one turn. Whatever the setting says now is the site's
+		# decision, not ours. Say so loudly if the portal is therefore broken,
+		# because "visitors cannot submit the form" is otherwise a mystery.
+		if not already_enabled:
+			print(
+				"  NOTE: allow_guests_to_upload_files is off. The visitor pre-registration "
+				"portal cannot accept ID scans or photos until it is switched back on."
+			)
 		return
-	frappe.db.set_single_value("System Settings", "allow_guests_to_upload_files", 1)
-	print("  enabled allow_guests_to_upload_files (required by the visitor portal)")
+
+	if not already_enabled:
+		frappe.db.set_single_value("System Settings", "allow_guests_to_upload_files", 1)
+		print("  enabled allow_guests_to_upload_files (required by the visitor portal)")
+
+	# Recorded whether or not we changed anything: the point of the marker is
+	# "setup has considered this setting", so a site that already had it on
+	# does not get it forced back on later either.
+	frappe.db.set_default(_PORTAL_UPLOADS_MARKER, "1")
 
 
 def _configure_notifications():
+	"""Turn off the Notification-engine copies that duplicate a code-sent email.
+
+	Used to force `enabled = 0` unconditionally on every migrate, which
+	contradicted its own docstring's promise that the setting was preserved —
+	an admin who re-enabled "VMS Host Alert" (say, because they wanted the
+	Notification copy back for some reason) lost that choice, silently and
+	without a log line, on the next deploy. Each name now gets disabled at
+	most once per site, the same marker pattern as `_activate_blacklist_entries`
+	and `_allow_portal_uploads`: we turn it off once, remember that we did, and
+	whatever the site does with the toggle afterwards is authoritative.
+	"""
 	for name in DISABLED_NOTIFICATIONS:
+		marker = _NOTIFICATION_DISABLED_MARKER.format(name=name)
+		if frappe.db.get_default(marker):
+			continue
 		if frappe.db.exists("Notification", name):
 			frappe.db.set_value("Notification", name, "enabled", 0, update_modified=False)
+			print(f"  disabled duplicate Notification {name} (one-time)")
+		frappe.db.set_default(marker, "1")
 
 	_repair_notification_conditions()
 
@@ -834,15 +1083,143 @@ def _repair_notification_conditions():
 
 
 def _activate_blacklist_entries():
-	"""Every blacklist lookup filters on is_active; entries created under the old
-	default of 0 blocked nobody."""
+	"""One-time backfill: every blacklist lookup filters on is_active, and
+	entries created under the old default of 0 blocked nobody.
+
+	This used to run unconditionally on every migrate, which meant it did far
+	more than backfill: deactivating a Visitor Blacklist entry is the normal UI
+	action for "we investigated, this person is cleared", and with
+	`blacklist_action = "Block Entry"` an is_active row is what turns someone
+	away at the gate. Re-flipping every deactivated row back to 1 on the next
+	deploy silently re-blacklisted anyone an admin had cleared — a security
+	regression baked into the deploy process itself.
+
+	Guarded the same way `_allow_portal_uploads` guards its own one-time write:
+	the historical backfill runs once, is recorded, and every deactivation after
+	that — however it happened — is the site's own decision and is never
+	reverted.
+	"""
 	if not frappe.db.table_exists("Visitor Blacklist"):
+		return
+	if frappe.db.get_default(_BLACKLIST_BACKFILL_MARKER):
 		return
 	dormant = frappe.get_all("Visitor Blacklist", filters={"is_active": 0}, pluck="name")
 	for name in dormant:
 		frappe.db.set_value("Visitor Blacklist", name, "is_active", 1, update_modified=False)
 	if dormant:
-		print(f"  activated {len(dormant)} dormant blacklist entries")
+		print(f"  activated {len(dormant)} dormant blacklist entries (one-time historical backfill)")
+	frappe.db.set_default(_BLACKLIST_BACKFILL_MARKER, "1")
+
+
+def _seed_static_workflows():
+	"""Create Conference Room Booking Approval / Hospitality Request Approval
+	from `workflow_seed.json`, once each, and never touch them again.
+
+	These used to ship as a `fixtures` hook entry (hooks.py) pointing at
+	`fixtures/4_workflow.json`. Removing that hooks.py entry turned out NOT to
+	be enough on its own: `frappe.utils.fixtures.import_fixtures` does not
+	consult the hooks.py `fixtures` list at import time at all — it globs
+	every `*.json` file physically present in the app's `fixtures/` directory
+	and force-imports each one (`import_file_by_path(..., force=True)`,
+	bypassing the `modified` guard entirely) on every single migrate. The
+	hooks.py list only controls what `bench export-fixtures` writes back out.
+	So as long as the workflow JSON sat in `fixtures/`, it kept being
+	force-reimported regardless of what hooks.py said — proved by editing
+	`allow_self_approval` on a live transition and watching a migrate discard
+	it even after the hooks.py entry was removed.
+
+	The real fix is this file living outside `fixtures/` altogether, read
+	directly by this function instead of by Frappe's fixture importer. Unlike
+	Visitor Pass Approval, these two workflows have no Visitor Type-style
+	master to regenerate their lanes from, so full runtime generation is not
+	the right shape here; a one-time seed is. `frappe.db.exists` is checked
+	per workflow, so a site that already has one of these two (from an
+	earlier version's fixture import) is left alone — this only ever fills in
+	what is missing, and every Desk edit made afterwards — approver roles, an
+	added approval level, `allow_self_approval` — survives every migrate.
+	"""
+	import json
+
+	path = frappe.get_app_path("visitormanagement", "workflow_seed.json")
+	try:
+		with open(path) as f:
+			specs = json.load(f)
+	except OSError:
+		return
+
+	for spec in specs:
+		name = spec.get("name") or spec.get("workflow_name")
+		if not name or frappe.db.exists("Workflow", name):
+			continue
+		_ensure_seed_workflow_dependencies(spec)
+		seed = {k: v for k, v in spec.items() if k not in ("modified", "creation", "owner", "modified_by")}
+		frappe.get_doc(seed).insert(ignore_permissions=True)
+		print(f"  seeded Workflow {name} (first install only, never overwritten again)")
+
+
+def _ensure_seed_workflow_dependencies(spec):
+	"""Create the Workflow State / Action Master / Role records a seed links to.
+
+	`frappe.installer.install_app` runs the `after_install` hook (installer.py:332)
+	BEFORE `sync_fixtures` (installer.py:339). So on a FRESH install none of the
+	Workflow States in `fixtures/2_workflow_state.json`, and none of the actions in
+	`fixtures/3_workflow_action_master.json`, exist yet at the moment
+	`_seed_static_workflows` above runs. Inserting a Workflow whose transitions
+	link to them therefore raised
+
+	    LinkValidationError: Could not find Row #2: State: Pending Approval, ...
+
+	which aborted `after_install` outright. The damage was much wider than the two
+	seeded workflows: `setup_visitor_management()` never got past that line, so
+	`_build_workflow()` and the three approver-wiring steps after it never ran
+	either — a buyer's fresh install ended with the app in `installed_apps`, a
+	traceback on screen, no Visitor Pass approval workflow at all, and no approver
+	permissions.
+
+	This could not happen while these two shipped as `fixtures/4_workflow.json`:
+	`import_fixtures` walks that directory in filename order, so `2_` and `3_` were
+	always imported before `4_`. Moving the seed out of `fixtures/` (see
+	`_seed_static_workflows`' own docstring for why that move was necessary) gave up
+	that ordering guarantee, so the dependencies are asserted explicitly here
+	instead.
+
+	These are the same three helpers `workflow_builder.build_workflow` already calls
+	for the generated Visitor Pass workflow — which is exactly why that workflow was
+	never affected by this, and why the failure only showed up on a fresh install.
+	"""
+	from visitormanagement.visitor_management.workflow_builder import (
+		PENDING_STYLE,
+		STATE_STYLES,
+		_ensure_role,
+		_ensure_workflow_action,
+		_ensure_workflow_state,
+	)
+
+	states = set()
+	roles = set()
+
+	for row in spec.get("states", []):
+		if row.get("state"):
+			states.add(row["state"])
+		if row.get("allow_edit"):
+			roles.add(row["allow_edit"])
+
+	for row in spec.get("transitions", []):
+		for key in ("state", "next_state"):
+			if row.get(key):
+				states.add(row[key])
+		if row.get("action"):
+			_ensure_workflow_action(row["action"])
+		if row.get("allowed"):
+			roles.add(row["allowed"])
+
+	for state in sorted(states):
+		# Same styling vocabulary as the generated workflow, so a seeded
+		# "Pending Approval" is coloured like every generated "Pending <role>" lane.
+		_ensure_workflow_state(state, STATE_STYLES.get(state, PENDING_STYLE))
+
+	for role in sorted(roles):
+		_ensure_role(role)
 
 
 def _build_workflow():
@@ -852,3 +1229,19 @@ def _build_workflow():
 	name = build_workflow()
 	if name:
 		print(f"  rebuilt workflow {name}")
+
+
+
+def _grant_visitor_pass_cancel():
+	"""Let every current approver role actually run the Cancel it is offered.
+
+	Kept as its own function so `Visitor Type.on_update` can call it too: the
+	Cancel transitions are regenerated the moment an admin points a type at a new
+	approver role, and a permission granted only on migrate would leave that role
+	with a button it cannot use until a developer intervenes.
+	"""
+	from visitormanagement.visitor_management.workflow_builder import approver_roles
+
+	for role in sorted(set(approver_roles()) | set(VISITOR_PASS_CANCEL_ADMINS)):
+		_grant("Visitor Pass", role, "cancel")
+		_grant("Visitor Pass", role, "amend")

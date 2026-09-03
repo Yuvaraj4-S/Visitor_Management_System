@@ -39,10 +39,10 @@ def execute(filters=None):
 			"width": 80,
 		},
 		{
-			"label": _("Duration"),
+			"label": _("Duration (hrs)"),
 			"fieldname": "duration_hours",
 			"fieldtype": "Float",
-			"width": 85,
+			"width": 95,
 			"precision": 2,
 		},
 		{

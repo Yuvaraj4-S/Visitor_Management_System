@@ -234,3 +234,91 @@ def has_visitor_pass_permission(doc, user=None, ptype=None, debug=False):
 		return ptype in _READ_LIKE_PTYPES
 
 	return False
+
+
+# ─────────────────────────────────────────────────────────
+# Hospitality Request
+# ─────────────────────────────────────────────────────────
+# `Employee` holds read+write+create on Hospitality Request with if_owner = 0,
+# and no query condition was registered — so every member of staff could open
+# and overwrite every other host's request. That is not an abstract exposure:
+# these rows carry dietary allergies, accessibility needs, hotel cost, and
+# drivers' phone numbers. An audit proved it by editing another host's request
+# from a Hospitality User account and pushing it into an approval queue.
+#
+# Scoped the same way Visitor Pass is: the people who run hospitality see
+# everything, and everyone else sees the requests that are theirs — raised by
+# them, assigned to them, or belonging to a visitor they are hosting.
+HOSPITALITY_OVERSEERS = ("System Manager", "Hospitality Manager")
+
+
+def get_hospitality_request_permission_query_conditions(user=None):
+	user = user or frappe.session.user
+	if _is_admin(user):
+		return None
+
+	roles = set(frappe.get_roles(user))
+	if _has_any_role(roles, HOSPITALITY_OVERSEERS):
+		return None
+
+	table = "tabHospitality Request"
+	conditions = [_owner_condition(table, user)]
+
+	employee = _employee_for_user(user)
+	if employee:
+		escaped = frappe.db.escape(employee)
+		# Assigned to them to deliver.
+		conditions.append(f"`{table}`.`assigned_staff` = {escaped}")
+		# Or raised for a visitor they are hosting. The host is on the pass, not
+		# on the request, so this has to go through the link.
+		conditions.append(
+			f"`{table}`.`visitor_pass` in "
+			f"(select `name` from `tabVisitor Pass` where `person_to_visit` = {escaped})"
+		)
+
+	# Parenthesised for the same reason as Visitor Pass: Frappe ANDs this with
+	# its own clauses, and unbracketed `AND` would bind tighter than `OR`.
+	return "(" + " or ".join(conditions) + ")"
+
+
+def has_hospitality_request_permission(doc, user=None, ptype=None, debug=False):
+	user = user or frappe.session.user
+	if _is_admin(user):
+		return True
+
+	roles = set(frappe.get_roles(user))
+	if _has_any_role(roles, HOSPITALITY_OVERSEERS):
+		return True
+
+	if doc.owner == user:
+		return True
+
+	employee = _employee_for_user(user)
+	if employee:
+		if doc.get("assigned_staff") == employee:
+			return True
+		if doc.get("visitor_pass") and frappe.db.get_value(
+			"Visitor Pass", doc.visitor_pass, "person_to_visit"
+		) == employee:
+			return True
+
+	# If you are allowed to see the visit, you are allowed to see what was
+	# arranged for it. This is not a convenience: `ensure_hospitality_request`
+	# creates the request inside the approving user's own request, and Frappe's
+	# `validate_workflow` calls `get_transitions`, which needs read on the new
+	# document. Without this an approver who is not also the host — a CEO signing
+	# off a VIP visit, say — got a PermissionError and the approval itself failed.
+	# Visitor Pass is already row-scoped to owner/host/approver/Security, so this
+	# inherits that boundary rather than widening past it.
+	if ptype in _READ_LIKE_PTYPES and doc.get("visitor_pass"):
+		# `has_permission` raises DoesNotExistError rather than returning False for
+		# a missing document, so an orphaned request — one whose pass was deleted —
+		# would throw out of a permission check and take the whole list view with
+		# it. A permission question about a record that is not there is "no".
+		if not frappe.db.exists("Visitor Pass", doc.visitor_pass):
+			return False
+		return bool(
+			frappe.has_permission("Visitor Pass", "read", doc=doc.visitor_pass, user=user)
+		)
+
+	return False

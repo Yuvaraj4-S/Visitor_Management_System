@@ -96,7 +96,8 @@
    "fieldtype": "Link",
    "label": "Gate Name",
    "options": "Visitor Gate",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_werm",

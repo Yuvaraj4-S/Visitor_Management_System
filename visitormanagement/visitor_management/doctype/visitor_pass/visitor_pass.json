@@ -23,6 +23,7 @@
   "visitor_full_name",
   "visitor_summary",
   "mobile_number",
+  "mobile_digits",
   "email_id",
   "company__organisation",
   "column_break_identity_details",
@@ -147,7 +148,8 @@
    "in_list_view": 1,
    "label": "Visitor Type",
    "options": "Visitor Type",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "visitor_type_layout",
@@ -206,7 +208,6 @@
    "fieldname": "workflow_state",
    "fieldtype": "Link",
    "hidden": 1,
-   "in_list_view": 1,
    "label": "Workflow State",
    "options": "Workflow State",
    "read_only": 1
@@ -251,6 +252,17 @@
    "in_list_view": 1,
    "label": "Mobile Number",
    "reqd": 1
+  },
+  {
+   "fieldname": "mobile_digits",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Mobile Digits",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1,
+   "report_hide": 1,
+   "search_index": 1
   },
   {
    "fieldname": "email_id",
@@ -354,7 +366,8 @@
    "fieldname": "visit_date",
    "fieldtype": "Date",
    "label": "Visit Date",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "expected_checkin",
@@ -976,7 +989,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-14 09:00:00.000000",
+ "modified": "2026-08-31 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Pass",

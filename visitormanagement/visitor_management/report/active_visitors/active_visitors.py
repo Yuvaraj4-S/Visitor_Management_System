@@ -35,10 +35,10 @@ def get_columns():
         {"label": "Host", "fieldname": "person_to_visit", "fieldtype": "Link",
          "options": "Employee", "width": 140},
         {"label": "Gate", "fieldname": "gate_name", "fieldtype": "Data", "width": 110},
-        {"label": "Checked In", "fieldname": "checkin_time", "fieldtype": "Datetime", "width": 160},
-        {"label": "Duration", "fieldname": "duration_label", "fieldtype": "Data", "width": 110},
+        {"label": "Checked-In", "fieldname": "checkin_time", "fieldtype": "Datetime", "width": 160},
+        {"label": "Time Inside", "fieldname": "duration_label", "fieldtype": "Data", "width": 110},
         {"label": "Expected Out", "fieldname": "expected_checkout", "fieldtype": "Time", "width": 110},
-        {"label": "Items", "fieldname": "item_verification_status", "fieldtype": "Data", "width": 100},
+        {"label": "Item Status", "fieldname": "item_verification_status", "fieldtype": "Data", "width": 100},
         {"label": "Badge", "fieldname": "badge_number", "fieldtype": "Data", "width": 140},
     ]
 

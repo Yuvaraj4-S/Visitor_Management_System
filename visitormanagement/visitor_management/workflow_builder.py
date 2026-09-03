@@ -35,19 +35,39 @@ STATE_FIELD = "workflow_state"
 DRAFT = "Draft"
 APPROVED = "Approved"
 REJECTED = "Rejected"
+CANCELLED = "Cancelled"
+
+# Canonical tuple form for callers that gate on "is this pass genuinely
+# approved" (visitor_gate.py's check-in/check-out guard, visitor_pass.py's
+# badge issuance). Both used to redefine `("Approved",)` locally -- one of
+# them with a comment claiming the duplication was needed "so this module has
+# no import cycle", which was false: visitor_pass.py already imports names
+# from this module at the top of the file. Import APPROVED_STATES from here
+# instead of repeating the literal, so a future state-name change can't leave
+# one of the copies silently guarding the old value.
+APPROVED_STATES = (APPROVED,)
 
 ACTION_SUBMIT = "Submit"
 ACTION_APPROVE = "Approve"
 ACTION_REJECT = "Reject"
 ACTION_REAPPLY = "Reapply"
+ACTION_CANCEL = "Cancel"
 
 # The role a plain host/reception user has when raising a pass.
 REQUESTOR_ROLE = "Employee"
+
+# Cancelling an Approved pass is the approval authority exercised in reverse, so
+# the Cancel transitions are generated for the approver roles themselves (see
+# `build_workflow`). Security is deliberately not among them: it is read-only on
+# Visitor Pass by design — the gate acts through Security Log — and offering it
+# an action it cannot execute produces a button that only ever errors.
+CANCEL_ROLE = None
 
 STATE_STYLES = {
 	DRAFT: "Warning",
 	APPROVED: "Success",
 	REJECTED: "Danger",
+	CANCELLED: "Danger",
 }
 PENDING_STYLE = "Warning"
 
@@ -80,6 +100,25 @@ def approver_roles() -> list[str]:
 def pending_lanes() -> set[str]:
 	"""All pending-state names the current Visitor Type configuration can produce."""
 	return {lane_for_role(role) for role in approver_roles()}
+
+
+@frappe.whitelist()
+def get_visitor_type_approvers() -> dict:
+	"""Visitor Type name -> its primary approver role, for the Desk client.
+
+	visitor_pass.js used to hardcode this vocabulary as a fixed 5-entry map
+	(Contractor/Supplier/Customer/Candidate/VIP) instead of reading it from
+	here. A Visitor Type routed to any other approver role -- e.g. "Auditor"
+	pointed at Facility Manager -- rendered with no approver name in the intro
+	text, and the same fixed list in the Pending Web Submissions dialog filter
+	meant passes sitting in that lane never appeared in the dialog at all, with
+	no error anywhere. This is a read-only mirror of the same `_visitor_type_rows()`
+	`build_workflow` uses, so the client's vocabulary can never drift from the
+	workflow this module actually generates -- a new Visitor Type with a new
+	approver role needs no client-side change to be understood correctly.
+	"""
+	frappe.has_permission("Visitor Pass", "read", throw=True)
+	return {row.name: row.approver_role for row in _visitor_type_rows() if row.approver_role}
 
 
 # ─────────────────────────────────────────────────────────
@@ -147,7 +186,7 @@ def build_workflow(commit=False):
 	roles = approver_roles()
 
 	# --- dependencies -------------------------------------------------
-	for action in (ACTION_SUBMIT, ACTION_APPROVE, ACTION_REJECT, ACTION_REAPPLY):
+	for action in (ACTION_SUBMIT, ACTION_APPROVE, ACTION_REJECT, ACTION_REAPPLY, ACTION_CANCEL):
 		_ensure_workflow_action(action)
 	for state, style in STATE_STYLES.items():
 		_ensure_workflow_state(state, style)
@@ -162,6 +201,7 @@ def build_workflow(commit=False):
 		states.append({"state": lane_for_role(role), "doc_status": "0", "allow_edit": role})
 	states.append({"state": APPROVED, "doc_status": "1", "allow_edit": "System Manager"})
 	states.append({"state": REJECTED, "doc_status": "0", "allow_edit": REQUESTOR_ROLE})
+	states.append({"state": CANCELLED, "doc_status": "2", "allow_edit": "System Manager"})
 
 	# --- transitions --------------------------------------------------
 	transitions = []
@@ -192,6 +232,10 @@ def build_workflow(commit=False):
 				"next_state": lane_for_role(secondary),
 				"allowed": primary,
 				"condition": _has_secondary(primary, secondary),
+				# An approver must not also be the requester who raised this pass —
+				# see frappe/model/workflow.py:has_approval_access. Submit/Reject/
+				# Reapply stay self-approvable: those are the requester's own moves.
+				"allow_self_approval": 0,
 			}
 		)
 
@@ -204,6 +248,7 @@ def build_workflow(commit=False):
 				"next_state": APPROVED,
 				"allowed": role,
 				"condition": _is_final_approver(role),
+				"allow_self_approval": 0,
 			}
 		)
 		transitions.append(
@@ -223,6 +268,22 @@ def build_workflow(commit=False):
 			"allowed": REQUESTOR_ROLE,
 		}
 	)
+
+	# Approved -> Cancelled: a visitor who cancels, or someone barred after
+	# approval, must not keep a gate-valid pass forever. Open to every role
+	# that can approve a pass — the approver who signed it off is the one who
+	# can pull it. `setup.VISITOR_PASS_CANCELLERS` grants those same roles the
+	# `cancel` DocPerm, without which this transition would render a button that
+	# is refused the moment it is clicked.
+	for role in sorted(roles):
+		transitions.append(
+			{
+				"state": APPROVED,
+				"action": ACTION_CANCEL,
+				"next_state": CANCELLED,
+				"allowed": role,
+			}
+		)
 
 	# --- persist ------------------------------------------------------
 	workflow = (

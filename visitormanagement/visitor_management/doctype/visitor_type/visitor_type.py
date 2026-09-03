@@ -60,6 +60,49 @@ class VisitorType(Document):
 		# it. Without this a new type would be selectable but have no
 		# `Draft -> Pending <role>` transition, leaving the pass stuck in Draft.
 		rebuild_on_visitor_type_change(self)
+		_sync_approver_wiring()
 
 	def on_trash(self):
 		rebuild_on_visitor_type_change(self)
+		_sync_approver_wiring()
+
+
+
+def _sync_approver_wiring():
+	"""Bring the rest of the approver wiring with the workflow lanes.
+
+	Three things have to move together when a Visitor Type names an approver
+	role: the workflow lane, the `submit` permission that lane's Approve
+	transition needs (it targets a doc_status of 1), and the recipients of the
+	approval-request email. Only the first was regenerated on save; the other two
+	ran exclusively from `setup_visitor_management()`, i.e. on install and
+	migrate.
+
+	So an administrator who added a Visitor Type through the Desk got a lane that
+	routed passes correctly and then refused the Approve click, and mailed nobody
+	— repairable only by a developer running `bench migrate`, which makes the
+	whole data-driven design theoretical from the admin's point of view.
+
+	Imported here rather than at module level: `setup` imports from across the
+	app, and a top-level import would make this controller a participant in that
+	graph. Failures are logged rather than raised for the same reason the rebuild
+	is — a notification-recipient sync must never block saving a master record.
+	"""
+	from visitormanagement.setup import (
+		_align_visitor_pass_submit,
+		_grant_visitor_pass_cancel,
+		_sync_approval_notification_recipients,
+	)
+
+	for step in (
+		_align_visitor_pass_submit,
+		_sync_approval_notification_recipients,
+		_grant_visitor_pass_cancel,
+	):
+		try:
+			step()
+		except Exception:
+			frappe.log_error(
+				title=f"VMS approver wiring: {step.__name__} failed",
+				message=frappe.get_traceback(with_context=True),
+			)

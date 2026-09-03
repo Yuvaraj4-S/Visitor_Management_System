@@ -25,6 +25,7 @@ from visitormanagement.visitor_management import settings as vms_settings
 # and transitions for every role in use, so a Visitor Type pointed at any role
 # routes correctly without a code change.
 from visitormanagement.visitor_management.workflow_builder import (
+    APPROVED_STATES,
     lane_for_role,
     pending_lanes,
 )
@@ -505,6 +506,9 @@ class VisitorPass(Document):
     def before_save(self):
         self._sync_items_carried()
         self._normalize_mobile_number()
+        # Must follow _normalize_mobile_number: this mirrors the *stored* number,
+        # so deriving it any earlier would index a pre-normalisation value.
+        self.mobile_digits = _normalized_digits(self.mobile_number)
         self._set_visitor_summary()
         # Auto-fetch host department from Employee record
         if self.person_to_visit and not self.host_department:
@@ -880,7 +884,7 @@ class VisitorPass(Document):
             return
 
         if update_status and not (
-            cint(self.docstatus) == 1 and self.workflow_state in GATE_APPROVED_STATES
+            cint(self.docstatus) == 1 and self.workflow_state in APPROVED_STATES
         ):
             frappe.throw(
                 _("Visitor Pass {0} is not approved (currently {1}), so no badge can be issued.").format(
@@ -1300,35 +1304,46 @@ def get_existing_visitor_matches(visitor_type=None, id_proof_number=None, mobile
 
     if mobile_number and len(matches) < 10:
         phone_digits = _normalized_digits(mobile_number)
-        by_phone = frappe.db.sql(
-            """
-            SELECT name, visitor_full_name, visitor_type, mobile_number, id_proof_number
-            FROM `tabVisitor Pass`
-            WHERE ifnull(mobile_number, '') != ''
-            """
-            + type_filter
-            + exclude_filter
-            + perm_filter
-            + """
-            ORDER BY modified DESC
-            LIMIT 100
-            """,
-            {
-                "visitor_type": visitor_type,
-                "exclude_name": exclude_name,
-            },
-            as_dict=True,
-        )
+        # Match on the stored digit form in SQL rather than fetching rows and
+        # comparing in Python.
+        #
+        # This query used to select any pass with a non-empty mobile_number,
+        # `ORDER BY modified DESC LIMIT 100`, and compare digits afterwards. It
+        # had no phone predicate at all, so it only ever examined the 100
+        # most-recently-touched passes on the site: past roughly that many rows
+        # the duplicate check stopped finding anyone who last visited more than
+        # a few hours ago, and returned "no match" — a silent wrong answer at
+        # the gate rather than a visible failure. `mobile_digits` is maintained
+        # in before_save and indexed, so the match is now both complete and a
+        # single indexed lookup.
+        if phone_digits:
+            by_phone = frappe.db.sql(
+                """
+                SELECT name, visitor_full_name, visitor_type, mobile_number, id_proof_number
+                FROM `tabVisitor Pass`
+                WHERE mobile_digits = %(phone_digits)s
+                """
+                + type_filter
+                + exclude_filter
+                + perm_filter
+                + """
+                ORDER BY modified DESC
+                LIMIT 10
+                """,
+                {
+                    "visitor_type": visitor_type,
+                    "exclude_name": exclude_name,
+                    "phone_digits": phone_digits,
+                },
+                as_dict=True,
+            )
 
-        for row in by_phone:
-            if row.name in seen:
-                continue
-            if not phone_digits:
-                continue
-            if _normalized_digits(row.mobile_number) == phone_digits:
+            # Pushed one at a time to keep the original cap: `_push` dedupes
+            # against `seen` but does not bound the list.
+            for row in by_phone:
                 _push([row])
-            if len(matches) >= 10:
-                break
+                if len(matches) >= 10:
+                    break
 
     return {"best_match": matches[0] if matches else None, "matches": matches}
 
@@ -1423,12 +1438,6 @@ def get_existing_visitor_pass_details(visitor_pass, visitor_type=None):
     return {field: doc.get(field) for field in fields}
 
 
-# The workflow states that genuinely represent an approved pass. Mirrors
-# visitor_gate.APPROVED_STATES; kept local so this module has no import cycle
-# with the API layer.
-GATE_APPROVED_STATES = ("Approved",)
-
-
 @frappe.whitelist()
 def sync_badge_number(visitor_pass):
     """Generate badge number for a visitor pass if not already set.
@@ -1460,7 +1469,7 @@ def sync_badge_number(visitor_pass):
     # Corroborate against what the workflow engine actually recorded, exactly as
     # visitor_gate.visitor_checkin does, rather than trusting `status` alone:
     # `status` is written here with db_set, which skips validation entirely.
-    if not (cint(vp.docstatus) == 1 and vp.workflow_state in GATE_APPROVED_STATES):
+    if not (cint(vp.docstatus) == 1 and vp.workflow_state in APPROVED_STATES):
         frappe.throw(
             _("Visitor Pass {0} is not approved (currently {1}), so no badge can be issued.").format(
                 visitor_pass, vp.workflow_state or _("Draft")

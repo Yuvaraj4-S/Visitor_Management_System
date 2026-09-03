@@ -6,7 +6,7 @@ frappe.query_reports["Daily Visitor Log"] = {
 			fieldname: "from_date",
 			label: __("From Date"),
 			fieldtype: "Date",
-			default: frappe.datetime.month_start(),
+			default: frappe.datetime.add_days(frappe.datetime.get_today(), -6),
 			reqd: 1,
 		},
 		{

@@ -6,7 +6,7 @@ import os
 import frappe
 from frappe import _
 from frappe.rate_limiter import rate_limit
-from frappe.utils import now_datetime
+from frappe.utils import cint, now_datetime
 
 from visitormanagement.visitor_management import settings as vms_settings
 
@@ -42,9 +42,26 @@ from visitormanagement.visitor_management.validators import (
 
 
 
-# Mirrors the @rate_limit ceiling on submit_pre_registration, but keyed on the
-# socket peer unless a declared proxy forwarded the request.
-MAX_SUBMISSIONS_PER_HOUR = 20
+# Ceiling for the identity-keyed limiter below (socket peer, unless a declared
+# proxy forwarded the request — see portal_upload._rate_limit_identity). This
+# used to be an independent hardcoded 20 that only claimed to mirror the
+# @rate_limit decorator on submit_pre_registration; raising either one did
+# nothing to the other. It now reads vms_settings.max_portal_submissions_per_hour()
+# (default 20) so lowering the setting takes effect immediately. Raising it
+# above the decorator's fixed 20 still has no effect — see the comment on
+# submit_pre_registration for why that half cannot be made dynamic.
+DEFAULT_MAX_SUBMISSIONS_PER_HOUR = 20
+
+
+def _max_submissions_per_hour():
+	getter = getattr(vms_settings, "max_portal_submissions_per_hour", None)
+	if not callable(getter):
+		return DEFAULT_MAX_SUBMISSIONS_PER_HOUR
+	try:
+		value = cint(getter())
+	except Exception:
+		return DEFAULT_MAX_SUBMISSIONS_PER_HOUR
+	return value if value else DEFAULT_MAX_SUBMISSIONS_PER_HOUR
 
 
 def _enforce_submission_rate_limit():
@@ -55,7 +72,7 @@ def _enforce_submission_rate_limit():
 
 	_count_or_throw(
 		f"vms:portal-submit:{_rate_limit_identity()}",
-		MAX_SUBMISSIONS_PER_HOUR,
+		_max_submissions_per_hour(),
 		_("Too many pre-registrations from this connection. Please wait a while and try again."),
 	)
 
@@ -298,11 +315,31 @@ def _resolve_employee_link(value):
 
 
 def _normalize_id_proof_type(id_proof_type):
+	"""Canonical ID Proof Type name, used both for storage and for validation.
+
+	This used to be a hardcoded {"PAN": "PAN Card"} map — the only alias it
+	knew — while validators._canonical_type() already resolves every alias
+	configured on the ID Proof Type master (not just record names, including
+	customer-defined aliases), so a second, narrower copy here only fell behind
+	whatever aliases an admin later adds.
+
+	Confirmed before removing it: validate_id() and id_proof_error_message()
+	(what the validation call site below feeds this into) both call
+	_canonical_type() on their own input regardless of what they are handed, so
+	this normalisation was already inert for that call site specifically. It is
+	NOT inert for the other call site (~line 500 below), which stores this
+	value directly on the Visitor Pass's id_proof_type Link field — an
+	unrecognised alias reaching that unmapped would fail Link validation
+	instead of resolving to the real ID Proof Type record. That is the
+	behaviour this fix actually improves; the validation call site is
+	unaffected either way.
+	"""
+	from visitormanagement.visitor_management.validators import _canonical_type
+
 	value = (id_proof_type or "").strip()
-	mapper = {
-		"PAN": "PAN Card",
-	}
-	return mapper.get(value, value)
+	if not value:
+		return value
+	return _canonical_type(value) or value
 
 
 def _parse_visitor_items(items):
@@ -512,6 +549,14 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 # to flood the site with records or fill the disk. Generous enough for a real
 # visitor who retries a few times, and for a group registering from behind one
 # office or hotel NAT.
+#
+# The `limit=20` below is a Python literal evaluated once, when this module is
+# imported — decorator arguments run before there is a request, a site, or a
+# database to read a Setting from, so it CANNOT be wired to
+# vms_settings.max_portal_submissions_per_hour(). It is a fixed upper bound that
+# no VMS Settings value can raise past; only the identity-keyed limiter inside
+# the function (_enforce_submission_rate_limit, via _max_submissions_per_hour)
+# is actually configurable, and only downward from this number.
 @frappe.whitelist(allow_guest=True)
 @rate_limit(limit=20, seconds=60 * 60)
 def submit_pre_registration(payload=None):

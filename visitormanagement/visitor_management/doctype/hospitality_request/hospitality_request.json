@@ -95,7 +95,7 @@
    "options": "Visitor Pass",
    "reqd": 1,
    "search_index": 1,
-   "description": "Indexed so the duplicate guard's locking read stays row-scoped instead of locking the whole table."
+   "description": "The visitor this request belongs to."
   },
   {
    "fetch_from": "visitor_pass.visitor_full_name",
@@ -595,10 +595,10 @@
    "default": "Pending",
    "fieldname": "status",
    "fieldtype": "Select",
-   "hidden": 1,
    "in_list_view": 1,
    "label": "Status",
-   "options": "Pending\nConfirmed\nServed\nCompleted\nCancelled"
+   "options": "Pending\nConfirmed\nServed\nCompleted\nCancelled",
+   "allow_on_submit": 1
   },
   {
    "fieldname": "workflow_state",
@@ -629,7 +629,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-13 11:00:00.000000",
+ "modified": "2026-08-31 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Hospitality Request",

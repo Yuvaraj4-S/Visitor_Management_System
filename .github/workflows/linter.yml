@@ -2,6 +2,11 @@
 name: Linters
 
 on:
+  push:
+    branches:
+      - version-16
+      - develop
+      - main
   pull_request:
   workflow_dispatch:
 
@@ -16,7 +21,6 @@ jobs:
   linter:
     name: 'Frappe Linter'
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
 
     steps:
       - uses: actions/checkout@v4

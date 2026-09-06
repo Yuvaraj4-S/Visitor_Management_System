@@ -81,7 +81,7 @@ def _get_employee_email(employee_name):
     return employee.company_email or employee.personal_email or employee.user_id
 
 
-def _send_host_checkin_email(visitor_pass, security_log):
+def _send_host_checkin_email(visitor_pass, security_log, messages_before=None):
     host_email = _get_employee_email(visitor_pass.person_to_visit)
     if not host_email:
         return
@@ -120,6 +120,21 @@ def _send_host_checkin_email(visitor_pass, security_log):
     except Exception as exc:
         # Don't let a missing/misconfigured Email Account block check-in.
         frappe.log_error(f"Host check-in email failed for {security_log.name}: {exc}", "VMS Host Check-in Email")
+        # sendmail raises via frappe.throw, which also queues its own message
+        # for the client. Drop it — catching the exception is only half the
+        # job; otherwise the officer sees a bare "setup Email Account" popup
+        # on every check-in, even though the gate event itself saved fine.
+        #
+        # Restore the snapshot rather than calling frappe.clear_messages():
+        # a blanket clear also wiped messages queued EARLIER in the same save,
+        # and on this doctype the earlier message is the blacklist warning
+        # raised at the top of before_save. On any site without an outgoing
+        # Email Account — which includes every fresh install — that meant a
+        # guard was silently never shown "this visitor matches a blacklist
+        # entry, verify their ID", because the host-email failure wiped it a
+        # moment later. Proven: a weak blacklist match produced 0 client
+        # messages at check-in before this change.
+        frappe.local.message_log = list(messages_before or [])
 
 
 class SecurityLog(Document):
@@ -176,6 +191,39 @@ class SecurityLog(Document):
                         indicator='orange',
                     )
                 frappe.log_error(detail, f'VMS Blacklist match at gate: {vp.name}')
+            else:
+                # A single weak identifier — name alone or mobile alone — is not
+                # enough to bar someone (thousands share a name; mobile numbers get
+                # reassigned), so find_active_match deliberately does not return it.
+                # But it must not vanish either: an entry blacklisted by name only
+                # would otherwise never fire anywhere, and the security team that
+                # created it would believe that person is barred. The gate is where
+                # they physically turn up, so surface it here as a non-blocking
+                # prompt and let the officer verify the ID and decide.
+                # Same warning the host sees at pass creation
+                # (visitor_pass.py::_warn_weak_blacklist_match) — kept in step so a
+                # guard and a host are never told two different things.
+                weak = VisitorBlacklist.find_weak_match(
+                    visitor_name=vp.visitor_full_name,
+                    mobile_number=vp.mobile_number,
+                )
+                if weak:
+                    bl = frappe.get_doc('Visitor Blacklist', weak['name'])
+                    frappe.msgprint(
+                        msg=(
+                            f"This visitor's {weak['matched_on']} matches an active blacklist "
+                            f"entry ({bl.name}, reason: {bl.reason or 'Not specified'}), but not "
+                            "strongly enough to block automatically.\n"
+                            "Verify their ID against the blacklist entry before allowing entry."
+                        ),
+                        title='Possible Blacklist Match — Verify ID',
+                        indicator='orange',
+                    )
+                    frappe.log_error(
+                        f"Weak blacklist match at gate on {weak['matched_on']}: "
+                        f"{vp.name} vs {bl.name}",
+                        'VMS Blacklist weak match at gate',
+                    )
 
         # 1. Auto-fetch visitor info and ID details
         if vp:
@@ -206,6 +254,21 @@ class SecurityLog(Document):
             self.gate_name = _get_default_gate(vp.visitor_type)
             self.gate_auto_assigned = 1
 
+        # The gate_name link query already hides inactive gates from the picker, but
+        # that is a client-side convenience, not enforcement — a stale form or a
+        # direct API call can still submit one. Checked only on creation: a later
+        # save correcting an unrelated field on an old, already-recorded log must not
+        # start failing just because someone deactivated its gate afterwards.
+        if (
+            self.is_new()
+            and self.gate_name
+            and not frappe.db.get_value("Visitor Gate", self.gate_name, "is_active")
+        ):
+            frappe.throw(
+                _("Gate {0} is not active and cannot be used for a gate event.").format(self.gate_name),
+                title=_("Inactive Gate"),
+            )
+
         # 3. Auto-stamp datetime and validate status sequence
         now = now_datetime()
         if not self.verification_started_on:
@@ -224,29 +287,53 @@ class SecurityLog(Document):
                     frappe.throw(
                         f"Visitor {self.visitor_name or vp.visitor_full_name} is already Checked-In."
                     )
-                if current_status == 'Checked-Out':
+                # A multi-day Contractor pass (visit_date .. pass_valid_until) is
+                # meant to be checked in and out on each of several days — "Checked-Out"
+                # only permanently retires a *single-day* pass. Without this carve-out
+                # the visitor is refused re-entry on day 2 even though the pass is
+                # still inside its declared window. Same window rule as
+                # hospitality_request.py's `valid_until = vp.get("pass_valid_until")
+                # or visit_date`, applied here to gate re-entry instead of hotel dates.
+                effective_checkin_date = getdate(self.check_in_date_time) if self.check_in_date_time else getdate(now)
+                multi_day_reentry_open = bool(
+                    vp.multi_day_pass
+                    and vp.pass_valid_until
+                    and effective_checkin_date <= getdate(vp.pass_valid_until)
+                )
+                if current_status == 'Checked-Out' and not multi_day_reentry_open:
                     frappe.throw(
                         f"Visitor {self.visitor_name or vp.visitor_full_name} has already Checked-Out "
                         "and the pass is now inactive."
                     )
-                if current_status not in {'Approved', 'Items Verified'}:
+                if current_status not in {'Approved', 'Items Verified', 'Checked-Out'}:
                     frappe.throw(
                         f"Visitor {self.visitor_name or vp.visitor_full_name} must be approved before check-in. (Current Status: {current_status})"
                     )
-                
+
                 if not self.check_in_date_time:
                     self.check_in_date_time = now
 
-                # Validate check-in is within reasonable window of expected visit
+                # Validate check-in is within reasonable window of expected visit.
+                # Single-day passes keep the original strict rule (checkin_date must
+                # equal visit_date exactly). Multi-day passes accept any date from
+                # visit_date through pass_valid_until inclusive — "cannot check in
+                # early" still applies to both; only the late side of the window
+                # differs.
                 if vp.visit_date and self.check_in_date_time:
-                    from frappe.utils import getdate, get_datetime as _get_dt
                     checkin_date = getdate(self.check_in_date_time)
                     expected_date = getdate(vp.visit_date)
                     if checkin_date < expected_date:
                         frappe.throw(
                             f"Check-in date ({checkin_date}) is before the scheduled visit date ({expected_date}). Cannot check in early."
                         )
-                    if checkin_date > expected_date:
+                    if vp.multi_day_pass and vp.pass_valid_until:
+                        window_end = getdate(vp.pass_valid_until)
+                        if checkin_date > window_end:
+                            frappe.throw(
+                                f"Check-in date ({checkin_date}) is after this multi-day pass's validity "
+                                f"window, which ends {window_end}."
+                            )
+                    elif checkin_date > expected_date:
                         frappe.throw(
                             f"Check-in date ({checkin_date}) is after the scheduled visit date ({expected_date}). Pass is no longer valid for this date."
                         )
@@ -576,6 +663,18 @@ class SecurityLog(Document):
 
         after = frappe.get_doc('Visitor Pass', self.visitor_pass)
         after._doc_before_save = before
+
+        # A failed Notification does not always raise up to us: core's
+        # Notification.send_notification_by_channel() already catches its own
+        # sendmail failure and logs it without re-raising — but frappe.sendmail
+        # queues its "setup Email Account" message for the client via
+        # frappe.throw() *before* raising, so the message survives even though
+        # the exception never does. Snapshot the queue first and restore it
+        # after, rather than a blanket frappe.clear_messages(): this trims only
+        # what run_notifications added, so an earlier, legitimate alert in the
+        # same save (e.g. _sync_item_verification's "badge issued" message)
+        # still reaches the officer.
+        messages_before_alert = list(frappe.message_log)
         try:
             after.run_notifications('on_change')
         except Exception:
@@ -583,13 +682,18 @@ class SecurityLog(Document):
                 title=f'Visitor Pass alert failed after {self.event_type}',
                 message=frappe.get_traceback(with_context=True),
             )
+        finally:
+            frappe.local.message_log = messages_before_alert
 
     def _notify_host_arrival(self):
         if self.event_type != 'Check-In' or not self.visitor_pass:
             return
 
         visitor_pass = frappe.get_doc('Visitor Pass', self.visitor_pass)
-        _send_host_checkin_email(visitor_pass, self)
+        # Snapshot taken HERE, not inside the helper, so anything already queued
+        # for the officer this save — above all the blacklist warning — is what
+        # gets restored if the mail fails.
+        _send_host_checkin_email(visitor_pass, self, messages_before=list(frappe.message_log))
 
     def _record_lifecycle_event(self):
         if not self.visitor_pass:

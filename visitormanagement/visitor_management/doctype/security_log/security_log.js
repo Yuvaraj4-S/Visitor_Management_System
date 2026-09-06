@@ -12,6 +12,13 @@ frappe.ui.form.on("Security Log", {
 			// Security staff may only log on their own behalf.
 			return { filters: { user_id: frappe.session.user, status: "Active" } };
 		});
+
+		// A deactivated gate has no business being offered at the gate — the
+		// server also rejects one on save (security_log.py before_save), since
+		// this filter is only a picker convenience, not enforcement.
+		frm.set_query("gate_name", () => {
+			return { filters: { is_active: 1 } };
+		});
 	},
 
 	onload(frm) {
@@ -307,6 +314,8 @@ frappe.ui.form.on("Security Log", {
 				"mdceo_notified",
 				"conference_room",
 				"protocol_notes",
+				"multi_day_pass",
+				"pass_valid_until",
 			],
 			(r) => {
 				if (!r) {
@@ -354,13 +363,27 @@ frappe.ui.form.on("Security Log", {
 					} else if (r.status === "Checked-In") {
 						event_type = "Check-Out";
 					} else if (r.status === "Checked-Out") {
-						frappe.msgprint({
-							title: __("Already Scanned"),
-							message: __("Visitor has already checked out and the pass is inactive."),
-							indicator: "orange",
-						});
-						frm.set_value("visitor_pass", "");
-						return;
+						// A multi-day Contractor pass (visit_date .. pass_valid_until) is meant
+						// to be checked in and out on each of several days — "Checked-Out" only
+						// permanently retires it once that window has passed. Without this
+						// carve-out this dialog fired on every re-entry and cleared
+						// visitor_pass, stranding the officer even though the server
+						// (security_log.py before_save) would have accepted the check-in.
+						// Same window rule as the server side.
+						const today = frappe.datetime.get_today();
+						const multi_day_reentry_open =
+							r.multi_day_pass && r.pass_valid_until && today <= r.pass_valid_until;
+						if (multi_day_reentry_open) {
+							event_type = "Check-In";
+						} else {
+							frappe.msgprint({
+								title: __("Already Scanned"),
+								message: __("Visitor has already checked out and the pass is inactive."),
+								indicator: "orange",
+							});
+							frm.set_value("visitor_pass", "");
+							return;
+						}
 					} else {
 						frappe.msgprint({
 							title: __("Invalid Status"),

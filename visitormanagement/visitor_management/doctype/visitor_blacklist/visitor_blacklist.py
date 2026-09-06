@@ -64,16 +64,40 @@ class VisitorBlacklist(Document):
 	):
 		"""Name of an active blacklist entry matching this person, or None.
 
-		Matching is deliberately about the *person*, not the paperwork they
-		happen to present. An exact-string comparison let a barred visitor walk
-		back in by changing something cosmetic — presenting a Passport instead of
-		the PAN they were barred on, or typing their ID with a leading space or
-		their name with a double space, all of which still pass format
-		validation. So the ID is compared in a normalised form, the name fallback
-		no longer requires the document type to match, and the mobile number is
-		accepted as a third key.
+		THREAT MODEL — why a single weak field is never enough to block someone:
+		A government ID number is a strong, near-unique identifier, so an exact
+		match on it (normalised for case/spacing/separator evasion) is trusted
+		on its own. Visitor name and mobile number are NOT strong on their own —
+		this app runs in a country where thousands of people share a name, and
+		phone numbers get reassigned, shared within a family, or mistyped. The
+		previous version OR'd three independent checks together, so a barred
+		person's namesake — a different person, different phone, different ID —
+		was refused entry with no way for the receptionist to see it was a false
+		match (reported live: "Ravi Kumar" / a different PAN / a different
+		mobile got blocked by an entry for a different "Ravi Kumar"). Phone-only
+		matching had the identical problem.
+
+		So a weak identifier only ever blocks *here* when corroborated by a
+		second one: name AND mobile must both agree with the same blacklist row
+		before that counts as a match strong enough to stop the pass outright.
+		Name-alone and mobile-alone no longer match anything in this method —
+		but they are not simply dropped. A name-blacklisted person is real data
+		an operator entered on purpose (the DocType accepts "Visitor Name + ID
+		Proof Type" with no ID number and no mobile), and silently never acting
+		on it again is worse than the over-blocking this replaced: over-blocking
+		is visible and annoying, a match that vanishes is invisible and
+		dangerous. `find_weak_match()` below is the companion for exactly that
+		case — callers that want to warn a human instead of silently doing
+		nothing should call it whenever this method returns None.
+
+		Case/spacing evasion of a *genuine* match is still caught: the ID
+		comparison strips separators and case as before, and the name half of
+		the corroborated pair still collapses whitespace/case the same way.
 
 		Used by Visitor Pass submit, Security Log check-in, and the gate API.
+		Signature and return type are unchanged on purpose — those three
+		callers keep hard-blocking on exactly what this returns, with no edits
+		needed on their side.
 		"""
 		if id_proof_number:
 			rows = frappe.db.sql(
@@ -89,9 +113,67 @@ class VisitorBlacklist(Document):
 			if rows:
 				return rows[0][0]
 
+		# Corroborated weak match: name AND mobile must both match the SAME
+		# row. Either one alone is dropped silently on purpose — see the
+		# threat-model note above.
+		if visitor_name and mobile_number:
+			tail = _mobile_match_tail(mobile_number)
+			if tail:
+				# Compare mobile on the trailing `len(tail)` digits (the
+				# country-appropriate subscriber-number length, not a
+				# hardcoded 10) so a stored local number still matches the
+				# same person arriving with a country code. Collapse runs of
+				# whitespace on both sides of the name so "Banned  Person"
+				# still matches an entry stored as "Banned Person".
+				rows = frappe.db.sql(
+					"""
+					SELECT name FROM `tabVisitor Blacklist`
+					WHERE is_active = 1
+					  AND LOWER(TRIM(REGEXP_REPLACE(visitor_name, '[[:space:]]+', ' ')))
+					      = %(name)s
+					  AND IFNULL(mobile_number, '') != ''
+					  AND RIGHT(REGEXP_REPLACE(mobile_number, '[^0-9]', ''), %(len)s) = %(tail)s
+					LIMIT 1
+					""",
+					{"name": _normalise_name(visitor_name), "tail": tail, "len": len(tail)},
+				)
+				if rows:
+					return rows[0][0]
+
+		return None
+
+	@staticmethod
+	def find_weak_match(visitor_name=None, mobile_number=None):
+		"""A SINGLE weak identifier hit — name alone or mobile alone — that
+		`find_active_match()` deliberately does not block on, as
+		``{"name": <Visitor Blacklist name>, "matched_on": "name" | "mobile"}``,
+		or None if neither matches.
+
+		This is the other half of the fix in `find_active_match()`: a hit here
+		must not hard-block (an unrelated namesake would be turned away with no
+		way to tell it was a false match) but it must not disappear either (a
+		security team that blacklisted someone by name believes that entry is
+		live, and it would otherwise never fire again). Intended use is a
+		visible, non-blocking warning — "this name/mobile matches an active
+		blacklist entry, verify their ID" — that lets a human at the desk
+		decide, instead of a hard `frappe.throw` and instead of silence.
+
+		Deliberately a SEPARATE method rather than a change to
+		`find_active_match()`'s return shape: that method's three existing
+		callers (Visitor Pass, Security Log, the gate API) all treat any
+		truthy return as "block", so folding a "weak, needs review" outcome
+		into the same return value would either weaken their hard block or
+		require editing all three call sites. Only Visitor Pass currently calls
+		this one (see `_warn_weak_blacklist_match` in visitor_pass.py); Security
+		Log's check-in and the gate API do not yet surface this warning — see
+		FINDINGS.md for what that follow-up would look like.
+
+		Checks name first, then mobile, and returns on the first hit — a
+		caller that needs to know about a match on *both* identifiers
+		independently is not the caller this exists for; find_active_match()
+		already covers "both agree" as a strong, blocking match.
+		"""
 		if visitor_name:
-			# Collapse runs of whitespace on both sides so "Banned  Person"
-			# cannot slip past an entry stored as "Banned Person".
 			rows = frappe.db.sql(
 				"""
 				SELECT name FROM `tabVisitor Blacklist`
@@ -103,14 +185,11 @@ class VisitorBlacklist(Document):
 				{"name": _normalise_name(visitor_name)},
 			)
 			if rows:
-				return rows[0][0]
+				return {"name": rows[0][0], "matched_on": "name"}
 
 		if mobile_number:
 			tail = _mobile_match_tail(mobile_number)
 			if tail:
-				# Compare on the trailing `len(tail)` digits (the country-appropriate
-				# subscriber-number length, not a hardcoded 10) so a stored local
-				# number still matches the same person arriving with a country code.
 				rows = frappe.db.sql(
 					"""
 					SELECT name FROM `tabVisitor Blacklist`
@@ -122,7 +201,7 @@ class VisitorBlacklist(Document):
 					{"tail": tail, "len": len(tail)},
 				)
 				if rows:
-					return rows[0][0]
+					return {"name": rows[0][0], "matched_on": "mobile"}
 
 		return None
 

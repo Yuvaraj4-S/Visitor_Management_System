@@ -37,6 +37,10 @@
   "security_alert_roles",
   "column_break_notify",
   "digest_recipient_roles",
+  "section_retention",
+  "data_retention_enabled",
+  "column_break_retention",
+  "data_retention_days",
   "section_branding",
   "portal_brand_colour",
   "portal_logo",
@@ -242,6 +246,31 @@
    "description": "Receive the daily hospitality schedule digest."
   },
   {
+   "fieldname": "section_retention",
+   "fieldtype": "Section Break",
+   "label": "Data Retention & Purge",
+   "description": "DPDP / GDPR-style data minimisation for visitor identity data. OFF by default — nothing is ever deleted or anonymised unless this is explicitly turned on."
+  },
+  {
+   "default": "0",
+   "fieldname": "data_retention_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Data Retention Purge",
+   "description": "When ticked, a nightly job anonymises name, mobile, email, ID number and photos on visits that are already over (Checked-Out, Rejected, Cancelled or No-Show) and older than the retention period. The visit record itself — dates, host, gate, badge, workflow history — is kept for audit and statistics. Leave this OFF until your compliance/legal function has confirmed a retention period: this app never purges anything on its own."
+  },
+  {
+   "fieldname": "column_break_retention",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "365",
+   "depends_on": "eval:doc.data_retention_enabled",
+   "fieldname": "data_retention_days",
+   "fieldtype": "Int",
+   "label": "Retention Period (days)",
+   "description": "How long, after a visit is over, its identity data is kept before being anonymised. Only takes effect once Enable Data Retention Purge is ticked."
+  },
+  {
    "fieldname": "section_branding",
    "fieldtype": "Section Break",
    "label": "Portal Branding",
@@ -281,7 +310,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-17 14:00:00.000000",
+ "modified": "2026-09-05 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS Settings",

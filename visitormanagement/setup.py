@@ -48,6 +48,10 @@ EMPLOYEE_READERS = [
 	"HOD", "HR Manager", "Sales Manager", "CEO",
 ]
 
+# Roles that fill the cab-vendor / hotel-name Links on Hospitality Request and so
+# need to be able to SELECT an existing Supplier. Read only — see _ensure_permissions.
+SUPPLIER_READERS = ["Hospitality Manager", "Hospitality User", "Facility Manager"]
+
 # Link widgets on Conference Room Booking / Hospitality Request show the
 # visitor's title, so these roles need read on Visitor Pass.
 VISITOR_PASS_READERS = ["Facility Manager", "Hospitality Manager"]
@@ -181,6 +185,11 @@ POLICY_DEFAULTS = {
 	"home_country": "India",
 	"fever_threshold_c": 37.5,
 	"max_portal_submissions_per_hour": 20,
+	# Only the number, not the switch: `data_retention_enabled` defaults to 0 in
+	# the DocType JSON itself and stays there — this only fills in a sane period
+	# for whenever an administrator turns the purge on, exactly like every other
+	# value in this dict never flips a boolean gate on its own.
+	"data_retention_days": 365,
 }
 
 # Each of these duplicates an email the app already sends from code — the code
@@ -197,6 +206,19 @@ DISABLED_NOTIFICATIONS = ["VMS Host Alert", "VMS Food Dept Alert", "VMS Approval
 # rather than a field on VMS Settings because it is a fact about the install,
 # not a setting anyone should see or edit. See `_allow_portal_uploads`.
 _PORTAL_UPLOADS_MARKER = "vms_portal_uploads_configured"
+
+# A DIFFERENT fact from the one above, and the one uninstall.py actually needs.
+# `_PORTAL_UPLOADS_MARKER` only means "setup has considered this setting" — it
+# is set whether setup found the flag already on or switched it on itself, so
+# it cannot answer "did THIS app turn it on" (a site could have had it on
+# already, for another app's reason, or an administrator's own). This marker
+# is set in the one branch where setup actually performed the flip, which is
+# the only case `uninstall.before_uninstall` may safely undo. A site that
+# already had the old marker from a version before this one existed has no
+# self-enabled marker to find — uninstall correctly treats that as "cannot
+# prove it was us" and leaves the setting alone, per the same conservative
+# rule (see uninstall.py).
+_PORTAL_UPLOADS_SELF_ENABLED_MARKER = "vms_portal_uploads_self_enabled"
 
 # Same one-time-say pattern as `_PORTAL_UPLOADS_MARKER`, for the historical
 # blacklist backfill. See `_activate_blacklist_entries`.
@@ -365,6 +387,7 @@ def setup_visitor_management():
 	_backfill_mobile_digits()
 	_repair_pending_status_drift()
 	_activate_blacklist_entries()
+	_harden_invitation_token_collation()
 	_seed_static_workflows()
 	_build_workflow()
 	# After the Visitor Types are seeded and the workflow is generated, so the
@@ -438,6 +461,16 @@ def _revoke(doctype, role, ptypes):
 def _ensure_permissions():
 	for role in EMPLOYEE_READERS:
 		_grant("Employee", role)
+	# Hospitality Request's `cab_vendor` and `hotel_name` are Links to Supplier,
+	# and the Hospitality Manager who fills that screen had no permission on
+	# Supplier at all. The field accepted the typed value on screen and the save
+	# reported success, but the server stripped both Links and stored NULL — so a
+	# coordinator could never actually record which vendor was supplying the cab
+	# or which hotel was booked, and nothing told them it had failed. Read only:
+	# they need to pick an existing supplier, never to create, edit or export the
+	# customer's supplier master.
+	for role in SUPPLIER_READERS:
+		_grant("Supplier", role)
 	for role in HOSPITALITY_CANCELLERS:
 		_grant("Hospitality Request", role, "cancel")
 		_grant("Hospitality Request", role, "amend")
@@ -887,6 +920,7 @@ def _allow_portal_uploads():
 
 	if not already_enabled:
 		frappe.db.set_single_value("System Settings", "allow_guests_to_upload_files", 1)
+		frappe.db.set_default(_PORTAL_UPLOADS_SELF_ENABLED_MARKER, "1")
 		print("  enabled allow_guests_to_upload_files (required by the visitor portal)")
 
 	# Recorded whether or not we changed anything: the point of the marker is
@@ -1109,6 +1143,65 @@ def _activate_blacklist_entries():
 	if dormant:
 		print(f"  activated {len(dormant)} dormant blacklist entries (one-time historical backfill)")
 	frappe.db.set_default(_BLACKLIST_BACKFILL_MARKER, "1")
+
+
+def _harden_invitation_token_collation():
+	"""Make `invitation_token` compare byte-for-byte, not case-insensitively.
+
+	The column is a plain Data field, so it inherits the table's default
+	collation — `utf8mb4_unicode_ci` on every site this app has ever created —
+	and MariaDB's `_ci` collations fold case for comparison. Confirmed live: a
+	lookup for a token with its case flipped returned the same Visitor
+	Invitation. `invitation_token` is a bearer credential (whoever holds the
+	string opens the visitor's pre-registration form), so a case-scrambled copy
+	of it should not work; folding case only throws away entropy the token was
+	minted with (`secrets.token_urlsafe(24)` in visitor_invitation.py), it never
+	adds anything a legitimate holder needs.
+
+	`utf8mb4_bin` is MariaDB's byte-comparison collation — the standard fix for
+	"this column must be case-sensitive" here, short of making the whole table
+	binary. Safe to run on every migrate: it only ALTERs when the stored
+	collation is not already `utf8mb4_bin`, and safe against existing data by
+	construction — a column that has been comparing case-insensitively the
+	whole time cannot already contain two tokens that differ only by case, so
+	tightening the comparison can never collide with what's on disk. The
+	column's nullability, default and length are carried through unchanged;
+	only the comparison rules change. The existing unique index is unaffected —
+	MODIFY COLUMN does not touch it, and NULL keeps comparing as distinct from
+	NULL either way.
+	"""
+	if not frappe.db.table_exists("Visitor Invitation"):
+		return
+	if not frappe.db.has_column("Visitor Invitation", "invitation_token"):
+		return
+
+	current = frappe.db.sql(
+		"""
+		select COLLATION_NAME
+		from information_schema.COLUMNS
+		where TABLE_SCHEMA = database()
+		  and TABLE_NAME = 'tabVisitor Invitation'
+		  and COLUMN_NAME = 'invitation_token'
+		"""
+	)
+	if not current or (current[0][0] or "").lower() == "utf8mb4_bin":
+		return
+
+	# ALTER is DDL, and MariaDB implicitly commits around DDL — Frappe's own
+	# `check_implicit_commit` refuses to run it while writes from earlier in this
+	# same migrate are still pending, exactly to stop that implicit commit from
+	# landing silently in the middle of an unrelated transaction. `add_index`
+	# (used above in `_add_performance_indexes`) hits the same rule and clears it
+	# the same way: commit first, so the ALTER starts its own transaction instead
+	# of hijacking whatever was still open.
+	frappe.db.commit()
+	frappe.db.sql(
+		"""
+		alter table `tabVisitor Invitation`
+		modify `invitation_token` varchar(140) collate utf8mb4_bin default null
+		"""  # nosemgrep: frappe-sql-format-injection - no user input, fixed DDL
+	)
+	print("  hardened invitation_token to a case-sensitive collation (utf8mb4_bin)")
 
 
 def _seed_static_workflows():

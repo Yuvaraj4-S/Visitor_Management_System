@@ -8,7 +8,13 @@ app_icon = "octicon octicon-organization"
 app_color = "#1A56DB"
 app_logo_url = "/assets/visitormanagement/images/logo.png"
 source_link = "https://github.com/Yuvaraj4-S/Visitor_Management_System"
-documentation = "https://github.com/Yuvaraj4-S/Visitor_Management_System/blob/main/docs/README.pdf"
+# Points at README.md, not docs/README.pdf: that PDF was generated in May 2026 before
+# the v15 -> v16 port and still tells the reader this app needs Frappe/ERPNext/HRMS v15,
+# Python 3.10 and MariaDB 10.6. A customer following it fails at `bench install-app`,
+# because pyproject pins >=16.0.0,<17.0.0 and requires-python >=3.14. README.md is kept
+# current and is the authoritative install reference; regenerate the PDF from it before
+# pointing this back at a PDF.
+documentation = "https://github.com/Yuvaraj4-S/Visitor_Management_System/blob/version-16/README.md"
 
 # Apps
 # ------------------
@@ -104,7 +110,14 @@ after_install = "visitormanagement.setup.after_install"
 # Uninstallation
 # ------------
 
-# before_uninstall = "visitormanagement.uninstall.before_uninstall"
+# Installing this app switches ON the site-wide System Setting
+# `allow_guests_to_upload_files`, because the guest pre-registration form has
+# mandatory ID-scan and photo fields and Frappe refuses guest uploads without it.
+# Leaving that on after the app is gone would quietly hand a site a permission it
+# never asked for, so uninstall puts it back — but only when THIS install is the
+# thing that turned it on (setup.py records that in its own marker). A site that
+# already had it enabled for another app is left alone.
+before_uninstall = "visitormanagement.uninstall.before_uninstall"
 # after_uninstall = "visitormanagement.uninstall.after_uninstall"
 
 # Integration Setup
@@ -144,12 +157,20 @@ permission_query_conditions = {
 	"Visitor Pass": "visitormanagement.permissions.get_visitor_pass_permission_query_conditions",
 	"Visitor Invitation": "visitormanagement.permissions.get_visitor_invitation_permission_query_conditions",
 	"Hospitality Request": "visitormanagement.permissions.get_hospitality_request_permission_query_conditions",
+	# Bookings were readable company-wide by every Employee — meeting_title included,
+	# so "Board interview — CFO candidate" was visible to anyone. Scoped to the owner,
+	# the booked_by employee, and Facility/System Manager. NOTE: this does NOT cover
+	# `conference_room_booking.get_booking_events` (the calendar feed), which does a
+	# doc-less `frappe.has_permission` check that never reaches the hook below and
+	# then returns every booking via raw SQL. See permissions.py for details.
+	"Conference Room Booking": "visitormanagement.permissions.get_conference_room_booking_permission_query_conditions",
 }
 
 has_permission = {
 	"Visitor Pass": "visitormanagement.permissions.has_visitor_pass_permission",
 	"Visitor Invitation": "visitormanagement.permissions.has_visitor_invitation_permission",
 	"Hospitality Request": "visitormanagement.permissions.has_hospitality_request_permission",
+	"Conference Room Booking": "visitormanagement.permissions.has_conference_room_booking_permission",
 }
 
 # DocType Class
@@ -191,7 +212,15 @@ scheduler_events = {
 	"cron": {
 		"0 7 * * *": [
 			"visitormanagement.visitor_management.tasks.send_daily_hospitality_digest"
-		]
+		],
+		# Off-peak, and independent of the digest/no-show/overstay jobs below. This is
+		# OFF in effect on every site until an administrator turns on VMS Settings ->
+		# Enable Data Retention Purge: the function re-checks that flag first and
+		# returns immediately when it is unset, so scheduling it here cannot delete
+		# anything on a site that has not explicitly opted in.
+		"0 3 * * *": [
+			"visitormanagement.visitor_management.tasks.purge_expired_visitor_data"
+		],
 	},
 	"hourly": [
 		"visitormanagement.visitor_management.tasks.flag_no_show_passes",

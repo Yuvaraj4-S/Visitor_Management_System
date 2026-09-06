@@ -553,3 +553,382 @@ def _notify_overstay(rows, max_hours):
 		# An alert that cannot be delivered must not stop the flagging that
 		# already happened, exactly as the approval mail does.
 		frappe.log_error(f"Overstay alert failed: {exc}", "VMS Overstay Alert")
+
+
+# ---------------------------------------------------------------------------
+# Data retention / purge (DPDP / GDPR)
+# ---------------------------------------------------------------------------
+# The app stores visitor names, mobiles, emails, photos and government ID
+# numbers forever unless this job is on. It is OFF by default
+# (VMS Settings.data_retention_enabled) and every read below re-checks that
+# flag — nothing here ever runs, or deletes anything, on a site that has not
+# explicitly opted in. See VMS Settings' "Data Retention & Purge" section.
+#
+# What gets anonymised: the fields that identify a natural person — name,
+# mobile, email, government ID number, vehicle number, and the ID-scan/photo
+# Files — on Visitor Pass and on the Security Log rows for the same visit.
+# What is deliberately kept: the visit record itself (dates, host, gate,
+# badge, workflow history, item verification), so "how many contractor
+# visits last quarter" and the gate's own audit trail keep working after the
+# visitor's own PAN or Aadhaar number is gone. Anonymising the row rather
+# than deleting it is what makes that possible.
+#
+# What this job never touches:
+#   - A pass/invitation still in an active state — not yet checked out,
+#     still pending approval, still checked in. Only a visit that is over
+#     (Checked-Out / Rejected / Cancelled / flagged No-Show, or an invitation
+#     that was Submitted / Expired / Cancelled) is ever a candidate, and only
+#     once it is also older than the configured retention period.
+#   - Visitor Blacklist. A blacklist entry's whole purpose is durable
+#     identification — anonymising its name/mobile/ID number would silently
+#     disable blacklist matching for that person going forward. That is a
+#     security regression dressed up as a privacy fix, so this job does not
+#     go near that doctype at all, however old an entry is.
+
+# Visitor Pass states that mean the visit is over and nothing operational
+# will read this identity data again. `no_show` is handled separately below:
+# a no-show pass never reaches any of these `status` values (flag_no_show_passes
+# sets the flag but leaves `status` at Approved/Items Verified), so it needs
+# its own branch to ever be recognised as "over".
+_TERMINAL_PASS_STATUSES = ("Checked-Out", "Rejected", "Cancelled")
+
+# The ONLY statuses flag_no_show_passes (above, in this same file) ever sets
+# no_show=1 on — its own candidate filter is
+# `status in ("Approved", "Items Verified")`. The no_show branch below must
+# reuse that same restriction rather than trusting the flag alone.
+#
+# Found the hard way: a live proof run on a shared site purged
+# VP-2026-00221 (host HR-EMP-00057) — a Visitor Pass sitting in "Pending
+# Approval" / "Pending System Manager", i.e. still actively awaiting
+# approval right now — solely because it carried a stale no_show=1 that
+# had no business surviving whatever earlier event (a Reject-then-Reapply,
+# most likely) put it back into an active lane. `no_show` is never cleared
+# on that path, so treating no_show=1 as sufficient by itself is wrong: it
+# reads a flag set under one status as still meaning "the visit is over"
+# after the status has since moved back into an active workflow lane. The
+# pass's own visitor_full_name/mobile_number/email_id/id_proof_number were
+# already anonymised on that site before this was caught; no attachment
+# files existed on that particular record, so nothing was lost on disk, but
+# the identity fields are gone unless restored from a backup. Restricting
+# the no_show branch to the same two statuses flag_no_show_passes itself
+# requires closes this for every future run — a stale no_show flag under
+# any OTHER status is now read as "we cannot be sure this visit is over",
+# which is the conservative reading the brief calls for, not "purge it".
+_NO_SHOW_ELIGIBLE_STATUSES = ("Approved", "Items Verified")
+
+_TERMINAL_INVITATION_STATUSES = ("Submitted", "Expired", "Cancelled")
+
+_PURGE_MARKER_TEXT = "[Purged — data retention]"
+
+# Used both to decide "is there still anything to purge here" (idempotency —
+# a row already purged has none of these set, so it drops out of the
+# candidate query on its own) and, unioned together, as the set of columns
+# actually cleared.
+_PASS_IDENTITY_OR_FILTERS = [
+	["visitor_full_name", "not in", ["", _PURGE_MARKER_TEXT]],
+	["mobile_number", "is", "set"],
+	["mobile_digits", "is", "set"],
+	["email_id", "is", "set"],
+	["id_proof_number", "is", "set"],
+	["vehicle_number", "is", "set"],
+	["company__organisation", "is", "set"],
+	["id_proof_scan", "is", "set"],
+	["visitor_photo", "is", "set"],
+	["gate_verified_photo", "is", "set"],
+]
+_PASS_IDENTITY_FILE_FIELDS = ("id_proof_scan", "visitor_photo", "gate_verified_photo")
+
+_SECURITY_LOG_IDENTITY_OR_FILTERS = [
+	["visitor_name", "not in", ["", _PURGE_MARKER_TEXT]],
+	["visitor_company", "is", "set"],
+	["mobile_number", "is", "set"],
+	["id_proof_number", "is", "set"],
+	["vehicle_number", "is", "set"],
+	["id_proof_scan", "is", "set"],
+	["visitor_photo", "is", "set"],
+	["photo_at_gate", "is", "set"],
+]
+_SECURITY_LOG_IDENTITY_FILE_FIELDS = ("id_proof_scan", "visitor_photo", "photo_at_gate")
+
+_INVITATION_IDENTITY_OR_FILTERS = [
+	["visitor_full_name", "not in", ["", _PURGE_MARKER_TEXT]],
+	["visitor_mobile", "is", "set"],
+	["visitor_email", "is", "set"],
+	["invitation_token", "is", "set"],
+]
+
+
+def _delete_file(file_url):
+	"""Delete the File row a purged field pointed at, bytes on disk included.
+
+	Clearing the field is not clearing the document: the image stays in the
+	files directory until the File row itself is deleted.
+	`frappe.delete_doc("File", ...)` runs `File.on_trash`, which removes the
+	bytes from disk as part of the same call — so this is the one operation
+	that actually gets rid of the photo, not just the pointer to it.
+	"""
+	if not file_url:
+		return
+	name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+	if not name:
+		return
+	try:
+		frappe.delete_doc("File", name, ignore_permissions=True, force=True, delete_permanently=True)
+	except Exception as exc:
+		# A File that cannot be deleted (e.g. already gone from disk) must not
+		# abort the rest of the batch — the field is about to be cleared either
+		# way, and the next run's candidate query will pick the row up again if
+		# the field clear itself is what failed.
+		frappe.log_error(
+			f"Data retention: could not delete File {name} ({file_url}): {exc}", "VMS Data Retention"
+		)
+
+
+def _retention_cutoff():
+	"""Return the settings snapshot and the date on/before which a visit counts
+	as old enough to purge, or (None, None) if retention is off or misconfigured."""
+	settings = frappe.get_cached_doc("VMS Settings")
+	if not cint(settings.get("data_retention_enabled")):
+		return None, None
+
+	retention_days = cint(settings.get("data_retention_days"))
+	if retention_days < 1:
+		# A blank/zero period must never be read as "purge everything
+		# immediately" — VMSSettings._validate_policy_numbers already blocks
+		# entering 0 through the form, but a value written by some other means
+		# (an import, a direct db_set) gets the same floor enforced here.
+		frappe.log_error(
+			"VMS Settings: Enable Data Retention Purge is on but Retention Period "
+			"(days) is not a positive number. No records were purged this run.",
+			"VMS Data Retention",
+		)
+		return None, None
+
+	return retention_days, add_to_date(getdate(nowdate()), days=-retention_days)
+
+
+def purge_expired_visitor_data():
+	"""Anonymise identity data on visits old enough that the retention policy
+	no longer needs it. See the module docstring above for what is and is not
+	touched.
+
+	Runs as three independent passes — Visitor Pass, Security Log, Visitor
+	Invitation — each re-deriving its own eligible rows from the database
+	rather than working off names collected by another pass. A Security Log
+	row is only ever purged because its own linked Visitor Pass is currently
+	terminal and old enough, checked fresh every run; it does not depend on
+	that pass having been purged in this same run. That makes each pass
+	self-healing on its own across runs — a partial failure, an odd
+	ordering, or a Security Log row created after its pass was already
+	purged all get picked up on the next run, rather than silently never
+	being revisited because whatever list they would have ridden along with
+	has since gone empty.
+
+	Batched (`_CHUNK_SIZE`, the same constant the no-show/overstay jobs use)
+	and idempotent: every candidate query filters on identity fields still
+	being set, so a row already purged has nothing left to match and drops
+	out of the very next run's candidates.
+	"""
+	retention_days, cutoff = _retention_cutoff()
+	if not cutoff:
+		return 0
+
+	purged_passes = _purge_expired_visitor_passes(cutoff, retention_days)
+	purged_logs = _purge_expired_security_logs(cutoff, retention_days)
+	purged_invitations = _purge_expired_invitations(cutoff, retention_days)
+
+	total = purged_passes + purged_logs + purged_invitations
+	if total:
+		print(
+			f"  data retention: anonymised {purged_passes} visitor pass(es), "
+			f"{purged_logs} security log(s), {purged_invitations} invitation(s) "
+			f"— visits over {retention_days}+ days ago (cutoff {cutoff})"
+		)
+	return total
+
+
+def _purge_expired_visitor_passes(cutoff, retention_days):
+	names = set()
+	names.update(
+		frappe.get_all(
+			"Visitor Pass",
+			filters={"visit_date": ("<=", cutoff), "status": ("in", _TERMINAL_PASS_STATUSES)},
+			or_filters=_PASS_IDENTITY_OR_FILTERS,
+			pluck="name",
+			order_by=None,
+		)
+	)
+	names.update(
+		frappe.get_all(
+			"Visitor Pass",
+			filters={
+				"visit_date": ("<=", cutoff),
+				"no_show": 1,
+				"status": ("in", _NO_SHOW_ELIGIBLE_STATUSES),
+			},
+			or_filters=_PASS_IDENTITY_OR_FILTERS,
+			pluck="name",
+			order_by=None,
+		)
+	)
+	if not names:
+		return 0
+
+	names = sorted(names)
+	user = frappe.session.user
+	now_ts = now_datetime()
+	purged = 0
+
+	for chunk in _chunked(names):
+		rows = frappe.get_all(
+			"Visitor Pass",
+			filters={"name": ("in", chunk)},
+			fields=["name", *_PASS_IDENTITY_FILE_FIELDS],
+		)
+		for row in rows:
+			for fieldname in _PASS_IDENTITY_FILE_FIELDS:
+				_delete_file(row.get(fieldname))
+
+		placeholders = ", ".join(["%s"] * len(chunk))
+		frappe.db.sql(
+			f"""
+			update `tabVisitor Pass`
+			set visitor_full_name = %s, mobile_number = NULL, mobile_digits = NULL,
+			    email_id = NULL, id_proof_number = NULL, vehicle_number = NULL,
+			    company__organisation = NULL,
+			    id_proof_scan = NULL, visitor_photo = NULL, gate_verified_photo = NULL
+			where name in ({placeholders})
+			""",  # nosemgrep: frappe-sql-format-injection - placeholders only
+			[_PURGE_MARKER_TEXT, *chunk],
+		)
+		for name in chunk:
+			frappe.clear_document_cache("Visitor Pass", name)
+
+		insert_rows = [
+			{
+				"creation": now_ts,
+				"modified": now_ts,
+				"modified_by": user,
+				"owner": user,
+				"docstatus": 0,
+				"idx": 0,
+				"visitor_pass": name,
+				"event_type": "Data Retention Purge",
+				"event_status": "Auto-purged",
+				"event_time": now_ts,
+				"source_doctype": "VMS Settings",
+				"source_name": "VMS Settings",
+				"details": _format_event_details(
+					{"retention_days": retention_days, "cutoff_date": str(cutoff)}
+				),
+			}
+			for name in chunk
+		]
+		_bulk_write_event_logs(insert_rows)
+		purged += len(chunk)
+
+	return purged
+
+
+def _purge_expired_security_logs(cutoff, retention_days):
+	"""Purge Security Log rows whose OWN linked Visitor Pass is currently
+	terminal and old enough — re-checked against the database every run,
+	never inherited from `_purge_expired_visitor_passes`'s result. See the
+	module-level docstring on why that independence matters."""
+	# The IN-list is spelled out as its own placeholders rather than handed to
+	# the driver as a single tuple parameter — pymysql's tuple-to-IN-list
+	# expansion is not something this codebase relies on anywhere else, so this
+	# does not either.
+	status_placeholders = ", ".join(["%s"] * len(_TERMINAL_PASS_STATUSES))
+	rows = frappe.db.sql(
+		f"""
+		select sl.name, sl.id_proof_scan, sl.visitor_photo, sl.photo_at_gate
+		from `tabSecurity Log` sl
+		inner join `tabVisitor Pass` vp on vp.name = sl.visitor_pass
+		where vp.visit_date <= %s
+		  and (vp.status in ({status_placeholders}) or vp.no_show = 1)
+		  and (
+		        ifnull(sl.visitor_name, '') not in ('', %s)
+		     or ifnull(sl.visitor_company, '') != ''
+		     or ifnull(sl.mobile_number, '') != ''
+		     or ifnull(sl.id_proof_number, '') != ''
+		     or ifnull(sl.vehicle_number, '') != ''
+		     or ifnull(sl.id_proof_scan, '') != ''
+		     or ifnull(sl.visitor_photo, '') != ''
+		     or ifnull(sl.photo_at_gate, '') != ''
+		  )
+		order by sl.name
+		""",  # nosemgrep: frappe-sql-format-injection - placeholders only, no user input
+		[cutoff, *_TERMINAL_PASS_STATUSES, _PURGE_MARKER_TEXT],
+		as_dict=True,
+	)
+	if not rows:
+		return 0
+
+	by_name = {r.name: r for r in rows}
+	names = sorted(by_name)
+	purged = 0
+
+	for chunk in _chunked(names):
+		for name in chunk:
+			row = by_name[name]
+			for fieldname in _SECURITY_LOG_IDENTITY_FILE_FIELDS:
+				_delete_file(row.get(fieldname))
+
+		placeholders = ", ".join(["%s"] * len(chunk))
+		frappe.db.sql(
+			f"""
+			update `tabSecurity Log`
+			set visitor_name = %s, visitor_company = NULL, mobile_number = NULL,
+			    id_proof_number = NULL, vehicle_number = NULL,
+			    id_proof_scan = NULL, visitor_photo = NULL, photo_at_gate = NULL
+			where name in ({placeholders})
+			""",  # nosemgrep: frappe-sql-format-injection - placeholders only
+			[_PURGE_MARKER_TEXT, *chunk],
+		)
+		for name in chunk:
+			frappe.clear_document_cache("Security Log", name)
+		purged += len(chunk)
+
+	return purged
+
+
+def _purge_expired_invitations(cutoff, retention_days):
+	"""Anonymise Visitor Invitation rows that reached a terminal status and
+	whose visit (or, absent one, their own creation) is old enough.
+
+	`invitation_token` is cleared here too — it is a bearer secret with no
+	further purpose once the invitation is Submitted/Expired/Cancelled
+	(`get_valid_invitation_by_token` already refuses all three statuses), so
+	there is nothing to lose and one fewer stale secret sitting in the table.
+	"""
+	candidates = frappe.get_all(
+		"Visitor Invitation",
+		filters={"invitation_status": ("in", _TERMINAL_INVITATION_STATUSES)},
+		or_filters=_INVITATION_IDENTITY_OR_FILTERS,
+		fields=["name", "visit_date", "creation"],
+		order_by=None,
+	)
+	eligible = sorted(
+		c.name for c in candidates if getdate(c.visit_date or c.creation) <= cutoff
+	)
+	if not eligible:
+		return 0
+
+	purged = 0
+	for chunk in _chunked(eligible):
+		placeholders = ", ".join(["%s"] * len(chunk))
+		frappe.db.sql(
+			f"""
+			update `tabVisitor Invitation`
+			set visitor_full_name = %s, visitor_mobile = NULL, visitor_email = NULL,
+			    invitation_token = NULL
+			where name in ({placeholders})
+			""",  # nosemgrep: frappe-sql-format-injection - placeholders only
+			[_PURGE_MARKER_TEXT, *chunk],
+		)
+		for name in chunk:
+			frappe.clear_document_cache("Visitor Invitation", name)
+		purged += len(chunk)
+
+	return purged

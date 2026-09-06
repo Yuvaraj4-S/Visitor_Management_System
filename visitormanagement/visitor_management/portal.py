@@ -6,7 +6,7 @@ import os
 import frappe
 from frappe import _
 from frappe.rate_limiter import rate_limit
-from frappe.utils import cint, now_datetime
+from frappe.utils import cint, get_datetime, now_datetime
 
 from visitormanagement.visitor_management import settings as vms_settings
 
@@ -146,19 +146,54 @@ def _claim_invitation(invitation):
 		)
 
 
+# How long a File the portal itself created may sit unattached before it stops
+# being adoptable. A real submission uploads its two files and then submits
+# within minutes; anything older is either an abandoned upload or a URL that
+# has had time to leak (a proxy log, a browser history entry, a second person
+# on a shared reception kiosk). Hardcoded rather than a VMS Settings field —
+# it is a security bound on this flow's own shape, not a policy an admin
+# should be invited to loosen, matching how portal_upload.py's own MAX_BYTES /
+# MAX_GUEST_UPLOADS_PER_HOUR are plain constants for the same reason.
+_ADOPTABLE_FILE_MAX_AGE_SECONDS = 30 * 60
+
+
 def _assert_file_is_adoptable(file_doc):
-	"""Refuse to take over a File that belongs to somebody else.
+	"""Refuse to take over a File that is not this submission's own recent upload.
 
 	The submission names its attachments by URL, and the caller is anonymous, so
-	the URL is entirely attacker-chosen. Without this check a guest could name
-	another visitor's ID scan: the file would be re-parented onto the attacker's
-	own pass — detaching it from the victim's record and making it readable to
-	whoever can read the attacker's pass — and any public asset could be flipped
-	private and stolen the same way.
+	the URL is entirely attacker-chosen. Without any check here a guest could
+	name another visitor's ID scan: the file would be re-parented onto the
+	attacker's own pass — detaching it from the victim's record and making it
+	readable to whoever can read the attacker's pass — and any public asset
+	could be flipped private and stolen the same way.
 
-	A file this flow legitimately produced is unattached (it is uploaded before
-	the pass exists) and owned by the same anonymous session that is now
-	submitting. Anything else is somebody else's.
+	`owner != frappe.session.user` used to be the second half of this check, on
+	the theory that a file this flow produced is "owned by the same anonymous
+	session that is now submitting". That theory is false: every guest request
+	shares Frappe's one literal `Guest` session
+	(frappe/sessions.py: "all guests share the same 'Guest' session") — there is
+	no anonymous identity to compare, so the comparison was always `'Guest' ==
+	'Guest'` and passed for any two unrelated anonymous uploads. It caught
+	nothing.
+
+	What is actually enforced now:
+	  - unattached (attached_to_doctype/attached_to_name unset) — unchanged,
+	    still true of every File this flow legitimately produces, since it is
+	    uploaded before the Visitor Pass it will be linked to exists;
+	  - recently created — closes the exposure that matters in practice: a
+	    stale file_url from an earlier, unrelated session (leaked through a
+	    proxy log, a browser history entry, or a second walk-in on a shared
+	    reception kiosk reusing the same tab) stops being adoptable once it is
+	    older than a normal single sitting at the form.
+	This does not, and structurally cannot from inside this endpoint, tell
+	apart two anonymous uploads that both happen within the same short window
+	on the same shared kiosk — every Guest request really is indistinguishable
+	from every other. Closing that specific case needs an identity that
+	survives from upload to submit and today there is nowhere to put one: File
+	carries no field for it, and adding one — a Custom Field on File, or a
+	client-side nonce threaded through the upload — is a change to files
+	outside this one's ownership. Flagged for whoever owns those, not silently
+	left as a false sense of security.
 	"""
 	if file_doc.attached_to_doctype or file_doc.attached_to_name:
 		frappe.throw(
@@ -166,9 +201,10 @@ def _assert_file_is_adoptable(file_doc):
 			frappe.PermissionError,
 		)
 
-	if file_doc.owner != frappe.session.user:
+	age_seconds = (now_datetime() - get_datetime(file_doc.creation)).total_seconds()
+	if age_seconds > _ADOPTABLE_FILE_MAX_AGE_SECONDS or age_seconds < 0:
 		frappe.throw(
-			"That file was not uploaded from this form. Please upload your own copy.",
+			"That upload has expired. Please upload your ID proof and photo again and submit.",
 			frappe.PermissionError,
 		)
 

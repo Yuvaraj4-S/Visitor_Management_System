@@ -7,6 +7,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, flt, get_datetime, get_time, getdate, time_diff_in_hours, today
 
+from visitormanagement.permissions import get_conference_room_booking_permission_query_conditions
+
 
 class ConferenceRoomBooking(Document):
 
@@ -267,6 +269,21 @@ def get_booking_events(start, end, filters=None):
 	# bookings would be silently undone by this one endpoint.
 	frappe.has_permission("Conference Room Booking", "read", throw=True)
 
+	# That scoping decision has now been made (hooks.py registers
+	# permission_query_conditions/has_permission for this doctype), and the
+	# doc-less check above cannot see it — it only asks "may this user read the
+	# doctype at all", never "which rows". Unscoped, this endpoint handed every
+	# employee every booking's `meeting_title` company-wide, so "Board interview
+	# — CFO candidate" was readable by anyone who opened the calendar.
+	#
+	# The fix masks rather than filters, deliberately. A calendar that hid other
+	# people's bookings would show their slots as free and invite double-booking,
+	# which is the whole job this view does. So every booking is still returned —
+	# the slot stays visibly busy — but the title collapses to "Busy" unless the
+	# viewer owns the booking, is its `booked_by` employee, or is an overseer.
+	scope = get_conference_room_booking_permission_query_conditions()
+	title_expr = "meeting_title" if scope is None else f"CASE WHEN {scope} THEN meeting_title ELSE 'Busy' END"
+
 	cond = ""
 	values = {"start": start, "end": end}
 
@@ -280,7 +297,9 @@ def get_booking_events(start, end, filters=None):
 	return frappe.db.sql(
 		"""
 		SELECT
-			name, meeting_title,
+			name, """
+		+ title_expr
+		+ """ AS meeting_title,
 			TIMESTAMP(booking_date, start_time) AS `start`,
 			TIMESTAMP(booking_date, end_time) AS `end`,
 			conference_room, meeting_type, status,

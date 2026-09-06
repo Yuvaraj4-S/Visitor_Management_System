@@ -6,6 +6,7 @@ import re
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.rate_limiter import rate_limit
 from frappe.utils import add_days, get_datetime, get_time, get_url, now_datetime, getdate, today, date_diff
 
 from visitormanagement.visitor_management import settings as vms_settings
@@ -79,6 +80,16 @@ def _format_datetime_for_web_form(value):
 
 
 @frappe.whitelist(allow_guest=True)
+# `token` is looked up directly against the database (get_valid_invitation_by_token),
+# and the caller is anonymous, so this endpoint is as much a token-guessing
+# oracle as it is a page-load helper. Its sibling guest endpoint,
+# lifecycle.get_hospitality_meal_plan, already carries @rate_limit(limit=60,
+# seconds=60*60); this one had none, which is the gap — same request shape,
+# same anonymous access, no limit on how many tokens a caller may try per
+# hour. 30/hour matches the order of magnitude of this app's other portal
+# limits (submit_pre_registration's 20, portal_upload's 30 file uploads) while
+# comfortably covering a real visitor reopening their own link a few times.
+@rate_limit(limit=30, seconds=60 * 60)
 def get_web_form_context(token):
 	invitation = get_valid_invitation_by_token(token)
 	if not invitation:

@@ -322,3 +322,79 @@ def has_hospitality_request_permission(doc, user=None, ptype=None, debug=False):
 		)
 
 	return False
+
+
+# ─────────────────────────────────────────────────────────
+# Conference Room Booking
+# ─────────────────────────────────────────────────────────
+# `Employee` holds create/read/write on Conference Room Booking doctype-wide
+# (no `if_owner`), and — unlike Visitor Pass, Visitor Invitation and
+# Hospitality Request above — no query condition or has_permission hook was
+# ever registered for it. So any member of staff could open any other
+# employee's booking: its `meeting_title`, `department`, attendee count and
+# `booked_by` are all visible with no scoping at all. This is not
+# hypothetical on this site — "Board interview — CFO candidate" is a real
+# meeting_title, readable by every Employee.
+#
+# Scoped the same way Hospitality Request is: the people who run the rooms
+# see everything, and everyone else sees only their own bookings — made by
+# them, or organised by them. Deliberately narrower than Visitor Pass's own
+# conditions: there is no host/approver concept to extend visibility to here,
+# and no read-only role like Security to carve an exception for — a booking
+# is either yours to run or it isn't.
+#
+# This does NOT close every leak on this doctype. `get_booking_events` (the
+# calendar view in conference_room_booking.py, a file this fix does not own)
+# calls `frappe.has_permission("Conference Room Booking", "read", throw=True)`
+# with no `doc` — a blanket, doctype-level check that does not invoke this
+# module's has_permission hook at all — and then runs a raw `frappe.db.sql`
+# that selects every booking's `meeting_title` company-wide with no row
+# filtering whatsoever. That endpoint's own comment says as much: "so the
+# check has to be explicit — otherwise a future decision to scope bookings
+# would be silently undone by this one endpoint." This IS that future
+# decision, and it does get silently undone by that endpoint. Whoever owns
+# conference_room_booking.py needs to either scope that raw SQL with the same
+# owner/booked_by/overseer condition, or stop returning `meeting_title` from
+# it for callers who are not an overseer.
+CONFERENCE_ROOM_BOOKING_OVERSEERS = ("System Manager", "Facility Manager")
+
+
+def get_conference_room_booking_permission_query_conditions(user=None):
+	user = user or frappe.session.user
+	if _is_admin(user):
+		return None
+
+	roles = set(frappe.get_roles(user))
+	if _has_any_role(roles, CONFERENCE_ROOM_BOOKING_OVERSEERS):
+		return None
+
+	table = "tabConference Room Booking"
+	conditions = [_owner_condition(table, user)]
+
+	employee = _employee_for_user(user)
+	if employee:
+		conditions.append(f"`{table}`.`booked_by` = {frappe.db.escape(employee)}")
+
+	# Parenthesised for the same reason as the other three doctypes above:
+	# Frappe ANDs this with its own clauses, and unbracketed `AND` would bind
+	# tighter than `OR`.
+	return "(" + " or ".join(conditions) + ")"
+
+
+def has_conference_room_booking_permission(doc, user=None, ptype=None, debug=False):
+	user = user or frappe.session.user
+	if _is_admin(user):
+		return True
+
+	roles = set(frappe.get_roles(user))
+	if _has_any_role(roles, CONFERENCE_ROOM_BOOKING_OVERSEERS):
+		return True
+
+	if doc.owner == user:
+		return True
+
+	employee = _employee_for_user(user)
+	if employee and doc.get("booked_by") == employee:
+		return True
+
+	return False

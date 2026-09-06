@@ -20,7 +20,42 @@ class VisitorType(Document):
 		if not self.visitor_type_name:
 			frappe.throw(_("Visitor Type Name is required."))
 
+		self._require_approver_role()
 		self._guard_approver_role_changes()
+
+	def _require_approver_role(self):
+		"""A type with no approver role builds no workflow lane, so its passes
+		can never be submitted.
+
+		The workflow is generated from this table: each active type contributes a
+		"Pending <approver_role>" state and the transitions into it. A type saved
+		with `approver_role` empty contributes nothing, so a pass of that type
+		saves happily as Draft and then dies at Submit with Frappe's generic
+		"Not a valid Workflow Action" — a message that says nothing about the real
+		cause, which is an incomplete master somebody configured days earlier.
+		Reproduced live: VP-2026-00706 on a type with no approver.
+
+		Catching it here means the person who can actually fix it is told at the
+		moment they cause it, instead of a receptionist meeting a dead end later.
+		A secondary approver without a primary is the same fault: the second stage
+		has no first stage to follow.
+		"""
+		if not self.approver_role:
+			if self.secondary_approver_role:
+				frappe.throw(
+					_(
+						"{0} has a Secondary Approver Role but no Approver Role. "
+						"The second approval stage has no first stage to follow."
+					).format(self.visitor_type_name),
+					title=_("Approver Role Required"),
+				)
+			frappe.throw(
+				_(
+					"{0} needs an Approver Role — it decides who approves passes of this type. "
+					"Without one no approval lane is created and its passes cannot be submitted."
+				).format(self.visitor_type_name),
+				title=_("Approver Role Required"),
+			)
 
 	def _guard_approver_role_changes(self):
 		"""Only a System Manager may decide who approves a visitor type.

@@ -70,11 +70,67 @@ def normalize_visitor_pass(doc):
 	if doc.status != "Checked-In" and getattr(doc, "current_location", None):
 		doc.current_location = None
 
+	# service_time preservation stays channel-gated as before — recomputing it on
+	# every Desk save is intentional so a rescheduled visit gets a fresh service
+	# slot; only a repeat Portal save (the visitor revisiting their own request)
+	# keeps the slot they were already given.
 	preserve_hospitality_choices = bool(
 		getattr(doc, "request_channel", None) == "Portal"
 		and not doc.is_new()
 	)
-	apply_hospitality_meal_plan(doc, preserve_existing=preserve_hospitality_choices)
+	# meal_type is different: this used to reuse preserve_hospitality_choices,
+	# which meant a Desk-created pass (request_channel != "Portal") had ANY
+	# receptionist-typed Meal Type overwritten by the derived value on every
+	# single save, including the very first one — the channel a request came
+	# in on says nothing about whether a human just chose this field. What
+	# actually matters is whether the value in front of us differs from what
+	# was already on record, which get_doc_before_save() tells us for an
+	# existing document; a brand-new document has no "before" to compare
+	# against, so any non-blank value here can only have come from the form.
+	apply_hospitality_meal_plan(
+		doc,
+		preserve_existing=preserve_hospitality_choices,
+		honor_manual_meal_type=_field_was_manually_set(doc, "meal_type"),
+	)
+
+
+def _field_was_manually_set(doc, fieldname, ignore_as_default=()):
+	"""True if `fieldname` looks like a human just chose it on this save,
+	rather than a value auto-copied on some earlier save simply surviving
+	untouched. Used to decide whether a fetched/derived field (meal_type,
+	special_diet) should override what is already on the document.
+
+	A brand-new document has no "before" snapshot to diff against, so any
+	non-blank value here can only have come from the form the user just
+	submitted — EXCEPT for a value listed in `ignore_as_default`. That escape
+	hatch exists because special_diet's Select options start with the literal
+	string "None" rather than a blank first option (unlike meal_type), so the
+	client sets doc.special_diet = "None" on a brand-new form the user never
+	touched at all — confirmed live: an untouched new Hospitality Request
+	reached the server with special_diet already "None", which would
+	otherwise have looked exactly like a deliberate choice and blocked the
+	Visitor Pass's value from ever flowing in. `ignore_as_default` only
+	applies to the is_new() branch: on an existing document a change *back*
+	to "None" is a real, diffable edit and is honoured below regardless.
+
+	For an existing document, get_doc_before_save() (populated by
+	check_if_latest() before validate() runs, for both Visitor Pass and
+	Hospitality Request via the normal .save()/.insert() path) gives the row
+	as it stood before this save's changes were applied — if the field
+	differs from that, the caller changed it just now.
+	"""
+	value = getattr(doc, fieldname, None)
+	if not value:
+		return False
+	if doc.is_new():
+		return value not in ignore_as_default
+	before = doc.get_doc_before_save()
+	if not before:
+		# No prior snapshot to diff against (e.g. called outside a normal
+		# .save()/.insert() flow) — treat a present value as intentional
+		# rather than silently discarding it.
+		return True
+	return value != before.get(fieldname)
 
 
 def should_mark_no_show(doc):
@@ -426,7 +482,7 @@ def derive_hospitality_meal_plan(visitor_pass):
 	}
 
 
-def apply_hospitality_meal_plan(doc, preserve_existing=False):
+def apply_hospitality_meal_plan(doc, preserve_existing=False, honor_manual_meal_type=False):
 	meal_plan = derive_hospitality_meal_plan(doc)
 	existing_meal_type = getattr(doc, "meal_type", None)
 	existing_service_time = getattr(doc, "service_time", None)
@@ -436,8 +492,34 @@ def apply_hospitality_meal_plan(doc, preserve_existing=False):
 	doc.meal_required = effective_meal_required
 	# Keep meal_plan-derived values in sync for downstream logic
 	meal_plan["meal_required"] = effective_meal_required
+	# meal_type: an explicit human choice (honor_manual_meal_type, from
+	# _meal_type_was_manually_set) always wins over the derived value, on top
+	# of the older channel-gated preserve_existing carve-out. Without either
+	# flag, or when meal is no longer required at all, fall back to what the
+	# visit window derives.
+	# `honor_manual_meal_type` only catches the save on which the human actually
+	# changed the field, because it works by diffing against the before-save
+	# snapshot. That is not enough on its own: on the NEXT save — a receptionist
+	# correcting a phone number, a workflow transition, anything — meal_type is
+	# unchanged since before-save, so the diff says "not manual" and the derived
+	# value overwrites the choice. That silently reintroduced the original bug
+	# from the second save onward (proven: an explicit "Dinner" became "All Day"
+	# after resaving only `remarks`).
+	#
+	# So a stored value that DIVERGES from what the derivation would produce is
+	# also treated as deliberate: the derivation is a suggestion, and the only
+	# way a row can hold something else is that a human put it there. When the
+	# two agree, recomputing is a no-op anyway, so nothing is lost by letting
+	# the derived value through.
+	diverged_from_derived = bool(
+		not doc.is_new() and existing_meal_type and existing_meal_type != meal_plan["meal_type"]
+	)
 	doc.meal_type = (
-		existing_meal_type if preserve_existing and effective_meal_required and existing_meal_type else meal_plan["meal_type"]
+		existing_meal_type
+		if effective_meal_required
+		and existing_meal_type
+		and (preserve_existing or honor_manual_meal_type or diverged_from_derived)
+		else meal_plan["meal_type"]
 	)
 
 	if hasattr(doc, "assigned_meal_slots"):
@@ -475,7 +557,13 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 	doc.visit_end_time = meal_plan["visit_end_time"]
 	doc.assigned_meal_slots = meal_plan["assigned_meal_slots"] if doc.meal_required else None
 	doc.hospitality_type = meal_plan["hospitality_type"] if doc.meal_required else None
-	doc.special_diet = getattr(visitor_pass, "special_diet", None)
+	# special_diet is a plain editable Select on this form (hidden=0, read_only=0)
+	# — it used to be overwritten from the Visitor Pass unconditionally, so a
+	# Hospitality Manager's own pick (e.g. "Vegetarian") never survived a save.
+	# Mirror the Visitor Pass value only when nothing was just chosen here,
+	# using the same manual-vs-stale distinction as meal_type above.
+	if not _field_was_manually_set(doc, "special_diet", ignore_as_default={"None"}):
+		doc.special_diet = getattr(visitor_pass, "special_diet", None)
 	doc.snacks_required = cint(getattr(visitor_pass, "refreshments_required", 0))
 	doc.tea_coffee_required = cint(getattr(visitor_pass, "refreshments_required", 0))
 	doc.conference_room = getattr(visitor_pass, "conference_room", None)

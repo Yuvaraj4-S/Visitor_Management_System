@@ -3,13 +3,22 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils import get_time
 
 
 class ConferenceRoom(Document):
 
 	def validate(self):
 		if self.available_from and self.available_to:
-			if self.available_from >= self.available_to:
+			# get_time() on both sides, never a raw comparison: a Time field can
+			# reach validate() as a string, and the Desk sends a single-digit hour
+			# without a leading zero. "9:00:00" >= "17:00:00" is True as strings
+			# ('9' > '1'), so a room open 09:00-17:00 was rejected as "'Available
+			# From' must be before 'Available To'". Every room on this site has a
+			# single-digit opening hour, so a Facility Manager could not re-save an
+			# existing room at all — even without touching the time fields.
+			# conference_room_booking.py:87 already compares this way; matched here.
+			if get_time(self.available_from) >= get_time(self.available_to):
 				frappe.throw(_("'Available From' must be before 'Available To'."))
 
 		if self.capacity is not None and self.capacity < 1:

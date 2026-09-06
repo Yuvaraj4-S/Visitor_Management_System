@@ -242,6 +242,33 @@ def validate_id(id_type, number):
     return validator(number) if validator else False
 
 
+def normalise_id_number(id_type, number):
+    """Return `number` normalised per the ID Proof Type master's rule, or
+    `number` unchanged if the type has no master entry (the four built-in
+    types, or an unknown type).
+
+    `_validate_with_master` already normalises a value before testing it
+    against the regex — but only a throwaway local copy, so a master
+    configured with e.g. "Uppercase and strip spaces" would validate
+    `lfc-1234` against `^LFC-[0-9]{4}$` correctly (the copy is uppercased
+    first) while the caller went on to store the original, lowercase
+    `lfc-1234`. Any later exact-match lookup for `LFC-1234` (a gate guard,
+    a report) then silently misses that row. Callers that persist a value
+    after `validate_id` succeeds must run it through this too, so the
+    stored value is the same one that passed validation.
+    """
+    canonical = _canonical_type(id_type)
+    if not canonical:
+        return number
+
+    cfg = _load_master().get(canonical)
+    if not cfg:
+        return number
+
+    normalise = _NORMALISERS.get(cfg["normalisation"], _NORMALISERS["Uppercase and strip spaces"])
+    return normalise(str(number or ""))
+
+
 def is_valid_for_foreign_nationals(id_type):
     """Whether a foreign national may present this document type.
 

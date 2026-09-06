@@ -140,21 +140,20 @@
    "default": "0",
    "fieldname": "meal_required",
    "fieldtype": "Check",
-   "hidden": 1,
    "label": "Meal Required"
   },
   {
+   "depends_on": "eval:doc.meal_required",
    "fieldname": "meal_type",
    "fieldtype": "Select",
-   "hidden": 1,
    "label": "Meal Type",
    "options": "Breakfast\nLunch\nDinner\nBreakfast + Lunch\nLunch + Dinner\nBreakfast + Dinner\nSnacks\nAll Day",
    "read_only": 1
   },
   {
+   "depends_on": "eval:doc.meal_required",
    "fieldname": "assigned_meal_slots",
    "fieldtype": "Small Text",
-   "hidden": 1,
    "label": "Assigned Meal Slots",
    "read_only": 1
   },
@@ -163,9 +162,9 @@
    "fieldtype": "Column Break"
   },
   {
+   "depends_on": "eval:doc.meal_required",
    "fieldname": "hospitality_type",
    "fieldtype": "Select",
-   "hidden": 1,
    "label": "Hospitality Type",
    "options": "Single Meal\nTwo Meals\nFull Day",
    "read_only": 1
@@ -174,13 +173,11 @@
    "default": "0",
    "fieldname": "refreshments_required",
    "fieldtype": "Check",
-   "hidden": 1,
    "label": "Refreshments Required"
   },
   {
    "fieldname": "conference_room",
    "fieldtype": "Data",
-   "hidden": 1,
    "label": "Conference Room"
   },
   {

@@ -126,46 +126,46 @@
   },
   {
    "default": "0",
+   "description": "Fetched from the Visitor Pass. Kept visible (not hidden) because the Cab / Transport section below only appears when this is checked — a value landing on a hidden field does not reliably re-trigger the section's depends_on evaluation client-side. Shown read-only so the Visitor Pass stays the single source of truth.",
    "fetch_from": "visitor_pass.cab_required",
    "fieldname": "cab_required",
    "fieldtype": "Check",
-   "hidden": 1,
    "label": "Cab Required",
    "read_only": 1
   },
   {
    "default": "0",
+   "description": "Fetched from the Visitor Pass. Kept visible for the same reason as Cab Required — the Hotel Booking section depends on it and a hidden trigger field does not reliably re-trigger that section's rendering.",
    "fetch_from": "visitor_pass.hotel_required",
    "fieldname": "hotel_required",
    "fieldtype": "Check",
-   "hidden": 1,
    "label": "Hotel Required",
    "read_only": 1
   },
   {
    "default": "0",
+   "description": "Fetched from the Visitor Pass. Kept visible for the same reason as Cab Required — the Factory Tour section depends on it and a hidden trigger field does not reliably re-trigger that section's rendering.",
    "fetch_from": "visitor_pass.factory_tour_required",
    "fieldname": "factory_tour_required",
    "fieldtype": "Check",
-   "hidden": 1,
    "label": "Factory Tour Required",
    "read_only": 1
   },
   {
    "default": "0",
+   "description": "Fetched from the Visitor Pass. Kept visible for the same reason as Cab Required — the Buggy Vehicle section depends on it and a hidden trigger field does not reliably re-trigger that section's rendering.",
    "fetch_from": "visitor_pass.buggy_required",
    "fieldname": "buggy_required",
    "fieldtype": "Check",
-   "hidden": 1,
    "label": "Buggy Required",
    "read_only": 1
   },
   {
    "default": "0",
+   "description": "Fetched from the Visitor Pass. Kept visible for the same reason as Cab Required — the Greeting Arrangement section depends on it and a hidden trigger field does not reliably re-trigger that section's rendering.",
    "fetch_from": "visitor_pass.greeting_required",
    "fieldname": "greeting_required",
    "fieldtype": "Check",
-   "hidden": 1,
    "label": "Greeting Required",
    "read_only": 1
   },
@@ -347,9 +347,9 @@
   },
   {
    "depends_on": "eval:doc.cab_required",
+   "description": "No automation fills this field — the Hospitality Manager records it once a vendor is booked. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "cab_vendor",
    "fieldtype": "Link",
-   "hidden": 1,
    "label": "Cab Vendor",
    "options": "Supplier"
   },
@@ -357,14 +357,12 @@
    "depends_on": "eval:doc.cab_required",
    "fieldname": "driver_name",
    "fieldtype": "Data",
-   "hidden": 1,
    "label": "Driver Name"
   },
   {
    "depends_on": "eval:doc.cab_required",
    "fieldname": "driver_phone",
    "fieldtype": "Data",
-   "hidden": 1,
    "label": "Driver Phone",
    "options": "Phone"
   },
@@ -377,9 +375,9 @@
   },
   {
    "depends_on": "eval:doc.hotel_required",
+   "description": "No automation fills this field — the Hospitality Manager records the hotel once booked. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "hotel_name",
    "fieldtype": "Link",
-   "hidden": 1,
    "label": "Hotel",
    "options": "Supplier"
   },
@@ -431,7 +429,6 @@
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "booking_reference",
    "fieldtype": "Data",
-   "hidden": 1,
    "label": "Booking Reference"
   },
   {
@@ -443,9 +440,9 @@
   },
   {
    "depends_on": "eval:doc.hotel_required",
+   "description": "No automation fills this field — the Hospitality Manager records actual cost once booked. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "hotel_cost",
    "fieldtype": "Currency",
-   "hidden": 1,
    "label": "Hotel Cost"
   },
   {
@@ -525,16 +522,15 @@
   },
   {
    "depends_on": "eval:doc.buggy_required",
+   "description": "Was hidden with no automation to fill it, which silently disabled hospitality_request.py's _validate_buggy_conflict double-booking check — that check only runs when buggy_number is set, and a hidden field is never set from the UI.",
    "fieldname": "buggy_number",
    "fieldtype": "Data",
-   "hidden": 1,
    "label": "Buggy Number"
   },
   {
    "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_driver",
    "fieldtype": "Link",
-   "hidden": 1,
    "label": "Buggy Driver",
    "options": "Employee",
    "ignore_user_permissions": 1
@@ -571,18 +567,18 @@
   },
   {
    "depends_on": "eval:doc.greeting_required",
+   "description": "No automation fills this field — the Hospitality Manager assigns the staff member arranging the greeting. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "greeting_assigned_to",
    "fieldtype": "Link",
-   "hidden": 1,
    "label": "Assigned To",
    "options": "Employee",
    "ignore_user_permissions": 1
   },
   {
    "depends_on": "eval:doc.greeting_required",
+   "description": "No automation fills this field — the Hospitality Manager records actual cost once arranged. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "greeting_cost",
    "fieldtype": "Currency",
-   "hidden": 1,
    "label": "Greeting Cost"
   },
   {
@@ -629,7 +625,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-31 10:00:00.000000",
+ "modified": "2026-09-05 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Hospitality Request",

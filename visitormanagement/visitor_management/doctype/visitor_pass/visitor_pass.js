@@ -1,5 +1,31 @@
 // For license information, please see license.txt
 
+// Fill a field from a linked master ONLY when the user has not already typed
+// something there, and never blank it out.
+//
+// The three "link to an existing record" pickers (supplier_link, contractor_link,
+// job_applicant_link) used to call frm.set_value(..., master.field || '')
+// unconditionally. Two ways that went wrong, both reported live:
+//   - the master has no phone/email, so `|| ''` ERASED the visitor's real details
+//     that a receptionist had just typed, and the save then failed on mandatory
+//     fields — annoying but at least loud;
+//   - the master DOES have its own phone/email (a company switchboard, a
+//     recruiter's inbox), so the visitor's personal contact details were silently
+//     replaced and the save SUCCEEDED. Nobody notices, and the pass now carries
+//     the wrong way to reach that person — which is the whole point of the field.
+// A linked master is a convenience for blank fields, not an authority over what a
+// human just entered. Same "did a person choose this?" principle the server side
+// already applies to meal_type and special_diet in lifecycle.py.
+function fill_if_blank(frm, fieldname, value) {
+	if (!value) {
+		return;
+	}
+	const current = frm.doc[fieldname];
+	if (current === undefined || current === null || String(current).trim() === "") {
+		frm.set_value(fieldname, value);
+	}
+}
+
 // VMS Settings → home_country rarely changes, so cache it for the desk
 // session instead of re-fetching from the server on every form refresh/
 // field-change.
@@ -122,10 +148,10 @@ frappe.ui.form.on("Visitor Pass", {
 				args: { doctype: 'Supplier', name: frm.doc.supplier_link },
 				callback: function(r) {
 					if (r.message) {
-						frm.set_value('visitor_full_name', r.message.supplier_name);
-						frm.set_value('mobile_number', r.message.mobile_no || '');
-						frm.set_value('email_id', r.message.email_id || '');
-						frm.set_value('company__organisation', r.message.supplier_name);
+						fill_if_blank(frm, 'visitor_full_name', r.message.supplier_name);
+						fill_if_blank(frm, 'mobile_number', r.message.mobile_no);
+						fill_if_blank(frm, 'email_id', r.message.email_id);
+						fill_if_blank(frm, 'company__organisation', r.message.supplier_name);
 					}
 				}
 			});
@@ -139,10 +165,10 @@ frappe.ui.form.on("Visitor Pass", {
 				args: { doctype: 'Supplier', name: frm.doc.contractor_link },
 				callback: function(r) {
 					if (r.message) {
-						frm.set_value('visitor_full_name', r.message.supplier_name);
-						frm.set_value('mobile_number', r.message.mobile_no || '');
-						frm.set_value('email_id', r.message.email_id || '');
-						frm.set_value('company__organisation', r.message.supplier_name);
+						fill_if_blank(frm, 'visitor_full_name', r.message.supplier_name);
+						fill_if_blank(frm, 'mobile_number', r.message.mobile_no);
+						fill_if_blank(frm, 'email_id', r.message.email_id);
+						fill_if_blank(frm, 'company__organisation', r.message.supplier_name);
 					}
 				}
 			});
@@ -156,10 +182,10 @@ frappe.ui.form.on("Visitor Pass", {
 				args: { doctype: 'Job Applicant', name: frm.doc.job_applicant_link },
 				callback: function(r) {
 					if (r.message) {
-						frm.set_value('visitor_full_name', r.message.applicant_name);
-						frm.set_value('mobile_number', r.message.phone_number || '');
-						frm.set_value('email_id', r.message.email_id || '');
-						frm.set_value('company__organisation', r.message.company_name || '');
+						fill_if_blank(frm, 'visitor_full_name', r.message.applicant_name);
+						fill_if_blank(frm, 'mobile_number', r.message.phone_number);
+						fill_if_blank(frm, 'email_id', r.message.email_id);
+						fill_if_blank(frm, 'company__organisation', r.message.company_name);
 					}
 				}
 			});

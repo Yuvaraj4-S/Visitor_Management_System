@@ -7,7 +7,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-from frappe.utils import date_diff, get_datetime, getdate, nowdate
+from frappe.utils import date_diff, get_datetime, get_time, getdate, nowdate
 
 
 from visitormanagement.visitor_management.lifecycle import (
@@ -245,7 +245,14 @@ class HospitalityRequest(Document):
 		if not self.factory_tour_required:
 			return
 		if self.tour_start_time and self.tour_end_time:
-			if self.tour_end_time <= self.tour_start_time:
+			# Same string-vs-time trap as conference_room.py: a Time field can arrive
+			# as a string, and a single-digit hour has no leading zero, so
+			# "10:00:00" <= "9:00:00" is True as strings ('1' < '9') and a 09:00-10:00
+			# tour was rejected as "end time must be after start time". Worse here
+			# than on Conference Room: retyping the times in the form did not clear
+			# it, so a tour starting before 10:00 could never be re-saved from the
+			# Desk once created. get_time() on both sides fixes it for good.
+			if get_time(self.tour_end_time) <= get_time(self.tour_start_time):
 				frappe.throw("Tour end time must be after start time")
 
 	def _validate_buggy_conflict(self):
@@ -307,6 +314,22 @@ class HospitalityRequest(Document):
 		"""
 		self.db_set("status", "Cancelled", update_modified=False)
 		sync_hospitality_to_pass(self)
+
+	def run_notifications(self, method):
+		"""Same guard as VisitorPass.run_notifications — see the note there.
+
+		This one matters because a Hospitality Request is created automatically
+		while a Visitor Pass is being submitted, so ITS failing alert email lands
+		in the pass's own response and can evict the messages the approver
+		actually needs to see, including the blacklist warning. Restoring the
+		snapshot keeps a second document's mail problem out of the first
+		document's conversation with the user.
+		"""
+		messages_before = list(frappe.message_log)
+		try:
+			super().run_notifications(method)
+		finally:
+			frappe.local.message_log = messages_before
 
 	def on_update(self):
 		sync_hospitality_to_pass(self)

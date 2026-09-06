@@ -16,6 +16,7 @@ from visitormanagement.visitor_management.validators import (
     foreign_national_id_types,
     id_proof_error_message,
     is_valid_for_foreign_nationals,
+    normalise_id_number,
     validate_id,
 )
 from visitormanagement.visitor_management import settings as vms_settings
@@ -300,6 +301,10 @@ class VisitorPass(Document):
             mobile_number=self.mobile_number,
         )
         if not match:
+            # No strong (ID, or corroborated name+mobile) match. A weak,
+            # single-field hit still deserves a human's attention rather than
+            # vanishing — see _warn_weak_blacklist_match.
+            self._warn_weak_blacklist_match()
             return
 
         blacklist = frappe.get_doc("Visitor Blacklist", match)
@@ -312,8 +317,63 @@ class VisitorPass(Document):
             title=_("Access Denied — Blacklisted Visitor"),
         )
 
+    def _warn_weak_blacklist_match(self):
+        """Surface a visible, non-blocking warning when this visitor matches
+        an active blacklist entry on ONE weak identifier only (name or
+        mobile — not both, and not the ID number).
+
+        `VisitorBlacklist.find_active_match()` deliberately does not hard-block
+        on a single weak field any more (see its docstring: a shared name used
+        to bar a real, unrelated visitor). But silently doing nothing would
+        trade one failure for a worse one — a security team believes they
+        barred someone by name, the entry sits Active in the list, and it
+        never fires again. So this hands the decision to whoever is looking at
+        the pass right now: it names the matched entry and its reason and asks
+        them to verify ID by hand. It does NOT stop the save.
+        """
+        from visitormanagement.visitor_management.doctype.visitor_blacklist.visitor_blacklist import (
+            VisitorBlacklist,
+        )
+
+        weak = VisitorBlacklist.find_weak_match(
+            visitor_name=self.visitor_full_name,
+            mobile_number=self.mobile_number,
+        )
+        if not weak:
+            return
+
+        blacklist = frappe.get_doc("Visitor Blacklist", weak["name"])
+        frappe.msgprint(
+            _(
+                "This visitor's {0} matches an active blacklist entry ({1}, reason: {2}), "
+                "but not strongly enough to block automatically.<br>"
+                "<b>Verify their ID before allowing entry.</b>"
+            ).format(
+                _(weak["matched_on"]),
+                blacklist.name,
+                frappe.utils.escape_html(blacklist.reason or _("Not specified")),
+            ),
+            title=_("Possible Blacklist Match — Verify ID"),
+            indicator="orange",
+        )
+
     def _validate_schedule(self):
         """Block past dates, enforce check-in < check-out, enforce future-date ceiling."""
+        # A multi-day pass with no end date was blocked only by the browser
+        # (visitor_pass.js's toggle_reqd), so anything that did not go through the
+        # form — an import, an integration, a portal submission — could store one.
+        # It fails shut rather than open: security_log.py needs BOTH multi_day_pass
+        # and pass_valid_until before it will allow re-entry, so such a pass simply
+        # behaves as single-day. That is the damage — a contractor is told they have
+        # a week's access and is turned away on day two, while the record still reads
+        # "multi-day" to whoever issued it. The sibling rule (a foreign national needs
+        # a visa copy) is already enforced server-side; this one now matches.
+        if getattr(self, "multi_day_pass", 0) and not self.pass_valid_until:
+            frappe.throw(
+                _("A multi-day pass needs a 'Pass Valid Until' date."),
+                title=_("Missing Pass Validity"),
+            )
+
         if not self.visit_date:
             return
 
@@ -361,6 +421,15 @@ class VisitorPass(Document):
                     _(id_proof_error_message(self.id_proof_type)),
                     title=_("Invalid ID Proof"),
                 )
+            # validate_id() above only tested a normalised COPY of the number
+            # against the ID Proof Type master's regex — it never changed what
+            # gets saved. Re-assign the normalised form so the stored value is
+            # the one that actually passed validation; otherwise "lfc-1234"
+            # saves as typed even though the master says "Uppercase and strip
+            # spaces", and an exact-match lookup for "LFC-1234" (gate guard,
+            # report) never finds it. No-op for the four built-in types or an
+            # unknown type, which normalise_id_number() returns unchanged.
+            self.id_proof_number = normalise_id_number(self.id_proof_type, self.id_proof_number)
 
         # Which documents a foreign national may present is a flag on the ID Proof
         # Type master, not a hardcoded "Passport". A site can mark a foreign
@@ -561,6 +630,16 @@ class VisitorPass(Document):
             )
         except Exception as exc:
             frappe.log_error(f"Blacklist alert email failed: {exc}", "VMS Blacklist Alert")
+            # sendmail(now=True) raises via frappe.throw on a site with no
+            # outgoing Email Account, which also queues its own client
+            # message even though we catch the exception here. Left alone,
+            # that stray message rides along with the very next frappe.throw
+            # this method's caller issues — the "Access Denied — Blacklisted
+            # Visitor" dialog — so the receptionist sees an unrelated "setup
+            # Email Account" line leaked inside a security refusal. Drop it,
+            # the same fix Visitor Invitation.send_invitation already applies
+            # to the identical failure mode.
+            frappe.clear_messages()
 
     def _security_alert_recipients(self):
         user_names = frappe.get_all(
@@ -736,6 +815,37 @@ class VisitorPass(Document):
             return
         ensure_hospitality_request(self)
 
+    def run_notifications(self, method):
+        """Keep a failing alert email from eating this save's real messages.
+
+        The Notification records this app ships (VMS PRR Submitted, VMS Pass
+        Rejected, ...) send through frappe.sendmail. On a site with no outgoing
+        Email Account — every fresh install, and any site with a transient mail
+        problem — that raises via frappe.throw, which queues a message carrying
+        `raise_exception: 1`. The Desk renders that one and drops the plain
+        messages queued earlier in the same response.
+
+        The casualty is the blacklist warning: a visitor matching an entry on
+        name alone is deliberately not blocked, only flagged for a human to
+        check the ID. Proven live on this site — the warning WAS in the
+        response and the approver still saw only "Please setup default outgoing
+        Email Account", so a name-flagged visitor sailed through with no
+        indication. A security prompt must not be one unrelated mail failure
+        away from vanishing.
+
+        So the queue is snapshotted and restored around the notification run,
+        the same shape as security_log.py's `_advance_pass`. Anything the
+        notifications queued is dropped (they have nothing to say to the user
+        on the happy path); everything this save had already told the user
+        survives. The underlying failure is still recorded in Error Log by
+        core, so nothing is hidden from an administrator.
+        """
+        messages_before = list(frappe.message_log)
+        try:
+            super().run_notifications(method)
+        finally:
+            frappe.local.message_log = messages_before
+
     # ─────────────────────────────────────────────────────────
     # BEFORE SUBMIT
     # ─────────────────────────────────────────────────────────
@@ -798,8 +908,9 @@ class VisitorPass(Document):
             )
 
         # 1️⃣ BLACKLIST CHECK
-        # Match by ID proof number first; fall back to visitor_name + id_proof_type so
-        # name-only blacklist entries (created when admin didn't have the number) also block.
+        # Strong match only: exact ID proof number, or name+mobile corroborating
+        # each other on the same entry (see VisitorBlacklist.find_active_match's
+        # docstring for why name-alone/mobile-alone are not trusted to block).
         from visitormanagement.visitor_management.doctype.visitor_blacklist.visitor_blacklist import VisitorBlacklist
         blacklist_name = VisitorBlacklist.find_active_match(
             id_proof_number=self.id_proof_number,
@@ -819,6 +930,9 @@ class VisitorPass(Document):
                 ).format(self.visitor_full_name, bl.reason or _("Not specified")),
                 title=_("Access Denied — Blacklisted Visitor"),
             )
+        else:
+            # Weak, single-field hit — warn instead of silently doing nothing.
+            self._warn_weak_blacklist_match()
 
         # 3️⃣ Executive notification — driven by the Visitor Type flag, not a name
         if self._visitor_type_flag("requires_executive_notification"):
@@ -855,12 +969,31 @@ class VisitorPass(Document):
         # Generate QR Code for the badge
         qr_file_url, qr_content = self._generate_qr_code()
 
-        # Notify the visitor via email
-        self._send_approval_email(qr_file_url, qr_content)
+        # Notify the visitor via email, and the food dept if a meal was requested.
+        # Both are courtesy mails: an approval that cannot be emailed is still a
+        # valid approval, so neither may block the submit or shout at the approver.
+        # frappe.sendmail on a site with no outgoing Email Account raises through
+        # frappe.throw, which queues a red "Please setup default outgoing Email
+        # Account" message for the client — reported live on Approve. Snapshot and
+        # restore around both, so a mail problem is logged for the administrator
+        # and invisible to the approver, without discarding anything this save had
+        # already told them. Same shape as run_notifications() above.
+        messages_before = list(frappe.message_log)
+        try:
+            self._send_approval_email(qr_file_url, qr_content)
+        except Exception as exc:
+            frappe.log_error(
+                f"Approval email failed for {self.name}: {exc}", "VMS Approval Email"
+            )
+        finally:
+            frappe.local.message_log = messages_before
 
-        # Notify Food Dept if a meal was requested
         if getattr(self, "meal_required", 0):
-            self._notify_food_dept()
+            messages_before = list(frappe.message_log)
+            try:
+                self._notify_food_dept()
+            finally:
+                frappe.local.message_log = messages_before
 
     # ─────────────────────────────────────────────────────────
     # GENERATE BADGE NUMBER (Called by Security Log)

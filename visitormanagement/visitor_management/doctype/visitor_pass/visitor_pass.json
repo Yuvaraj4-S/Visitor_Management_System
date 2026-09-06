@@ -437,8 +437,7 @@
    "depends_on": "eval:doc.visitor_type_layout == 'Customer'",
    "fieldname": "products_discussed",
    "fieldtype": "Small Text",
-   "label": "Products Discussed",
-   "hidden": 1
+   "label": "Products Discussed"
   },
   {
    "depends_on": "eval:doc.visitor_type_layout == 'Customer'",
@@ -446,22 +445,19 @@
    "fieldtype": "Select",
    "label": "Meeting Outcome",
    "options": "Pending\nDeal Closed\nFollow-Up Needed\nNo Interest",
-   "hidden": 1,
    "default": "Pending"
   },
   {
    "depends_on": "eval:doc.visitor_type_layout == 'Customer'",
    "fieldname": "followup_date",
    "fieldtype": "Date",
-   "label": "Follow-Up Date",
-   "hidden": 1
+   "label": "Follow-Up Date"
   },
   {
    "depends_on": "eval:doc.visitor_type_layout == 'Customer'",
    "fieldname": "meeting_minutes",
    "fieldtype": "Text Editor",
-   "label": "Meeting Minutes",
-   "hidden": 1
+   "label": "Meeting Minutes"
   },
   {
    "collapsible": 1,
@@ -968,11 +964,12 @@
    "label": "Items"
   },
   {
+   "description": "Server-maintained from Items Carried above and updated by Security's item verification at the gate. Read-only here so the host and approver can see exactly what was declared and what Security has verified.",
    "fieldname": "visitor_items",
    "fieldtype": "Table",
-   "hidden": 1,
    "label": "Visitor Items",
-   "options": "Visitor Item"
+   "options": "Visitor Item",
+   "read_only": 1
   },
   {
    "fieldname": "amended_from",

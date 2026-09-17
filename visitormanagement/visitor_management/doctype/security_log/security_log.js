@@ -803,6 +803,9 @@ function render_items_progress_summary(frm) {
 	if (!total) return;
 
 	const all_verified = verified === total;
+	// Only offer the bulk action when there is something left to tick and the
+	// form can actually be written to (a submitted or locked log must not).
+	const can_verify_all = !all_verified && !frm.doc.docstatus && !frm.is_dirty_disabled;
 	const bg = all_verified ? "#d9f3e4" : (discrepancies ? "#fde2e2" : "#fff4d6");
 	const fg = all_verified ? "#0d6b3e" : (discrepancies ? "#9b1c1c" : "#8d5d00");
 	const icon = all_verified ? "✅" : (discrepancies ? "⚠️" : "🟡");
@@ -812,9 +815,33 @@ function render_items_progress_summary(frm) {
 			<span style="font-size: 14px;">${icon}</span>
 			<span>${__("Items: {0} / {1} verified", [verified, total])}</span>
 			${discrepancies ? `<span style="margin-left: auto;">${__("{0} discrepancy", [discrepancies])}${discrepancies > 1 ? __("ies") : ""}</span>` : ""}
+			${can_verify_all ? `<button type="button" class="btn btn-xs btn-default vm-verify-all" style="margin-left: ${discrepancies ? "10px" : "auto"};">${__("Verify All")}</button>` : ""}
 		</div>
 	`;
 	field.$wrapper.prepend(summary);
+
+	// One click for the whole list. Check-in cannot save until every row is
+	// ticked (_assert_items_verified), and the rows are generated one-per-item
+	// from the visitor's typed list — so a contractor with a toolkit produced
+	// eight checkboxes for a guard to click with a queue waiting. Ticking each
+	// row individually is still there for a genuine item-by-item check; this is
+	// for the ordinary case where the officer has looked at the bag and is
+	// confirming the lot. Sets the same remark the per-row handler sets, so a
+	// row verified this way is indistinguishable from one ticked by hand.
+	if (can_verify_all) {
+		field.$wrapper.find(".vm-verify-all").on("click", () => {
+			(frm.doc.items_verification || []).forEach((row) => {
+				if (row.item_verified) return;
+				frappe.model.set_value(row.doctype, row.name, "item_verified", 1);
+				if (!row.security_remarks) {
+					frappe.model.set_value(row.doctype, row.name, "security_remarks", __("Verified at gate"));
+				}
+			});
+			frm.refresh_field("items_verification");
+			recompute_all_items_confirmed(frm);
+			render_items_progress_summary(frm);
+		});
+	}
 }
 
 function lock_all_items_confirmed(frm) {

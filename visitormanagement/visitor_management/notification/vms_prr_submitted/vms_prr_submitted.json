@@ -13,33 +13,33 @@
  "event": "Value Change",
  "idx": 0,
  "is_standard": 0,
- "message": "<div style=\"font-family:Arial,sans-serif;font-size:13px;color:#1f2933;background-color:#ffffff;padding:14px;border-radius:6px;max-width:420px;\">\n<p style=\"margin:0 0 8px;color:#102a43;font-size:14px;line-height:1.5;\"><b style=\"color:#102a43;\">Visitor pass <a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\" style=\"color:#2563eb;text-decoration:none;\">{{ doc.name }}</a></b> needs your approval ({{ doc.workflow_state or doc.status }}).</p>\n<p style=\"margin:0 0 12px;color:#3e4c59;font-size:13px;line-height:1.7;word-break:break-word;\">\n<b style=\"color:#5b6b7b;\">Visitor:</b> <span style=\"color:#1f2933;\">{{ doc.visitor_name }}</span> &middot; <b style=\"color:#5b6b7b;\">Type:</b> <span style=\"color:#1f2933;\">{{ doc.visitor_type }}</span><br>\n<b style=\"color:#5b6b7b;\">Company:</b> <span style=\"color:#1f2933;\">{{ doc.company__organisation or 'N/A' }}</span><br>\n<b style=\"color:#5b6b7b;\">Visit:</b> <span style=\"color:#1f2933;\">{{ doc.visit_date }}, {{ doc.expected_checkin }}&ndash;{{ doc.expected_checkout }}</span><br>\n<b style=\"color:#5b6b7b;\">Host:</b> <span style=\"color:#1f2933;\">{{ doc.host_name or doc.person_to_visit }}</span> &middot; <b style=\"color:#5b6b7b;\">Purpose:</b> <span style=\"color:#1f2933;\">{{ doc.purpose_of_visit }}</span>\n</p>\n<p style=\"margin:12px 0 0;\"><a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\" style=\"display:inline-block;background:#2563eb;color:#ffffff;padding:7px 14px;text-decoration:none;border-radius:4px;font-size:13px;font-weight:600;\">Review Request &rarr;</a></p>\n</div>",
+ "message": "<div style=\"font-family:inherit;font-size:13px;line-height:1.45;\"><p style=\"margin:0 0 6px;\"><b>Visitor pass <a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\" style=\"color:#2563eb;text-decoration:none;\">{{ doc.name }}</a></b> needs your approval ({{ doc.workflow_state or doc.status }}).</p><p style=\"margin:0 0 8px;\"><b>Visitor:</b> {{ doc.visitor_name }} &middot; <b>Type:</b> {{ doc.visitor_type }}<br><b>Company:</b> {{ doc.company__organisation or \"N/A\" }}<br><b>Visit:</b> {{ doc.visit_date }}, {{ doc.expected_checkin }}&ndash;{{ doc.expected_checkout }}<br><b>Host:</b> {{ doc.host_name or doc.person_to_visit }} &middot; <b>Purpose:</b> {{ doc.purpose_of_visit }}</p><p style=\"margin:0;\"><a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\" style=\"display:inline-block;background:#2563eb;color:#ffffff;padding:5px 11px;text-decoration:none;border-radius:4px;font-size:12px;font-weight:600;\">Review Request &rarr;</a></p></div>",
  "message_type": "HTML",
- "modified": "2026-08-29 18:57:10.051289",
+ "modified": "2026-09-07 16:25:43.414740",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS PRR Submitted",
  "owner": "Administrator",
  "recipients": [
   {
-   "receiver_by_role": "System Manager",
-   "condition": "(doc.workflow_state or doc.status) == 'Pending System Manager'"
+   "condition": "(doc.workflow_state or doc.status) == 'Pending System Manager'",
+   "receiver_by_role": "System Manager"
   },
   {
-   "receiver_by_role": "HR Manager",
-   "condition": "(doc.workflow_state or doc.status) == 'Pending HR Manager'"
+   "condition": "(doc.workflow_state or doc.status) == 'Pending HR Manager'",
+   "receiver_by_role": "HR Manager"
   },
   {
-   "receiver_by_role": "Sales Manager",
-   "condition": "(doc.workflow_state or doc.status) == 'Pending Sales Manager'"
+   "condition": "(doc.workflow_state or doc.status) == 'Pending Sales Manager'",
+   "receiver_by_role": "Sales Manager"
   },
   {
-   "receiver_by_role": "HOD",
-   "condition": "(doc.workflow_state or doc.status) == 'Pending HOD'"
+   "condition": "(doc.workflow_state or doc.status) == 'Pending HOD'",
+   "receiver_by_role": "HOD"
   },
   {
-   "receiver_by_role": "CEO",
-   "condition": "(doc.workflow_state or doc.status) == 'Pending CEO'"
+   "condition": "(doc.workflow_state or doc.status) == 'Pending CEO'",
+   "receiver_by_role": "CEO"
   }
  ],
  "send_system_notification": 1,

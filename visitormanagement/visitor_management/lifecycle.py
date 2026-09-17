@@ -286,6 +286,18 @@ def ensure_conference_room_booking(visitor_pass):
 	if not booking.booked_by:
 		booking.booked_by = visitor_pass.person_to_visit
 
+	# A room clash must not look like a failed approval. Conference Room
+	# Booking's own validate_overlap calls frappe.throw, which queues its raw
+	# "Room Already Booked / Please choose a different time slot" message for the
+	# client BEFORE raising — and the `except` below swallows the exception, so
+	# the pass really does advance. The approver was left staring at a blocking-
+	# looking error on a transition that had in fact succeeded, with no way to
+	# tell which. Reported from the field on a pass that had already moved to
+	# Pending CEO while showing this dialog.
+	#
+	# Snapshot the queue, and on failure restore it and say what actually
+	# happened: the visit is approved, the room is not booked, pick another.
+	messages_before = list(frappe.message_log)
 	try:
 		if booking.is_new():
 			booking.insert(ignore_permissions=True)
@@ -307,6 +319,44 @@ def ensure_conference_room_booking(visitor_pass):
 		return booking.name
 	except Exception as exc:
 		frappe.log_error(f"CRB auto-create failed for {visitor_pass.name}: {exc}", "VMS CRB Auto-Create")
+		frappe.local.message_log = messages_before
+
+		from visitormanagement.conference_room.doctype.conference_room_booking.conference_room_booking import (
+			find_conflicting_booking,
+		)
+
+		clash = find_conflicting_booking(
+			visitor_pass.conference_room,
+			visitor_pass.visit_date,
+			start_time,
+			end_time,
+		)
+		if clash:
+			frappe.msgprint(
+				_(
+					"The visit is approved, but <b>{0}</b> could not be reserved — it is "
+					"already booked from {1} to {2} ({3}).<br>"
+					"Pick a different room on this pass, or book one from Conference Room "
+					"Booking. Nothing else about the approval is affected."
+				).format(
+					visitor_pass.conference_room,
+					clash[0].start_time,
+					clash[0].end_time,
+					clash[0].meeting_title or clash[0].name,
+				),
+				title=_("Room Not Reserved"),
+				indicator="orange",
+			)
+		else:
+			frappe.msgprint(
+				_(
+					"The visit is approved, but <b>{0}</b> could not be reserved. "
+					"An administrator can see why in the Error Log; book the room "
+					"manually in the meantime."
+				).format(visitor_pass.conference_room),
+				title=_("Room Not Reserved"),
+				indicator="orange",
+			)
 		return None
 
 

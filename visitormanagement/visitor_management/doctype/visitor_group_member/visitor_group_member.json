@@ -1,0 +1,83 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-07 17:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "visitor_name",
+  "mobile_number",
+  "id_proof_type",
+  "id_proof_number",
+  "checked_in",
+  "badge_number",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "columns": 3,
+   "fieldname": "visitor_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Visitor Name",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "mobile_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Mobile Number"
+  },
+  {
+   "columns": 2,
+   "fieldname": "id_proof_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "ID Proof Type",
+   "options": "ID Proof Type"
+  },
+  {
+   "columns": 2,
+   "fieldname": "id_proof_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "ID Proof Number"
+  },
+  {
+   "columns": 1,
+   "description": "Ticked at the gate when this person actually arrives",
+   "fieldname": "checked_in",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Checked In"
+  },
+  {
+   "fieldname": "badge_number",
+   "fieldtype": "Data",
+   "label": "Badge Number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-07 17:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Visitor Group Member",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

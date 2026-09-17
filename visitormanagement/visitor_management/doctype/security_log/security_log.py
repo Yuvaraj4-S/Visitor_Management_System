@@ -300,7 +300,20 @@ class SecurityLog(Document):
                     and vp.pass_valid_until
                     and effective_checkin_date <= getdate(vp.pass_valid_until)
                 )
-                if current_status == 'Checked-Out' and not multi_day_reentry_open:
+                # Stepping out and coming back is the most ordinary thing a visitor
+                # does — lunch, the car park, a forgotten laptop, a smoke break. The
+                # rule above only re-opened a Contractor's multi-day pass, and
+                # multi_day_pass exists on no other layout, so a Customer who tapped
+                # out at 13:00 was locked out for the rest of the day and their host
+                # had to raise and re-approve a whole new pass while they waited at
+                # the barrier. A pass is valid for its own visit_date; checking out
+                # is not what ends that. Re-entry on any LATER date still needs the
+                # multi-day window, so this does not widen anything beyond the day
+                # the pass was already good for.
+                same_day_reentry_open = effective_checkin_date == getdate(vp.visit_date)
+                if current_status == 'Checked-Out' and not (
+                    multi_day_reentry_open or same_day_reentry_open
+                ):
                     frappe.throw(
                         f"Visitor {self.visitor_name or vp.visitor_full_name} has already Checked-Out "
                         "and the pass is now inactive."

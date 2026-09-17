@@ -131,34 +131,24 @@ class ConferenceRoomBooking(Document):
 	def validate_overlap(self):
 		"""Reject a booking that collides with one already held on this room.
 
-		`FOR UPDATE` is what makes the rule true under load. Read-then-insert is a
-		time-of-check/time-of-use race: two people booking the same room and slot
-		at the same moment both find it free and both commit, which is exactly the
-		double-booking this method exists to prevent. The locking read holds the
+		The rule itself lives in `find_conflicting_booking` so Visitor Pass can warn
+		about a clash the moment a host picks a room, instead of the clash only
+		surfacing here when the pass is approved.
+
+		`for_update=True` is what makes the rule true under load. Read-then-insert
+		is a time-of-check/time-of-use race: two people booking the same room and
+		slot at the same moment both find it free and both commit, which is exactly
+		the double-booking this method exists to prevent. The locking read holds the
 		matching range until the transaction commits, so the second booking waits
 		and then sees the first.
 		"""
-		overlap = frappe.db.sql(
-			"""
-			SELECT name, meeting_title, start_time, end_time
-			FROM `tabConference Room Booking`
-			WHERE conference_room = %(room)s
-			  AND booking_date = %(date)s
-			  AND name != %(self_name)s
-			  AND docstatus < 2
-			  AND status NOT IN ('Cancelled', 'Rejected')
-			  AND (start_time < %(end_time)s AND end_time > %(start_time)s)
-			LIMIT 1
-			FOR UPDATE
-			""",
-			{
-				"room": self.conference_room,
-				"date": self.booking_date,
-				"start_time": self.start_time,
-				"end_time": self.end_time,
-				"self_name": self.name or "NEW",
-			},
-			as_dict=True,
+		overlap = find_conflicting_booking(
+			self.conference_room,
+			self.booking_date,
+			self.start_time,
+			self.end_time,
+			exclude=self.name,
+			for_update=True,
 		)
 
 		if overlap:
@@ -314,5 +304,47 @@ def get_booking_events(start, end, filters=None):
 		ORDER BY booking_date, start_time
 		""",
 		values,
+		as_dict=True,
+	)
+
+
+def find_conflicting_booking(room, booking_date, start_time, end_time, exclude=None, for_update=False):
+	"""The booking already holding this room in this window, or None.
+
+	Extracted so the rule lives in one place. `Conference Room Booking` enforces
+	it on its own save, and `Visitor Pass` calls it the moment a host picks a
+	room — before this, the room was only actually booked when the pass was
+	approved, so a clash surfaced to the approver rather than to the person who
+	chose the room, long after they could easily change it.
+
+	Times compare strictly (`<` / `>`), so back-to-back bookings (10-11 then
+	11-12) do not collide — a rule a real office depends on.
+
+	`for_update` is used by the booking's own validation, where the locking read
+	closes a time-of-check/time-of-use race between two simultaneous bookings.
+	The advisory check on Visitor Pass passes False: it is a courtesy warning at
+	pick time, not the authority, and must not hold row locks on an unrelated
+	doctype's save.
+	"""
+	return frappe.db.sql(
+		"""
+		SELECT name, meeting_title, start_time, end_time
+		FROM `tabConference Room Booking`
+		WHERE conference_room = %(room)s
+		  AND booking_date = %(date)s
+		  AND name != %(self_name)s
+		  AND docstatus < 2
+		  AND status NOT IN ('Cancelled', 'Rejected')
+		  AND (start_time < %(end_time)s AND end_time > %(start_time)s)
+		LIMIT 1
+		"""
+		+ ("FOR UPDATE" if for_update else ""),
+		{
+			"room": room,
+			"date": booking_date,
+			"start_time": start_time,
+			"end_time": end_time,
+			"self_name": exclude or "NEW",
+		},
 		as_dict=True,
 	)

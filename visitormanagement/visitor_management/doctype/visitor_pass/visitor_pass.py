@@ -143,6 +143,9 @@ class VisitorPass(Document):
         normalize_visitor_pass(self)
         self._clear_fields_from_other_layouts()
         self._align_workflow_lane_with_visitor_type()
+        self._validate_group_members()
+        self._warn_conference_room_busy()
+        self._require_documents_to_leave_draft()
         self._validate_not_blacklisted()
         self._validate_schedule()
         self._validate_formats()
@@ -356,6 +359,204 @@ class VisitorPass(Document):
             title=_("Possible Blacklist Match — Verify ID"),
             indicator="orange",
         )
+
+    def _warn_conference_room_busy(self):
+        """Tell the host at pick time that the room is taken, not at approval.
+
+        The room on a Visitor Pass is not booked when it is chosen — the
+        Conference Room Booking is only created once the pass is approved
+        (`lifecycle.ensure_conference_room_booking`). So a host picked an
+        already-booked room, saved with no complaint, submitted with no
+        complaint, and the clash surfaced to the APPROVER as "Room Already
+        Booked" — someone who did not choose the room, cannot easily change it,
+        and is now blocked on the host to pick another. Reported from the field.
+
+        This checks the same rule at the moment the room is chosen, using the
+        same helper the booking itself uses, so the two cannot drift apart.
+
+        It warns rather than blocks, deliberately. A room can free up between
+        now and approval (the other booking gets cancelled or rejected), the
+        real booking still validates authoritatively when it is created, and a
+        hard block here would stop a host recording an otherwise valid visit
+        because of a slot that may not even be taken by then. The point is that
+        nobody is surprised later.
+        """
+        if not (self.conference_room and self.visit_date):
+            return
+        if not (self.expected_checkin and self.expected_checkout):
+            return
+
+        from visitormanagement.conference_room.doctype.conference_room_booking.conference_room_booking import (
+            find_conflicting_booking,
+        )
+
+        # Exclude the booking this pass already owns, or re-saving an approved
+        # pass would flag it as clashing with itself.
+        own = frappe.db.get_value(
+            "Conference Room Booking",
+            {"visitor_pass": self.name, "docstatus": ["<", 2]},
+            "name",
+        )
+        clash = find_conflicting_booking(
+            self.conference_room,
+            self.visit_date,
+            self.expected_checkin,
+            self.expected_checkout,
+            exclude=own,
+        )
+        if clash:
+            frappe.msgprint(
+                _(
+                    "{0} is already booked on {1} from {2} to {3} ({4}).<br>"
+                    "This pass can still be saved, but the room will have to change "
+                    "before it is approved."
+                ).format(
+                    self.conference_room,
+                    frappe.format(self.visit_date, {"fieldtype": "Date"}),
+                    clash[0].start_time,
+                    clash[0].end_time,
+                    clash[0].meeting_title or clash[0].name,
+                ),
+                title=_("Room Already Booked"),
+                indicator="orange",
+            )
+
+    def _validate_group_members(self):
+        """Keep a group pass honest: real members, counted, and each one screened.
+
+        A delegation, an audit team or a training batch arrives together for one
+        meeting. Before this, each person needed their own pass — fifteen
+        mandatory fields, a photo, an ID scan and a full approval lane each — so
+        reception improvised on paper and the building had no record of who was
+        actually inside. One pass now carries the group.
+
+        Three things have to hold, and the third is the one that matters most:
+
+        1. Ticking "Group Visit" without listing anyone is a mistake, not a
+           group — the count and the gate would both be wrong.
+        2. `group_size` counts the lead visitor plus the rows, so the guard and
+           the host see the number of people to expect, not the number of
+           passengers behind the driver.
+        3. **Every member is screened against the blacklist.** Without this a
+           group booking is a way to walk a barred person straight past the
+           check the lead visitor goes through — the feature would be a hole,
+           not a convenience. Uses the same matcher and the same warn-vs-block
+           split as the lead visitor: a strong ID match or a corroborated
+           name+mobile pair blocks the pass; a single weak identifier raises a
+           visible warning naming the person, for a human to check at the desk.
+        """
+        if not self.is_group_visit:
+            # Unticking it should not leave a stale roster behind, in the same
+            # spirit as _clear_fields_from_other_layouts.
+            self.group_members = []
+            self.group_size = 0
+            return
+
+        members = self.group_members or []
+        if not members:
+            frappe.throw(
+                _("List the people arriving with {0}, or untick Group Visit.").format(
+                    self.visitor_full_name or _("this visitor")
+                ),
+                title=_("Group Visit Needs Members"),
+            )
+
+        seen = {}
+        for row in members:
+            row.visitor_name = (row.visitor_name or "").strip()
+            if not row.visitor_name:
+                frappe.throw(
+                    _("Row {0}: every accompanying visitor needs a name.").format(row.idx),
+                    title=_("Missing Name"),
+                )
+            # Two rows for the same person inflate the headcount the gate and
+            # catering both work from, so catch it here rather than at the door.
+            key = (row.visitor_name.lower(), (row.id_proof_number or "").strip().lower())
+            if key in seen:
+                frappe.throw(
+                    _("Rows {0} and {1} are the same person ({2}).").format(
+                        seen[key], row.idx, row.visitor_name
+                    ),
+                    title=_("Duplicate Group Member"),
+                )
+            seen[key] = row.idx
+
+        self.group_size = 1 + len(members)
+        self._screen_group_members(members)
+
+    def _screen_group_members(self, members):
+        """Run the blacklist over every accompanying visitor."""
+        from visitormanagement.visitor_management.doctype.visitor_blacklist.visitor_blacklist import (
+            VisitorBlacklist,
+        )
+
+        for row in members:
+            match = VisitorBlacklist.find_active_match(
+                id_proof_number=row.id_proof_number,
+                visitor_name=row.visitor_name,
+                id_proof_type=row.id_proof_type,
+                mobile_number=row.mobile_number,
+            )
+            if match:
+                entry = frappe.get_doc("Visitor Blacklist", match)
+                frappe.throw(
+                    _(
+                        "{0} (row {1}) is on the active blacklist ({2}, reason: {3}). "
+                        "Remove them from the group before sending this pass for approval."
+                    ).format(row.visitor_name, row.idx, entry.name, entry.reason or _("Not specified")),
+                    title=_("Access Denied — Blacklisted Group Member"),
+                )
+
+            weak = VisitorBlacklist.find_weak_match(
+                visitor_name=row.visitor_name, mobile_number=row.mobile_number
+            )
+            if weak:
+                entry = frappe.get_doc("Visitor Blacklist", weak["name"])
+                frappe.msgprint(
+                    _(
+                        "{0} (row {1}) matches an active blacklist entry on {2} "
+                        "({3}, reason: {4}), but not strongly enough to block automatically.<br>"
+                        "<b>Verify their ID before allowing entry.</b>"
+                    ).format(
+                        row.visitor_name,
+                        row.idx,
+                        _(weak["matched_on"]),
+                        entry.name,
+                        frappe.utils.escape_html(entry.reason or _("Not specified")),
+                    ),
+                    title=_("Possible Blacklist Match — Verify ID"),
+                    indicator="orange",
+                )
+
+    def _require_documents_to_leave_draft(self):
+        """Photo and ID scan are needed to send a pass for approval, not to draft one.
+
+        Both fields used to be `reqd: 1`, which Frappe enforces on EVERY save —
+        so a receptionist could not save even a placeholder Draft for a walk-in
+        while someone fetched the camera or the ID scanner. A real front desk
+        enters a visitor in stages, often across two people. Reported as the
+        first thing a real lobby hits.
+
+        The requirement itself is not being dropped: it moves to the moment the
+        pass stops being a Draft. `mandatory_depends_on` on the fields gives the
+        red asterisk in the form, but it is not dependable on a workflow
+        transition (proven live: a pass left Draft with neither document), so
+        the actual enforcement is here. `before_submit()` still checks both
+        again at final approval.
+        """
+        if self.workflow_state and self.workflow_state != "Draft":
+            missing = [
+                label
+                for field, label in (("visitor_photo", _("Visitor Photo")), ("id_proof_scan", _("ID Proof Scan")))
+                if not self.get(field)
+            ]
+            if missing:
+                frappe.throw(
+                    _("{0} must be attached before this pass can be sent for approval.").format(
+                        ", ".join(missing)
+                    ),
+                    title=_("Missing Documents"),
+                )
 
     def _validate_schedule(self):
         """Block past dates, enforce check-in < check-out, enforce future-date ceiling."""

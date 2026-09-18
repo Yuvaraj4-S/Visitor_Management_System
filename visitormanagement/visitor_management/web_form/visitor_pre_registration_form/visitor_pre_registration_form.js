@@ -419,6 +419,38 @@ function guardPhoneControl(field) {
 	};
 }
 
+// A Phone control draws its own "+91" country selector beside the input, so a
+// value that ALREADY starts with a country code gets rendered twice — the
+// visitor saw "+91 +91-9876543210" on her own pre-registration form and had no
+// way to know which part was real. Reported from a live walkthrough.
+//
+// The host stores the number in full ("+91 9876543210") and that is correct;
+// only the on-screen split is wrong. So strip a leading "+<code>" off the value
+// before handing it to the control and let the selector own the prefix. If the
+// control has no selector (some renders), the value is passed through whole so
+// nothing is lost.
+function splitIsdFromNumber(field, value) {
+	const raw = (value == null ? "" : String(value)).trim();
+	if (!raw.startsWith("+") || !field?.$isd?.length) {
+		return raw;
+	}
+	// "+91 98765 43210" / "+91-9876543210" -> code "91", rest "9876543210"
+	const m = raw.match(/^\+(\d{1,4})[\s-]*(.*)$/);
+	if (!m) {
+		return raw;
+	}
+	const [, code, rest] = m;
+	if (!rest.replace(/\D/g, "")) {
+		return raw; // nothing but a code — leave it alone rather than blanking it
+	}
+	try {
+		field.$isd.val("+" + code).trigger("change");
+	} catch (e) {
+		return raw; // selector would not take it; better a doubled prefix than a lost number
+	}
+	return rest.trim();
+}
+
 async function ensurePhoneValueApplied(field, value) {
 	guardPhoneControl(field);
 	for (let attempt = 0; attempt < 25; attempt++) {
@@ -427,7 +459,7 @@ async function ensurePhoneValueApplied(field, value) {
 		}
 		await new Promise((resolve) => setTimeout(resolve, 100));
 	}
-	setFieldInputDirectly(field, value);
+	setFieldInputDirectly(field, splitIsdFromNumber(field, value));
 }
 
 async function syncHospitalityFieldsFromMealToggle() {
@@ -632,7 +664,16 @@ function renderLockedFieldValues(values = {}) {
 			return;
 		}
 
-		syncVisibleLockedField(fieldname, values[fieldname]);
+		// Show a person's name where we have one. `person_to_visit` holds the
+		// Employee id, so the visitor was being shown "HR-EMP-00057" as the person
+		// she had come to see — meaningless to her, and unverifiable, so she rings
+		// reception. The pass still stores the id; only what she reads changes.
+		const display =
+			fieldname === "person_to_visit" && values.person_to_visit_display
+				? values.person_to_visit_display
+				: values[fieldname];
+
+		syncVisibleLockedField(fieldname, display);
 	});
 }
 
@@ -757,6 +798,25 @@ function lockInvitationFields() {
 	});
 }
 
+// Only offer ID types that are switched on. A Link field lists every row unless
+// it is told otherwise, so an ID Proof Type an administrator had DEACTIVATED
+// stayed on the public form — decommissioned types and leftover test entries
+// ("C5 DL Probe 1786539733") were being offered to real visitors, who have no
+// way to know which are genuine. Reported twice from live walkthroughs.
+// Setting is_active = 0 now actually removes it from the visitor's choices.
+function restrictIdProofTypesToActive() {
+	const field = frappe.web_form?.fields_dict?.id_proof_type;
+	if (!field || field._vmActiveOnly) {
+		return;
+	}
+	field._vmActiveOnly = true;
+	field.get_query = () => ({ filters: { is_active: 1 } });
+	// The control caches its query on first render; clear anything already shown.
+	if (field.df) {
+		field.df.get_query = field.get_query;
+	}
+}
+
 async function handleInvitationAfterLoad() {
 	if (invitationContextState.afterLoadTriggered) {
 		return;
@@ -768,6 +828,7 @@ async function handleInvitationAfterLoad() {
 	}
 
 	invitationContextState.afterLoadTriggered = true;
+	restrictIdProofTypesToActive();
 
 	const token = getInvitationToken();
 	invitationContextState = {

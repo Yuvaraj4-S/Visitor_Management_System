@@ -76,11 +76,11 @@
    "label": "Visitor Full Name"
   },
   {
+   "description": "Mirrored as typed. It is normalised to the site's ISD format when it flows onto the Visitor Pass.",
    "fieldname": "visitor_mobile",
    "fieldtype": "Data",
    "label": "Visitor Mobile",
-   "options": "Phone",
-   "description": "Mirrored as typed. It is normalised to the site's ISD format when it flows onto the Visitor Pass."
+   "options": "Phone"
   },
   {
    "fieldname": "sec_visit",
@@ -90,11 +90,11 @@
   {
    "fieldname": "host_employee",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "in_list_view": 1,
    "label": "Host Employee",
    "options": "Employee",
-   "reqd": 1,
-   "ignore_user_permissions": 1
+   "reqd": 1
   },
   {
    "fieldname": "visit_date",
@@ -125,11 +125,11 @@
    "label": "Purpose"
   },
   {
+   "description": "Required: the visitor's pre-registration form needs it, and Visitor Pass will not save without one.",
    "fieldname": "purpose_of_visit",
    "fieldtype": "Small Text",
    "label": "Purpose of Visit",
-   "reqd": 1,
-   "description": "Required: the visitor's pre-registration form needs it, and Visitor Pass will not save without one."
+   "reqd": 1
   },
   {
    "fieldname": "sec_hospitality",
@@ -176,15 +176,17 @@
    "label": "Refreshments Required"
   },
   {
+   "description": "Pick an existing room. This is copied to the visitor's pass.",
    "fieldname": "conference_room",
-   "fieldtype": "Data",
-   "label": "Conference Room"
+   "fieldtype": "Link",
+   "label": "Conference Room",
+   "options": "Conference Room"
   },
   {
+   "collapsible": 1,
    "fieldname": "sec_tracking",
    "fieldtype": "Section Break",
-   "label": "Invitation Tracking",
-   "collapsible": 1
+   "label": "Invitation Tracking"
   },
   {
    "default": "Draft",
@@ -241,10 +243,10 @@
    "read_only": 1
   },
   {
+   "collapsible": 1,
    "fieldname": "sec_links",
    "fieldtype": "Section Break",
-   "label": "Linked Records",
-   "collapsible": 1
+   "label": "Linked Records"
   },
   {
    "fieldname": "visitor_pass",
@@ -266,13 +268,13 @@
    "fieldtype": "Column Break"
   },
   {
+   "description": "Set automatically when the invitation is raised from an Offline-interview Job Applicant.",
    "fieldname": "reference_job_applicant",
    "fieldtype": "Link",
    "label": "Reference Job Applicant",
    "no_copy": 1,
    "options": "Job Applicant",
-   "read_only": 1,
-   "description": "Set automatically when the invitation is raised from an Offline-interview Job Applicant."
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
@@ -282,6 +284,7 @@
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Invitation",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {
@@ -330,6 +333,5 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "track_changes": 1,
- "naming_rule": "Expression (old style)"
+ "track_changes": 1
 }

@@ -124,6 +124,14 @@ def get_web_form_context(token):
 		"expected_checkin": _format_time_for_web_form(invitation.expected_checkin),
 		"expected_checkout": _format_time_for_web_form(invitation.expected_checkout),
 		"person_to_visit": invitation.host_employee,
+		# The pass stores the Employee id, and the public form showed the visitor
+		# exactly that — "HR-EMP-00057". She has no idea whether that is the person
+		# she came to see, and nothing on the page tells her, so she rings
+		# reception to ask. Send the name too and show her that instead.
+		"person_to_visit_display": frappe.db.get_value(
+			"Employee", invitation.host_employee, "employee_name"
+		)
+		or invitation.host_employee,
 		"purpose_of_visit": invitation.purpose_of_visit,
 		"meal_required": invitation.meal_required,
 		"meal_type": meal_plan["meal_type"] if invitation.meal_required else "",

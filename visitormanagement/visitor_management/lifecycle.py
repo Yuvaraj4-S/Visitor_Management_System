@@ -331,29 +331,35 @@ def ensure_conference_room_booking(visitor_pass):
 			start_time,
 			end_time,
 		)
+		# Say what is actually true of THIS pass. The old wording opened with
+		# "The visit is approved", but this runs from on_update on every save of a
+		# pass that is not a Draft — so a host saving a Pending pass, or an
+		# approver rejecting one, was told their visit was approved while the
+		# status badge in front of them said otherwise. Reported from a walkthrough.
+		state = getattr(visitor_pass, "workflow_state", None) or getattr(visitor_pass, "status", None)
+		lead = (
+			_("The visit is approved, but")
+			if state in ("Approved", "Items Verified", "Checked-In", "Checked-Out")
+			else _("This pass is saved, but")
+		)
+
 		if clash:
 			frappe.msgprint(
 				_(
-					"The visit is approved, but <b>{0}</b> could not be reserved — it is "
-					"already booked from {1} to {2} ({3}).<br>"
-					"Pick a different room on this pass, or book one from Conference Room "
-					"Booking. Nothing else about the approval is affected."
-				).format(
-					visitor_pass.conference_room,
-					clash[0].start_time,
-					clash[0].end_time,
-					clash[0].meeting_title or clash[0].name,
-				),
+					"{0} <b>{1}</b> could not be reserved — it is already booked "
+					"from {2} to {3}.<br>"
+					"Pick a different room on this pass, or book one from Conference "
+					"Room Booking. Nothing else about this pass is affected."
+				).format(lead, visitor_pass.conference_room, clash[0].start_time, clash[0].end_time),
 				title=_("Room Not Reserved"),
 				indicator="orange",
 			)
 		else:
 			frappe.msgprint(
 				_(
-					"The visit is approved, but <b>{0}</b> could not be reserved. "
-					"An administrator can see why in the Error Log; book the room "
-					"manually in the meantime."
-				).format(visitor_pass.conference_room),
+					"{0} <b>{1}</b> could not be reserved. An administrator can see "
+					"why in the Error Log; book the room manually in the meantime."
+				).format(lead, visitor_pass.conference_room),
 				title=_("Room Not Reserved"),
 				indicator="orange",
 			)

@@ -152,11 +152,23 @@ class ConferenceRoomBooking(Document):
 		)
 
 		if overlap:
+			# Name the clashing meeting only to someone allowed to see it. The
+			# calendar deliberately shows other people's bookings as "Busy" so a
+			# room stays visibly occupied without leaking what it is for — and this
+			# error handed the title straight back, so anyone could learn
+			# "Board interview — CFO candidate" simply by trying to book over it.
+			# The time and the booking id are enough to move your meeting.
+			from visitormanagement.permissions import has_conference_room_booking_permission
+
+			other = frappe.get_doc("Conference Room Booking", overlap[0].name)
+			may_see = has_conference_room_booking_permission(other, frappe.session.user)
+			what = overlap[0].meeting_title if may_see else _("another booking")
+
 			frappe.throw(
-				_("Time conflict with booking <b>{0}</b> ({1}: {2} - {3}). "
+				_("Time conflict with <b>{0}</b> ({1}: {2} - {3}). "
 				  "Please choose a different time slot.").format(
 					overlap[0].name,
-					overlap[0].meeting_title,
+					what,
 					overlap[0].start_time,
 					overlap[0].end_time,
 				),

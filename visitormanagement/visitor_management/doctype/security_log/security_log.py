@@ -351,10 +351,17 @@ class SecurityLog(Document):
                             f"Check-in date ({checkin_date}) is after the scheduled visit date ({expected_date}). Pass is no longer valid for this date."
                         )
 
-                if self.verification_started_on and self.check_in_date_time:
-                    self.verification_duration = time_diff_in_seconds(
-                        self.check_in_date_time,
-                        self.verification_started_on,
+                if self.verification_started_on:
+                    # How long the OFFICER took, measured to now — not to
+                    # check_in_date_time. That field can hold a future scheduled
+                    # time (a pass for a visit three days out), and measuring to
+                    # it turned a thirty-second check into "Verification Duration:
+                    # 3d 18h 8m 3s" on the guard's own screen. They reasonably
+                    # read that as the system being broken. Reported from a live
+                    # walkthrough. Clamped at zero so a back-dated entry cannot
+                    # show a negative duration.
+                    self.verification_duration = max(
+                        0, time_diff_in_seconds(now, self.verification_started_on)
                     )
 
             elif self.event_type == 'Check-Out':
@@ -381,6 +388,35 @@ class SecurityLog(Document):
                     frappe.throw(
                         f"Check-out time ({self.check_out_date_time}) must be after check-in time ({prior_checkin})."
                     )
+
+                # Check-in refuses a date outside the pass window; check-out did not
+                # look at the window at all, so a visitor could be signed out days
+                # after their pass expired and the record read as ordinary.
+                #
+                # Deliberately a warning, never a throw. Refusing the check-out would
+                # strand the visitor at "Checked-In" forever, which is the exact drift
+                # `tasks.flag_overstaying_visitors` exists to chase — and its docstring
+                # makes the same point from the other side: a checkout asserts somebody
+                # watched them leave, so the system must not invent one, and must not
+                # block the officer recording a real one either. The overstay job
+                # already alerts while they are inside; this puts the fact in front of
+                # the officer at the moment they close the record, so the remarks field
+                # gets filled while somebody still remembers why.
+                window_end = vp.pass_valid_until if vp.multi_day_pass and vp.pass_valid_until else vp.visit_date
+                if window_end:
+                    checkout_date = getdate(self.check_out_date_time)
+                    expiry = getdate(window_end)
+                    if checkout_date > expiry:
+                        days_late = (checkout_date - expiry).days
+                        frappe.msgprint(
+                            msg=_(
+                                "This pass expired on {0}. The check-out being recorded is {1} day(s) "
+                                "later, so the visitor was shown as inside the building that whole time. "
+                                "Check-out is allowed — add a note saying what happened."
+                            ).format(expiry, days_late),
+                            title=_("Late Check-Out"),
+                            indicator="orange",
+                        )
 
             elif self.event_type == 'Gate Transfer' and current_status != 'Checked-In':
                 frappe.throw(
@@ -435,6 +471,13 @@ class SecurityLog(Document):
                     'visitor_item_row_name': vi.name,
                     'item_name': vi.item_name,
                     'item_category': vi.item_category,
+                    # Seed the officer's classification from what the visitor declared.
+                    # Both fields now share one vocabulary, so this copies straight across.
+                    # Previously nothing set item_type at all, and its Select had no blank
+                    # first option, so every row rendered pre-selected on its first choice
+                    # and saved that way -- 77 of 87 rows read 'Electronic', including
+                    # fabric samples and a measuring tape.
+                    'item_type': vi.item_category,
                     'quantity_declared': vi.quantity,
                     'uom': vi.unit_of_measure,
                     'serial__asset_number': vi.serial_number,

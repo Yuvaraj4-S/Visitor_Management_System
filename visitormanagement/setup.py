@@ -387,6 +387,7 @@ def setup_visitor_management():
 	_backfill_mobile_digits()
 	_repair_pending_status_drift()
 	_activate_blacklist_entries()
+	_migrate_item_category_vocabulary()
 	_harden_invitation_token_collation()
 	_seed_static_workflows()
 	_build_workflow()
@@ -1143,6 +1144,47 @@ def _activate_blacklist_entries():
 	if dormant:
 		print(f"  activated {len(dormant)} dormant blacklist entries (one-time historical backfill)")
 	frappe.db.set_default(_BLACKLIST_BACKFILL_MARKER, "1")
+
+
+def _migrate_item_category_vocabulary():
+	"""Retire the orphaned `Electronic` value on Security Item Verify.item_type.
+
+	The gate row and the pass row describe the same physical object, but they
+	used to offer two different word lists — the pass said `Electronics`, the
+	gate said `Electronic`, and the gate had no `Weapon` at all. Neither Select
+	had a blank first option, and nothing in the code ever set `item_type`, so a
+	browser rendered the field pre-selected on its first choice and saved it.
+	That is how 77 of 87 rows came to read "Electronic", fabric samples and a
+	measuring tape included.
+
+	Both fields now share one vocabulary that starts blank. `Electronic` is no
+	longer in it, and Frappe refuses to save a document holding a Select value
+	outside its options — so without this, editing any historical Security Log
+	would fail with "Item Type cannot be Electronic".
+
+	Mapped to `Electronics` rather than blanked. The two spellings always meant
+	the same category, so this is a rename and invents nothing; blanking would
+	erase a value off a submitted audit record. Rows that were only ever
+	"Electronic" because of the bug stay mislabelled, and the gate can correct
+	them — that is a visible wrong answer rather than a silent one.
+
+	Idempotent: after it runs no row holds the old value, so a re-run is a no-op.
+	"""
+	if not frappe.db.table_exists("Security Item Verify"):
+		return
+
+	stale = frappe.db.sql(
+		"""SELECT COUNT(*) FROM `tabSecurity Item Verify` WHERE item_type = %s""",
+		"Electronic",
+	)[0][0]
+	if not stale:
+		return
+
+	frappe.db.sql(
+		"""UPDATE `tabSecurity Item Verify` SET item_type = %s WHERE item_type = %s""",
+		("Electronics", "Electronic"),
+	)
+	print(f"  item_type: renamed {stale} legacy 'Electronic' row(s) to 'Electronics'")
 
 
 def _harden_invitation_token_collation():

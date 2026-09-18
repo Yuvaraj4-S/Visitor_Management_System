@@ -289,13 +289,41 @@ class VisitorPass(Document):
         the way out of Draft keeps them out of the queue entirely, while still
         allowing reception to save a draft and correct it.
         """
-        state = (self.workflow_state or "Draft").strip()
-        if state in ("Draft", "Rejected", ""):
-            return
-
         from visitormanagement.visitor_management.doctype.visitor_blacklist.visitor_blacklist import (
             VisitorBlacklist,
+            _normalise_id,
         )
+
+        state = (self.workflow_state or "Draft").strip()
+        if state in ("Draft", "Rejected", ""):
+            # A Draft is still allowed to save — reception may be mid-typing, and
+            # refusing here would strand them with a half-entered form. But it must
+            # not stay SILENT: the block only fired on Submit, so a receptionist
+            # entered the person's name, mobile, ID number, ID scan and photograph
+            # before learning they were barred. That is wasted work, an awkward
+            # moment at the desk, and a blocked person's identity documents now
+            # sitting in the database. Tell her the moment the name or ID matches.
+            early = VisitorBlacklist.find_active_match(
+                id_proof_number=self.id_proof_number,
+                visitor_name=self.visitor_full_name,
+                id_proof_type=self.id_proof_type,
+                mobile_number=self.mobile_number,
+            )
+            if early:
+                entry = frappe.get_doc("Visitor Blacklist", early)
+                frappe.msgprint(
+                    _(
+                        "<b>{0}</b> is on the active blacklist (reason: {1}).<br>"
+                        "This pass can be saved as a draft, but it cannot be sent "
+                        "for approval. Stop collecting their documents."
+                    ).format(
+                        entry.visitor_name or self.visitor_full_name,
+                        frappe.utils.escape_html(entry.reason or _("Not specified")),
+                    ),
+                    title=_("Blacklisted Visitor — Do Not Proceed"),
+                    indicator="red",
+                )
+            return
 
         match = VisitorBlacklist.find_active_match(
             id_proof_number=self.id_proof_number,
@@ -312,11 +340,37 @@ class VisitorPass(Document):
 
         blacklist = frappe.get_doc("Visitor Blacklist", match)
         self._alert_blacklist_match(blacklist)
+        # Name BOTH people, and say which detail matched. The receptionist is
+        # looking at a form that says "Vikash Sharma" — a message naming only one
+        # person leaves her unsure whether she mistyped, whether the system has
+        # the wrong record, or whether this really is the barred man under another
+        # name. Saying "the ID proof you entered belongs to Vikram Malhotra"
+        # tells her what to check and what to say to the person in front of her.
+        matched_on = (
+            _("ID proof number")
+            if blacklist.id_proof_number
+            and _normalise_id(self.id_proof_number) == _normalise_id(blacklist.id_proof_number)
+            else _("name and mobile number")
+        )
+        same_person = (self.visitor_full_name or "").strip().lower() == (
+            blacklist.visitor_name or ""
+        ).strip().lower()
+        detail = (
+            _("This person is on the active blacklist.")
+            if same_person
+            else _("The {0} entered belongs to <b>{1}</b>, who is on the active blacklist.").format(
+                matched_on, blacklist.visitor_name
+            )
+        )
         frappe.throw(
             _(
-                "Visitor: {0}\nReason: {1}\n\n"
-                "This person is on the active blacklist. The pass cannot be sent for approval."
-            ).format(self.visitor_full_name, blacklist.reason or _("Not specified")),
+                "At the desk: {0}\n{1}\nReason on file: {2}\n\n"
+                "The pass cannot be sent for approval."
+            ).format(
+                self.visitor_full_name or _("(no name entered)"),
+                detail,
+                blacklist.reason or _("Not specified"),
+            ),
             title=_("Access Denied — Blacklisted Visitor"),
         )
 
@@ -955,6 +1009,23 @@ class VisitorPass(Document):
                         row.verified_by_security = 1
                     if prior.verification_remarks:
                         row.verification_remarks = prior.verification_remarks
+                    # Carry over everything the free text cannot express. Only
+                    # name and quantity are recoverable from items_carried, so
+                    # without this an edit to the text silently blanked the
+                    # category, UOM, serial and value the row already had. A row
+                    # marked "Weapon" came back blank, and the Select then
+                    # rendered pre-selected on its first option and saved that.
+                    for field in (
+                        "item_code",
+                        "item_category",
+                        "unit_of_measure",
+                        "serial_number",
+                        "description",
+                        "estimated_value",
+                    ):
+                        value = prior.get(field)
+                        if value not in (None, ""):
+                            row.set(field, value)
 
             # Write the normalised summary back so the next save sees itself as
             # already in sync; otherwise "Lap,mobile" and "Lap, mobile" differ

@@ -79,11 +79,23 @@ def get_columns():
 	return [
 		{"label": _("Type Comparison"), "fieldname": "match_scope", "fieldtype": "Data", "width": 130},
 		{"label": _("Matched On"), "fieldname": "match_basis", "fieldtype": "Data", "width": 150},
-		{"label": _("Primary Pass"), "fieldname": "primary_pass", "fieldtype": "Link", "options": "Visitor Pass", "width": 130},
+		{
+			"label": _("Primary Pass"),
+			"fieldname": "primary_pass",
+			"fieldtype": "Link",
+			"options": "Visitor Pass",
+			"width": 130,
+		},
 		{"label": _("Primary Visitor"), "fieldname": "primary_visitor", "fieldtype": "Data", "width": 170},
 		{"label": _("Primary Type"), "fieldname": "primary_type", "fieldtype": "Data", "width": 105},
 		{"label": _("Primary Visit"), "fieldname": "primary_visit_date", "fieldtype": "Date", "width": 105},
-		{"label": _("Matched Pass"), "fieldname": "matched_pass", "fieldtype": "Link", "options": "Visitor Pass", "width": 130},
+		{
+			"label": _("Matched Pass"),
+			"fieldname": "matched_pass",
+			"fieldtype": "Link",
+			"options": "Visitor Pass",
+			"width": 130,
+		},
 		{"label": _("Matched Visitor"), "fieldname": "matched_visitor", "fieldtype": "Data", "width": 170},
 		{"label": _("Matched Type"), "fieldname": "matched_type", "fieldtype": "Data", "width": 105},
 		{"label": _("Matched Visit"), "fieldname": "matched_visit_date", "fieldtype": "Date", "width": 105},
@@ -271,7 +283,7 @@ def _notify_skipped_groups(skipped_groups):
 	lines = ", ".join(f"{g['basis']} group of {g['size']} passes" for g in shown)
 	remainder = len(skipped_groups) - len(shown)
 	if remainder:
-		lines += _(" and {0} more group(s)").format(remainder)
+		lines += " " + _("and {0} more group(s)").format(remainder)
 
 	frappe.msgprint(
 		_(

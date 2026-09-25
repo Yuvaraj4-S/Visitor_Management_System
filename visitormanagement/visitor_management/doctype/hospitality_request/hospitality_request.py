@@ -6,15 +6,13 @@ from datetime import timedelta
 import frappe
 from frappe import _
 from frappe.model.document import Document
-
 from frappe.utils import date_diff, get_datetime, get_time, getdate, nowdate
 
-
-from visitormanagement.visitor_management.mail import esc, send_after_commit
 from visitormanagement.visitor_management.lifecycle import (
 	populate_hospitality_request_from_pass,
 	sync_hospitality_to_pass,
 )
+from visitormanagement.visitor_management.mail import esc, send_after_commit
 
 
 def _get_assigned_staff_email(employee_name):
@@ -38,7 +36,9 @@ def _send_hospitality_assignment_mail(doc):
 	if not email:
 		return
 
-	visitor_name = frappe.db.get_value("Visitor Pass", doc.visitor_pass, "visitor_full_name") or doc.visitor_pass
+	visitor_name = (
+		frappe.db.get_value("Visitor Pass", doc.visitor_pass, "visitor_full_name") or doc.visitor_pass
+	)
 	subject = f"Hospitality Confirmed: {visitor_name}"
 	lines = [
 		f"Hospitality Request: {doc.name}",
@@ -67,7 +67,9 @@ def _send_hospitality_assignment_mail(doc):
 		)
 	except Exception as exc:
 		# Queueing can fail (no Email Account at all) — log and continue rather than blocking the save.
-		frappe.log_error(f"Hospitality assignment email failed for {doc.name}: {exc}", "VMS Hospitality Assignment Email")
+		frappe.log_error(
+			f"Hospitality assignment email failed for {doc.name}: {exc}", "VMS Hospitality Assignment Email"
+		)
 
 
 class HospitalityRequest(Document):
@@ -170,11 +172,9 @@ class HospitalityRequest(Document):
 
 		if self.factory_tour_required and self.tour_date:
 			if self.tour_start_time:
-				_check(_("Tour start"),
-					get_datetime(f"{self.tour_date} {self.tour_start_time}"))
+				_check(_("Tour start"), get_datetime(f"{self.tour_date} {self.tour_start_time}"))
 			if self.tour_end_time:
-				_check(_("Tour end"),
-					get_datetime(f"{self.tour_date} {self.tour_end_time}"))
+				_check(_("Tour end"), get_datetime(f"{self.tour_date} {self.tour_end_time}"))
 
 		if self.buggy_required and self.buggy_datetime:
 			_check(_("Buggy pickup"), self.buggy_datetime)
@@ -188,11 +188,15 @@ class HospitalityRequest(Document):
 		if not (self.hotel_required and self.check_in and self.visitor_pass):
 			return
 
-		vp = frappe.db.get_value(
-			"Visitor Pass", self.visitor_pass,
-			["visit_date", "pass_valid_until"],
-			as_dict=True,
-		) or {}
+		vp = (
+			frappe.db.get_value(
+				"Visitor Pass",
+				self.visitor_pass,
+				["visit_date", "pass_valid_until"],
+				as_dict=True,
+			)
+			or {}
+		)
 		visit_date = vp.get("visit_date")
 		valid_until = vp.get("pass_valid_until") or visit_date
 

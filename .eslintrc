@@ -26,6 +26,7 @@
 	"root": true,
 	"globals": {
 		"frappe": true,
+		"Html5Qrcode": true,
 		"Vue": true,
 		"SetVueGlobals": true,
 		"__": true,

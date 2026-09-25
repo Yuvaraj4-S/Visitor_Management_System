@@ -56,23 +56,21 @@ frappe.ui.form.on("Hospitality Request", {
 	},
 
 	hotel_required(frm) {
-		frm.toggle_reqd(
-			["check_in", "check_out"],
-			frm.doc.hotel_required
-		);
+		frm.toggle_reqd(["check_in", "check_out"], frm.doc.hotel_required);
 		if (frm.doc.hotel_required && !frm.doc.buggy_required) {
 			frm.set_value("buggy_required", 1);
 		}
 	},
 
-	check_in(frm) { frm.trigger("_recalc_nights"); },
-	check_out(frm) { frm.trigger("_recalc_nights"); },
+	check_in(frm) {
+		frm.trigger("_recalc_nights");
+	},
+	check_out(frm) {
+		frm.trigger("_recalc_nights");
+	},
 	_recalc_nights(frm) {
 		if (frm.doc.check_in && frm.doc.check_out) {
-			const nights = frappe.datetime.get_day_diff(
-				frm.doc.check_out,
-				frm.doc.check_in
-			);
+			const nights = frappe.datetime.get_day_diff(frm.doc.check_out, frm.doc.check_in);
 			frm.set_value("nights", nights > 0 ? nights : 0);
 		}
 	},
@@ -85,11 +83,7 @@ frappe.ui.form.on("Hospitality Request", {
 	},
 
 	tour_date(frm) {
-		if (
-			frm.doc.tour_date
-			&& frm.doc.buggy_required
-			&& !frm.doc.buggy_datetime
-		) {
+		if (frm.doc.tour_date && frm.doc.buggy_required && !frm.doc.buggy_datetime) {
 			const time = frm.doc.tour_start_time || "09:00:00";
 			frm.set_value("buggy_datetime", `${frm.doc.tour_date} ${time}`);
 		}
@@ -97,24 +91,15 @@ frappe.ui.form.on("Hospitality Request", {
 
 	tour_start_time(frm) {
 		if (frm.doc.tour_date && frm.doc.tour_start_time && frm.doc.buggy_required) {
-			frm.set_value(
-				"buggy_datetime",
-				`${frm.doc.tour_date} ${frm.doc.tour_start_time}`
-			);
+			frm.set_value("buggy_datetime", `${frm.doc.tour_date} ${frm.doc.tour_start_time}`);
 		}
 	},
 
 	buggy_required(frm) {
-		frm.toggle_reqd(
-			["buggy_pickup_point", "buggy_datetime"],
-			frm.doc.buggy_required
-		);
+		frm.toggle_reqd(["buggy_pickup_point", "buggy_datetime"], frm.doc.buggy_required);
 	},
 
 	greeting_required(frm) {
-		frm.toggle_reqd(
-			["greeting_type", "greeting_delivery_time"],
-			frm.doc.greeting_required
-		);
+		frm.toggle_reqd(["greeting_type", "greeting_delivery_time"], frm.doc.greeting_required);
 	},
 });

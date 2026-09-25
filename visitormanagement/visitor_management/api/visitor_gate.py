@@ -20,7 +20,6 @@ from frappe.utils import cint, getdate, today, urlencode
 
 from visitormanagement.visitor_management.workflow_builder import APPROVED_STATES
 
-
 ENTRY_STATUSES = ("Approved", "Items Verified")
 
 # APPROVED_STATES -- the workflow states that genuinely represent an approved
@@ -110,7 +109,7 @@ def _gate_response(visitor_pass, event_type, message):
 # CHECK-IN
 # ─────────────────────────────────────────────────────────
 @frappe.whitelist()
-def visitor_checkin(docname):
+def visitor_checkin(docname: str):
 	"""Validate that this pass may check in, and return the Security Log to open."""
 
 	_assert_gate_permission()
@@ -125,7 +124,9 @@ def visitor_checkin(docname):
 		frappe.throw(_("Visitor Pass {0} does not exist.").format(docname))
 
 	if pass_state.status == "Cancelled" or cint(pass_state.docstatus) == 2:
-		frappe.throw(_("Pass {0} has been cancelled. Entry refused.").format(docname), title=_("Cancelled Pass"))
+		frappe.throw(
+			_("Pass {0} has been cancelled. Entry refused.").format(docname), title=_("Cancelled Pass")
+		)
 
 	if pass_state.status == "Checked-Out":
 		if not _valid_today(pass_state):
@@ -165,7 +166,7 @@ def visitor_checkin(docname):
 # CHECK-OUT
 # ─────────────────────────────────────────────────────────
 @frappe.whitelist()
-def visitor_checkout(docname):
+def visitor_checkout(docname: str):
 	"""Validate that this pass may check out, and return the Security Log to open."""
 
 	_assert_gate_permission()
@@ -188,7 +189,7 @@ def visitor_checkout(docname):
 # QR SCAN LOGIC
 # ─────────────────────────────────────────────────────────
 @frappe.whitelist()
-def scan_qr_checkin(qr_data):
+def scan_qr_checkin(qr_data: str):
 	"""
 	Gatekeeper QR Scan Logic.
 	Resolves the scanned pass and routes to check-in or check-out.
@@ -286,7 +287,7 @@ def scan_qr_checkin(qr_data):
 		return visitor_checkout(doc_name)
 
 	frappe.throw(
-		_("Visitor Pass {0} is in '{1}' state. Expected 'Approved', 'Items Verified', or 'Checked-In'.").format(
-			doc_name, doc_status
-		)
+		_(
+			"Visitor Pass {0} is in '{1}' state. Expected 'Approved', 'Items Verified', or 'Checked-In'."
+		).format(doc_name, doc_status)
 	)

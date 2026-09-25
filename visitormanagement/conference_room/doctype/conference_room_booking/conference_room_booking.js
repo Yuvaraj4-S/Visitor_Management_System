@@ -61,11 +61,7 @@ frappe.ui.form.on("Conference Room Booking", {
 	},
 
 	expected_attendees(frm) {
-		if (
-			frm.doc.conference_room &&
-			frm.doc.expected_attendees &&
-			frm.doc.room_capacity
-		) {
+		if (frm.doc.conference_room && frm.doc.expected_attendees && frm.doc.room_capacity) {
 			if (frm.doc.expected_attendees > frm.doc.room_capacity) {
 				frappe.msgprint({
 					title: __("Capacity Warning"),
@@ -86,10 +82,7 @@ function calculate_duration(frm) {
 		let end = moment(frm.doc.booking_date + " " + frm.doc.end_time);
 		if (end.isAfter(start)) {
 			let hours = end.diff(start, "minutes") / 60;
-			frm.set_value(
-				"duration_hours",
-				Math.round(hours * 100) / 100
-			);
+			frm.set_value("duration_hours", Math.round(hours * 100) / 100);
 		}
 	}
 }
@@ -102,8 +95,7 @@ function find_available_rooms(frm) {
 				fieldname: "booking_date",
 				fieldtype: "Date",
 				label: "Date",
-				default:
-					frm.doc.booking_date || frappe.datetime.get_today(),
+				default: frm.doc.booking_date || frappe.datetime.get_today(),
 				reqd: 1,
 			},
 			{
@@ -151,15 +143,33 @@ function find_available_rooms(frm) {
 						r.message.forEach((room) => {
 							html +=
 								"<tr>" +
-								"<td>" + esc(room.room_name) + "</td>" +
-								"<td>" + esc(room.capacity) + "</td>" +
-								"<td>" + esc(room.location || "") + " " + esc(room.floor || "") + "</td>" +
-								"<td>" + esc(room.room_type || "") + "</td>" +
+								"<td>" +
+								esc(room.room_name) +
+								"</td>" +
+								"<td>" +
+								esc(room.capacity) +
+								"</td>" +
+								"<td>" +
+								esc(room.location || "") +
+								" " +
+								esc(room.floor || "") +
+								"</td>" +
+								"<td>" +
+								esc(room.room_type || "") +
+								"</td>" +
 								'<td><button class="btn btn-xs btn-primary select-room-btn" ' +
-								'data-room="' + esc(room.name) + '" ' +
-								'data-date="' + esc(values.booking_date) + '" ' +
-								'data-start="' + esc(values.start_time) + '" ' +
-								'data-end="' + esc(values.end_time) + '">Select</button></td>' +
+								'data-room="' +
+								esc(room.name) +
+								'" ' +
+								'data-date="' +
+								esc(values.booking_date) +
+								'" ' +
+								'data-start="' +
+								esc(values.start_time) +
+								'" ' +
+								'data-end="' +
+								esc(values.end_time) +
+								'">Select</button></td>' +
 								"</tr>";
 						});
 						html += "</tbody></table>";
@@ -173,18 +183,9 @@ function find_available_rooms(frm) {
 						.find(".select-room-btn")
 						.on("click", function () {
 							let btn = $(this);
-							frm.set_value(
-								"conference_room",
-								btn.data("room")
-							);
-							frm.set_value(
-								"booking_date",
-								btn.data("date")
-							);
-							frm.set_value(
-								"start_time",
-								btn.data("start")
-							);
+							frm.set_value("conference_room", btn.data("room"));
+							frm.set_value("booking_date", btn.data("date"));
+							frm.set_value("start_time", btn.data("start"));
 							frm.set_value("end_time", btn.data("end"));
 							d.hide();
 						});
@@ -204,9 +205,7 @@ function view_room_schedule(frm) {
 		},
 		callback(r) {
 			if (!r.message || !r.message.length) {
-				frappe.msgprint(
-					__("No other bookings for this room on this date.")
-				);
+				frappe.msgprint(__("No other bookings for this room on this date."));
 				return;
 			}
 			const esc = (v) => frappe.utils.escape_html(v == null ? "" : String(v));
@@ -222,16 +221,24 @@ function view_room_schedule(frm) {
 					'">' +
 					esc(b.name) +
 					"</a></td>" +
-					"<td>" + esc(b.meeting_title) + "</td>" +
-					"<td>" + esc(b.start_time) + " - " + esc(b.end_time) + "</td>" +
-					"<td>" + esc(b.meeting_type) + "</td>" +
-					"<td>" + esc(b.status) + "</td></tr>";
+					"<td>" +
+					esc(b.meeting_title) +
+					"</td>" +
+					"<td>" +
+					esc(b.start_time) +
+					" - " +
+					esc(b.end_time) +
+					"</td>" +
+					"<td>" +
+					esc(b.meeting_type) +
+					"</td>" +
+					"<td>" +
+					esc(b.status) +
+					"</td></tr>";
 			});
 			html += "</tbody></table>";
 			frappe.msgprint({
-				title: __(
-					esc(frm.doc.conference_room) + " - " + esc(frm.doc.booking_date)
-				),
+				title: __(esc(frm.doc.conference_room) + " - " + esc(frm.doc.booking_date)),
 				message: html,
 				wide: true,
 			});

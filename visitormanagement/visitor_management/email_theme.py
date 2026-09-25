@@ -46,7 +46,7 @@ LOW_CONTRAST_ACCENTS = {
 }
 
 _WRAPPER_RE = re.compile(r'^\s*<div style="([^"]*)">')
-_COLOURABLE_RE = re.compile(r"<(%s)\b([^>]*)>" % "|".join(TAG_COLOURS), re.IGNORECASE)
+_COLOURABLE_RE = re.compile(r"<(" + "|".join(TAG_COLOURS) + r")\b([^>]*)>", re.IGNORECASE)
 _HAS_COLOUR_RE = re.compile(r"(^|;)\s*color\s*:", re.IGNORECASE)
 
 

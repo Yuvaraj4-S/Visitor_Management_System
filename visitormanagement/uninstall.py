@@ -77,7 +77,10 @@ def before_uninstall():
 
 def _is_dry_run():
 	for frame_info in inspect.stack():
-		if frame_info.function == "remove_app" and frame_info.frame.f_globals.get("__name__") == "frappe.installer":
+		if (
+			frame_info.function == "remove_app"
+			and frame_info.frame.f_globals.get("__name__") == "frappe.installer"
+		):
 			return bool(frame_info.frame.f_locals.get("dry_run"))
 	return False
 
@@ -122,6 +125,7 @@ def _shipped_custom_fields():
 
 	fields = []
 	for path in glob.glob(os.path.join(frappe.get_app_path("visitormanagement"), "*", "custom", "*.json")):
+		# nosemgrep: frappe-security-file-traversal - paths are the app's own custom/*.json files
 		with open(path) as f:
 			spec = json.load(f)
 		for field in spec.get("custom_fields", []):
@@ -150,9 +154,7 @@ def _remove_workflows_and_alerts(app_doctypes):
 		):
 			# ignore_on_trash, as Frappe's own module cleanup does: Notification.on_trash
 			# refuses to delete a standard one, and would touch the app's files.
-			frappe.delete_doc(
-				"Notification", name, ignore_permissions=True, force=True, ignore_on_trash=True
-			)
+			frappe.delete_doc("Notification", name, ignore_permissions=True, force=True, ignore_on_trash=True)
 
 
 def _restore_core_permissions():
@@ -247,14 +249,19 @@ def _remove_created_shared_records(app_doctypes):
 	for state in _shared_records()["Workflow State"] + _created_lane_states():
 		if not (frappe.db.exists("Workflow State", state) and _created_by_app("Workflow State", state)):
 			continue
-		if frappe.db.exists("Workflow Document State", {"state": state}) or frappe.db.exists(
-			"Workflow Transition", {"state": state}
-		) or frappe.db.exists("Workflow Transition", {"next_state": state}):
+		if (
+			frappe.db.exists("Workflow Document State", {"state": state})
+			or frappe.db.exists("Workflow Transition", {"state": state})
+			or frappe.db.exists("Workflow Transition", {"next_state": state})
+		):
 			continue
 		frappe.delete_doc("Workflow State", state, ignore_permissions=True, force=True)
 		print(f"  removed Workflow State {state}")
 	for action in _shared_records()["Workflow Action Master"]:
-		if not (frappe.db.exists("Workflow Action Master", action) and _created_by_app("Workflow Action Master", action)):
+		if not (
+			frappe.db.exists("Workflow Action Master", action)
+			and _created_by_app("Workflow Action Master", action)
+		):
 			continue
 		if frappe.db.exists("Workflow Transition", {"action": action}):
 			continue
@@ -266,7 +273,7 @@ def _created_lane_states():
 	"""The "Pending <role>" lanes the workflow builder created for approver roles."""
 	prefix = _CREATED_MARKER.format(doctype="Workflow State", name="")
 	return [
-		row[0][len(prefix):]
+		row[0][len(prefix) :]
 		for row in frappe.db.sql("select defkey from tabDefaultValue where defkey like %s", (prefix + "%",))
 	]
 

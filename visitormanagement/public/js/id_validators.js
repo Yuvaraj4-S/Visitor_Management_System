@@ -93,14 +93,20 @@
 		passport: "Passport",
 	};
 	const VALIDATORS = {
-		"Aadhaar": validateAadhaar,
+		Aadhaar: validateAadhaar,
 		"PAN Card": validatePAN,
 		"Driving License": validateDrivingLicense,
-		"Passport": validatePassport,
+		Passport: validatePassport,
 	};
 
 	function canonicalType(idType) {
-		return CANONICAL[String(idType == null ? "" : idType).trim().toLowerCase()] || null;
+		return (
+			CANONICAL[
+				String(idType == null ? "" : idType)
+					.trim()
+					.toLowerCase()
+			] || null
+		);
 	}
 
 	function validateID(idType, number) {
@@ -123,7 +129,7 @@
 	}
 
 	const ERROR_MESSAGES = {
-		"Aadhaar":
+		Aadhaar:
 			"Aadhaar must be exactly 12 digits, must not start with 0 or 1, " +
 			"and must pass the UIDAI Verhoeff checksum.",
 		"PAN Card":
@@ -132,7 +138,7 @@
 		"Driving License":
 			"Driving License must be in the format SS00 00000000000 " +
 			"(2 letters + 2 digits + optional space + 11 digits).",
-		"Passport":
+		Passport:
 			"Passport must be in the format A1234567 " +
 			"(1 uppercase letter followed by 7 digits).",
 	};

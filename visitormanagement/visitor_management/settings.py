@@ -173,7 +173,7 @@ DEFAULT_BRAND = "#1A56DB"
 
 
 def _clamp(v):
-	return max(0, min(255, int(round(v))))
+	return max(0, min(255, round(v)))
 
 
 def _hex_to_rgb(value):
@@ -190,11 +190,11 @@ def _hex_to_rgb(value):
 
 def _mix(rgb, target, amount):
 	"""Blend `rgb` toward `target` by `amount` (0..1)."""
-	return tuple(_clamp(c + (t - c) * amount) for c, t in zip(rgb, target))
+	return tuple(_clamp(c + (t - c) * amount) for c, t in zip(rgb, target, strict=False))
 
 
 def _rgb_to_hex(rgb):
-	return "#%02x%02x%02x" % rgb
+	return "#{:02x}{:02x}{:02x}".format(*rgb)
 
 
 def _relative_luminance(rgb):
@@ -226,7 +226,7 @@ def brand_palette():
 		"brand_dark": _rgb_to_hex(_mix(rgb, black, 0.18)),
 		"brand_soft": _rgb_to_hex(_mix(rgb, white, 0.88)),
 		"brand_border": _rgb_to_hex(_mix(rgb, white, 0.62)),
-		"brand_rgb": "%d, %d, %d" % rgb,
+		"brand_rgb": "{}, {}, {}".format(*rgb),
 		"on_brand": on_brand,
 	}
 

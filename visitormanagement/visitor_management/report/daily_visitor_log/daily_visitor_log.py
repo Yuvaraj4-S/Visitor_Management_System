@@ -136,7 +136,6 @@ def get_summary(data):
 	checked_in = sum(1 for r in data if r.status == "Checked-In")
 	checked_out = sum(1 for r in data if r.status == "Checked-Out")
 	approved = sum(1 for r in data if r.status == "Approved")
-	no_show = sum(1 for r in data if r.status == "Approved" and not r.checkin)
 
 	return [
 		{"value": total, "label": _("Total Visits"), "indicator": "Blue"},

@@ -28,7 +28,9 @@ class VisitorBlacklist(Document):
 		# Either ID proof number or visitor name + mobile must be present for lookup.
 		if not self.id_proof_number and not (self.visitor_name and self.id_proof_type):
 			frappe.throw(
-				_("Provide either ID Proof Number or Visitor Name + ID Proof Type to identify the blacklisted person."),
+				_(
+					"Provide either ID Proof Number or Visitor Name + ID Proof Type to identify the blacklisted person."
+				),
 				title=_("Identification Required"),
 			)
 
@@ -59,9 +61,7 @@ class VisitorBlacklist(Document):
 				)
 
 	@staticmethod
-	def find_active_match(
-		id_proof_number=None, visitor_name=None, id_proof_type=None, mobile_number=None
-	):
+	def find_active_match(id_proof_number=None, visitor_name=None, id_proof_type=None, mobile_number=None):
 		"""Name of an active blacklist entry matching this person, or None.
 
 		THREAT MODEL — why a single weak field is never enough to block someone:

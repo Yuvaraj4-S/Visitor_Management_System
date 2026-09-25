@@ -3,7 +3,9 @@
 function getInvitationLink(frm) {
 	if (frm.doc.invitation_token) {
 		return frappe.urllib.get_full_url(
-			`/visitor-pre-registration-form/new?token=${encodeURIComponent(frm.doc.invitation_token)}`
+			`/visitor-pre-registration-form/new?token=${encodeURIComponent(
+				frm.doc.invitation_token
+			)}`
 		);
 	}
 
@@ -11,7 +13,6 @@ function getInvitationLink(frm) {
 }
 
 frappe.ui.form.on("Visitor Invitation", {
-
 	onload(frm) {
 		// Restrict Host Employee picker to the currently logged-in user's Employee
 		frm.set_query("host_employee", () => ({
@@ -22,7 +23,11 @@ frappe.ui.form.on("Visitor Invitation", {
 		}));
 
 		// On new forms, auto-fill Host Employee with the logged-in user's Employee
-		if (frm.is_new() && !frm.doc.host_employee && !["Administrator", "Guest"].includes(frappe.session.user)) {
+		if (
+			frm.is_new() &&
+			!frm.doc.host_employee &&
+			!["Administrator", "Guest"].includes(frappe.session.user)
+		) {
 			frappe.call({
 				method: "visitormanagement.visitor_management.link_details.get_own_employee",
 				callback: (r) => {
@@ -47,73 +52,93 @@ frappe.ui.form.on("Visitor Invitation", {
 		}
 
 		// --- Send Invitation button ---
-		if (frm.doc.visitor_email && !["Submitted", "Expired"].includes(frm.doc.invitation_status)) {
-			const btnLabel = frm.doc.invitation_status === "Draft"
-				? __("Send Invitation")
-				: __("Resend Invitation");
+		if (
+			frm.doc.visitor_email &&
+			!["Submitted", "Expired"].includes(frm.doc.invitation_status)
+		) {
+			const btnLabel =
+				frm.doc.invitation_status === "Draft"
+					? __("Send Invitation")
+					: __("Resend Invitation");
 
-			frm.add_custom_button(btnLabel, () => {
-				const action = frm.doc.invitation_status === "Draft" ? "send" : "resend";
-				const confirmMsg = action === "resend"
-					? __("Invitation was already sent on {0}. Send again?", [frm.doc.invitation_sent_on])
-					: __("Send invitation email to {0}?", [frm.doc.visitor_email]);
+			frm.add_custom_button(
+				btnLabel,
+				() => {
+					const action = frm.doc.invitation_status === "Draft" ? "send" : "resend";
+					const confirmMsg =
+						action === "resend"
+							? __("Invitation was already sent on {0}. Send again?", [
+									frm.doc.invitation_sent_on,
+							  ])
+							: __("Send invitation email to {0}?", [frm.doc.visitor_email]);
 
-				frappe.confirm(confirmMsg, () => {
-					frappe.call({
-						method: "send_invitation",
-						doc: frm.doc,
-						freeze: true,
-						freeze_message: __("Sending visitor invitation..."),
-						callback: ({ message }) => {
-							if (!message) return;
+					frappe.confirm(confirmMsg, () => {
+						frappe.call({
+							method: "send_invitation",
+							doc: frm.doc,
+							freeze: true,
+							freeze_message: __("Sending visitor invitation..."),
+							callback: ({ message }) => {
+								if (!message) return;
 
-							if (message.delivered) {
-								frappe.show_alert({
-									message: __("Invitation sent to {0}", [frm.doc.visitor_email]),
-									indicator: "green",
-								});
-								frm.reload_doc();
-								return;
-							}
-
-							// The link is always minted, so a site without outgoing
-							// email can still get the visitor registered — show it
-							// and let the host pass it on by hand.
-							frappe.msgprint({
-								title: __("Email Not Sent"),
-								indicator: "orange",
-								message: __(
-									"The invitation link was created, but the email could not be delivered.<br><br>" +
-									"<b>Link:</b><br><a href='{0}' target='_blank'>{0}</a><br><br>" +
-									"Share it with the visitor directly, or configure an outgoing Email Account and resend.<br><br>" +
-									"<span class='text-muted small'>{1}</span>",
-									[message.link, frappe.utils.escape_html(message.error || "")]
-								),
-								primary_action_label: __("Copy Link"),
-								primary_action() {
-									frappe.utils.copy_to_clipboard(message.link);
-									this.hide();
-									// only now — reloading while the dialog is up
-									// re-renders the form and tears it down
+								if (message.delivered) {
+									frappe.show_alert({
+										message: __("Invitation sent to {0}", [
+											frm.doc.visitor_email,
+										]),
+										indicator: "green",
+									});
 									frm.reload_doc();
-								},
-								// reaching the visitor is what matters; the doc is
-								// refreshed either way once the dialog is gone
-								secondary_action: () => frm.reload_doc(),
-							});
-						},
+									return;
+								}
+
+								// The link is always minted, so a site without outgoing
+								// email can still get the visitor registered — show it
+								// and let the host pass it on by hand.
+								frappe.msgprint({
+									title: __("Email Not Sent"),
+									indicator: "orange",
+									message: __(
+										"The invitation link was created, but the email could not be delivered.<br><br><b>Link:</b><br><a href='{0}' target='_blank'>{0}</a><br><br>Share it with the visitor directly, or configure an outgoing Email Account and resend.<br><br><span class='text-muted small'>{1}</span>",
+										[
+											message.link,
+											frappe.utils.escape_html(message.error || ""),
+										]
+									),
+									primary_action_label: __("Copy Link"),
+									primary_action() {
+										frappe.utils.copy_to_clipboard(message.link);
+										this.hide();
+										// only now — reloading while the dialog is up
+										// re-renders the form and tears it down
+										frm.reload_doc();
+									},
+									// reaching the visitor is what matters; the doc is
+									// refreshed either way once the dialog is gone
+									secondary_action: () => frm.reload_doc(),
+								});
+							},
+						});
 					});
-				});
-			}, __("Actions"));
+				},
+				__("Actions")
+			);
 		}
 
 		// --- Open Link button ---
 		if (frm.doc.portal_submission_url || frm.doc.invitation_token) {
-			frm.add_custom_button(__("Copy Invitation Link"), () => {
-				const link = getInvitationLink(frm);
-				frappe.utils.copy_to_clipboard(link);
-				frappe.show_alert({ message: __("Link copied to clipboard"), indicator: "green" });
-			}, __("Actions"));
+			frm.add_custom_button(
+				__("Copy Invitation Link"),
+				() => {
+					const link = getInvitationLink(frm);
+					frappe.utils.copy_to_clipboard(link);
+					frappe.show_alert({
+						message: __("Link copied to clipboard"),
+						indicator: "green",
+					});
+				},
+				__("Actions")
+			);
 		}
 
 		// --- Status Banner ---
@@ -125,7 +150,10 @@ function showStatusBanner(frm) {
 	const status = frm.doc.invitation_status;
 
 	// Remove old banner
-	$(frm.fields_dict.visitor_type.wrapper).closest(".form-page").find(".vm-invite-banner").remove();
+	$(frm.fields_dict.visitor_type.wrapper)
+		.closest(".form-page")
+		.find(".vm-invite-banner")
+		.remove();
 
 	let html = "";
 
@@ -148,7 +176,9 @@ function showStatusBanner(frm) {
 				<strong>${__("Sent")}</strong> &mdash;
 				${__("Invitation emailed to <b>{0}</b> on {1}. Waiting for visitor to open the link.", [
 					frappe.utils.escape_html(frm.doc.visitor_email || ""),
-					frappe.utils.escape_html(frappe.datetime.str_to_user(frm.doc.invitation_sent_on) || ""),
+					frappe.utils.escape_html(
+						frappe.datetime.str_to_user(frm.doc.invitation_sent_on) || ""
+					),
 				])}
 			</div>
 		`;
@@ -175,9 +205,11 @@ function showStatusBanner(frm) {
 			">
 				<strong>${__("Form {0}", [status])}</strong> &mdash;
 				${__("Visitor completed the pre-registration form on {0}.", [
-					frappe.datetime.str_to_user(frm.doc.form_submitted_on || frm.doc.form_saved_on),
+					frappe.datetime.str_to_user(
+						frm.doc.form_submitted_on || frm.doc.form_saved_on
+					),
 				])}
-				${vpLink ? __(" Visitor Pass: ") + vpLink : ""}
+				${vpLink ? " " + __("Visitor Pass:") + " " + vpLink : ""}
 			</div>
 		`;
 	} else if (status === "Expired") {
@@ -195,6 +227,9 @@ function showStatusBanner(frm) {
 	}
 
 	if (html) {
-		$(frm.fields_dict.visitor_type.wrapper).closest(".form-page").find(".form-message").after(html);
+		$(frm.fields_dict.visitor_type.wrapper)
+			.closest(".form-page")
+			.find(".form-message")
+			.after(html);
 	}
 }

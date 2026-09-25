@@ -29,9 +29,9 @@ MAX_BYTES = 5 * 1024 * 1024
 # Trust neither the extension nor the client-sent MIME type: the bytes must
 # actually begin like the format they claim to be.
 SIGNATURES = (
-	b"\xff\xd8\xff",        # JPEG
-	b"\x89PNG\r\n\x1a\n",   # PNG
-	b"%PDF-",               # PDF
+	b"\xff\xd8\xff",  # JPEG
+	b"\x89PNG\r\n\x1a\n",  # PNG
+	b"%PDF-",  # PDF
 )
 
 # A visitor uploads two files, and may redo them a few times. Frappe's
@@ -322,7 +322,9 @@ def _other_page_may_upload():
 	path = (_referrer_path() or "").rstrip("/") or None
 	if not path:
 		return False
-	return any(path == route or path.startswith(route + "/") for route in vms_settings.guest_upload_other_routes())
+	return any(
+		path == route or path.startswith(route + "/") for route in vms_settings.guest_upload_other_routes()
+	)
 
 
 def _content_head(doc):

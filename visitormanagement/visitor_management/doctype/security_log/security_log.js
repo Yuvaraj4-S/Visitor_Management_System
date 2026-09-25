@@ -24,11 +24,7 @@ frappe.ui.form.on("Security Log", {
 	onload(frm) {
 		if (frm.is_new() && !frm.doc.security_officer) {
 			frappe.db
-				.get_value(
-					"Employee",
-					{ user_id: frappe.session.user, status: "Active" },
-					"name"
-				)
+				.get_value("Employee", { user_id: frappe.session.user, status: "Active" }, "name")
 				.then((r) => {
 					const emp = r && r.message && r.message.name;
 					if (emp) frm.set_value("security_officer", emp);
@@ -52,7 +48,11 @@ frappe.ui.form.on("Security Log", {
 		}
 
 		if (frm.is_new() && !frm.doc.visitor_pass) {
-			frm.add_custom_button(__("Approved VIP Queue"), () => open_vip_queue(frm), __("Actions"));
+			frm.add_custom_button(
+				__("Approved VIP Queue"),
+				() => open_vip_queue(frm),
+				__("Actions")
+			);
 		}
 
 		// Lock the form once the gate event has been recorded — it is an audit record.
@@ -190,7 +190,9 @@ frappe.ui.form.on("Security Log", {
 			if (typeof Html5Qrcode === "undefined") {
 				frappe.msgprint({
 					title: __("Error"),
-					message: __("QR scanner library did not load. Refresh the page and try again."),
+					message: __(
+						"QR scanner library did not load. Refresh the page and try again."
+					),
 					indicator: "red",
 				});
 				return;
@@ -267,7 +269,11 @@ frappe.ui.form.on("Security Log", {
 					html5QrCode
 						.start({ facingMode: "environment" }, config, qrCodeSuccessCallback)
 						.catch(() =>
-							html5QrCode.start({ facingMode: "user" }, config, qrCodeSuccessCallback)
+							html5QrCode.start(
+								{ facingMode: "user" },
+								config,
+								qrCodeSuccessCallback
+							)
 						)
 						.catch((err) => {
 							frappe.msgprint({
@@ -373,14 +379,19 @@ frappe.ui.form.on("Security Log", {
 						// the server side and visitor_gate._valid_today.
 						const today = frappe.datetime.get_today();
 						const last_day =
-							r.multi_day_pass && r.pass_valid_until ? r.pass_valid_until : r.visit_date;
-						const reentry_open = r.visit_date && r.visit_date <= today && today <= last_day;
+							r.multi_day_pass && r.pass_valid_until
+								? r.pass_valid_until
+								: r.visit_date;
+						const reentry_open =
+							r.visit_date && r.visit_date <= today && today <= last_day;
 						if (reentry_open) {
 							event_type = "Check-In";
 						} else {
 							frappe.msgprint({
 								title: __("Already Scanned"),
-								message: __("Visitor has already checked out and the pass is inactive."),
+								message: __(
+									"Visitor has already checked out and the pass is inactive."
+								),
 								indicator: "orange",
 							});
 							frm.set_value("visitor_pass", "");
@@ -389,7 +400,10 @@ frappe.ui.form.on("Security Log", {
 					} else {
 						frappe.msgprint({
 							title: __("Invalid Status"),
-							message: __('Visitor Pass status is "{0}". It must be "Approved" or "Items Verified" to check in.', [r.status]),
+							message: __(
+								'Visitor Pass status is "{0}". It must be "Approved" or "Items Verified" to check in.',
+								[r.status]
+							),
 							indicator: "red",
 						});
 						return;
@@ -419,7 +433,10 @@ frappe.ui.form.on("Security Log", {
 				}
 
 				if (frm.__scanned) {
-					if (["Check-In", "Check-Out"].includes(frm.doc.event_type) && !frm.doc.photo_at_gate) {
+					if (
+						["Check-In", "Check-Out"].includes(frm.doc.event_type) &&
+						!frm.doc.photo_at_gate
+					) {
 						setTimeout(() => frm.trigger("capture_photo"), 500);
 					}
 					delete frm.__scanned;
@@ -429,7 +446,10 @@ frappe.ui.form.on("Security Log", {
 			}
 		);
 
-		if (frm.is_new() && (!frm.doc.items_verification || frm.doc.items_verification.length === 0)) {
+		if (
+			frm.is_new() &&
+			(!frm.doc.items_verification || frm.doc.items_verification.length === 0)
+		) {
 			frappe.model.with_doc("Visitor Pass", frm.doc.visitor_pass, () => {
 				// The pass may be gone by the time this resolves: picking a pass
 				// that is already checked out shows "Already Scanned" and clears
@@ -463,66 +483,70 @@ frappe.ui.form.on("Security Log", {
 		}
 	},
 
-		capture_photo(frm) {
-			const capture_dialog = new frappe.ui.Dialog({
-				title: __("Capture Photo"),
+	capture_photo(frm) {
+		const capture_dialog = new frappe.ui.Dialog({
+			title: __("Capture Photo"),
 			fields: [
 				{
 					fieldname: "camera_html",
 					fieldtype: "HTML",
 				},
 			],
-				primary_action_label: __("Capture"),
-				primary_action() {
-					const video = dialog_video(capture_dialog);
-					if (!video || !video.videoWidth || !video.videoHeight) {
-						frappe.msgprint(__("Camera is still loading. Wait a moment and capture again."));
-						return;
-					}
-					const canvas = document.createElement("canvas");
-					canvas.width = video.videoWidth;
-					canvas.height = video.videoHeight;
+			primary_action_label: __("Capture"),
+			primary_action() {
+				const video = dialog_video(capture_dialog);
+				if (!video || !video.videoWidth || !video.videoHeight) {
+					frappe.msgprint(
+						__("Camera is still loading. Wait a moment and capture again.")
+					);
+					return;
+				}
+				const canvas = document.createElement("canvas");
+				canvas.width = video.videoWidth;
+				canvas.height = video.videoHeight;
 				const context = canvas.getContext("2d");
 				context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-					canvas.toBlob((blob) => {
-						const file_name = `gate_photo_${frappe.datetime.now_datetime().replace(/[: -]/g, "_")}.png`;
-						if (!blob) {
-							frappe.msgprint(__("Could not capture gate photo. Please try again."));
-							return;
-						}
+				canvas.toBlob((blob) => {
+					const file_name = `gate_photo_${frappe.datetime
+						.now_datetime()
+						.replace(/[: -]/g, "_")}.png`;
+					if (!blob) {
+						frappe.msgprint(__("Could not capture gate photo. Please try again."));
+						return;
+					}
 
-						const file = new File([blob], file_name, { type: "image/png" });
+					const file = new File([blob], file_name, { type: "image/png" });
 
-						upload_captured_image({
-							file,
-							doctype: frm.doctype,
-							docname: frm.doc.name,
-							fieldname: "photo_at_gate",
-						})
-							.then((file_doc) => {
-								frm.set_value("photo_at_gate", file_doc.file_url).then(() => {
-									frm.refresh_field("photo_at_gate");
-									apply_security_log_ui(frm);
-									frappe.show_alert({
-										message: __("Gate photo captured and saved."),
-										indicator: "green",
-									});
-									capture_dialog.hide();
+					upload_captured_image({
+						file,
+						doctype: frm.doctype,
+						docname: frm.doc.name,
+						fieldname: "photo_at_gate",
+					})
+						.then((file_doc) => {
+							frm.set_value("photo_at_gate", file_doc.file_url).then(() => {
+								frm.refresh_field("photo_at_gate");
+								apply_security_log_ui(frm);
+								frappe.show_alert({
+									message: __("Gate photo captured and saved."),
+									indicator: "green",
 								});
-							})
-							.catch(() => {
-								frappe.msgprint(__("Could not upload gate photo."));
+								capture_dialog.hide();
 							});
-					}, "image/png");
-				},
-			});
+						})
+						.catch(() => {
+							frappe.msgprint(__("Could not upload gate photo."));
+						});
+				}, "image/png");
+			},
+		});
 
-			capture_dialog.show();
-			capture_dialog.get_primary_btn().prop("disabled", true);
+		capture_dialog.show();
+		capture_dialog.get_primary_btn().prop("disabled", true);
 
-			const video_id = "capture-video";
-			capture_dialog.get_field("camera_html").$wrapper.html(`
+		const video_id = "capture-video";
+		capture_dialog.get_field("camera_html").$wrapper.html(`
 			<div style="width: 100%; background: #000; border-radius: 8px; overflow: hidden;">
 				<video id="${video_id}" width="100%" autoplay playsinline></video>
 			</div>
@@ -544,13 +568,13 @@ frappe.ui.form.on("Security Log", {
 					return;
 				}
 
-					video.srcObject = stream;
-					video.onloadedmetadata = () => {
-						capture_dialog.get_primary_btn().prop("disabled", false);
-					};
-					capture_dialog.on_hide = () => {
-						stream.getTracks().forEach((track) => track.stop());
-					};
+				video.srcObject = stream;
+				video.onloadedmetadata = () => {
+					capture_dialog.get_primary_btn().prop("disabled", false);
+				};
+				capture_dialog.on_hide = () => {
+					stream.getTracks().forEach((track) => track.stop());
+				};
 			})
 			.catch((err) => {
 				frappe.msgprint(__("Error accessing camera: {0}", [err]));
@@ -577,15 +601,20 @@ frappe.ui.form.on("Security Item Verify", {
 		if (row.item_verified && !row.security_remarks) {
 			frappe.model.set_value(cdt, cdn, "security_remarks", __("Verified at gate"));
 		} else if (!row.item_verified && row.security_remarks === __("Verified at gate")) {
-			frappe.model.set_value(cdt, cdn, "security_remarks", __("Pending security verification"));
+			frappe.model.set_value(
+				cdt,
+				cdn,
+				"security_remarks",
+				__("Pending security verification")
+			);
 		}
 
 		recompute_all_items_confirmed(frm);
 		render_items_progress_summary(frm);
 	},
 
-		capture_item_image(frm, cdt, cdn) {
-			const capture_dialog = new frappe.ui.Dialog({
+	capture_item_image(frm, cdt, cdn) {
+		const capture_dialog = new frappe.ui.Dialog({
 			title: __("Capture Item Photo"),
 			fields: [
 				{
@@ -593,54 +622,58 @@ frappe.ui.form.on("Security Item Verify", {
 					fieldtype: "HTML",
 				},
 			],
-				primary_action_label: __("Capture"),
-				primary_action() {
-					const video = dialog_video(capture_dialog);
-					if (!video || !video.videoWidth || !video.videoHeight) {
-						frappe.msgprint(__("Camera is still loading. Wait a moment and capture again."));
-						return;
-					}
-					const canvas = document.createElement("canvas");
-					canvas.width = video.videoWidth;
-					canvas.height = video.videoHeight;
+			primary_action_label: __("Capture"),
+			primary_action() {
+				const video = dialog_video(capture_dialog);
+				if (!video || !video.videoWidth || !video.videoHeight) {
+					frappe.msgprint(
+						__("Camera is still loading. Wait a moment and capture again.")
+					);
+					return;
+				}
+				const canvas = document.createElement("canvas");
+				canvas.width = video.videoWidth;
+				canvas.height = video.videoHeight;
 				const context = canvas.getContext("2d");
 				context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-					canvas.toBlob((blob) => {
-						const file_name = `item_photo_${frappe.datetime.now_datetime().replace(/[: -]/g, "_")}.png`;
-						if (!blob) {
-							frappe.msgprint(__("Could not capture item photo. Please try again."));
-							return;
-						}
+				canvas.toBlob((blob) => {
+					const file_name = `item_photo_${frappe.datetime
+						.now_datetime()
+						.replace(/[: -]/g, "_")}.png`;
+					if (!blob) {
+						frappe.msgprint(__("Could not capture item photo. Please try again."));
+						return;
+					}
 
-						const file = new File([blob], file_name, { type: "image/png" });
+					const file = new File([blob], file_name, { type: "image/png" });
 
-						upload_captured_image({
-							file,
-							doctype: cdt,
-							docname: cdn,
-							fieldname: "item_image",
+					upload_captured_image({
+						file,
+						doctype: cdt,
+						docname: cdn,
+						fieldname: "item_image",
+					})
+						.then((file_doc) => {
+							frappe.model.set_value(cdt, cdn, "item_image", file_doc.file_url);
+							frappe.show_alert({
+								message: __("Item photo captured and attached."),
+								indicator: "green",
+							});
+							capture_dialog.hide();
 						})
-							.then((file_doc) => {
-								frappe.model.set_value(cdt, cdn, "item_image", file_doc.file_url);
-								frappe.show_alert({
-									message: __("Item photo captured and attached."),
-									indicator: "green",
-								});
-								capture_dialog.hide();
-							})
-								.catch(() => {
-									frappe.msgprint(__("Could not upload item photo."));
-								});
-						}, "image/png");
-					},
-				});
+						.catch(() => {
+							frappe.msgprint(__("Could not upload item photo."));
+						});
+				}, "image/png");
+			},
+		});
 
-			capture_dialog.show();
-			capture_dialog.get_primary_btn().prop("disabled", true);
+		capture_dialog.show();
+		capture_dialog.get_primary_btn().prop("disabled", true);
 
-			const video_id = "item-capture-video";
-			capture_dialog.get_field("camera_html").$wrapper.html(`
+		const video_id = "item-capture-video";
+		capture_dialog.get_field("camera_html").$wrapper.html(`
 			<div style="width: 100%; background: #000; border-radius: 8px; overflow: hidden;">
 				<video id="${video_id}" width="100%" autoplay playsinline></video>
 			</div>
@@ -662,20 +695,20 @@ frappe.ui.form.on("Security Item Verify", {
 					return;
 				}
 
-					video.srcObject = stream;
-					video.onloadedmetadata = () => {
-						capture_dialog.get_primary_btn().prop("disabled", false);
-					};
-					capture_dialog.on_hide = () => {
-						stream.getTracks().forEach((track) => track.stop());
-					};
-				})
-				.catch((err) => {
-					frappe.msgprint(__("Error accessing camera: {0}", [err]));
-					capture_dialog.hide();
-				});
-		},
-	});
+				video.srcObject = stream;
+				video.onloadedmetadata = () => {
+					capture_dialog.get_primary_btn().prop("disabled", false);
+				};
+				capture_dialog.on_hide = () => {
+					stream.getTracks().forEach((track) => track.stop());
+				};
+			})
+			.catch((err) => {
+				frappe.msgprint(__("Error accessing camera: {0}", [err]));
+				capture_dialog.hide();
+			});
+	},
+});
 
 function upload_captured_image({ file, doctype, docname, fieldname }) {
 	return new Promise((resolve, reject) => {
@@ -774,26 +807,47 @@ function apply_security_log_ui(frm) {
 	const is_check_out = frm.doc.event_type === "Check-Out";
 	const has_items = !!(frm.doc.items_verification && frm.doc.items_verification.length);
 	const show_items = is_check_in || has_items;
-	const show_gate_photo = ["Check-In", "Check-Out", "Alert", "Gate Transfer", "Badge Collected"].includes(frm.doc.event_type);
+	const show_gate_photo = [
+		"Check-In",
+		"Check-Out",
+		"Alert",
+		"Gate Transfer",
+		"Badge Collected",
+	].includes(frm.doc.event_type);
 	const show_exception_reason = !frm.is_new() && !!frm.doc.exception_reason;
 
-	frm.toggle_display("check_in_date_time", is_check_in || (!frm.is_new() && !!frm.doc.check_in_date_time));
-	frm.toggle_display("check_out_date_time", is_check_out || (!frm.is_new() && !!frm.doc.check_out_date_time));
+	frm.toggle_display(
+		"check_in_date_time",
+		is_check_in || (!frm.is_new() && !!frm.doc.check_in_date_time)
+	);
+	frm.toggle_display(
+		"check_out_date_time",
+		is_check_out || (!frm.is_new() && !!frm.doc.check_out_date_time)
+	);
 	frm.toggle_reqd("check_in_date_time", is_check_in);
 	frm.toggle_reqd("check_out_date_time", is_check_out);
 
 	frm.toggle_display("visitor_photo", false);
 	frm.toggle_display("id_proof_scan", false);
-	frm.toggle_display(["section_break_identity_comparison", "identity_comparison_html"], has_pass);
+	frm.toggle_display(
+		["section_break_identity_comparison", "identity_comparison_html"],
+		has_pass
+	);
 	frm.toggle_display(["photo_at_gate", "capture_photo"], show_gate_photo);
-	frm.toggle_display(["id_proof_match", "pass_photo_match", "verification_notes"], is_check_in || is_check_out);
+	frm.toggle_display(
+		["id_proof_match", "pass_photo_match", "verification_notes"],
+		is_check_in || is_check_out
+	);
 	frm.toggle_display("exception_reason", show_exception_reason);
 	frm.toggle_display(["section_break_items", "all_items_confirmed"], show_items && has_pass);
 	frm.toggle_reqd("photo_at_gate", is_check_in || is_check_out);
 	frm.toggle_reqd("id_proof_match", is_check_in || is_check_out);
 	frm.toggle_reqd("pass_photo_match", is_check_in || is_check_out);
 	frm.toggle_reqd("exception_reason", false);
-	frm.toggle_display(["mdceo_notified", "vip_meeting_room", "vip_protocol_notes"], has_pass && is_vip);
+	frm.toggle_display(
+		["mdceo_notified", "vip_meeting_room", "vip_protocol_notes"],
+		has_pass && is_vip
+	);
 
 	render_identity_comparison(frm);
 	render_items_progress_summary(frm);
@@ -821,16 +875,28 @@ function render_items_progress_summary(frm) {
 	// Only offer the bulk action when there is something left to tick and the
 	// form can actually be written to (a submitted or locked log must not).
 	const can_verify_all = !all_verified && !frm.doc.docstatus && !frm.is_dirty_disabled;
-	const bg = all_verified ? "#d9f3e4" : (discrepancies ? "#fde2e2" : "#fff4d6");
-	const fg = all_verified ? "#0d6b3e" : (discrepancies ? "#9b1c1c" : "#8d5d00");
-	const icon = all_verified ? "✅" : (discrepancies ? "⚠️" : "🟡");
+	const bg = all_verified ? "#d9f3e4" : discrepancies ? "#fde2e2" : "#fff4d6";
+	const fg = all_verified ? "#0d6b3e" : discrepancies ? "#9b1c1c" : "#8d5d00";
+	const icon = all_verified ? "✅" : discrepancies ? "⚠️" : "🟡";
 
 	const summary = `
 		<div class="vm-items-progress" style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; margin: 0 0 8px 0; border-radius: 8px; background: ${bg}; color: ${fg}; font-size: 12px; font-weight: 600;">
 			<span style="font-size: 14px;">${icon}</span>
 			<span>${__("Items: {0} / {1} verified", [verified, total])}</span>
-			${discrepancies ? `<span style="margin-left: auto;">${__("{0} discrepancy", [discrepancies])}${discrepancies > 1 ? __("ies") : ""}</span>` : ""}
-			${can_verify_all ? `<button type="button" class="btn btn-xs btn-default vm-verify-all" style="margin-left: ${discrepancies ? "10px" : "auto"};">${__("Verify All")}</button>` : ""}
+			${
+				discrepancies
+					? `<span style="margin-left: auto;">${__("{0} discrepancy", [discrepancies])}${
+							discrepancies > 1 ? __("ies") : ""
+					  }</span>`
+					: ""
+			}
+			${
+				can_verify_all
+					? `<button type="button" class="btn btn-xs btn-default vm-verify-all" style="margin-left: ${
+							discrepancies ? "10px" : "auto"
+					  };">${__("Verify All")}</button>`
+					: ""
+			}
 		</div>
 	`;
 	field.$wrapper.prepend(summary);
@@ -849,7 +915,12 @@ function render_items_progress_summary(frm) {
 				if (row.item_verified) return;
 				frappe.model.set_value(row.doctype, row.name, "item_verified", 1);
 				if (!row.security_remarks) {
-					frappe.model.set_value(row.doctype, row.name, "security_remarks", __("Verified at gate"));
+					frappe.model.set_value(
+						row.doctype,
+						row.name,
+						"security_remarks",
+						__("Verified at gate")
+					);
 				}
 			});
 			frm.refresh_field("items_verification");
@@ -895,12 +966,11 @@ function apply_badge_visibility_sl(frm) {
 		frm.refresh_field("badge_number");
 	};
 	setHidden(true);
-	frappe.db.get_value("VMS Settings", "VMS Settings", "enable_badge")
-		.then((r) => {
-			// Single-doctype fields come back as strings — coerce via cint.
-			const enabled = !!cint(((r && r.message) || {}).enable_badge);
-			setHidden(!enabled);
-		});
+	frappe.db.get_value("VMS Settings", "VMS Settings", "enable_badge").then((r) => {
+		// Single-doctype fields come back as strings — coerce via cint.
+		const enabled = !!cint(((r && r.message) || {}).enable_badge);
+		setHidden(!enabled);
+	});
 }
 
 function render_identity_comparison(frm) {
@@ -951,8 +1021,12 @@ function get_identity_card(title, imageUrl, caption) {
 			<div style="font-size: 12px; font-weight: 700; color: #102a43; margin-bottom: 8px;">${title}</div>
 			${
 				imageUrl
-					? `<img src="${frappe.utils.escape_html(String(imageUrl))}" alt="${title}" style="width: 100%; height: 148px; object-fit: cover; border-radius: 10px; border: 1px solid #dbe3ea; background: #f8fafc;">`
-					: `<div style="height: 148px; border-radius: 10px; border: 1px dashed #b8c4d0; background: #f8fafc; display: flex; align-items: center; justify-content: center; color: #7b8794; font-size: 12px; text-align: center; padding: 12px;">${__("No image available")}</div>`
+					? `<img src="${frappe.utils.escape_html(
+							String(imageUrl)
+					  )}" alt="${title}" style="width: 100%; height: 148px; object-fit: cover; border-radius: 10px; border: 1px solid #dbe3ea; background: #f8fafc;">`
+					: `<div style="height: 148px; border-radius: 10px; border: 1px dashed #b8c4d0; background: #f8fafc; display: flex; align-items: center; justify-content: center; color: #7b8794; font-size: 12px; text-align: center; padding: 12px;">${__(
+							"No image available"
+					  )}</div>`
 			}
 			<div style="margin-top: 8px; font-size: 11px; line-height: 1.4; color: #52606d;">${caption}</div>
 		</div>
@@ -961,20 +1035,28 @@ function get_identity_card(title, imageUrl, caption) {
 
 function get_identity_status_html(frm) {
 	if (!frm.doc.photo_at_gate) {
-		return `<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #fff4d6; color: #8d5d00; font-size: 11px; font-weight: 700;">${__("Awaiting gate capture")}</div>`;
+		return `<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #fff4d6; color: #8d5d00; font-size: 11px; font-weight: 700;">${__(
+			"Awaiting gate capture"
+		)}</div>`;
 	}
 
 	if (frm.doc.id_proof_match && frm.doc.pass_photo_match) {
-		return `<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #d9f3e4; color: #0d6b3e; font-size: 11px; font-weight: 700;">${__("Verified for badge issue")}</div>`;
+		return `<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #d9f3e4; color: #0d6b3e; font-size: 11px; font-weight: 700;">${__(
+			"Verified for badge issue"
+		)}</div>`;
 	}
 
-	return `<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #e8f1fb; color: #1f4f82; font-size: 11px; font-weight: 700;">${__("Review and confirm both matches")}</div>`;
+	return `<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #e8f1fb; color: #1f4f82; font-size: 11px; font-weight: 700;">${__(
+		"Review and confirm both matches"
+	)}</div>`;
 }
 
 function set_security_log_intro(frm, is_check_in, is_check_out) {
 	if (!frm.doc.visitor_pass) {
 		frm.set_intro(
-			__("Scan the QR code, select a Visitor Pass, or use Approved VIP Queue for priority visitors."),
+			__(
+				"Scan the QR code, select a Visitor Pass, or use Approved VIP Queue for priority visitors."
+			),
 			"blue"
 		);
 		return;
@@ -994,7 +1076,9 @@ function set_security_log_intro(frm, is_check_in, is_check_out) {
 
 	if (is_check_out) {
 		frm.set_intro(
-			__("Confirm the visitor identity and record the exit cleanly before saving the check-out."),
+			__(
+				"Confirm the visitor identity and record the exit cleanly before saving the check-out."
+			),
 			"orange"
 		);
 		return;
@@ -1002,7 +1086,9 @@ function set_security_log_intro(frm, is_check_in, is_check_out) {
 
 	if (frm.doc.event_type === "Gate Transfer") {
 		frm.set_intro(
-			__("Record the visitor's new area so contact tracing and emergency muster stay accurate."),
+			__(
+				"Record the visitor's new area so contact tracing and emergency muster stay accurate."
+			),
 			"blue"
 		);
 		return;
@@ -1083,20 +1169,37 @@ function render_vip_queue_preview(dialog, vip_queue) {
 
 	dialog.get_field("vip_preview").$wrapper.html(`
 		<div style="border: 1px solid #dbe3ea; border-radius: 12px; padding: 14px; background: #f8fafc; margin-top: 8px;">
-			<div style="font-weight: 700; color: #102a43; margin-bottom: 10px;">${esc(selected.visitor_full_name)}</div>
+			<div style="font-weight: 700; color: #102a43; margin-bottom: 10px;">${esc(
+				selected.visitor_full_name
+			)}</div>
 			<div style="font-size: 12px; color: #334e68; line-height: 1.6;">
-				<div><strong>${__("Stage")}:</strong> ${esc(selected.workflow_state || selected.status || "-")}</div>
-				<div><strong>${__("Visit Window")}:</strong> ${esc(selected.visit_date || "-")} | ${esc(selected.expected_checkin || "-")} - ${esc(selected.expected_checkout || "-")}</div>
+				<div><strong>${__("Stage")}:</strong> ${esc(
+		selected.workflow_state || selected.status || "-"
+	)}</div>
+				<div><strong>${__("Visit Window")}:</strong> ${esc(selected.visit_date || "-")} | ${esc(
+		selected.expected_checkin || "-"
+	)} - ${esc(selected.expected_checkout || "-")}</div>
 				<div><strong>${__("Host")}:</strong> ${esc(selected.person_to_visit || "-")}</div>
 				<div><strong>${__("Purpose")}:</strong> ${esc(selected.purpose_of_visit || "-")}</div>
 				<div><strong>${__("Meeting Room")}:</strong> ${esc(selected.conference_room || "-")}</div>
-				<div><strong>${__("MD/CEO Notified")}:</strong> ${selected.mdceo_notified ? __("Yes") : __("No")}</div>
-				<div><strong>${__("Meal / People")}:</strong> ${esc(selected.meal_type || "-")} / ${esc(selected.number_of_people || "-")}</div>
+				<div><strong>${__("MD/CEO Notified")}:</strong> ${
+		selected.mdceo_notified ? __("Yes") : __("No")
+	}</div>
+				<div><strong>${__("Meal / People")}:</strong> ${esc(selected.meal_type || "-")} / ${esc(
+		selected.number_of_people || "-"
+	)}</div>
 				<div><strong>${__("Declared Items")}:</strong> ${
-					(selected.visitor_items && selected.visitor_items.length)
-						? selected.visitor_items.map(i => `${esc(i.item_name || "-")}${i.quantity ? ` \u00D7${esc(i.quantity)}` : ""}`).join(", ")
-						: __("No items declared")
-				}</div>
+		selected.visitor_items && selected.visitor_items.length
+			? selected.visitor_items
+					.map(
+						(i) =>
+							`${esc(i.item_name || "-")}${
+								i.quantity ? ` \u00D7${esc(i.quantity)}` : ""
+							}`
+					)
+					.join(", ")
+			: __("No items declared")
+	}</div>
 				<div><strong>${__("Protocol Notes")}:</strong> ${esc(selected.protocol_notes || "-")}</div>
 			</div>
 		</div>
@@ -1105,7 +1208,9 @@ function render_vip_queue_preview(dialog, vip_queue) {
 
 function open_badge(frm) {
 	const url = frappe.urllib.get_full_url(
-		`/printview?doctype=Visitor%20Pass&name=${encodeURIComponent(frm.doc.visitor_pass)}&format=Visitor%20Badge&no_letterhead=1`
+		`/printview?doctype=Visitor%20Pass&name=${encodeURIComponent(
+			frm.doc.visitor_pass
+		)}&format=Visitor%20Badge&no_letterhead=1`
 	);
 	window.open(url, "_blank");
 }

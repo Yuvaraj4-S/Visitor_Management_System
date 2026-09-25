@@ -47,8 +47,14 @@ ROLES = [
 # birth, health — and these roles need a name in a dropdown. The few host fields a
 # pass copies come from visitor_management/link_details.py instead.
 EMPLOYEE_READERS = [
-	"Security", "Hospitality Manager", "Host Employee", "Facility Manager",
-	"HOD", "HR Manager", "Sales Manager", "CEO",
+	"Security",
+	"Hospitality Manager",
+	"Host Employee",
+	"Facility Manager",
+	"HOD",
+	"HR Manager",
+	"Sales Manager",
+	"CEO",
 ]
 
 # Roles that fill the cab-vendor / hotel-name Links on Hospitality Request and so
@@ -95,7 +101,10 @@ VISITOR_PASS_CANCEL_ADMINS = ["System Manager"]
 # read/write on Hospitality Request above, and Front Office Executive's gap
 # is a separate, unreported finding, not part of this fix.
 HOSPITALITY_DIGEST_READERS = [
-	"Transport Coordinator", "Factory Tour Coordinator", "Greeting Staff", "Hospitality User",
+	"Transport Coordinator",
+	"Factory Tour Coordinator",
+	"Greeting Staff",
+	"Hospitality User",
 ]
 
 # Layout-specific link fields on Visitor Pass point at masters owned by other
@@ -120,17 +129,49 @@ LINK_TARGET_PICKERS = {
 }
 
 VISITOR_TYPES = [
-	{"visitor_type_name": "Contractor", "approver_role": "System Manager", "badge_prefix": "CON",
-	 "badge_colour": "Orange", "default_gate": "Back Gate", "detail_layout": "Contractor"},
-	{"visitor_type_name": "Candidate", "approver_role": "HR Manager", "badge_prefix": "CAN",
-	 "badge_colour": "Purple", "default_gate": "Main Gate", "detail_layout": "Candidate"},
-	{"visitor_type_name": "Customer", "approver_role": "Sales Manager", "badge_prefix": "CUS",
-	 "badge_colour": "Green", "default_gate": "Main Gate", "detail_layout": "Customer"},
-	{"visitor_type_name": "Supplier", "approver_role": "System Manager", "badge_prefix": "SUP",
-	 "badge_colour": "Teal", "default_gate": "Loading Dock", "detail_layout": "Supplier"},
-	{"visitor_type_name": "VIP", "approver_role": "HOD", "secondary_approver_role": "CEO",
-	 "badge_prefix": "VIP", "badge_colour": "Gold", "default_gate": "VIP Entrance",
-	 "detail_layout": "VIP", "requires_executive_notification": 1, "issue_badge_at_gate": 1},
+	{
+		"visitor_type_name": "Contractor",
+		"approver_role": "System Manager",
+		"badge_prefix": "CON",
+		"badge_colour": "Orange",
+		"default_gate": "Back Gate",
+		"detail_layout": "Contractor",
+	},
+	{
+		"visitor_type_name": "Candidate",
+		"approver_role": "HR Manager",
+		"badge_prefix": "CAN",
+		"badge_colour": "Purple",
+		"default_gate": "Main Gate",
+		"detail_layout": "Candidate",
+	},
+	{
+		"visitor_type_name": "Customer",
+		"approver_role": "Sales Manager",
+		"badge_prefix": "CUS",
+		"badge_colour": "Green",
+		"default_gate": "Main Gate",
+		"detail_layout": "Customer",
+	},
+	{
+		"visitor_type_name": "Supplier",
+		"approver_role": "System Manager",
+		"badge_prefix": "SUP",
+		"badge_colour": "Teal",
+		"default_gate": "Loading Dock",
+		"detail_layout": "Supplier",
+	},
+	{
+		"visitor_type_name": "VIP",
+		"approver_role": "HOD",
+		"secondary_approver_role": "CEO",
+		"badge_prefix": "VIP",
+		"badge_colour": "Gold",
+		"default_gate": "VIP Entrance",
+		"detail_layout": "VIP",
+		"requires_executive_notification": 1,
+		"issue_badge_at_gate": 1,
+	},
 ]
 
 GATES = [
@@ -142,29 +183,50 @@ GATES = [
 ]
 
 ID_PROOF_TYPES = [
-	{"id_proof_type_name": "Aadhaar", "aliases": "aadhar\nuid",
-	 "validation_method": "Aadhaar (Verhoeff)", "normalisation": "Strip spaces and hyphens",
-	 "error_message": "Aadhaar must be exactly 12 digits, must not start with 0 or 1, "
-	                  "and must pass the UIDAI Verhoeff checksum."},
-	{"id_proof_type_name": "PAN Card", "aliases": "pan", "validation_method": "Regex",
-	 "validation_regex": "^[A-Z]{5}[0-9]{4}[A-Z]$", "normalisation": "Uppercase and strip spaces",
-	 "error_message": "PAN must be in the format ABCDE1234F "
-	                  "(5 uppercase letters, 4 digits, 1 uppercase letter)."},
-	{"id_proof_type_name": "Passport", "validation_method": "Regex",
-	 "validation_regex": "^[A-Z][0-9]{7}$", "normalisation": "Uppercase and strip spaces",
-	 "error_message": "Passport must be in the format A1234567 "
-	                  "(1 uppercase letter followed by 7 digits)."},
-	{"id_proof_type_name": "Driving License", "aliases": "dl\ndriving licence",
-	 "validation_method": "Regex", "validation_regex": "^[A-Z]{2}[0-9]{2} ?[0-9]{11}$",
-	 "normalisation": "Collapse spaces",
-	 "error_message": "Driving License must be in the format SS00 00000000000 "
-	                  "(2 letters + 2 digits + optional space + 11 digits)."},
+	{
+		"id_proof_type_name": "Aadhaar",
+		"aliases": "aadhar\nuid",
+		"validation_method": "Aadhaar (Verhoeff)",
+		"normalisation": "Strip spaces and hyphens",
+		"error_message": "Aadhaar must be exactly 12 digits, must not start with 0 or 1, "
+		"and must pass the UIDAI Verhoeff checksum.",
+	},
+	{
+		"id_proof_type_name": "PAN Card",
+		"aliases": "pan",
+		"validation_method": "Regex",
+		"validation_regex": "^[A-Z]{5}[0-9]{4}[A-Z]$",
+		"normalisation": "Uppercase and strip spaces",
+		"error_message": "PAN must be in the format ABCDE1234F "
+		"(5 uppercase letters, 4 digits, 1 uppercase letter).",
+	},
+	{
+		"id_proof_type_name": "Passport",
+		"validation_method": "Regex",
+		"validation_regex": "^[A-Z][0-9]{7}$",
+		"normalisation": "Uppercase and strip spaces",
+		"error_message": "Passport must be in the format A1234567 (1 uppercase letter followed by 7 digits).",
+	},
+	{
+		"id_proof_type_name": "Driving License",
+		"aliases": "dl\ndriving licence",
+		"validation_method": "Regex",
+		"validation_regex": "^[A-Z]{2}[0-9]{2} ?[0-9]{11}$",
+		"normalisation": "Collapse spaces",
+		"error_message": "Driving License must be in the format SS00 00000000000 "
+		"(2 letters + 2 digits + optional space + 11 digits).",
+	},
 	# The Indian passport pattern rejects most real foreign passport numbers, so
 	# ship a permissive international type and mark it foreign-eligible.
-	{"id_proof_type_name": "Foreign Passport", "aliases": "international passport",
-	 "validation_method": "Regex", "validation_regex": "^[A-Z0-9]{6,12}$",
-	 "normalisation": "Uppercase and strip spaces", "valid_for_foreign_nationals": 1,
-	 "error_message": "Foreign Passport must be 6–12 letters or digits."},
+	{
+		"id_proof_type_name": "Foreign Passport",
+		"aliases": "international passport",
+		"validation_method": "Regex",
+		"validation_regex": "^[A-Z0-9]{6,12}$",
+		"normalisation": "Uppercase and strip spaces",
+		"valid_for_foreign_nationals": 1,
+		"error_message": "Foreign Passport must be 6–12 letters or digits.",  # noqa: RUF001
+	},
 ]
 
 MEAL_WINDOWS = [
@@ -292,9 +354,12 @@ OBSOLETE_CUSTOM_FIELDS = [
 # Fields converted to Link. A leftover `options` Property Setter holding the old
 # Select list makes the control search a doctype that does not exist.
 LINK_FIELDS = [
-	("Visitor Pass", "id_proof_type"), ("Visitor Pass", "visitor_type"),
-	("Visitor Invitation", "visitor_type"), ("Security Log", "id_proof_type_verified"),
-	("Security Log", "gate_name"), ("Visitor Blacklist", "id_proof_type"),
+	("Visitor Pass", "id_proof_type"),
+	("Visitor Pass", "visitor_type"),
+	("Visitor Invitation", "visitor_type"),
+	("Security Log", "id_proof_type_verified"),
+	("Security Log", "gate_name"),
+	("Visitor Blacklist", "id_proof_type"),
 ]
 
 
@@ -380,9 +445,15 @@ def _shared_records():
 
 	return {
 		"Role": list(ROLES),
-		"Workflow State": sorted({*wb.STATE_STYLES, "Pending Approval", "Items Verified", "Checked-In", "Checked-Out"}),
+		"Workflow State": sorted(
+			{*wb.STATE_STYLES, "Pending Approval", "Items Verified", "Checked-In", "Checked-Out"}
+		),
 		"Workflow Action Master": [
-			wb.ACTION_SUBMIT, wb.ACTION_APPROVE, wb.ACTION_REJECT, wb.ACTION_REAPPLY, wb.ACTION_CANCEL
+			wb.ACTION_SUBMIT,
+			wb.ACTION_APPROVE,
+			wb.ACTION_REJECT,
+			wb.ACTION_REAPPLY,
+			wb.ACTION_CANCEL,
 		],
 	}
 
@@ -457,6 +528,7 @@ def setup_visitor_management():
 	_align_visitor_pass_submit()
 	_sync_approval_notification_recipients()
 	_grant_visitor_pass_cancel()
+	# nosemgrep: frappe-manual-commit - DDL next (add_index) must not implicitly commit unrelated pending writes
 	frappe.db.commit()
 
 
@@ -518,7 +590,9 @@ def _grant(doctype, role, ptype="read"):
 		# asked for and nothing else.
 		from frappe.permissions import rights
 
-		name = frappe.db.get_value("Custom DocPerm", {"parent": doctype, "role": role, "permlevel": 0}, "name")
+		name = frappe.db.get_value(
+			"Custom DocPerm", {"parent": doctype, "role": role, "permlevel": 0}, "name"
+		)
 		frappe.db.set_value("Custom DocPerm", name, {p: int(p == ptype) for p in rights})
 		frappe.clear_cache(doctype=doctype)
 	frappe.db.set_default(marker, "1")
@@ -578,9 +652,7 @@ def _revoke(doctype, role, ptypes):
 	if not frappe.db.exists("Custom DocPerm", {"parent": doctype, "role": role, "permlevel": 0}):
 		return
 	for ptype in ptypes:
-		if frappe.db.get_value(
-			"Custom DocPerm", {"parent": doctype, "role": role, "permlevel": 0}, ptype
-		):
+		if frappe.db.get_value("Custom DocPerm", {"parent": doctype, "role": role, "permlevel": 0}, ptype):
 			update_permission_property(doctype, role, 0, ptype, 0)
 			print(f"  revoked {ptype} on {doctype} from {role}")
 
@@ -687,13 +759,14 @@ def _backfill_mobile_digits():
 	if frappe.db.db_type != "mariadb":
 		return  # regexp_replace is MariaDB's; elsewhere each pass fills its digits on save
 	digits = "regexp_replace(ifnull(mobile_number, ''), '[^0-9]', '')"
+	# nosemgrep: frappe-sql-format-injection - fixed SQL expression, no user input
 	frappe.db.sql(
 		f"""
 		update `tabVisitor Pass`
 		set mobile_digits = {digits}
 		where ifnull(mobile_number, '') != ''
 		  and ifnull(mobile_digits, '') != {digits}
-		"""  # nosemgrep: frappe-sql-format-injection - no user input, fixed expression
+		"""
 	)
 
 
@@ -909,10 +982,13 @@ def _sync_approval_notification_recipients():
 
 	doc.set("recipients", [])
 	for role in roles:
-		doc.append("recipients", {
-			"receiver_by_role": role,
-			"condition": f"doc.workflow_state == {lane_for_role(role)!r}",
-		})
+		doc.append(
+			"recipients",
+			{
+				"receiver_by_role": role,
+				"condition": f"doc.workflow_state == {lane_for_role(role)!r}",
+			},
+		)
 	doc.save(ignore_permissions=True)
 	added = sorted(r for r, _ in wanted - current)
 	if added:
@@ -923,9 +999,7 @@ def _seed_gates():
 	for gate in GATES:
 		if frappe.db.exists("Visitor Gate", gate["gate_name"]):
 			continue
-		frappe.get_doc({"doctype": "Visitor Gate", "is_active": 1, **gate}).insert(
-			ignore_permissions=True
-		)
+		frappe.get_doc({"doctype": "Visitor Gate", "is_active": 1, **gate}).insert(ignore_permissions=True)
 		print(f"  created Visitor Gate {gate['gate_name']}")
 
 
@@ -933,14 +1007,15 @@ def _seed_visitor_types():
 	for spec in VISITOR_TYPES:
 		name = spec["visitor_type_name"]
 		if not frappe.db.exists("Visitor Type", name):
-			frappe.get_doc({
-				"doctype": "Visitor Type", "is_active": 1, "requires_badge": 1, **spec
-			}).insert(ignore_permissions=True)
+			frappe.get_doc({"doctype": "Visitor Type", "is_active": 1, "requires_badge": 1, **spec}).insert(
+				ignore_permissions=True
+			)
 			print(f"  created Visitor Type {name}")
 			continue
 		# Fill only what is still blank so admin edits survive.
 		updates = {
-			f: v for f, v in spec.items()
+			f: v
+			for f, v in spec.items()
 			if f != "visitor_type_name" and not frappe.db.get_value("Visitor Type", name, f)
 		}
 		if frappe.db.get_value("Visitor Type", name, "requires_badge") is None:
@@ -953,9 +1028,7 @@ def _seed_id_proof_types():
 	for spec in ID_PROOF_TYPES:
 		if frappe.db.exists("ID Proof Type", spec["id_proof_type_name"]):
 			continue
-		frappe.get_doc({"doctype": "ID Proof Type", "is_active": 1, **spec}).insert(
-			ignore_permissions=True
-		)
+		frappe.get_doc({"doctype": "ID Proof Type", "is_active": 1, **spec}).insert(ignore_permissions=True)
 		print(f"  created ID Proof Type {spec['id_proof_type_name']}")
 	frappe.cache.delete_value("vms_id_proof_types")
 
@@ -1005,7 +1078,7 @@ def _clear_stale_layout_fields():
 	workflow Actions button behind a Save button. New saves are handled in
 	validate(); this repairs the rows already on disk.
 	"""
-	updated = frappe.db.sql(
+	frappe.db.sql(
 		"""
 		UPDATE `tabVisitor Pass`
 		SET crm_reference_type = NULL, crm_lead_opportunity = NULL
@@ -1038,7 +1111,6 @@ def _clear_stale_layout_fields():
 	)
 	if frappe.db._cursor.rowcount > 0:
 		print(f"  cleared stray VIP fields on {frappe.db._cursor.rowcount} visitor pass(es)")
-
 
 
 def _rewrite_event_log_details():
@@ -1083,8 +1155,11 @@ def _rewrite_event_log_details():
 				continue
 
 		frappe.db.set_value(
-			"Visitor Event Log", row.name, "details",
-			rewritten_text, update_modified=False,
+			"Visitor Event Log",
+			row.name,
+			"details",
+			rewritten_text,
+			update_modified=False,
 		)
 		rewritten += 1
 
@@ -1453,12 +1528,13 @@ def _harden_invitation_token_collation():
 	# (used above in `_add_performance_indexes`) hits the same rule and clears it
 	# the same way: commit first, so the ALTER starts its own transaction instead
 	# of hijacking whatever was still open.
+	# nosemgrep: frappe-manual-commit - end of setup, persisted before other apps' migrate hooks
 	frappe.db.commit()
 	frappe.db.sql(
 		"""
 		alter table `tabVisitor Invitation`
 		modify `invitation_token` varchar(140) collate utf8mb4_bin default null
-		"""  # nosemgrep: frappe-sql-format-injection - no user input, fixed DDL
+		"""
 	)
 	print("  hardened invitation_token to a case-sensitive collation (utf8mb4_bin)")
 
@@ -1494,6 +1570,7 @@ def _seed_static_workflows():
 
 	path = frappe.get_app_path("visitormanagement", "workflow_seed.json")
 	try:
+		# nosemgrep: frappe-security-file-traversal - path is the app's own bundled workflow_seed.json
 		with open(path) as f:
 			specs = json.load(f)
 	except OSError:
@@ -1581,7 +1658,6 @@ def _build_workflow():
 	name = build_workflow()
 	if name:
 		print(f"  rebuilt workflow {name}")
-
 
 
 def _grant_visitor_pass_cancel():

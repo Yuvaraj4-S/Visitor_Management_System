@@ -21,14 +21,14 @@ required_apps = ["erpnext", "hrms"]
 # Shown as a tile on the /apps screen. Without this the app has no entry point
 # there at all — the workspace was only reachable by typing its URL.
 add_to_apps_screen = [
-    {
-        "name": "visitormanagement",
-        "logo": "/assets/visitormanagement/images/logo-128.png",
-        "title": "Visitor Management",
-        # v16 serves the desk at /desk; erpnext/hrms/india_compliance all use
-        # that prefix here, and /app only works via a redirect.
-        "route": "/desk/visitor-management",
-    }
+	{
+		"name": "visitormanagement",
+		"logo": "/assets/visitormanagement/images/logo-128.png",
+		"title": "Visitor Management",
+		# v16 serves the desk at /desk; erpnext/hrms/india_compliance all use
+		# that prefix here, and /app only works via a redirect.
+		"route": "/desk/visitor-management",
+	}
 ]
 
 # Includes in <head>
@@ -51,7 +51,7 @@ app_include_js = "/assets/visitormanagement/js/core_fixes.js"
 
 # include js, css files in header of web form
 webform_include_js = {
-    "visitor-pre-registration-form": "public/js/id_validators.js",
+	"visitor-pre-registration-form": "public/js/id_validators.js",
 }
 # webform_include_css = {"doctype": "public/css/doctype.css"}
 
@@ -211,22 +211,16 @@ doc_events = {
 
 scheduler_events = {
 	"cron": {
-		"0 7 * * *": [
-			"visitormanagement.visitor_management.tasks.send_daily_hospitality_digest"
-		],
+		"0 7 * * *": ["visitormanagement.visitor_management.tasks.send_daily_hospitality_digest"],
 		# Off-peak, and independent of the digest/no-show/overstay jobs below. This is
 		# OFF in effect on every site until an administrator turns on VMS Settings ->
 		# Enable Data Retention Purge: the function re-checks that flag first and
 		# returns immediately when it is unset, so scheduling it here cannot delete
 		# anything on a site that has not explicitly opted in.
-		"0 3 * * *": [
-			"visitormanagement.visitor_management.tasks.purge_expired_visitor_data"
-		],
+		"0 3 * * *": ["visitormanagement.visitor_management.tasks.purge_expired_visitor_data"],
 		# Always on: these files are attached to nothing and can never be (see the
 		# function). Unlike the retention purge it touches no saved record.
-		"30 3 * * *": [
-			"visitormanagement.visitor_management.tasks.purge_abandoned_uploads"
-		],
+		"30 3 * * *": ["visitormanagement.visitor_management.tasks.purge_abandoned_uploads"],
 	},
 	"hourly": [
 		"visitormanagement.visitor_management.tasks.flag_no_show_passes",
@@ -234,7 +228,7 @@ scheduler_events = {
 		# arrived, this one the visitor who arrived and never left. Nothing chased
 		# the second case, so the building's own answer to "who is inside" drifted.
 		"visitormanagement.visitor_management.tasks.flag_overstaying_visitors",
-	]
+	],
 }
 
 # Testing

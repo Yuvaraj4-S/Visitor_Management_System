@@ -1,14 +1,14 @@
 # For license information, please see license.txt
 
 import functools
+import re
 import secrets
 
-import re
 import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.rate_limiter import rate_limit
-from frappe.utils import add_days, get_datetime, get_time, get_url, now_datetime, getdate, today, date_diff
+from frappe.utils import add_days, date_diff, get_datetime, get_time, get_url, getdate, now_datetime, today
 
 from visitormanagement.visitor_management import settings as vms_settings
 from visitormanagement.visitor_management.lifecycle import derive_hospitality_meal_plan
@@ -81,6 +81,7 @@ def _format_datetime_for_web_form(value):
 	return get_datetime(value).strftime("%Y-%m-%d %H:%M:%S")
 
 
+# nosemgrep: guest-whitelisted-method - invitation link lookup; rate-limited, token is 192-bit
 @frappe.whitelist(allow_guest=True)
 # `token` is looked up directly against the database (get_valid_invitation_by_token),
 # and the caller is anonymous, so this endpoint is as much a token-guessing
@@ -92,7 +93,7 @@ def _format_datetime_for_web_form(value):
 # limits (submit_pre_registration's 20, portal_upload's 30 file uploads) while
 # comfortably covering a real visitor reopening their own link a few times.
 @rate_limit(limit=30, seconds=60 * 60)
-def get_web_form_context(token):
+def get_web_form_context(token: str | None):
 	invitation = get_valid_invitation_by_token(token)
 	if not invitation:
 		return {
@@ -130,16 +131,16 @@ def get_web_form_context(token):
 		# exactly that — "HR-EMP-00057". She has no idea whether that is the person
 		# she came to see, and nothing on the page tells her, so she rings
 		# reception to ask. Send the name too and show her that instead.
-		"person_to_visit_display": frappe.db.get_value(
-			"Employee", invitation.host_employee, "employee_name"
-		)
+		"person_to_visit_display": frappe.db.get_value("Employee", invitation.host_employee, "employee_name")
 		or invitation.host_employee,
 		"purpose_of_visit": invitation.purpose_of_visit,
 		"meal_required": invitation.meal_required,
 		"meal_type": meal_plan["meal_type"] if invitation.meal_required else "",
 		"assigned_meal_slots": meal_plan["assigned_meal_slots"] if invitation.meal_required else "",
 		"hospitality_type": meal_plan["hospitality_type"] if invitation.meal_required else "",
-		"service_time": _format_datetime_for_web_form(meal_plan["service_time"]) if invitation.meal_required else "",
+		"service_time": _format_datetime_for_web_form(meal_plan["service_time"])
+		if invitation.meal_required
+		else "",
 		"refreshments_required": invitation.refreshments_required,
 		"conference_room": invitation.get("conference_room") or "",
 	}
@@ -165,7 +166,9 @@ def get_web_form_context(token):
 				"visit_category": existing_pass.visit_category,
 				"tools_list": existing_pass.tools_list,
 				"multi_day_pass": existing_pass.multi_day_pass,
-				"pass_valid_until": str(existing_pass.pass_valid_until) if existing_pass.pass_valid_until else "",
+				"pass_valid_until": str(existing_pass.pass_valid_until)
+				if existing_pass.pass_valid_until
+				else "",
 				"position_applied": existing_pass.position_applied,
 				"candidate_interview_type": existing_pass.candidate_interview_type,
 				"interpreter_required": existing_pass.interpreter_required,
@@ -291,7 +294,9 @@ class VisitorInvitation(Document):
 		visit_date = getdate(self.visit_date)
 		if visit_date < today_date:
 			frappe.throw(
-				_("Visit date {0} is in the past. Cannot send an invitation for a past date.").format(self.visit_date),
+				_("Visit date {0} is in the past. Cannot send an invitation for a past date.").format(
+					self.visit_date
+				),
 				title=_("Invalid Visit Date"),
 			)
 		max_days = vms_settings.max_advance_booking_days()
@@ -333,7 +338,9 @@ class VisitorInvitation(Document):
 		status = frappe.db.get_value("Employee", self.host_employee, "status")
 		if status != "Active":
 			frappe.throw(
-				_("Host employee {0} is not Active (status: {1}).").format(self.host_employee, status or "Unknown"),
+				_("Host employee {0} is not Active (status: {1}).").format(
+					self.host_employee, status or "Unknown"
+				),
 				title=_("Invalid Host"),
 			)
 
@@ -398,7 +405,7 @@ class VisitorInvitation(Document):
 			f"Purpose: {self.purpose_of_visit or '-'}",
 			"",
 			"Please use the secure link below to fill your information before arrival:",
-			f"<a href=\"{link}\">{link}</a>",
+			f'<a href="{link}">{link}</a>',
 			"",
 			f"This invitation expires on {expires_on}.",
 		]
@@ -430,9 +437,7 @@ class VisitorInvitation(Document):
 			)
 			return True, None
 		except Exception as exc:
-			frappe.log_error(
-				f"Invitation email failed for {self.name}: {exc}", "VMS Invitation Email"
-			)
+			frappe.log_error(f"Invitation email failed for {self.name}: {exc}", "VMS Invitation Email")
 			# sendmail raises via frappe.throw, which also queues its own message
 			# for the client. Drop it — catching the exception is only half the
 			# job; otherwise the host sees a bare "setup Email Account" popup

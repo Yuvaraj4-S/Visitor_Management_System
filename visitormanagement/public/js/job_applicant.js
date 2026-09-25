@@ -5,11 +5,7 @@ frappe.ui.form.on("Job Applicant", {
 		}
 
 		frappe.db
-			.get_value(
-				"Visitor Invitation",
-				{ reference_job_applicant: frm.doc.name },
-				"name"
-			)
+			.get_value("Visitor Invitation", { reference_job_applicant: frm.doc.name }, "name")
 			.then((r) => {
 				const inv = r && r.message && r.message.name;
 				if (!inv) {

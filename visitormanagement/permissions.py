@@ -63,7 +63,9 @@ def get_visitor_pass_permission_query_conditions(user=None):
 		type_list = ", ".join(frappe.db.escape(t) for t in owned_types)
 		conditions.append(f"`{table}`.`visitor_type` in ({type_list})")
 	if "Security" in roles:
-		conditions.append(f"`{table}`.`status` in ('Approved', 'Items Verified', 'Checked-In', 'Checked-Out')")
+		conditions.append(
+			f"`{table}`.`status` in ('Approved', 'Items Verified', 'Checked-In', 'Checked-Out')"
+		)
 
 	# Parenthesised: Frappe ANDs this fragment with its own clauses (User
 	# Permissions, share filters). Unbracketed, `AND` binds tighter than `OR`, so
@@ -202,9 +204,7 @@ def has_visitor_pass_permission(doc, user=None, ptype=None, debug=False):
 	# Facility Manager + Hospitality Manager: read-only on all passes so
 	# Conference Room Booking / Hospitality Request link widgets can render
 	# the visitor's title. Write paths are blocked at role level.
-	if ptype in _READ_LIKE_PTYPES and (
-		"Facility Manager" in roles or "Hospitality Manager" in roles
-	):
+	if ptype in _READ_LIKE_PTYPES and ("Facility Manager" in roles or "Hospitality Manager" in roles):
 		return True
 
 	# Approver scope — role owns this doc's Visitor Type as approver_role or
@@ -297,9 +297,10 @@ def has_hospitality_request_permission(doc, user=None, ptype=None, debug=False):
 	if employee:
 		if doc.get("assigned_staff") == employee:
 			return True
-		if doc.get("visitor_pass") and frappe.db.get_value(
-			"Visitor Pass", doc.visitor_pass, "person_to_visit"
-		) == employee:
+		if (
+			doc.get("visitor_pass")
+			and frappe.db.get_value("Visitor Pass", doc.visitor_pass, "person_to_visit") == employee
+		):
 			return True
 
 	# If you are allowed to see the visit, you are allowed to see what was
@@ -317,9 +318,7 @@ def has_hospitality_request_permission(doc, user=None, ptype=None, debug=False):
 		# it. A permission question about a record that is not there is "no".
 		if not frappe.db.exists("Visitor Pass", doc.visitor_pass):
 			return False
-		return bool(
-			frappe.has_permission("Visitor Pass", "read", doc=doc.visitor_pass, user=user)
-		)
+		return bool(frappe.has_permission("Visitor Pass", "read", doc=doc.visitor_pass, user=user))
 
 	return False
 

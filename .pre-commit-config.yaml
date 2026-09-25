@@ -42,7 +42,7 @@ repos:
                 .*node_modules.*|
                 .*boilerplate.*|
                 visitormanagement/templates/includes/.*|
-                visitormanagement/public/js/lib/.*
+                visitormanagement/public/js/libs?/.*
             )$
 
 
@@ -60,7 +60,7 @@ repos:
                 .*node_modules.*|
                 .*boilerplate.*|
                 visitormanagement/templates/includes/.*|
-                visitormanagement/public/js/lib/.*
+                visitormanagement/public/js/libs?/.*
             )$
 
 ci:

@@ -24,9 +24,8 @@ local numbers, without either having to say so.
 """
 
 import frappe
-from frappe import _
-
 import phonenumbers
+from frappe import _
 
 from visitormanagement.visitor_management import settings as vms_settings
 
@@ -38,12 +37,14 @@ DEFAULT_REGION = "IN"
 # there is not fit for purpose. Types that may be a mobile are allowed — in much
 # of North America the plans are not separable and libphonenumber reports
 # FIXED_LINE_OR_MOBILE for perfectly good mobiles.
-MOBILE_CAPABLE_TYPES = frozenset({
-	phonenumbers.PhoneNumberType.MOBILE,
-	phonenumbers.PhoneNumberType.FIXED_LINE_OR_MOBILE,
-	phonenumbers.PhoneNumberType.VOIP,
-	phonenumbers.PhoneNumberType.PERSONAL_NUMBER,
-})
+MOBILE_CAPABLE_TYPES = frozenset(
+	{
+		phonenumbers.PhoneNumberType.MOBILE,
+		phonenumbers.PhoneNumberType.FIXED_LINE_OR_MOBILE,
+		phonenumbers.PhoneNumberType.VOIP,
+		phonenumbers.PhoneNumberType.PERSONAL_NUMBER,
+	}
+)
 
 
 def default_region():
@@ -118,15 +119,19 @@ def validate_mobile(number, label=None, region=None, required=False):
 
 	if not parsed:
 		frappe.throw(
-			_("{0} could not be read as a phone number. Enter digits only, or start with "
-			  "the country code — for example +44 20 7946 0958.").format(label),
+			_(
+				"{0} could not be read as a phone number. Enter digits only, or start with "
+				"the country code — for example +44 20 7946 0958."
+			).format(label),
 			title=_("Invalid Mobile Number"),
 		)
 
 	if phonenumbers.is_valid_number(parsed) and phonenumbers.number_type(parsed) not in MOBILE_CAPABLE_TYPES:
 		frappe.throw(
-			_("{0} '{1}' is a valid number but not a mobile one. Security needs a number "
-			  "that reaches the visitor at the gate.").format(label, value),
+			_(
+				"{0} '{1}' is a valid number but not a mobile one. Security needs a number "
+				"that reaches the visitor at the gate."
+			).format(label, value),
 			title=_("Mobile Number Required"),
 		)
 
@@ -136,9 +141,12 @@ def validate_mobile(number, label=None, region=None, required=False):
 			_("{0} '{1}' is not a valid number{2}. {3}").format(
 				label,
 				value,
-				_(" for {0}").format(region) if not value.lstrip().startswith("+") else "",
-				_("Local numbers should look like {0}; for anywhere else, start with the "
-				  "country code, e.g. +44 20 7946 0958.").format(example) if example
+				" " + _("for {0}").format(region) if not value.lstrip().startswith("+") else "",
+				_(
+					"Local numbers should look like {0}; for anywhere else, start with the "
+					"country code, e.g. +44 20 7946 0958."
+				).format(example)
+				if example
 				else _("Start with the country code for an international number."),
 			),
 			title=_("Invalid Mobile Number"),
@@ -150,13 +158,9 @@ def validate_mobile(number, label=None, region=None, required=False):
 def _example_for(region):
 	"""A real example number for the region, used in the error message."""
 	try:
-		sample = phonenumbers.example_number_for_type(
-			region, phonenumbers.PhoneNumberType.MOBILE
-		)
+		sample = phonenumbers.example_number_for_type(region, phonenumbers.PhoneNumberType.MOBILE)
 		if sample:
-			return phonenumbers.format_number(
-				sample, phonenumbers.PhoneNumberFormat.NATIONAL
-			)
+			return phonenumbers.format_number(sample, phonenumbers.PhoneNumberFormat.NATIONAL)
 	except Exception:
 		pass
 	return None

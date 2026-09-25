@@ -7,7 +7,6 @@ from frappe.utils import get_time
 
 
 class ConferenceRoom(Document):
-
 	def validate(self):
 		if self.available_from and self.available_to:
 			# get_time() on both sides, never a raw comparison: a Time field can

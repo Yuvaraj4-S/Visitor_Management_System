@@ -130,18 +130,18 @@ def get_visitor_type_approvers() -> dict:
 def _ensure_workflow_state(state: str, style: str):
 	if frappe.db.exists("Workflow State", state):
 		return
-	frappe.get_doc(
-		{"doctype": "Workflow State", "workflow_state_name": state, "style": style}
-	).insert(ignore_permissions=True)
+	frappe.get_doc({"doctype": "Workflow State", "workflow_state_name": state, "style": style}).insert(
+		ignore_permissions=True
+	)
 	_mark_created("Workflow State", state)
 
 
 def _ensure_workflow_action(action: str):
 	if frappe.db.exists("Workflow Action Master", action):
 		return
-	frappe.get_doc(
-		{"doctype": "Workflow Action Master", "workflow_action_name": action}
-	).insert(ignore_permissions=True)
+	frappe.get_doc({"doctype": "Workflow Action Master", "workflow_action_name": action}).insert(
+		ignore_permissions=True
+	)
 	_mark_created("Workflow Action Master", action)
 
 
@@ -166,19 +166,19 @@ def _vt(field):
 
 def _routes_to(role):
 	"""This pass's type sends it to `role` first."""
-	return f'{_vt("approver_role")} == {role!r}'
+	return f"{_vt('approver_role')} == {role!r}"
 
 
 def _has_secondary(role, secondary):
 	"""This pass's type is primary=`role`, secondary=`secondary`."""
-	return f'{_vt("approver_role")} == {role!r} and {_vt("secondary_approver_role")} == {secondary!r}'
+	return f"{_vt('approver_role')} == {role!r} and {_vt('secondary_approver_role')} == {secondary!r}"
 
 
 def _is_final_approver(role):
 	"""`role` is the last approver for this pass's type — approving completes it."""
 	return (
-		f'({_vt("secondary_approver_role")} == {role!r})'
-		f' or (not {_vt("secondary_approver_role")} and {_vt("approver_role")} == {role!r})'
+		f"({_vt('secondary_approver_role')} == {role!r})"
+		f" or (not {_vt('secondary_approver_role')} and {_vt('approver_role')} == {role!r})"
 	)
 
 
@@ -352,6 +352,7 @@ def build_workflow(commit=False):
 	frappe.db.set_default(_FINGERPRINT_KEY, fingerprint)
 
 	if commit:
+		# nosemgrep: frappe-manual-commit - only when the caller asks for commit=True
 		frappe.db.commit()
 
 	return workflow.name

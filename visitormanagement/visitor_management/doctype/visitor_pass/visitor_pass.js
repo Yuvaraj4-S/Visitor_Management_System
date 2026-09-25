@@ -41,10 +41,12 @@ function get_vms_home_country() {
 		return Promise.resolve(_vms_home_country_cache);
 	}
 	if (!_vms_home_country_promise) {
-		_vms_home_country_promise = frappe.db.get_single_value("VMS Settings", "home_country").then((value) => {
-			_vms_home_country_cache = value || "India";
-			return _vms_home_country_cache;
-		});
+		_vms_home_country_promise = frappe.db
+			.get_single_value("VMS Settings", "home_country")
+			.then((value) => {
+				_vms_home_country_cache = value || "India";
+				return _vms_home_country_cache;
+			});
 	}
 	return _vms_home_country_promise;
 }
@@ -70,7 +72,9 @@ function get_visitor_type_approvers() {
 	}
 	if (!_visitor_type_approver_promise) {
 		_visitor_type_approver_promise = frappe
-			.call({ method: "visitormanagement.visitor_management.workflow_builder.get_visitor_type_approvers" })
+			.call({
+				method: "visitormanagement.visitor_management.workflow_builder.get_visitor_type_approvers",
+			})
 			.then((r) => {
 				_visitor_type_approver_cache = r.message || {};
 				return _visitor_type_approver_cache;
@@ -110,11 +114,23 @@ function sync_mobile_country_with_nationality(frm) {
 // of a cancelled pass opened showing the old visit's approval, check-in times,
 // QR code and hospitality request. The server clears them on save as well.
 const VISIT_ONLY_FIELDS = [
-	"approved_by", "approval_date", "badge_number", "qr_code_image",
-	"gate_verified_photo", "gate_verified_on", "gate_verified_by",
-	"actual_checkin", "actual_checkout", "no_show", "current_location",
-	"item_verification_status", "items_verified", "all_items_verified",
-	"hospitality_request", "hospitality_overall_status", "food_status",
+	"approved_by",
+	"approval_date",
+	"badge_number",
+	"qr_code_image",
+	"gate_verified_photo",
+	"gate_verified_on",
+	"gate_verified_by",
+	"actual_checkin",
+	"actual_checkout",
+	"no_show",
+	"current_location",
+	"item_verification_status",
+	"items_verified",
+	"all_items_verified",
+	"hospitality_request",
+	"hospitality_overall_status",
+	"food_status",
 	"food_dept_staff_assigned",
 ];
 
@@ -171,15 +187,15 @@ frappe.ui.form.on("Visitor Pass", {
 		if (frm.doc.supplier_link) {
 			frappe.call({
 				method: LINK_DETAILS_METHOD,
-				args: { doctype: 'Supplier', name: frm.doc.supplier_link },
-				callback: function(r) {
+				args: { doctype: "Supplier", name: frm.doc.supplier_link },
+				callback: function (r) {
 					if (r.message) {
-						fill_if_blank(frm, 'visitor_full_name', r.message.supplier_name);
-						fill_if_blank(frm, 'mobile_number', r.message.mobile_no);
-						fill_if_blank(frm, 'email_id', r.message.email_id);
-						fill_if_blank(frm, 'company__organisation', r.message.supplier_name);
+						fill_if_blank(frm, "visitor_full_name", r.message.supplier_name);
+						fill_if_blank(frm, "mobile_number", r.message.mobile_no);
+						fill_if_blank(frm, "email_id", r.message.email_id);
+						fill_if_blank(frm, "company__organisation", r.message.supplier_name);
 					}
-				}
+				},
 			});
 		}
 	},
@@ -188,15 +204,15 @@ frappe.ui.form.on("Visitor Pass", {
 		if (frm.doc.contractor_link) {
 			frappe.call({
 				method: LINK_DETAILS_METHOD,
-				args: { doctype: 'Supplier', name: frm.doc.contractor_link },
-				callback: function(r) {
+				args: { doctype: "Supplier", name: frm.doc.contractor_link },
+				callback: function (r) {
 					if (r.message) {
-						fill_if_blank(frm, 'visitor_full_name', r.message.supplier_name);
-						fill_if_blank(frm, 'mobile_number', r.message.mobile_no);
-						fill_if_blank(frm, 'email_id', r.message.email_id);
-						fill_if_blank(frm, 'company__organisation', r.message.supplier_name);
+						fill_if_blank(frm, "visitor_full_name", r.message.supplier_name);
+						fill_if_blank(frm, "mobile_number", r.message.mobile_no);
+						fill_if_blank(frm, "email_id", r.message.email_id);
+						fill_if_blank(frm, "company__organisation", r.message.supplier_name);
 					}
-				}
+				},
 			});
 		}
 	},
@@ -205,18 +221,18 @@ frappe.ui.form.on("Visitor Pass", {
 		if (frm.doc.job_applicant_link) {
 			frappe.call({
 				method: LINK_DETAILS_METHOD,
-				args: { doctype: 'Job Applicant', name: frm.doc.job_applicant_link },
-				callback: function(r) {
+				args: { doctype: "Job Applicant", name: frm.doc.job_applicant_link },
+				callback: function (r) {
 					if (r.message) {
-						fill_if_blank(frm, 'visitor_full_name', r.message.applicant_name);
-						fill_if_blank(frm, 'mobile_number', r.message.phone_number);
-						fill_if_blank(frm, 'email_id', r.message.email_id);
-						frm.set_value('position_applied', r.message.job_title || '');
+						fill_if_blank(frm, "visitor_full_name", r.message.applicant_name);
+						fill_if_blank(frm, "mobile_number", r.message.phone_number);
+						fill_if_blank(frm, "email_id", r.message.email_id);
+						frm.set_value("position_applied", r.message.job_title || "");
 					}
-				}
+				},
 			});
 		} else {
-			frm.set_value('position_applied', '');
+			frm.set_value("position_applied", "");
 		}
 	},
 
@@ -224,20 +240,20 @@ frappe.ui.form.on("Visitor Pass", {
 		// Was `fetch_from` on the three host fields, which needs READ on the whole
 		// Employee record; this returns only these three (see link_details.py).
 		if (!frm.doc.person_to_visit) {
-			frm.set_value({ host_name: '', host_department: '', host_email: '' });
+			frm.set_value({ host_name: "", host_department: "", host_email: "" });
 			return;
 		}
 		frappe.call({
 			method: LINK_DETAILS_METHOD,
-			args: { doctype: 'Employee', name: frm.doc.person_to_visit },
-			callback: function(r) {
+			args: { doctype: "Employee", name: frm.doc.person_to_visit },
+			callback: function (r) {
 				const d = r.message || {};
 				frm.set_value({
-					host_name: d.employee_name || '',
-					host_department: d.department || '',
-					host_email: d.user_id || '',
+					host_name: d.employee_name || "",
+					host_department: d.department || "",
+					host_email: d.user_id || "",
 				});
-			}
+			},
 		});
 	},
 
@@ -288,8 +304,7 @@ frappe.ui.form.on("Visitor Pass", {
 		}
 
 		frappe.call({
-			method:
-				"visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.get_existing_visitor_pass_details",
+			method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.get_existing_visitor_pass_details",
 			args: {
 				visitor_pass: frm.doc.existing_visitor_pass,
 				visitor_type: frm.doc.visitor_type,
@@ -364,9 +379,10 @@ function preview_normalised_mobile(frm) {
 		if (digits.length >= 10) {
 			normalised = `+${code}-${digits.slice(-10)}`;
 		}
-		const description = (normalised !== raw)
-			? __("Will be saved as: <b>{0}</b>", [normalised])
-			: __("✓ Format looks good");
+		const description =
+			normalised !== raw
+				? __("Will be saved as: <b>{0}</b>", [normalised])
+				: __("✓ Format looks good");
 		frm.set_df_property("mobile_number", "description", description);
 		frm.refresh_field("mobile_number");
 	});
@@ -406,18 +422,19 @@ function apply_badge_visibility(frm) {
 	};
 	// Hide first so we never flash badge fields on before the fetch resolves.
 	setHidden(true);
-	frappe.db.get_value("VMS Settings", "VMS Settings",
-			["enable_badge", "badge_required_for"])
+	frappe.db
+		.get_value("VMS Settings", "VMS Settings", ["enable_badge", "badge_required_for"])
 		.then((r) => {
 			const s = (r && r.message) || {};
 			// Single-doctype fields come back as strings — "0" is truthy in JS.
 			// Coerce to int with cint to get a real boolean.
 			let show = !!cint(s.enable_badge);
 			if (show) {
-				const list = (s.badge_required_for || "").split(/[\n,]/)
-					.map((x) => x.trim()).filter(Boolean);
-				if (list.length && frm.doc.visitor_type
-						&& !list.includes(frm.doc.visitor_type)) {
+				const list = (s.badge_required_for || "")
+					.split(/[\n,]/)
+					.map((x) => x.trim())
+					.filter(Boolean);
+				if (list.length && frm.doc.visitor_type && !list.includes(frm.doc.visitor_type)) {
 					show = false;
 				}
 			}
@@ -426,7 +443,11 @@ function apply_badge_visibility(frm) {
 }
 
 function ensure_customer_crm_defaults(frm) {
-	if (frm.doc.visitor_type_layout === "Customer" && frm.doc.entry_type === "New" && !frm.doc.crm_reference_type) {
+	if (
+		frm.doc.visitor_type_layout === "Customer" &&
+		frm.doc.entry_type === "New" &&
+		!frm.doc.crm_reference_type
+	) {
 		frm.set_value("crm_reference_type", "Lead");
 		return;
 	}
@@ -442,7 +463,11 @@ function ensure_customer_crm_defaults(frm) {
 }
 
 function fetch_customer_crm_details(frm) {
-	if (frm.doc.visitor_type_layout !== "Customer" || !frm.doc.crm_reference_type || !frm.doc.crm_lead_opportunity) {
+	if (
+		frm.doc.visitor_type_layout !== "Customer" ||
+		!frm.doc.crm_reference_type ||
+		!frm.doc.crm_lead_opportunity
+	) {
 		return;
 	}
 
@@ -516,7 +541,9 @@ function apply_visitor_pass_field_rules(frm) {
 	// gets the same behaviour with no code change.
 	const layout = frm.doc.visitor_type_layout || "";
 	const is_supplier_existing = layout === "Supplier" && frm.doc.entry_type === "Existing";
-	const is_existing = ["Supplier", "Customer", "Contractor", "Candidate"].includes(layout) && frm.doc.entry_type === "Existing";
+	const is_existing =
+		["Supplier", "Customer", "Contractor", "Candidate"].includes(layout) &&
+		frm.doc.entry_type === "Existing";
 	const is_follow_up = layout === "Customer" && frm.doc.meeting_outcome === "Follow-Up Needed";
 	const needs_interpreter = layout === "VIP" && !!frm.doc.interpreter_required;
 	const is_multi_day_contractor = layout === "Contractor" && !!frm.doc.multi_day_pass;
@@ -549,13 +576,21 @@ function apply_visitor_pass_field_rules(frm) {
 	frm.toggle_display("existing_visitor_pass", is_existing);
 	frm.toggle_reqd("existing_visitor_pass", is_existing);
 	frm.toggle_display("supplier_link", layout === "Supplier" && frm.doc.entry_type === "New");
-	frm.toggle_display("crm_reference_type", layout === "Customer" && frm.doc.entry_type === "New");
-	frm.toggle_display("crm_lead_opportunity", layout === "Customer" && frm.doc.entry_type === "New");
+	frm.toggle_display(
+		"crm_reference_type",
+		layout === "Customer" && frm.doc.entry_type === "New"
+	);
+	frm.toggle_display(
+		"crm_lead_opportunity",
+		layout === "Customer" && frm.doc.entry_type === "New"
+	);
 	frm.toggle_display("contractor_link", layout === "Contractor" && frm.doc.entry_type === "New");
 	frm.toggle_display("work_order_ref", layout === "Contractor" && frm.doc.entry_type === "New");
-	frm.toggle_display("job_applicant_link", layout === "Candidate" && frm.doc.entry_type === "New");
-	const is_supplier_meeting =
-		layout === "Supplier" && frm.doc.supplier_visit_mode === "Meeting";
+	frm.toggle_display(
+		"job_applicant_link",
+		layout === "Candidate" && frm.doc.entry_type === "New"
+	);
+	const is_supplier_meeting = layout === "Supplier" && frm.doc.supplier_visit_mode === "Meeting";
 	frm.toggle_reqd("meeting_subject", is_supplier_meeting);
 
 	frm.toggle_display("followup_date", is_follow_up);
@@ -578,7 +613,8 @@ function apply_visitor_pass_field_rules(frm) {
 	sync_mobile_country_with_nationality(frm);
 
 	get_vms_home_country().then((home_country) => {
-		const is_foreign_national = frm.doc.custom_nationality && frm.doc.custom_nationality !== home_country;
+		const is_foreign_national =
+			frm.doc.custom_nationality && frm.doc.custom_nationality !== home_country;
 		frm.toggle_display("custom_visa_copy", is_foreign_national);
 		frm.toggle_reqd("custom_visa_copy", is_foreign_national);
 
@@ -663,7 +699,10 @@ function set_visitor_pass_intro(frm) {
 		// Generic text first (correct for every lane, including one from a
 		// Visitor Type created seconds ago), upgraded to the specific approver
 		// name once the server-driven lane map resolves.
-		frm.set_intro(__("Awaiting approval. Review the visitor details before taking action."), "orange");
+		frm.set_intro(
+			__("Awaiting approval. Review the visitor details before taking action."),
+			"orange"
+		);
 		render_approver_context_card(frm);
 
 		get_visitor_type_approvers().then((approvers) => {
@@ -673,9 +712,10 @@ function set_visitor_pass_intro(frm) {
 			const approval_lane = approvers[frm.doc.visitor_type];
 			if (approval_lane) {
 				frm.set_intro(
-					__("Awaiting approval from {0}. Review the request snapshot and visit-specific details carefully.", [
-						approval_lane,
-					]),
+					__(
+						"Awaiting approval from {0}. Review the request snapshot and visit-specific details carefully.",
+						[approval_lane]
+					),
 					"orange"
 				);
 			}
@@ -697,7 +737,9 @@ function set_visitor_pass_intro(frm) {
 
 	if (stage === "Items Verified") {
 		frm.set_intro(
-			__("Items are verified and the pass is gate-ready. Proceed with Security Log check-in."),
+			__(
+				"Items are verified and the pass is gate-ready. Proceed with Security Log check-in."
+			),
 			"blue"
 		);
 		return;
@@ -705,7 +747,9 @@ function set_visitor_pass_intro(frm) {
 
 	if (stage === "Checked-In") {
 		frm.set_intro(
-			__("Visitor is currently inside the premises. Use Security Log to record checkout when they exit."),
+			__(
+				"Visitor is currently inside the premises. Use Security Log to record checkout when they exit."
+			),
 			"green"
 		);
 		return;
@@ -718,7 +762,9 @@ function set_visitor_pass_intro(frm) {
 
 	if (stage === "Rejected") {
 		frm.set_intro(
-			__("Request rejected. Update the details and reapply if the visit still needs to happen."),
+			__(
+				"Request rejected. Update the details and reapply if the visit still needs to happen."
+			),
 			"red"
 		);
 		return;
@@ -735,13 +781,15 @@ function render_approver_context_card(frm) {
 
 	const photo_ok = !!frm.doc.visitor_photo;
 	const id_ok = !!frm.doc.id_proof_scan;
-	const items_declared = (frm.doc.visitor_items || []).length > 0
-		|| !!(frm.doc.items_carried || "").trim();
+	const items_declared =
+		(frm.doc.visitor_items || []).length > 0 || !!(frm.doc.items_carried || "").trim();
 
 	const esc = (v) => frappe.utils.escape_html(v == null ? "" : String(v));
 
 	const checklist_item = (label, ok) => `
-		<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; background:${ok ? "#d9f3e4" : "#fde2e2"}; color:${ok ? "#0d6b3e" : "#9b1c1c"};">
+		<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; background:${
+			ok ? "#d9f3e4" : "#fde2e2"
+		}; color:${ok ? "#0d6b3e" : "#9b1c1c"};">
 			${ok ? "✅" : "⚠️"} ${label}
 		</span>
 	`;
@@ -756,7 +804,9 @@ function render_approver_context_card(frm) {
 		esc(frm.doc.visit_date || ""),
 		esc(frm.doc.expected_checkin || ""),
 		frm.doc.expected_checkout ? "→ " + esc(frm.doc.expected_checkout) : "",
-	].filter(Boolean).join(" ");
+	]
+		.filter(Boolean)
+		.join(" ");
 
 	const html = `
 		<div class="vm-approver-card" style="border:1px solid #dbe3ea; border-radius:12px; padding:14px 16px; background:linear-gradient(180deg,#f8fafc 0%, #eef4f8 100%); margin-bottom:12px;">
@@ -799,7 +849,8 @@ function add_action_buttons(frm) {
 }
 
 function setup_supplier_pass_query(frm) {
-	if (!['Supplier','Customer','Contractor','Candidate'].includes(frm.doc.visitor_type)) return;
+	if (!["Supplier", "Customer", "Contractor", "Candidate"].includes(frm.doc.visitor_type))
+		return;
 
 	frm.set_query("existing_visitor_pass", () => ({
 		query: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.search_visitor_passes",
@@ -834,12 +885,10 @@ function get_pass_stage_color(stage) {
 
 function show_web_submissions_dialog(frm) {
 	frappe.call({
-		method: 'frappe.client.get_list',
+		method: "frappe.client.get_list",
 		args: {
-			doctype: 'Visitor Pass',
-			filters: [
-				['request_channel', '=', 'Portal'],
-			],
+			doctype: "Visitor Pass",
+			filters: [["request_channel", "=", "Portal"]],
 			// Was `['workflow_state', 'in', [<6 hardcoded lane names>, 'Draft']]`.
 			// That list mirrored only the 5 approver roles the old hardcoded
 			// workflow vocabulary knew about (see the removed get_approval_lane
@@ -851,29 +900,36 @@ function show_web_submissions_dialog(frm) {
 			// every lane the current Visitor Type configuration can produce,
 			// present or future, with no list to keep in sync.
 			or_filters: [
-				['workflow_state', 'like', 'Pending%'],
-				['workflow_state', '=', 'Draft'],
+				["workflow_state", "like", "Pending%"],
+				["workflow_state", "=", "Draft"],
 			],
-			fields: ['name', 'visitor_full_name', 'visitor_type', 'mobile_number', 'email_id', 'visit_date']
+			fields: [
+				"name",
+				"visitor_full_name",
+				"visitor_type",
+				"mobile_number",
+				"email_id",
+				"visit_date",
+			],
 		},
-		callback: function(r) {
+		callback: function (r) {
 			if (r.message && r.message.length > 0) {
 				let dialog = new frappe.ui.Dialog({
-					title: __('Pending Web Submissions'),
+					title: __("Pending Web Submissions"),
 					fields: [
 						{
-							fieldtype: 'HTML',
-							fieldname: 'submissions',
-							options: generate_submissions_html(r.message, frm)
-						}
+							fieldtype: "HTML",
+							fieldname: "submissions",
+							options: generate_submissions_html(r.message, frm),
+						},
 					],
-					size: 'large'
+					size: "large",
 				});
 				dialog.show();
 			} else {
-				frappe.msgprint(__('No pending web visitor pass submissions found.'));
+				frappe.msgprint(__("No pending web visitor pass submissions found."));
 			}
-		}
+		},
 	});
 }
 
@@ -883,7 +939,7 @@ function generate_submissions_html(submissions, frm) {
 	// the dialog HTML, or a crafted name/email runs script in the staff session.
 	const esc = (v) => frappe.utils.escape_html(v == null ? "" : String(v));
 	let html = '<div class="row">';
-	submissions.forEach(sub => {
+	submissions.forEach((sub) => {
 		html += `
 			<div class="col-md-6 mb-3">
 				<div class="card">
@@ -894,50 +950,52 @@ function generate_submissions_html(submissions, frm) {
 							Email: ${esc(sub.email_id)}<br>
 							Date: ${esc(sub.visit_date)}
 						</p>
-						<button class="btn btn-primary btn-sm" onclick="select_submission('${esc(sub.name)}', '${esc(frm.doc.name)}')">Select & Auto-Fetch</button>
+						<button class="btn btn-primary btn-sm" onclick="select_submission('${esc(sub.name)}', '${esc(
+			frm.doc.name
+		)}')">Select & Auto-Fetch</button>
 					</div>
 				</div>
 			</div>
 		`;
 	});
-	html += '</div>';
+	html += "</div>";
 	return html;
 }
 
-window.select_submission = function(submission_name, frm_name) {
+window.select_submission = function (submission_name, frm_name) {
 	frappe.call({
-		method: 'frappe.client.get',
-		args: { doctype: 'Visitor Pass', name: submission_name },
-		callback: function(r) {
+		method: "frappe.client.get",
+		args: { doctype: "Visitor Pass", name: submission_name },
+		callback: function (r) {
 			if (r.message) {
 				let data = r.message;
 				// Set values in Visitor Pass
-				frappe.set_route('Form', 'Visitor Pass', frm_name);
+				frappe.set_route("Form", "Visitor Pass", frm_name);
 				setTimeout(() => {
-					let formview = frappe.views.formview['Visitor Pass'];
+					let formview = frappe.views.formview["Visitor Pass"];
 					let frm = formview && formview.frm;
 					if (!frm) {
 						return;
 					}
-					frm.set_value('visitor_type', data.visitor_type);
-					frm.set_value('visitor_full_name', data.visitor_full_name);
-					frm.set_value('mobile_number', data.mobile_number);
-					frm.set_value('email_id', data.email_id);
-					frm.set_value('company__organisation', data.company__organisation);
-					frm.set_value('visit_date', data.visit_date);
-					frm.set_value('expected_checkin', data.expected_checkin);
-					frm.set_value('expected_checkout', data.expected_checkout);
-					frm.set_value('purpose_of_visit', resolve_purpose_of_visit(data));
-					frm.set_value('person_to_visit', data.person_to_visit);
-					frm.set_value('id_proof_type', data.id_proof_type);
-					frm.set_value('id_proof_number', data.id_proof_number);
-					frm.set_value('id_proof_scan', data.id_proof_scan);
-					frm.set_value('visitor_photo', data.visitor_photo);
-					frm.set_value('request_channel', 'Portal');
+					frm.set_value("visitor_type", data.visitor_type);
+					frm.set_value("visitor_full_name", data.visitor_full_name);
+					frm.set_value("mobile_number", data.mobile_number);
+					frm.set_value("email_id", data.email_id);
+					frm.set_value("company__organisation", data.company__organisation);
+					frm.set_value("visit_date", data.visit_date);
+					frm.set_value("expected_checkin", data.expected_checkin);
+					frm.set_value("expected_checkout", data.expected_checkout);
+					frm.set_value("purpose_of_visit", resolve_purpose_of_visit(data));
+					frm.set_value("person_to_visit", data.person_to_visit);
+					frm.set_value("id_proof_type", data.id_proof_type);
+					frm.set_value("id_proof_number", data.id_proof_number);
+					frm.set_value("id_proof_scan", data.id_proof_scan);
+					frm.set_value("visitor_photo", data.visitor_photo);
+					frm.set_value("request_channel", "Portal");
 					frm.save();
 				}, 500);
 			}
-		}
+		},
 	});
 };
 
@@ -1023,7 +1081,10 @@ function apply_existing_pass_data(frm, data) {
 }
 
 function lookup_existing_visitor_match(frm, trigger_field) {
-	if (!frm.doc.visitor_type_layout || !["Supplier", "Customer", "Contractor", "Candidate"].includes(frm.doc.visitor_type_layout)) {
+	if (
+		!frm.doc.visitor_type_layout ||
+		!["Supplier", "Customer", "Contractor", "Candidate"].includes(frm.doc.visitor_type_layout)
+	) {
 		return;
 	}
 	if (!frm.doc.mobile_number && !frm.doc.id_proof_number) {
@@ -1044,7 +1105,9 @@ function lookup_existing_visitor_match(frm, trigger_field) {
 			}
 
 			const best = message.best_match;
-			const signature = `${best.name}:${trigger_field}:${frm.doc.id_proof_number || ""}:${frm.doc.mobile_number || ""}`;
+			const signature = `${best.name}:${trigger_field}:${frm.doc.id_proof_number || ""}:${
+				frm.doc.mobile_number || ""
+			}`;
 			if (frm.__last_existing_prompt_signature === signature) {
 				return;
 			}
@@ -1052,7 +1115,11 @@ function lookup_existing_visitor_match(frm, trigger_field) {
 
 			const prompt = __(
 				"Existing {0} record found: {1} ({2}). Do you want to load this data?",
-				[frappe.utils.escape_html(best.visitor_type || ""), frappe.utils.escape_html(best.name || ""), frappe.utils.escape_html(best.visitor_full_name || "")]
+				[
+					frappe.utils.escape_html(best.visitor_type || ""),
+					frappe.utils.escape_html(best.name || ""),
+					frappe.utils.escape_html(best.visitor_full_name || ""),
+				]
 			);
 
 			frappe.confirm(prompt, () => {
@@ -1072,10 +1139,11 @@ function add_hospitality_buttons(frm) {
 		frm.add_custom_button(
 			__("View Itinerary"),
 			() => {
-				const url = `/printview?doctype=${encodeURIComponent("Hospitality Request")}`
-					+ `&name=${encodeURIComponent(frm.doc.hospitality_request)}`
-					+ `&format=${encodeURIComponent("Visitor Itinerary")}`
-					+ `&no_letterhead=0`;
+				const url =
+					`/printview?doctype=${encodeURIComponent("Hospitality Request")}` +
+					`&name=${encodeURIComponent(frm.doc.hospitality_request)}` +
+					`&format=${encodeURIComponent("Visitor Itinerary")}` +
+					`&no_letterhead=0`;
 				window.open(url, "_blank");
 			},
 			__("Hospitality")
@@ -1089,15 +1157,14 @@ function add_hospitality_buttons(frm) {
 			__("Hospitality")
 		);
 	} else {
-		const any_arrangement = (
-			frm.doc.cab_required
-			|| frm.doc.hotel_required
-			|| frm.doc.factory_tour_required
-			|| frm.doc.buggy_required
-			|| frm.doc.greeting_required
-			|| frm.doc.meal_required
-			|| frm.doc.conference_room
-		);
+		const any_arrangement =
+			frm.doc.cab_required ||
+			frm.doc.hotel_required ||
+			frm.doc.factory_tour_required ||
+			frm.doc.buggy_required ||
+			frm.doc.greeting_required ||
+			frm.doc.meal_required ||
+			frm.doc.conference_room;
 		if (any_arrangement) {
 			frm.add_custom_button(
 				__("Create Hospitality Request"),

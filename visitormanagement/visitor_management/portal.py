@@ -16,7 +16,11 @@ from visitormanagement.visitor_management import settings as vms_settings
 # defined once in portal_upload, which enforces the same rules at upload time.
 from visitormanagement.visitor_management.portal_upload import (
 	ALLOWED_EXTENSIONS as ALLOWED_UPLOAD_EXTENSIONS,
+)
+from visitormanagement.visitor_management.portal_upload import (
 	MAX_BYTES as MAX_UPLOAD_BYTES,
+)
+from visitormanagement.visitor_management.portal_upload import (
 	SIGNATURES as _UPLOAD_SIGNATURES,
 )
 
@@ -32,6 +36,7 @@ def _validate_upload(filename, content):
 			_("The uploaded file is not a valid JPG, PNG or PDF. Please re-upload a genuine image or PDF.")
 		)
 
+
 from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation import (
 	get_valid_invitation_by_token,
 )
@@ -39,8 +44,6 @@ from visitormanagement.visitor_management.validators import (
 	id_proof_error_message,
 	validate_id,
 )
-
-
 
 # Ceiling for the identity-keyed limiter below (socket peer, unless a declared
 # proxy forwarded the request — see portal_upload._rate_limit_identity). This
@@ -114,6 +117,7 @@ def _adopt_uploaded_file(payload, upload_key=None):
 	# get_content() decodes to str whenever the bytes happen to be decodable,
 	# which breaks the magic-byte check below. Read the file as bytes so the
 	# signature comparison sees exactly what was written.
+	# nosemgrep: frappe-security-file-traversal - path of the File record validated just above
 	with open(file_doc.get_full_path(), "rb") as handle:
 		content = handle.read(MAX_UPLOAD_BYTES + 1)
 	_validate_upload(file_doc.file_name, content)
@@ -225,7 +229,9 @@ def _assert_upload_key(file_doc, upload_key):
 
 	if not upload_key_matches(file_doc.file_url, upload_key):
 		frappe.throw(
-			_("That upload does not belong to this form. Please upload your ID proof and photo again and submit."),
+			_(
+				"That upload does not belong to this form. Please upload your ID proof and photo again and submit."
+			),
 			frappe.PermissionError,
 		)
 
@@ -430,9 +436,7 @@ def _parse_visitor_items(items):
 			VisitorPass,
 		)
 
-		parts = VisitorPass._parse_items_carried(item_name) or [
-			{"item_name": item_name, "quantity": 1}
-		]
+		parts = VisitorPass._parse_items_carried(item_name) or [{"item_name": item_name, "quantity": 1}]
 
 		for part in parts:
 			# A quantity typed on the row only makes sense when that row turned
@@ -522,15 +526,18 @@ def _build_visitor_pass_values(
 			or (invitation.get("visitor_full_name") if invitation else None)
 		),
 		"mobile_number": _normalize_mobile_number(
-			data.get("mobile_number")
-			or (invitation.get("visitor_mobile") if invitation else None),
+			data.get("mobile_number") or (invitation.get("visitor_mobile") if invitation else None),
 			data.get("mobile_country_code"),
 		),
 		"email_id": invitation.visitor_email if invitation else data.get("email_id"),
 		"company__organisation": data.get("company__organisation"),
 		"visit_date": invitation.visit_date if invitation else data.get("visit_date"),
-		"expected_checkin": _normalize_time(str(invitation.expected_checkin) if invitation else data.get("expected_checkin")),
-		"expected_checkout": _normalize_time(str(invitation.expected_checkout) if invitation else data.get("expected_checkout")),
+		"expected_checkin": _normalize_time(
+			str(invitation.expected_checkin) if invitation else data.get("expected_checkin")
+		),
+		"expected_checkout": _normalize_time(
+			str(invitation.expected_checkout) if invitation else data.get("expected_checkout")
+		),
 		"person_to_visit": person_to_visit,
 		# Fall back to what the visitor typed when the host left this blank.
 		# `purpose_of_visit` is optional on Visitor Invitation but mandatory on
@@ -622,9 +629,10 @@ def _build_visitor_pass_values(
 # no VMS Settings value can raise past; only the identity-keyed limiter inside
 # the function (_enforce_submission_rate_limit, via _max_submissions_per_hour)
 # is actually configurable, and only downward from this number.
+# nosemgrep: guest-whitelisted-method - portal submission; rate-limited, allow-listed fields, see threat model
 @frappe.whitelist(allow_guest=True)
 @rate_limit(limit=20, seconds=60 * 60)
-def submit_pre_registration(payload=None):
+def submit_pre_registration(payload: str | dict | None = None):
 	# Frappe's own @rate_limit keys on frappe.local.request_ip, which is read
 	# from X-Forwarded-For without trusted-proxy validation — so the decorator
 	# above is defeated by rotating that header. This second limit keys on the
@@ -673,7 +681,9 @@ def submit_pre_registration(payload=None):
 
 	for fieldname in required_fields:
 		field_value = invitation_field_values.get(fieldname) if invitation else None
-		form_value = data.get(fieldname) or (data.get("visitor_name") if fieldname == "visitor_full_name" else None)
+		form_value = data.get(fieldname) or (
+			data.get("visitor_name") if fieldname == "visitor_full_name" else None
+		)
 		if require_full_submission and not (field_value or form_value):
 			frappe.throw(f"{frappe.unscrub(fieldname).title()} is required.")
 
@@ -741,7 +751,9 @@ def submit_pre_registration(payload=None):
 	visitor_photo_upload = read_upload("visitor_photo", "visitor-photo.png")
 	# A home-country visitor has no use for a visa copy; one sent anyway is not stored.
 	visa_upload = read_upload("custom_visa_copy", "visitor-visa.pdf") if is_foreign else (None, None)
-	person_to_visit = _resolve_employee_link(invitation.host_employee if invitation else data.get("person_to_visit"))
+	person_to_visit = _resolve_employee_link(
+		invitation.host_employee if invitation else data.get("person_to_visit")
+	)
 	visitor_items = _parse_visitor_items(data.get("visitor_items"))
 
 	if person_to_visit and not frappe.db.exists("Employee", person_to_visit):

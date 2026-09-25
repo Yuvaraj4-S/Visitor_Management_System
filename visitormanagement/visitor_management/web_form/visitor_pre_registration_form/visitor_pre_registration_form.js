@@ -23,7 +23,11 @@ const VMS_UPLOAD_KEY = (() => {
 		return open.call(this, method, url, ...rest);
 	};
 	proto.send = function (body) {
-		if (body instanceof FormData && this.vmsUploadUrl.includes("upload_file") && !body.has("vms_upload_key")) {
+		if (
+			body instanceof FormData &&
+			this.vmsUploadUrl.includes("upload_file") &&
+			!body.has("vms_upload_key")
+		) {
 			body.append("vms_upload_key", VMS_UPLOAD_KEY);
 		}
 		return send.call(this, body);
@@ -38,9 +42,7 @@ const ALWAYS_LOCKED_FIELDS = [
 	"expected_checkout",
 	"person_to_visit",
 ];
-const CONDITIONALLY_LOCKED_FIELDS = [
-	"purpose_of_visit",
-];
+const CONDITIONALLY_LOCKED_FIELDS = ["purpose_of_visit"];
 let LOCKED_FIELDS = [...ALWAYS_LOCKED_FIELDS];
 
 const TYPE_SECTION_LABELS = {
@@ -150,7 +152,9 @@ function attachMobileValidator() {
 
 	const showError = () => {
 		$err.text(
-			__("Enter 10 digits (e.g. 9876543210) or +country code + number (e.g. +91 9876543210).")
+			__(
+				"Enter 10 digits (e.g. 9876543210) or +country code + number (e.g. +91 9876543210)."
+			)
 		).addClass("visible");
 	};
 	const hideError = () => $err.removeClass("visible");
@@ -197,7 +201,6 @@ function checkAttachmentSize(fieldname, label) {
 	return null;
 }
 
-
 // Frappe prepares the success message with `frappe.db.escape()` — a *SQL* string
 // escaper — before handing it to the HTML template (web_form.py:461). Every
 // apostrophe therefore reaches the page as a literal backslash: a visitor who
@@ -240,10 +243,9 @@ function renderSuccessPanel(reference) {
 }
 
 function setFormVisibility(visible) {
-	$(".web-form .form-column, .web-form .section-body, .web-form .web-form-footer, .vm-custom-block").toggleClass(
-		"vm-form-hidden",
-		!visible
-	);
+	$(
+		".web-form .form-column, .web-form .section-body, .web-form .web-form-footer, .vm-custom-block"
+	).toggleClass("vm-form-hidden", !visible);
 }
 
 function applyVisitorTypeSections(visitorType) {
@@ -283,7 +285,9 @@ function getVisitorItemRowTemplate(item = {}) {
 	return `
 		<div class="vm-visitor-item-row vm-hospitality-card">
 			<label class="control-label">${__("Items")}</label>
-			<textarea rows="3" class="form-control vm-item-name" placeholder="${__("e.g. Dell laptop, USB drive, toolkit")}">${escapeHtml(item.item_name || "")}</textarea>
+			<textarea rows="3" class="form-control vm-item-name" placeholder="${__(
+				"e.g. Dell laptop, USB drive, toolkit"
+			)}">${escapeHtml(item.item_name || "")}</textarea>
 		</div>
 	`;
 }
@@ -297,7 +301,9 @@ function ensureVisitorItemsSection() {
 		<div class="vm-custom-block vm-visitor-items-section vm-locked-section">
 			<div class="vm-locked-section-title">${__("Visitor Items")}</div>
 			<div class="vm-items-intro">
-				${__("Will you be carrying any laptops, storage devices, tools, or similar items? List them below so security can verify them at the gate.")}
+				${__(
+					"Will you be carrying any laptops, storage devices, tools, or similar items? List them below so security can verify them at the gate."
+				)}
 			</div>
 			<div class="vm-visitor-items-list mt-3"></div>
 		</div>
@@ -660,7 +666,6 @@ function bindGenericFormHandlers() {
 			applyVisitorTypeSections(getFieldValue("visitor_type"));
 		}, 0);
 	});
-
 }
 
 function unlockDirectAccessFields() {
@@ -703,10 +708,10 @@ function syncVisibleLockedField(fieldname, value) {
 		value === null || value === undefined || value === ""
 			? "-"
 			: typeof value === "boolean"
-				? value
-					? __("Yes")
-					: __("No")
-				: String(value);
+			? value
+				? __("Yes")
+				: __("No")
+			: String(value);
 	const $wrapper = $control.find(".control-input-wrapper");
 	$control.find(".control-input").hide();
 	let $display = $wrapper.find(".vm-locked-display");
@@ -761,7 +766,9 @@ async function applyInvitationValuesWithRetry(values) {
 		applyInvitationValues(values);
 	}, 150);
 	setTimeout(() => {
-		LOCKED_FIELDS.forEach((fieldname) => syncVisibleLockedField(fieldname, values?.[fieldname]));
+		LOCKED_FIELDS.forEach((fieldname) =>
+			syncVisibleLockedField(fieldname, values?.[fieldname])
+		);
 		applyVisitorTypeSections(values?.visitor_type);
 	}, 300);
 }
@@ -783,10 +790,7 @@ function ensureInvitationBinding() {
 }
 
 function getInvitationBackedValue(fieldname) {
-	return (
-		invitationContextState.values?.[fieldname] ??
-		window.vmInvitationValues?.[fieldname]
-	);
+	return invitationContextState.values?.[fieldname] ?? window.vmInvitationValues?.[fieldname];
 }
 
 function isMissingRequiredValue(value, field) {
@@ -795,7 +799,9 @@ function isMissingRequiredValue(value, field) {
 	}
 
 	if (field?.df?.fieldtype === "Text Editor") {
-		return !String(value).replace(/<[^>]*>/g, "").trim();
+		return !String(value)
+			.replace(/<[^>]*>/g, "")
+			.trim();
 	}
 
 	if (typeof value === "string") {
@@ -980,7 +986,11 @@ function setupInvitationHooks() {
 	frappe.web_form.validate = () => {
 		const token = getInvitationToken();
 		if (token && (!invitationContextState.loaded || !invitationContextState.valid)) {
-			frappe.msgprint(__("Invitation details are still loading or invalid. Reopen the invitation link and try again."));
+			frappe.msgprint(
+				__(
+					"Invitation details are still loading or invalid. Reopen the invitation link and try again."
+				)
+			);
 			return false;
 		}
 
@@ -1009,7 +1019,11 @@ function setupInvitationHooks() {
 
 		LOCKED_FIELDS.forEach((fieldname) => {
 			const invitationValue = getInvitationBackedValue(fieldname);
-			if (invitationValue !== undefined && invitationValue !== null && invitationValue !== "") {
+			if (
+				invitationValue !== undefined &&
+				invitationValue !== null &&
+				invitationValue !== ""
+			) {
 				docValues[fieldname] = invitationValue;
 			}
 		});
@@ -1018,8 +1032,7 @@ function setupInvitationHooks() {
 			return false;
 		}
 
-		const mobileForCheck =
-			docValues.mobile_number || frappe.web_form.doc?.mobile_number || "";
+		const mobileForCheck = docValues.mobile_number || frappe.web_form.doc?.mobile_number || "";
 		if (mobileForCheck && !isValidMobile(mobileForCheck)) {
 			frappe.msgprint({
 				title: __("Check your mobile number"),
@@ -1053,7 +1066,10 @@ function setupInvitationHooks() {
 		this.doc.entry_type = "New";
 		this.doc.request_channel = "Portal";
 		this.doc.submission_action = "submit";
-		const targetState = getPortalSubmissionState(this.doc.visitor_type, this.doc.submission_action);
+		const targetState = getPortalSubmissionState(
+			this.doc.visitor_type,
+			this.doc.submission_action
+		);
 		this.doc.status = targetState;
 		this.doc.workflow_state = targetState;
 		this.doc.visitor_invitation =

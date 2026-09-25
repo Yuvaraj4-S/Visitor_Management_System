@@ -12,7 +12,6 @@ from visitormanagement.visitor_management.link_details import fill_from_link
 
 
 class ConferenceRoomBooking(Document):
-
 	def validate(self):
 		# Was `fetch_from: booked_by.department`, which needed READ on Employee.
 		fill_from_link(self, "booked_by", "Employee", {"department": "department"})
@@ -93,8 +92,8 @@ class ConferenceRoomBooking(Document):
 	# -- Duration Calculation --
 
 	def calculate_duration(self):
-		start_dt = get_datetime("{} {}".format(self.booking_date, self.start_time))
-		end_dt = get_datetime("{} {}".format(self.booking_date, self.end_time))
+		start_dt = get_datetime(f"{self.booking_date} {self.start_time}")
+		end_dt = get_datetime(f"{self.booking_date} {self.end_time}")
 		self.duration_hours = flt(time_diff_in_hours(end_dt, start_dt), 2)
 
 		room = frappe.get_cached_doc("Conference Room", self.conference_room)
@@ -119,9 +118,7 @@ class ConferenceRoomBooking(Document):
 		if not self.expected_attendees or not self.conference_room:
 			return
 
-		room_capacity = frappe.db.get_value(
-			"Conference Room", self.conference_room, "capacity"
-		)
+		room_capacity = frappe.db.get_value("Conference Room", self.conference_room, "capacity")
 		if room_capacity and cint(self.expected_attendees) > cint(room_capacity):
 			frappe.throw(
 				_("Expected attendees ({0}) exceeds room capacity ({1}) for {2}.").format(
@@ -168,8 +165,9 @@ class ConferenceRoomBooking(Document):
 			what = overlap[0].meeting_title if may_see else _("another booking")
 
 			frappe.throw(
-				_("Time conflict with <b>{0}</b> ({1}: {2} - {3}). "
-				  "Please choose a different time slot.").format(
+				_(
+					"Time conflict with <b>{0}</b> ({1}: {2} - {3}). Please choose a different time slot."
+				).format(
 					overlap[0].name,
 					what,
 					overlap[0].start_time,
@@ -197,11 +195,17 @@ class ConferenceRoomBooking(Document):
 			)
 
 
-
 # -- Whitelisted API --
 
+
 @frappe.whitelist()
-def get_available_rooms(booking_date, start_time, end_time, min_capacity=0, exclude_booking=None):
+def get_available_rooms(
+	booking_date: str,
+	start_time: str,
+	end_time: str,
+	min_capacity: int | str | None = 0,
+	exclude_booking: str | None = None,
+):
 	"""Return rooms available for the given slot, sorted smallest-suitable-first."""
 	if not booking_date or not start_time or not end_time:
 		return []
@@ -245,7 +249,7 @@ def get_available_rooms(booking_date, start_time, end_time, min_capacity=0, excl
 
 
 @frappe.whitelist()
-def get_room_schedule(conference_room, booking_date):
+def get_room_schedule(conference_room: str, booking_date: str):
 	"""Get all bookings for a room on a given date."""
 	# Returns meeting_title and booked_by, so it must respect whatever the site
 	# decides Conference Room Booking visibility should be. get_all ignored that
@@ -260,15 +264,21 @@ def get_room_schedule(conference_room, booking_date):
 			"status": ["not in", ["Cancelled", "Rejected"]],
 		},
 		fields=[
-			"name", "meeting_title", "start_time", "end_time",
-			"booked_by", "meeting_type", "expected_attendees", "status",
+			"name",
+			"meeting_title",
+			"start_time",
+			"end_time",
+			"booked_by",
+			"meeting_type",
+			"expected_attendees",
+			"status",
 		],
 		order_by="start_time asc",
 	)
 
 
 @frappe.whitelist()
-def get_booking_events(start, end, filters=None):
+def get_booking_events(start: str, end: str, filters: str | dict | list | None = None):
 	"""Calendar view event source."""
 	# Raw SQL below bypasses both DocPerm and any permission_query_conditions,
 	# so the check has to be explicit — otherwise a future decision to scope

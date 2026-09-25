@@ -34,7 +34,7 @@ import frappe
 
 
 @frappe.whitelist()
-def get_data(filters=None, **kwargs) -> dict:
+def get_data(filters: str | dict | list | None = None, **kwargs) -> dict:
 	checked_in_names = frappe.get_list("Visitor Pass", filters={"status": "Checked-In"}, pluck="name")
 
 	if not checked_in_names:

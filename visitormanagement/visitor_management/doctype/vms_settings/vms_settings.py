@@ -7,7 +7,6 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import get_time
 
-
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
@@ -124,7 +123,7 @@ class VMSSettings(Document):
 			return
 		if not code.isdigit() or not 1 <= len(code) <= 4:
 			frappe.throw(
-				_("Default Country Code must be 1–4 digits (for example 91), not '{0}'.").format(
+				_("Default Country Code must be 1–4 digits (for example 91), not '{0}'.").format(  # noqa: RUF001
 					self.default_country_code
 				),
 				title=_("Invalid Country Code"),
@@ -164,22 +163,22 @@ class VMSSettings(Document):
 			windows.append((row.idx, label, start, end))
 
 		seen = {}
-		for idx, label, start, end in windows:
+		for idx, label, _start, _end in windows:
 			key = label.casefold()
 			if key in seen:
 				frappe.throw(
-					_("Meal Label '{0}' is used twice (rows {1} and {2}). Each meal must appear once.").format(
-						label, seen[key], idx
-					),
+					_(
+						"Meal Label '{0}' is used twice (rows {1} and {2}). Each meal must appear once."
+					).format(label, seen[key], idx),
 					title=_("Duplicate Meal Window"),
 				)
 			seen[key] = idx
 
-		for i, (idx_a, label_a, start_a, end_a) in enumerate(windows):
-			for idx_b, label_b, start_b, end_b in windows[i + 1:]:
+		for i, (_idx_a, label_a, start_a, end_a) in enumerate(windows):
+			for _idx_b, label_b, start_b, end_b in windows[i + 1 :]:
 				if start_a < end_b and start_b < end_a:
 					frappe.throw(
-						_("{0} ({1}–{2}) overlaps {3} ({4}–{5}). A visit would qualify for both.").format(
+						_("{0} ({1}–{2}) overlaps {3} ({4}–{5}). A visit would qualify for both.").format(  # noqa: RUF001
 							label_a, start_a, end_a, label_b, start_b, end_b
 						),
 						title=_("Overlapping Meal Windows"),

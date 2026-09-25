@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import today, add_days, getdate
+from frappe.utils import add_days, getdate, today
 
 # Visitor Type is a customer-nameable master (see security_log.get_approved_vip_queue,
 # which resolves "VIP" the same way): a site is free to rename or deactivate the
@@ -55,18 +55,20 @@ def _maybe_create_invitation(doc, method=None):
 	purpose = f"Interview - {doc.get('designation') or doc.get('job_title') or 'Open Position'}"
 
 	inv = frappe.new_doc("Visitor Invitation")
-	inv.update({
-		"visitor_type": visitor_type,
-		"visitor_email": doc.email_id,
-		"visitor_mobile": doc.get("phone_number") or "",
-		"visitor_full_name": doc.applicant_name,
-		"host_employee": host,
-		"visit_date": visit_date,
-		"expected_checkin": checkin,
-		"expected_checkout": checkout,
-		"purpose_of_visit": purpose,
-		"reference_job_applicant": doc.name,
-	})
+	inv.update(
+		{
+			"visitor_type": visitor_type,
+			"visitor_email": doc.email_id,
+			"visitor_mobile": doc.get("phone_number") or "",
+			"visitor_full_name": doc.applicant_name,
+			"host_employee": host,
+			"visit_date": visit_date,
+			"expected_checkin": checkin,
+			"expected_checkout": checkout,
+			"purpose_of_visit": purpose,
+			"reference_job_applicant": doc.name,
+		}
+	)
 	inv.insert(ignore_permissions=True)
 
 	try:

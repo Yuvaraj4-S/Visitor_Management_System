@@ -1,12 +1,10 @@
 import frappe
 from frappe import _
-
-from visitormanagement.visitor_management import settings as vms_settings
-
 from frappe.model.workflow import apply_workflow
 from frappe.rate_limiter import rate_limit
 from frappe.utils import cint, flt, get_datetime, get_time, getdate, now_datetime, nowdate
 
+from visitormanagement.visitor_management import settings as vms_settings
 
 VISITOR_PASS_FOOD_STATUS_FROM_REQUEST = {
 	"Pending": "Pending",
@@ -75,8 +73,7 @@ def normalize_visitor_pass(doc):
 	# slot; only a repeat Portal save (the visitor revisiting their own request)
 	# keeps the slot they were already given.
 	preserve_hospitality_choices = bool(
-		getattr(doc, "request_channel", None) == "Portal"
-		and not doc.is_new()
+		getattr(doc, "request_channel", None) == "Portal" and not doc.is_new()
 	)
 	# meal_type is different: this used to reuse preserve_hospitality_choices,
 	# which meant a Desk-created pass (request_channel != "Portal") had ANY
@@ -242,9 +239,9 @@ def ensure_hospitality_request(visitor_pass):
 	if is_new_request:
 		try:
 			frappe.msgprint(
-				_("Hospitality Request {0} was created from this pass — the Hospitality Manager will see it in their queue.").format(
-					frappe.bold(doc.name)
-				),
+				_(
+					"Hospitality Request {0} was created from this pass — the Hospitality Manager will see it in their queue."
+				).format(frappe.bold(doc.name)),
 				title=_("Hospitality Arranged"),
 				indicator="green",
 				alert=True,
@@ -278,24 +275,30 @@ def call_off_pass_arrangements(visitor_pass):
 	"""
 	today_date = getdate(nowdate())
 	for doctype, name in [
-		*(("Hospitality Request", n) for n in frappe.get_all(
-			"Hospitality Request",
-			filters={
-				"visitor_pass": visitor_pass.name,
-				"docstatus": ("<", 2),
-				"status": ("not in", ("Served", "Completed", "Cancelled")),
-			},
-			pluck="name",
-		)),
-		*(("Conference Room Booking", n) for n in frappe.get_all(
-			"Conference Room Booking",
-			filters={
-				"visitor_pass": visitor_pass.name,
-				"docstatus": ("<", 2),
-				"booking_date": (">=", today_date),
-			},
-			pluck="name",
-		)),
+		*(
+			("Hospitality Request", n)
+			for n in frappe.get_all(
+				"Hospitality Request",
+				filters={
+					"visitor_pass": visitor_pass.name,
+					"docstatus": ("<", 2),
+					"status": ("not in", ("Served", "Completed", "Cancelled")),
+				},
+				pluck="name",
+			)
+		),
+		*(
+			("Conference Room Booking", n)
+			for n in frappe.get_all(
+				"Conference Room Booking",
+				filters={
+					"visitor_pass": visitor_pass.name,
+					"docstatus": ("<", 2),
+					"booking_date": (">=", today_date),
+				},
+				pluck="name",
+			)
+		),
 	]:
 		doc = frappe.get_doc(doctype, name)
 		if doc.docstatus == 1:
@@ -365,9 +368,7 @@ def ensure_conference_room_booking(visitor_pass):
 		# the Notification 'CRB Pending Approval' fires and the FM gets emailed.
 		vp_status = getattr(visitor_pass, "status", None)
 		current_wf = getattr(booking, "workflow_state", None) or "Draft"
-		if current_wf == "Draft" and vp_status in (
-			"Approved", "Items Verified", "Checked-In", "Checked-Out"
-		):
+		if current_wf == "Draft" and vp_status in ("Approved", "Items Verified", "Checked-In", "Checked-Out"):
 			booking.workflow_state = "Pending Approval"
 			booking.save(ignore_permissions=True)
 
@@ -424,18 +425,21 @@ def ensure_conference_room_booking(visitor_pass):
 def _clamp_to_room_hours(room_name, start, end):
 	"""Clamp visitor time window to the room's operating hours.
 	Returns (start_time, end_time) strings usable for CRB booking.
-	Falls back to 09:00:00–17:00:00 if room has no hours defined."""
-	from frappe.utils import get_time
-
+	Falls back to 09:00:00-17:00:00 if room has no hours defined."""
 	from datetime import datetime, timedelta
 
+	from frappe.utils import get_time
+
 	default_start, default_end = "09:00:00", "17:00:00"
-	room = frappe.db.get_value(
-		"Conference Room",
-		room_name,
-		["available_from", "available_to", "max_booking_hours"],
-		as_dict=True,
-	) or {}
+	room = (
+		frappe.db.get_value(
+			"Conference Room",
+			room_name,
+			["available_from", "available_to", "max_booking_hours"],
+			as_dict=True,
+		)
+		or {}
+	)
 	room_open = room.get("available_from") or default_start
 	room_close = room.get("available_to") or default_end
 	max_hours = int(room.get("max_booking_hours") or 0)
@@ -667,8 +671,8 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 	# ticked or not (see apply_hospitality_meal_plan).
 	doc.meal_required = cint(getattr(visitor_pass, "meal_required", 0))
 	doc.meal_type = (
-		getattr(visitor_pass, "meal_type", None) or meal_plan["meal_type"]
-	) if doc.meal_required else None
+		(getattr(visitor_pass, "meal_type", None) or meal_plan["meal_type"]) if doc.meal_required else None
+	)
 	doc.visit_start_time = meal_plan["visit_start_time"]
 	doc.visit_end_time = meal_plan["visit_end_time"]
 	doc.assigned_meal_slots = meal_plan["assigned_meal_slots"] if doc.meal_required else None
@@ -766,6 +770,7 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 
 	if cint(doc.greeting_required) and not doc.greeting_delivery_time and vp_checkin:
 		from frappe.utils import add_to_date
+
 		doc.greeting_delivery_time = add_to_date(vp_checkin, minutes=-30)
 
 	return doc
@@ -776,7 +781,9 @@ def _compute_overall_hospitality_status(request_doc):
 	# from the Hospitality Request's main `status` field plus whether any
 	# arrangement was requested at all.
 	any_required = any(cint(getattr(request_doc, f, 0)) for f in ARRANGEMENT_REQUIRED_FIELDS)
-	has_food_or_room = cint(getattr(request_doc, "meal_required", 0)) or getattr(request_doc, "conference_room", None)
+	has_food_or_room = cint(getattr(request_doc, "meal_required", 0)) or getattr(
+		request_doc, "conference_room", None
+	)
 
 	if not any_required and not has_food_or_room:
 		return "Not Required"
@@ -791,9 +798,14 @@ def _compute_overall_hospitality_status(request_doc):
 	return "Pending"
 
 
+# nosemgrep: guest-whitelisted-method - portal meal preview; rate-limited, reads settings only
 @frappe.whitelist(allow_guest=True)
 @rate_limit(limit=60, seconds=60 * 60)
-def get_hospitality_meal_plan(visit_date=None, expected_checkin=None, expected_checkout=None):
+def get_hospitality_meal_plan(
+	visit_date: str | None = None,
+	expected_checkin: str | None = None,
+	expected_checkout: str | None = None,
+):
 	"""Preview the meals a visit would qualify for. Reachable without login.
 
 	The portal calls this on every change to the visit times, so it is both
@@ -1009,9 +1021,7 @@ def sync_contact_trace(visitor_pass_name, security_log=None):
 		event_time = getattr(security_log, "check_in_date_time", None) or getattr(
 			security_log, "check_out_date_time", None
 		)
-	event_time = get_datetime(
-		event_time or getattr(security_log, "modified", None) or now_datetime()
-	)
+	event_time = get_datetime(event_time or getattr(security_log, "modified", None) or now_datetime())
 
 	if security_log.event_type == "Check-Out":
 		_close_active_contact_trace(visitor_pass_name, event_time, notes="Visitor checked out")
@@ -1027,9 +1037,7 @@ def sync_contact_trace(visitor_pass_name, security_log=None):
 	if not visited_area:
 		return None
 
-	record_name = frappe.db.get_value(
-		"Contact Trace Record", {"security_log": security_log.name}, "name"
-	)
+	record_name = frappe.db.get_value("Contact Trace Record", {"security_log": security_log.name}, "name")
 	doc = (
 		frappe.get_doc("Contact Trace Record", record_name)
 		if record_name
@@ -1085,5 +1093,3 @@ def get_last_known_location(visitor_pass_name):
 		return record[0].visited_area
 
 	return frappe.db.get_value("Visitor Pass", visitor_pass_name, "current_location")
-
-

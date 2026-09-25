@@ -29,9 +29,7 @@ def _get_recipients(roles=None):
 	)
 	emails = set()
 	for u in users:
-		enabled, email = frappe.db.get_value(
-			"User", u.parent, ["enabled", "email"]
-		) or (0, None)
+		enabled, email = frappe.db.get_value("User", u.parent, ["enabled", "email"]) or (0, None)
 		if enabled and email:
 			emails.add(email)
 	return sorted(emails)
@@ -52,13 +50,32 @@ def _fetch_today_rows(today):
 			["greeting_delivery_time", "between", [f"{today} 00:00:00", f"{today} 23:59:59"]],
 		],
 		fields=[
-			"name", "visitor_pass", "status",
-			"cab_required", "cab_type", "pickup_location", "pickup_datetime",
-			"drop_location", "drop_datetime", "driver_name",
-			"hotel_required", "hotel_name", "check_in", "booking_reference",
-			"factory_tour_required", "tour_date", "tour_start_time", "tour_guide",
-			"buggy_required", "buggy_pickup_point", "buggy_datetime", "buggy_driver",
-			"greeting_required", "greeting_type", "greeting_delivery_time", "greeting_assigned_to",
+			"name",
+			"visitor_pass",
+			"status",
+			"cab_required",
+			"cab_type",
+			"pickup_location",
+			"pickup_datetime",
+			"drop_location",
+			"drop_datetime",
+			"driver_name",
+			"hotel_required",
+			"hotel_name",
+			"check_in",
+			"booking_reference",
+			"factory_tour_required",
+			"tour_date",
+			"tour_start_time",
+			"tour_guide",
+			"buggy_required",
+			"buggy_pickup_point",
+			"buggy_datetime",
+			"buggy_driver",
+			"greeting_required",
+			"greeting_type",
+			"greeting_delivery_time",
+			"greeting_assigned_to",
 		],
 	)
 
@@ -77,7 +94,11 @@ def _build_html(today, rows):
 			tours.append(r)
 		if r.buggy_required and r.buggy_datetime and getdate(r.buggy_datetime) == getdate(today):
 			buggies.append(r)
-		if r.greeting_required and r.greeting_delivery_time and getdate(r.greeting_delivery_time) == getdate(today):
+		if (
+			r.greeting_required
+			and r.greeting_delivery_time
+			and getdate(r.greeting_delivery_time) == getdate(today)
+		):
 			greetings.append(r)
 
 	def section(title, items, render_row):
@@ -93,32 +114,59 @@ def _build_html(today, rows):
 
 	parts = [
 		f"<h2 style='color:#102a43'>Hospitality Schedule — {today}</h2>",
-		section("🚗 Cabs", cabs, lambda r: (
-			f"{r.pickup_datetime or r.drop_datetime} — {r.cab_type} — "
-			f"{r.pickup_location or r.drop_location or '-'} "
-			f"(Driver: {r.driver_name or 'Not assigned'}) "
-			f"[{r.status or 'Pending'}] — {r.visitor_pass}"
-		)),
-		section("🏨 Hotel Check-ins", hotels, lambda r: (
-			f"{r.hotel_name or '-'} — Ref: {r.booking_reference or '-'} "
-			f"[{r.status or 'Pending'}] — {r.visitor_pass}"
-		)),
-		section("🏭 Factory Tours", tours, lambda r: (
-			f"{r.tour_start_time or '-'} — Guide: {r.tour_guide or 'Not assigned'} "
-			f"[{r.status or 'Pending'}] — {r.visitor_pass}"
-		)),
-		section("🛺 Buggy Requests", buggies, lambda r: (
-			f"{r.buggy_datetime} — {r.buggy_pickup_point or '-'} — "
-			f"Driver: {r.buggy_driver or 'Not assigned'} "
-			f"[{r.status or 'Pending'}] — {r.visitor_pass}"
-		)),
-		section("🎁 Greetings", greetings, lambda r: (
-			f"{r.greeting_delivery_time} — {r.greeting_type or '-'} — "
-			f"Assigned: {r.greeting_assigned_to or 'Not assigned'} "
-			f"[{r.status or 'Pending'}] — {r.visitor_pass}"
-		)),
+		section(
+			"🚗 Cabs",
+			cabs,
+			# nosemgrep: string-concat-in-list - one string split over lines on purpose, not a missing comma
+			lambda r: (
+				f"{r.pickup_datetime or r.drop_datetime} — {r.cab_type} — "
+				f"{r.pickup_location or r.drop_location or '-'} "
+				f"(Driver: {r.driver_name or 'Not assigned'}) "
+				f"[{r.status or 'Pending'}] — {r.visitor_pass}"
+			),
+		),
+		section(
+			"🏨 Hotel Check-ins",
+			hotels,
+			# nosemgrep: string-concat-in-list - one string split over lines on purpose, not a missing comma
+			lambda r: (
+				f"{r.hotel_name or '-'} — Ref: {r.booking_reference or '-'} "
+				f"[{r.status or 'Pending'}] — {r.visitor_pass}"
+			),
+		),
+		section(
+			"🏭 Factory Tours",
+			tours,
+			# nosemgrep: string-concat-in-list - one string split over lines on purpose, not a missing comma
+			lambda r: (
+				f"{r.tour_start_time or '-'} — Guide: {r.tour_guide or 'Not assigned'} "
+				f"[{r.status or 'Pending'}] — {r.visitor_pass}"
+			),
+		),
+		section(
+			"🛺 Buggy Requests",
+			buggies,
+			# nosemgrep: string-concat-in-list - one string split over lines on purpose, not a missing comma
+			lambda r: (
+				f"{r.buggy_datetime} — {r.buggy_pickup_point or '-'} — "
+				f"Driver: {r.buggy_driver or 'Not assigned'} "
+				f"[{r.status or 'Pending'}] — {r.visitor_pass}"
+			),
+		),
+		section(
+			"🎁 Greetings",
+			greetings,
+			# nosemgrep: string-concat-in-list - one string split over lines on purpose, not a missing comma
+			lambda r: (
+				f"{r.greeting_delivery_time} — {r.greeting_type or '-'} — "
+				f"Assigned: {r.greeting_assigned_to or 'Not assigned'} "
+				f"[{r.status or 'Pending'}] — {r.visitor_pass}"
+			),
+		),
 	]
-	return "<div style='font-family:Arial,sans-serif;font-size:13px;color:#1f2933'>" + "".join(parts) + "</div>"
+	return (
+		"<div style='font-family:Arial,sans-serif;font-size:13px;color:#1f2933'>" + "".join(parts) + "</div>"
+	)
 
 
 def send_daily_hospitality_digest():
@@ -207,22 +255,29 @@ def _reserve_block_names(doctype, count):
 	row = frappe.db.sql("select `current` from `tabSeries` where name=%s for update", (prefix,))
 	if row and row[0][0] is not None:
 		start = cint(row[0][0])
-		frappe.db.sql(
-			"update `tabSeries` set `current` = `current` + %s where name=%s", (count, prefix)
-		)
+		frappe.db.sql("update `tabSeries` set `current` = `current` + %s where name=%s", (count, prefix))
 	else:
 		start = 0
-		frappe.db.sql(
-			"insert into `tabSeries` (`name`, `current`) values (%s, %s)", (prefix, count)
-		)
+		frappe.db.sql("insert into `tabSeries` (`name`, `current`) values (%s, %s)", (prefix, count))
 
 	return [f"{prefix}{str(start + i + 1).zfill(digits)}" for i in range(count)]
 
 
 _VEL_COLUMNS = [
-	"name", "creation", "modified", "modified_by", "owner", "docstatus", "idx",
-	"visitor_pass", "event_type", "event_status", "event_time", "source_doctype",
-	"source_name", "details",
+	"name",
+	"creation",
+	"modified",
+	"modified_by",
+	"owner",
+	"docstatus",
+	"idx",
+	"visitor_pass",
+	"event_type",
+	"event_status",
+	"event_time",
+	"source_doctype",
+	"source_name",
+	"details",
 ]
 
 
@@ -389,13 +444,14 @@ def flag_no_show_passes():
 	# stomped. The filters are the same three the candidate query used above.
 	for chunk in _chunked(names):
 		placeholders = ", ".join(["%s"] * len(chunk))
+		# nosemgrep: frappe-sql-format-injection - IN (...) placeholders only, values are parameters
 		frappe.db.sql(
 			f"""update `tabVisitor Pass`
 			set no_show = 1, current_location = 'No Show'
 			where name in ({placeholders})
 			  and no_show = 0
 			  and docstatus < 2
-			  and status in ('Approved', 'Items Verified')""",  # nosemgrep: frappe-sql-format-injection - placeholders only
+			  and status in ('Approved', 'Items Verified')""",
 			tuple(chunk),
 		)
 		for name in chunk:
@@ -525,6 +581,7 @@ def _notify_overstay(rows, max_hours):
 		return
 
 	lines = [
+		# nosemgrep: string-concat-in-list - one string split over lines on purpose, not a missing comma
 		f"<p style='color:#1f2933;'>{len(rows)} visitor(s) have been on site longer than "
 		f"the {max_hours}-hour limit and have not been checked out.</p>",
 		"<table role='presentation' width='100%' style='border-collapse:collapse;table-layout:fixed;'>",
@@ -731,7 +788,11 @@ def purge_abandoned_uploads():
 			continue
 		if frappe.db.exists(
 			"File",
-			{"file_url": f.file_url, "attached_to_doctype": f.attached_to_doctype, "attached_to_name": record},
+			{
+				"file_url": f.file_url,
+				"attached_to_doctype": f.attached_to_doctype,
+				"attached_to_name": record,
+			},
 		):
 			deleted += _delete_upload(f.name)  # a duplicate row; the record's own row keeps the bytes
 		else:
@@ -875,6 +936,7 @@ def _purge_expired_visitor_passes(cutoff, retention_days):
 				_delete_file(row.get(fieldname))
 
 		placeholders = ", ".join(["%s"] * len(chunk))
+		# nosemgrep: frappe-sql-format-injection - IN (...) placeholders only, values are parameters
 		frappe.db.sql(
 			f"""
 			update `tabVisitor Pass`
@@ -883,7 +945,7 @@ def _purge_expired_visitor_passes(cutoff, retention_days):
 			    company__organisation = NULL,
 			    id_proof_scan = NULL, visitor_photo = NULL, gate_verified_photo = NULL
 			where name in ({placeholders})
-			""",  # nosemgrep: frappe-sql-format-injection - placeholders only
+			""",
 			[_PURGE_MARKER_TEXT, *chunk],
 		)
 		for name in chunk:
@@ -925,6 +987,7 @@ def _purge_expired_security_logs(cutoff, retention_days):
 	# expansion is not something this codebase relies on anywhere else, so this
 	# does not either.
 	status_placeholders = ", ".join(["%s"] * len(_TERMINAL_PASS_STATUSES))
+	# nosemgrep: frappe-sql-format-injection - IN (...) placeholders only, values are parameters
 	rows = frappe.db.sql(
 		f"""
 		select sl.name, sl.id_proof_scan, sl.visitor_photo, sl.photo_at_gate
@@ -943,7 +1006,7 @@ def _purge_expired_security_logs(cutoff, retention_days):
 		     or ifnull(sl.photo_at_gate, '') != ''
 		  )
 		order by sl.name
-		""",  # nosemgrep: frappe-sql-format-injection - placeholders only, no user input
+		""",
 		[cutoff, *_TERMINAL_PASS_STATUSES, _PURGE_MARKER_TEXT],
 		as_dict=True,
 	)
@@ -961,6 +1024,7 @@ def _purge_expired_security_logs(cutoff, retention_days):
 				_delete_file(row.get(fieldname))
 
 		placeholders = ", ".join(["%s"] * len(chunk))
+		# nosemgrep: frappe-sql-format-injection - IN (...) placeholders only, values are parameters
 		frappe.db.sql(
 			f"""
 			update `tabSecurity Log`
@@ -968,7 +1032,7 @@ def _purge_expired_security_logs(cutoff, retention_days):
 			    id_proof_number = NULL, vehicle_number = NULL,
 			    id_proof_scan = NULL, visitor_photo = NULL, photo_at_gate = NULL
 			where name in ({placeholders})
-			""",  # nosemgrep: frappe-sql-format-injection - placeholders only
+			""",
 			[_PURGE_MARKER_TEXT, *chunk],
 		)
 		for name in chunk:
@@ -994,22 +1058,21 @@ def _purge_expired_invitations(cutoff, retention_days):
 		fields=["name", "visit_date", "creation"],
 		order_by=None,
 	)
-	eligible = sorted(
-		c.name for c in candidates if getdate(c.visit_date or c.creation) <= cutoff
-	)
+	eligible = sorted(c.name for c in candidates if getdate(c.visit_date or c.creation) <= cutoff)
 	if not eligible:
 		return 0
 
 	purged = 0
 	for chunk in _chunked(eligible):
 		placeholders = ", ".join(["%s"] * len(chunk))
+		# nosemgrep: frappe-sql-format-injection - IN (...) placeholders only, values are parameters
 		frappe.db.sql(
 			f"""
 			update `tabVisitor Invitation`
 			set visitor_full_name = %s, visitor_mobile = NULL, visitor_email = NULL,
 			    invitation_token = NULL
 			where name in ({placeholders})
-			""",  # nosemgrep: frappe-sql-format-injection - placeholders only
+			""",
 			[_PURGE_MARKER_TEXT, *chunk],
 		)
 		for name in chunk:

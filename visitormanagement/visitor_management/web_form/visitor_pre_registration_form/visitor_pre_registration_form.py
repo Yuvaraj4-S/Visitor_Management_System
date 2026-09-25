@@ -6,7 +6,6 @@ from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_inv
 	get_web_form_context,
 )
 
-
 ALWAYS_LOCKED_FIELDS = {
 	"visitor_type",
 	"email_id",
@@ -115,9 +114,9 @@ def _visitor_type_badge(visitor_type):
 	color = BADGE_SWATCHES.get(swatch, "#64748b")
 	return (
 		f'<span style="display:inline-block; padding:2px 10px; border-radius:6px; '
-		f'font-size:0.78rem; font-weight:700; '
+		f"font-size:0.78rem; font-weight:700; "
 		f'background:{color}18; color:{color}; letter-spacing:0.02em;">'
-		f'{escape_html(visitor_type or "-")}</span>'
+		f"{escape_html(visitor_type or '-')}</span>"
 	)
 
 
@@ -173,14 +172,8 @@ def _brand_header():
 	b = vms_settings.portal_branding()
 	if not b["logo"] and not b["organisation"]:
 		return ""
-	logo = (
-		f'<img class="vm-brand-logo" src="{escape_html(b["logo"])}" alt="" />'
-		if b["logo"] else ""
-	)
-	org = (
-		f'<span class="vm-brand-name">{escape_html(b["organisation"])}</span>'
-		if b["organisation"] else ""
-	)
+	logo = f'<img class="vm-brand-logo" src="{escape_html(b["logo"])}" alt="" />' if b["logo"] else ""
+	org = f'<span class="vm-brand-name">{escape_html(b["organisation"])}</span>' if b["organisation"] else ""
 	return f'<div class="vm-brand">{logo}{org}</div>'
 
 
@@ -224,11 +217,6 @@ def get_context(context):
 			</div>
 		"""
 		return
-
-	host_display = _host_name(values.get("person_to_visit"))
-	visitor_type = values.get("visitor_type", "")
-	type_badge = _visitor_type_badge(visitor_type)
-	purpose = (values.get("purpose_of_visit") or "").strip()
 
 	# Build locked fields set — only lock purpose_of_visit if host filled it
 	locked_host_fields = set(ALWAYS_LOCKED_FIELDS)

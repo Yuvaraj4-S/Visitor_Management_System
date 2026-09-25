@@ -10,7 +10,6 @@ from visitormanagement.visitor_management.workflow_builder import (
 
 
 class VisitorType(Document):
-
 	# Changing these rewrites the approval workflow's lanes, so they are an
 	# access-control decision, not ordinary configuration.
 	APPROVER_FIELDS = ("approver_role", "secondary_approver_role")
@@ -99,7 +98,6 @@ class VisitorType(Document):
 	def on_trash(self):
 		rebuild_on_visitor_type_change(self)
 		_sync_approver_wiring()
-
 
 
 def _sync_approver_wiring():

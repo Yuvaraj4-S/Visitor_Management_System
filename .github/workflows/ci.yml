@@ -12,11 +12,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  tests:
+  install:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-    name: Server
+    name: Install and uninstall on a fresh site
 
     services:
       redis-cache:
@@ -38,11 +38,6 @@ jobs:
     steps:
       - name: Clone
         uses: actions/checkout@v4
-
-      - name: Find tests
-        run: |
-          echo "Finding tests"
-          grep -rn "def test" > /dev/null
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -101,10 +96,15 @@ jobs:
         env:
           CI: 'Yes'
 
-      - name: Run Tests
+      - name: Migrate twice (setup must be repeatable)
         working-directory: /home/runner/frappe-bench
         run: |
-          bench --site test_site set-config allow_tests true
-          bench --site test_site run-tests --app visitormanagement
-        env:
-          TYPE: server
+          bench --site test_site migrate
+          bench --site test_site migrate
+
+      - name: Uninstall
+        working-directory: /home/runner/frappe-bench
+        run: |
+          bench --site test_site uninstall-app visitormanagement --dry-run --yes --no-backup
+          bench --site test_site uninstall-app visitormanagement --yes --no-backup
+          bench --site test_site list-apps

@@ -24,12 +24,12 @@ from visitormanagement.visitor_management.portal_upload import (
 def _validate_upload(filename, content):
 	ext = os.path.splitext(filename or "")[1].lower()
 	if ext not in ALLOWED_UPLOAD_EXTENSIONS:
-		frappe.throw("Only JPG, PNG or PDF files are allowed for ID proof and photo.")
+		frappe.throw(_("Only JPG, PNG or PDF files are allowed for ID proof and photo."))
 	if len(content) > MAX_UPLOAD_BYTES:
-		frappe.throw("File is too large. The maximum allowed size is 5 MB.")
+		frappe.throw(_("File is too large. The maximum allowed size is 5 MB."))
 	if not any(content.startswith(sig) for sig in _UPLOAD_SIGNATURES):
 		frappe.throw(
-			"The uploaded file is not a valid JPG, PNG or PDF. Please re-upload a genuine image or PDF."
+			_("The uploaded file is not a valid JPG, PNG or PDF. Please re-upload a genuine image or PDF.")
 		)
 
 from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation import (
@@ -91,7 +91,7 @@ def _looks_like_file_url(payload):
 	return value.startswith("http") and "/files/" in value[:200]
 
 
-def _adopt_uploaded_file(payload):
+def _adopt_uploaded_file(payload, upload_key=None):
 	"""Take over a File the attach control already created.
 
 	Returns (file_url, file_name). The bytes are on disk, so validation reads the
@@ -106,10 +106,11 @@ def _adopt_uploaded_file(payload):
 
 	file_name = frappe.db.get_value("File", {"file_url": file_url}, "name")
 	if not file_name:
-		frappe.throw("The uploaded file could not be found. Please re-upload it.")
+		frappe.throw(_("The uploaded file could not be found. Please re-upload it."))
 
 	file_doc = frappe.get_doc("File", file_name)
 	_assert_file_is_adoptable(file_doc)
+	_assert_upload_key(file_doc, upload_key)
 	# get_content() decodes to str whenever the bytes happen to be decodable,
 	# which breaks the magic-byte check below. Read the file as bytes so the
 	# signature comparison sees exactly what was written.
@@ -141,7 +142,7 @@ def _claim_invitation(invitation):
 	)
 	if not frappe.db._cursor.rowcount:
 		frappe.throw(
-			"This invitation has already been used. Please ask your host for a new link.",
+			_("This invitation has already been used. Please ask your host for a new link."),
 			frappe.ValidationError,
 		)
 
@@ -185,26 +186,46 @@ def _assert_file_is_adoptable(file_doc):
 	    proxy log, a browser history entry, or a second walk-in on a shared
 	    reception kiosk reusing the same tab) stops being adoptable once it is
 	    older than a normal single sitting at the form.
-	This does not, and structurally cannot from inside this endpoint, tell
-	apart two anonymous uploads that both happen within the same short window
-	on the same shared kiosk — every Guest request really is indistinguishable
-	from every other. Closing that specific case needs an identity that
-	survives from upload to submit and today there is nowhere to put one: File
-	carries no field for it, and adding one — a Custom Field on File, or a
-	client-side nonce threaded through the upload — is a change to files
-	outside this one's ownership. Flagged for whoever owns those, not silently
-	left as a false sense of security.
+	These two cannot tell apart two anonymous uploads made within the same short
+	window on a shared kiosk — every Guest request is indistinguishable from
+	every other. `_assert_upload_key` closes that: the page's own random key,
+	sent with the upload and again with the submission.
 	"""
 	if file_doc.attached_to_doctype or file_doc.attached_to_name:
 		frappe.throw(
-			"That file is already attached to another record. Please upload your own copy.",
+			_("That file is already attached to another record. Please upload your own copy."),
 			frappe.PermissionError,
 		)
 
 	age_seconds = (now_datetime() - get_datetime(file_doc.creation)).total_seconds()
 	if age_seconds > _ADOPTABLE_FILE_MAX_AGE_SECONDS or age_seconds < 0:
 		frappe.throw(
-			"That upload has expired. Please upload your ID proof and photo again and submit.",
+			_("That upload has expired. Please upload your ID proof and photo again and submit."),
+			frappe.PermissionError,
+		)
+
+
+def _assert_upload_key(file_doc, upload_key):
+	"""Only the submission that made an upload may claim it.
+
+	The recency check above cannot tell two anonymous visitors apart; the upload
+	key can — see portal_upload.UPLOAD_KEY_FIELD.
+	"""
+	from visitormanagement.visitor_management.portal_upload import upload_key_matches
+
+	if file_doc.owner != "Guest":
+		# A signed-in user's upload has a real owner to compare against, and the
+		# key is only recorded for guest uploads.
+		if file_doc.owner != frappe.session.user:
+			frappe.throw(
+				_("That upload does not belong to you. Please upload your own copy."),
+				frappe.PermissionError,
+			)
+		return
+
+	if not upload_key_matches(file_doc.file_url, upload_key):
+		frappe.throw(
+			_("That upload does not belong to this form. Please upload your ID proof and photo again and submit."),
 			frappe.PermissionError,
 		)
 
@@ -232,7 +253,7 @@ def _extract_file_payload(payload, fallback_filename=None):
 	try:
 		return filename, base64.b64decode(data)
 	except (binascii.Error, ValueError):
-		frappe.throw("Uploaded file is corrupted or in an unsupported format. Please re-upload.")
+		frappe.throw(_("Uploaded file is corrupted or in an unsupported format. Please re-upload."))
 
 
 def _store_file(filename, content):
@@ -261,15 +282,21 @@ def _store_file(filename, content):
 	return file_doc.file_url, file_doc.name
 
 
-def _read_upload(payload, fallback_filename):
+def _read_upload(payload, fallback_filename, upload_key=None):
 	"""Normalise whatever the portal sent for an attachment to (file_url, file_name)."""
 	if not payload:
 		return None, None
+	if not isinstance(payload, str):
+		frappe.throw(_("Uploaded file is corrupted or in an unsupported format. Please re-upload."))
 
 	if _looks_like_file_url(payload):
-		return _adopt_uploaded_file(payload)
+		return _adopt_uploaded_file(payload, upload_key)
 
 	filename, content = _extract_file_payload(payload, fallback_filename)
+	if not content:
+		# A payload that decodes to nothing ("data:...;base64,") must not count as
+		# the required document.
+		frappe.throw(_("The uploaded file is empty. Please upload it again."))
 	return _store_file(filename, content)
 
 
@@ -470,7 +497,9 @@ def _get_portal_submission_state(visitor_type, submission_action):
 	return "Draft"
 
 
-def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_photo_url, invitation=None):
+def _build_visitor_pass_values(
+	data, person_to_visit, id_proof_url, visitor_photo_url, invitation=None, nationality=None, visa_url=None
+):
 	visitor_type = invitation.visitor_type if invitation else data.get("visitor_type")
 	submission_action = (data.get("submission_action") or "submit").strip().lower()
 	target_state = _get_portal_submission_state(visitor_type, submission_action)
@@ -548,11 +577,11 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"interpreter_required": data.get("interpreter_required"),
 		"interpreter_language": data.get("interpreter_language"),
 		"vehicle_number": data.get("vehicle_number"),
-		# Pass nationality / visa through if the form supplies them (foreign
-		# nationals). When absent, the Visitor Pass controller defaults nationality
-		# to the home country, so the mandatory field never blocks the submission.
-		"custom_nationality": data.get("custom_nationality"),
-		"custom_visa_copy": data.get("custom_visa_copy"),
+		# Both resolved by submit_pre_registration: nationality checked against
+		# Country, and the visa stored through the same validated, private
+		# upload path as the ID scan — never a raw guest-supplied file URL.
+		"custom_nationality": nationality,
+		"custom_visa_copy": visa_url,
 		"id_proof_type": _normalize_id_proof_type(data.get("id_proof_type")),
 		"id_proof_number": data.get("id_proof_number"),
 		"id_proof_scan": id_proof_url,
@@ -608,7 +637,7 @@ def submit_pre_registration(payload=None):
 
 	invitation = get_valid_invitation_by_token(data.get("invitation_token"))
 	if data.get("invitation_token") and not invitation:
-		frappe.throw("The invitation link is invalid, expired, or already used.")
+		frappe.throw(_("The invitation link is invalid, expired, or already used."))
 
 	submission_action = (data.get("submission_action") or "submit").strip().lower()
 	if submission_action not in {"save", "submit"}:
@@ -649,33 +678,10 @@ def submit_pre_registration(payload=None):
 			frappe.throw(f"{frappe.unscrub(fieldname).title()} is required.")
 
 	if require_full_submission and not data.get("id_proof_scan"):
-		frappe.throw("ID Proof Scan is required.")
+		frappe.throw(_("ID Proof Scan is required."))
 
 	if require_full_submission and not data.get("visitor_photo"):
-		frappe.throw("Visitor Photo is required.")
-
-	if require_full_submission:
-		canonical_type = _normalize_id_proof_type(data.get("id_proof_type"))
-		id_number = (data.get("id_proof_number") or "").strip()
-		if canonical_type and id_number and not validate_id(canonical_type, id_number):
-			frappe.throw(
-				id_proof_error_message(canonical_type),
-				title="Invalid ID Proof",
-			)
-
-	id_proof_upload = _read_upload(
-		data.get("id_proof_scan"),
-		data.get("id_proof_scan_filename") or "visitor-id-proof.png",
-	)
-	visitor_photo_upload = _read_upload(
-		data.get("visitor_photo"),
-		data.get("visitor_photo_filename") or "visitor-photo.png",
-	)
-	person_to_visit = _resolve_employee_link(invitation.host_employee if invitation else data.get("person_to_visit"))
-	visitor_items = _parse_visitor_items(data.get("visitor_items"))
-
-	if person_to_visit and not frappe.db.exists("Employee", person_to_visit):
-		frappe.throw("Person to Visit must be a valid Employee (Employee ID or exact Employee Name).")
+		frappe.throw(_("Visitor Photo is required."))
 
 	existing_doc = None
 	if invitation and invitation.visitor_pass and frappe.db.exists("Visitor Pass", invitation.visitor_pass):
@@ -687,9 +693,59 @@ def submit_pre_registration(payload=None):
 		# an in-progress or cleared pass to Draft and change the identity on it.
 		if existing_doc.docstatus != 0 or (existing_doc.workflow_state or "Draft") != "Draft":
 			frappe.throw(
-				"This visitor pass is already being processed and can no longer be "
-				"edited from the invitation link. Please contact your host."
+				_(
+					"This visitor pass is already being processed and can no longer be "
+					"edited from the invitation link. Please contact your host."
+				)
 			)
+
+	# Nationality drives the foreign-visitor rules on the pass (visa copy,
+	# passport-type ID). The form defaults it to the home country; a draft the
+	# visitor saved earlier keeps the nationality it was saved with.
+	home_country = vms_settings.home_country()
+	nationality = (
+		data.get("custom_nationality")
+		or (existing_doc.custom_nationality if existing_doc else None)
+		or home_country
+	)
+	# The stored name, so "india" is the home country rather than a foreign one.
+	nationality = isinstance(nationality, str) and frappe.db.get_value("Country", nationality.strip(), "name")
+	if not nationality:
+		frappe.throw(_("Please choose your nationality from the list."))
+	is_foreign = nationality != home_country
+	if require_full_submission and is_foreign and not data.get("custom_visa_copy"):
+		frappe.throw(_("Visa Copy is required for visitors from another country."))
+
+	if require_full_submission:
+		canonical_type = _normalize_id_proof_type(data.get("id_proof_type"))
+		id_number = (data.get("id_proof_number") or "").strip()
+		if canonical_type and id_number and not validate_id(canonical_type, id_number):
+			frappe.throw(
+				id_proof_error_message(canonical_type),
+				title=_("Invalid ID Proof"),
+			)
+
+	def read_upload(fieldname, fallback_filename):
+		# Resubmitting a saved draft sends back the files already on it. Those are
+		# this visitor's own (the draft is bound to their invitation token), so
+		# they are kept as they are — adopting them again was refused as "already
+		# attached to another record", which made a saved draft impossible to submit.
+		payload = data.get(fieldname)
+		if existing_doc and payload and payload == existing_doc.get(fieldname):
+			return payload, None
+		return _read_upload(
+			payload, data.get(f"{fieldname}_filename") or fallback_filename, data.get("upload_key")
+		)
+
+	id_proof_upload = read_upload("id_proof_scan", "visitor-id-proof.png")
+	visitor_photo_upload = read_upload("visitor_photo", "visitor-photo.png")
+	# A home-country visitor has no use for a visa copy; one sent anyway is not stored.
+	visa_upload = read_upload("custom_visa_copy", "visitor-visa.pdf") if is_foreign else (None, None)
+	person_to_visit = _resolve_employee_link(invitation.host_employee if invitation else data.get("person_to_visit"))
+	visitor_items = _parse_visitor_items(data.get("visitor_items"))
+
+	if person_to_visit and not frappe.db.exists("Employee", person_to_visit):
+		frappe.throw(_("Person to Visit must be a valid Employee (Employee ID or exact Employee Name)."))
 
 	# Store any newly-uploaded files (validated + private) up front so their URLs
 	# are available for the mandatory id_proof_scan / visitor_photo fields at
@@ -698,6 +754,11 @@ def submit_pre_registration(payload=None):
 	id_proof_url = id_proof_url or (existing_doc.id_proof_scan if existing_doc else None)
 	visitor_photo_url, visitor_photo_file = visitor_photo_upload
 	visitor_photo_url = visitor_photo_url or (existing_doc.visitor_photo if existing_doc else None)
+	visa_url, visa_file = visa_upload
+	if is_foreign:
+		visa_url = visa_url or (existing_doc.custom_visa_copy if existing_doc else None)
+		if require_full_submission and not visa_url:
+			frappe.throw(_("Visa Copy is required for visitors from another country."))
 
 	doc_values = _build_visitor_pass_values(
 		data,
@@ -705,6 +766,8 @@ def submit_pre_registration(payload=None):
 		id_proof_url,
 		visitor_photo_url,
 		invitation=invitation,
+		nationality=nationality,
+		visa_url=visa_url,
 	)
 
 	visitor_pass = existing_doc or frappe.new_doc("Visitor Pass")
@@ -738,6 +801,7 @@ def submit_pre_registration(payload=None):
 	# the pass can view them, while they stay out of the public files directory.
 	_attach_file_to_pass(id_proof_file, visitor_pass.name, "id_proof_scan")
 	_attach_file_to_pass(visitor_photo_file, visitor_pass.name, "visitor_photo")
+	_attach_file_to_pass(visa_file, visitor_pass.name, "custom_visa_copy")
 
 	if invitation:
 		invitation_updates = {"visitor_pass": visitor_pass.name}

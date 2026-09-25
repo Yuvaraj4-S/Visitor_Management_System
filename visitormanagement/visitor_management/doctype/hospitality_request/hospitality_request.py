@@ -10,6 +10,7 @@ from frappe.model.document import Document
 from frappe.utils import date_diff, get_datetime, get_time, getdate, nowdate
 
 
+from visitormanagement.visitor_management.mail import esc, send_after_commit
 from visitormanagement.visitor_management.lifecycle import (
 	populate_hospitality_request_from_pass,
 	sync_hospitality_to_pass,
@@ -55,16 +56,17 @@ def _send_hospitality_assignment_mail(doc):
 		lines.extend(["", f"Notes: {frappe.utils.strip_html(doc.notes)}"])
 
 	try:
-		frappe.sendmail(
+		# After commit, so a mail-server failure cannot fail the save (visitor_management/mail.py).
+		send_after_commit(
 			recipients=[email],
 			reference_doctype=doc.doctype,
 			reference_name=doc.name,
 			subject=subject,
-			message="<br>".join(lines),
-			now=True,
+			# The lines are record values; the mail is HTML, so they are escaped.
+			message="<br>".join(esc(line) for line in lines),
 		)
 	except Exception as exc:
-		# Email Account may not be configured — log and continue rather than blocking the save.
+		# Queueing can fail (no Email Account at all) — log and continue rather than blocking the save.
 		frappe.log_error(f"Hospitality assignment email failed for {doc.name}: {exc}", "VMS Hospitality Assignment Email")
 
 
@@ -234,12 +236,12 @@ class HospitalityRequest(Document):
 		if not self.cab_required:
 			return
 		if self.cab_type in ("Pickup", "Both") and not self.pickup_datetime:
-			frappe.throw("Pickup datetime required when cab type includes Pickup")
+			frappe.throw(_("Pickup datetime required when cab type includes Pickup"))
 		if self.cab_type in ("Drop", "Both") and not self.drop_datetime:
-			frappe.throw("Drop datetime required when cab type includes Drop")
+			frappe.throw(_("Drop datetime required when cab type includes Drop"))
 		if self.pickup_datetime and self.drop_datetime:
 			if get_datetime(self.drop_datetime) < get_datetime(self.pickup_datetime):
-				frappe.throw("Drop datetime cannot be before pickup datetime")
+				frappe.throw(_("Drop datetime cannot be before pickup datetime"))
 
 	def _validate_tour_safety(self):
 		if not self.factory_tour_required:
@@ -253,7 +255,7 @@ class HospitalityRequest(Document):
 			# it, so a tour starting before 10:00 could never be re-saved from the
 			# Desk once created. get_time() on both sides fixes it for good.
 			if get_time(self.tour_end_time) <= get_time(self.tour_start_time):
-				frappe.throw("Tour end time must be after start time")
+				frappe.throw(_("Tour end time must be after start time"))
 
 	def _validate_buggy_conflict(self):
 		if not (self.buggy_required and self.buggy_number and self.buggy_datetime):

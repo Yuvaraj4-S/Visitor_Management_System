@@ -106,7 +106,7 @@ def _field_was_manually_set(doc, fieldname, ignore_as_default=()):
 	hatch exists because special_diet's Select options start with the literal
 	string "None" rather than a blank first option (unlike meal_type), so the
 	client sets doc.special_diet = "None" on a brand-new form the user never
-	touched at all — confirmed live: an untouched new Hospitality Request
+	touched at all — an untouched new Hospitality Request
 	reached the server with special_diet already "None", which would
 	otherwise have looked exactly like a deliberate choice and blocked the
 	Visitor Pass's value from ever flowing in. `ignore_as_default` only
@@ -158,7 +158,10 @@ def ensure_hospitality_request(visitor_pass):
 		]
 		+ [cint(getattr(visitor_pass, f, 0)) for f in ARRANGEMENT_REQUIRED_FIELDS]
 	)
-	if not requires_service:
+	# Nothing requested and no request on file: nothing to do. A request that
+	# already exists is still synced below, so a meal the host has since
+	# unticked disappears from it instead of staying on the kitchen's list.
+	if not requires_service and not visitor_pass.hospitality_request:
 		return None
 
 	# Read-then-insert is a time-of-check/time-of-use race. Two saves arriving
@@ -216,7 +219,11 @@ def ensure_hospitality_request(visitor_pass):
 	# still needs a human to Submit it from the Hospitality Request itself.
 	current_wf = getattr(doc, "workflow_state", None) or "Draft"
 	vp_status = getattr(visitor_pass, "status", None)
-	if current_wf == "Draft" and vp_status in ("Approved", "Items Verified", "Checked-In", "Checked-Out"):
+	if (
+		requires_service
+		and current_wf == "Draft"
+		and vp_status in ("Approved", "Items Verified", "Checked-In", "Checked-Out")
+	):
 		try:
 			apply_workflow(doc, "Submit")
 		except Exception as exc:
@@ -251,6 +258,54 @@ def ensure_hospitality_request(visitor_pass):
 		ensure_conference_room_booking(visitor_pass)
 
 	return doc.name
+
+
+def call_off_pass_arrangements(visitor_pass):
+	"""A cancelled visit keeps nothing booked: its meal request and room are called off.
+
+	Approved (submitted) ones are cancelled — their own on_cancel moves `status`
+	to Cancelled, which frees the room and takes the order off the kitchen's
+	list. Ones still in Draft or awaiting approval are set to Rejected, so they
+	leave the approver's queue; they could not be approved anyway once the pass
+	is Cancelled (both refuse unless the pass is Approved or beyond).
+
+	Called from VisitorPass.on_cancel, as whoever cancelled the pass — who need
+	not hold the Hospitality / Facility Manager role these transitions need. A
+	cancel does not run workflow validation (Document._validate is skipped for
+	it), so the approved ones are cancelled directly with permissions ignored.
+	Whatever has already happened — a meal served, a booking on an earlier day —
+	is history and left alone.
+	"""
+	today_date = getdate(nowdate())
+	for doctype, name in [
+		*(("Hospitality Request", n) for n in frappe.get_all(
+			"Hospitality Request",
+			filters={
+				"visitor_pass": visitor_pass.name,
+				"docstatus": ("<", 2),
+				"status": ("not in", ("Served", "Completed", "Cancelled")),
+			},
+			pluck="name",
+		)),
+		*(("Conference Room Booking", n) for n in frappe.get_all(
+			"Conference Room Booking",
+			filters={
+				"visitor_pass": visitor_pass.name,
+				"docstatus": ("<", 2),
+				"booking_date": (">=", today_date),
+			},
+			pluck="name",
+		)),
+	]:
+		doc = frappe.get_doc(doctype, name)
+		if doc.docstatus == 1:
+			doc.workflow_state = "Cancelled"
+			doc.flags.ignore_permissions = True
+			doc.cancel()
+		else:
+			values = {"workflow_state": "Rejected"}
+			values["status"] = "Cancelled" if doctype == "Hospitality Request" else "Rejected"
+			doc.db_set(values)
 
 
 def ensure_conference_room_booking(visitor_pass):
@@ -542,9 +597,14 @@ def apply_hospitality_meal_plan(doc, preserve_existing=False, honor_manual_meal_
 	meal_plan = derive_hospitality_meal_plan(doc)
 	existing_meal_type = getattr(doc, "meal_type", None)
 	existing_service_time = getattr(doc, "service_time", None)
-	# Respect user's manual selection — only auto-set if currently unchecked.
-	user_wants_meal = cint(getattr(doc, "meal_required", 0))
-	effective_meal_required = user_wants_meal or meal_plan["meal_required"]
+	# Meal Required is the host's decision. The visit window only SUGGESTS it —
+	# the desk form ticks it live as the times are entered (refresh_hospitality_plan
+	# in visitor_pass.js), where the host can see it and untick it. Forcing it on
+	# here overrode that untick on every save, so a pass overlapping a meal window
+	# could never be saved without a meal and the kitchen was sent orders nobody
+	# asked for. What the derivation still fills in is the detail of a meal the
+	# host did ask for (type, slots, service time).
+	effective_meal_required = cint(getattr(doc, "meal_required", 0))
 	doc.meal_required = effective_meal_required
 	# Keep meal_plan-derived values in sync for downstream logic
 	meal_plan["meal_required"] = effective_meal_required
@@ -570,13 +630,13 @@ def apply_hospitality_meal_plan(doc, preserve_existing=False, honor_manual_meal_
 	diverged_from_derived = bool(
 		not doc.is_new() and existing_meal_type and existing_meal_type != meal_plan["meal_type"]
 	)
-	doc.meal_type = (
-		existing_meal_type
-		if effective_meal_required
-		and existing_meal_type
-		and (preserve_existing or honor_manual_meal_type or diverged_from_derived)
-		else meal_plan["meal_type"]
-	)
+	if not effective_meal_required:
+		# No meal asked for: no meal details either, even when the window overlaps one.
+		doc.meal_type = None
+	elif existing_meal_type and (preserve_existing or honor_manual_meal_type or diverged_from_derived):
+		doc.meal_type = existing_meal_type
+	else:
+		doc.meal_type = meal_plan["meal_type"]
 
 	if hasattr(doc, "assigned_meal_slots"):
 		doc.assigned_meal_slots = meal_plan["assigned_meal_slots"] if meal_plan["meal_required"] else None
@@ -585,11 +645,12 @@ def apply_hospitality_meal_plan(doc, preserve_existing=False, honor_manual_meal_
 		doc.hospitality_type = meal_plan["hospitality_type"] if meal_plan["meal_required"] else None
 
 	if hasattr(doc, "service_time"):
-		doc.service_time = (
-			existing_service_time
-			if preserve_existing and meal_plan["meal_required"] and existing_service_time
-			else meal_plan["service_time"]
-		)
+		if not effective_meal_required:
+			doc.service_time = None
+		elif preserve_existing and existing_service_time:
+			doc.service_time = existing_service_time
+		else:
+			doc.service_time = meal_plan["service_time"]
 
 	return meal_plan
 
@@ -602,10 +663,9 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 		return doc
 
 	meal_plan = derive_hospitality_meal_plan(visitor_pass)
-	# Honor manual meal_required on the Visitor Pass — if host/guest ticked it, carry it across
-	# even if visit window doesn't overlap standard meal slots.
-	vp_meal_required = cint(getattr(visitor_pass, "meal_required", 0))
-	doc.meal_required = vp_meal_required or meal_plan["meal_required"]
+	# The Visitor Pass's Meal Required is the decision — carried across as is,
+	# ticked or not (see apply_hospitality_meal_plan).
+	doc.meal_required = cint(getattr(visitor_pass, "meal_required", 0))
 	doc.meal_type = (
 		getattr(visitor_pass, "meal_type", None) or meal_plan["meal_type"]
 	) if doc.meal_required else None
@@ -624,7 +684,7 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 	doc.tea_coffee_required = cint(getattr(visitor_pass, "refreshments_required", 0))
 	doc.conference_room = getattr(visitor_pass, "conference_room", None)
 	doc.seating_capacity = getattr(visitor_pass, "number_of_people", None)
-	doc.service_time = meal_plan["service_time"]
+	doc.service_time = meal_plan["service_time"] if doc.meal_required else None
 	# This function must NOT touch `workflow_state`. It used to force Draft ->
 	# "Pending Approval" here whenever the parent pass was Approved, but assigning
 	# the field and letting the following `doc.save()` validate it is not a real
@@ -657,7 +717,7 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 		doc.status = HOSPITALITY_REQUEST_STATUS_FROM_PASS.get(
 			getattr(visitor_pass, "food_status", None), "Pending"
 		)
-		if getattr(visitor_pass, "status", None) == "Rejected":
+		if getattr(visitor_pass, "status", None) in ("Rejected", "Cancelled"):
 			doc.status = "Cancelled"
 		doc.notes = "\n".join(
 			note

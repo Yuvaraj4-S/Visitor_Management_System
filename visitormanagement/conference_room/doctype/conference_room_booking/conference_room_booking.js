@@ -10,6 +10,18 @@ frappe.ui.form.on("Conference Room Booking", {
 		}));
 	},
 
+	booked_by(frm) {
+		// Was `fetch_from: booked_by.department`, which needs READ on Employee.
+		if (!frm.doc.booked_by) {
+			return;
+		}
+		frappe.call({
+			method: "visitormanagement.visitor_management.link_details.get_link_details",
+			args: { doctype: "Employee", name: frm.doc.booked_by },
+			callback: (r) => frm.set_value("department", (r.message || {}).department || ""),
+		});
+	},
+
 	refresh(frm) {
 		if (frm.doc.docstatus === 0) {
 			frm.add_custom_button(__("Find Available Rooms"), () => {

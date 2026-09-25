@@ -8,6 +8,9 @@ from frappe.utils import get_datetime, getdate, now_datetime, time_diff_in_secon
 import re
 
 from visitormanagement.visitor_management import settings as vms_settings
+from visitormanagement.visitor_management.mail import esc, send_after_commit
+from visitormanagement.visitor_management.uploads import adopt_stray_uploads, attach_existing_file
+from visitormanagement.visitor_management.workflow_builder import APPROVED_STATES
 from visitormanagement.visitor_management.lifecycle import (
     log_visitor_event,
     sync_contact_trace,
@@ -90,35 +93,37 @@ def _send_host_checkin_email(visitor_pass, security_log, messages_before=None):
     if visitor_pass.visitor_items:
         item_lines = []
         for item in visitor_pass.visitor_items:
-            line = item.item_name
+            line = esc(item.item_name)
             if item.quantity:
-                line = f"{line} | Qty: {item.quantity}"
+                line = f"{line} | Qty: {esc(item.quantity)}"
             if item.serial_number:
-                line = f"{line} | S/N: {item.serial_number}"
+                line = f"{line} | S/N: {esc(item.serial_number)}"
             item_lines.append(line)
         items_summary = "<br>".join(item_lines)
 
     try:
-        frappe.sendmail(
+        # Sent once the gate event is committed, and never able to fail it — a
+        # `now=True` send used to surface a mail-server error as a 500 on a
+        # check-in that had already saved (see visitor_management/mail.py).
+        send_after_commit(
             recipients=[host_email],
             reference_doctype="Visitor Pass",
             reference_name=visitor_pass.name,
             subject=f"Visitor Arrived: {visitor_pass.visitor_full_name}",
             message=(
-                f"<p>Visitor <b>{visitor_pass.visitor_full_name}</b> has checked in.</p>"
+                f"<p>Visitor <b>{esc(visitor_pass.visitor_full_name)}</b> has checked in.</p>"
                 "<table style='border-collapse: collapse;'>"
-                f"<tr><td style='padding:4px 8px;'><b>Pass ID</b></td><td style='padding:4px 8px;'>{visitor_pass.name}</td></tr>"
-                f"<tr><td style='padding:4px 8px;'><b>Visitor Type</b></td><td style='padding:4px 8px;'>{visitor_pass.visitor_type or '-'}</td></tr>"
-                f"<tr><td style='padding:4px 8px;'><b>Purpose</b></td><td style='padding:4px 8px;'>{visitor_pass.purpose_of_visit or '-'}</td></tr>"
-                f"<tr><td style='padding:4px 8px;'><b>Check-In Time</b></td><td style='padding:4px 8px;'>{security_log.check_in_date_time or now_datetime()}</td></tr>"
-                f"<tr><td style='padding:4px 8px;'><b>Gate</b></td><td style='padding:4px 8px;'>{security_log.gate_name or '-'}</td></tr>"
+                f"<tr><td style='padding:4px 8px;'><b>Pass ID</b></td><td style='padding:4px 8px;'>{esc(visitor_pass.name)}</td></tr>"
+                f"<tr><td style='padding:4px 8px;'><b>Visitor Type</b></td><td style='padding:4px 8px;'>{esc(visitor_pass.visitor_type, '-')}</td></tr>"
+                f"<tr><td style='padding:4px 8px;'><b>Purpose</b></td><td style='padding:4px 8px;'>{esc(visitor_pass.purpose_of_visit, '-')}</td></tr>"
+                f"<tr><td style='padding:4px 8px;'><b>Check-In Time</b></td><td style='padding:4px 8px;'>{esc(security_log.check_in_date_time or now_datetime())}</td></tr>"
+                f"<tr><td style='padding:4px 8px;'><b>Gate</b></td><td style='padding:4px 8px;'>{esc(security_log.gate_name, '-')}</td></tr>"
                 f"<tr><td style='padding:4px 8px;'><b>Items Declared</b></td><td style='padding:4px 8px;'>{items_summary}</td></tr>"
                 "</table>"
             ),
-            now=True,
         )
     except Exception as exc:
-        # Don't let a missing/misconfigured Email Account block check-in.
+        # Queueing itself can fail (no Email Account at all) — never block check-in.
         frappe.log_error(f"Host check-in email failed for {security_log.name}: {exc}", "VMS Host Check-in Email")
         # sendmail raises via frappe.throw, which also queues its own message
         # for the client. Drop it — catching the exception is only half the
@@ -146,9 +151,11 @@ class SecurityLog(Document):
         # to correct a typo / mis-keyed gate.
         if not self.is_new() and "System Manager" not in (frappe.get_roles() or []):
             frappe.throw(
-                f"Security Log {self.name} has already been recorded and cannot be modified. "
-                "Contact your administrator if a correction is needed.",
-                title="Record Locked",
+                _(
+                    "Security Log {0} has already been recorded and cannot be modified. "
+                    "Contact your administrator if a correction is needed."
+                ).format(self.name),
+                title=_("Record Locked"),
             )
 
         # Fetch Visitor Pass once
@@ -181,8 +188,8 @@ class SecurityLog(Document):
                 action = vms_settings.blacklist_action()
                 if action == 'Block Entry':
                     frappe.throw(
-                        msg=detail + "\nRefuse entry and notify supervisor.",
-                        title='Access Denied at Gate — Blacklisted Visitor',
+                        msg=detail + "\n" + _("Refuse entry and notify supervisor."),
+                        title=_('Access Denied at Gate — Blacklisted Visitor'),
                     )
                 elif action == 'Alert Only':
                     frappe.msgprint(
@@ -322,6 +329,13 @@ class SecurityLog(Document):
                     frappe.throw(
                         f"Visitor {self.visitor_name or vp.visitor_full_name} must be approved before check-in. (Current Status: {current_status})"
                     )
+                # `status` alone is not proof: a pass cancelled after it was checked
+                # out still reads "Checked-Out". Same corroboration as
+                # visitor_gate.visitor_checkin — submitted, and in an approved state.
+                if not (vp.docstatus == 1 and vp.workflow_state in APPROVED_STATES):
+                    frappe.throw(
+                        f"Pass {vp.name} is no longer approved (workflow state: {vp.workflow_state}). Entry refused."
+                    )
 
                 if not self.check_in_date_time:
                     self.check_in_date_time = now
@@ -440,23 +454,27 @@ class SecurityLog(Document):
             movement = 'check-in' if self.event_type == 'Check-In' else 'check-out'
 
             if vms_settings.flag('qr_scan_required_at_gate') and not self.qr_code_scanned:
-                frappe.throw(f"Scan the visitor's QR code before saving the {movement}.")
+                frappe.throw(_("Scan the visitor's QR code before saving the {0}.").format(_(movement)))
 
             if vms_settings.flag('require_visitor_photo') and not self.photo_at_gate:
-                frappe.throw(f"Capture a live gate photo before saving the visitor {movement}.")
+                frappe.throw(_("Capture a live gate photo before saving the visitor {0}.").format(_(movement)))
 
             if vms_settings.flag('block_check_in_without_verification'):
                 if not self.id_proof_match:
                     frappe.throw(
-                        f"Confirm that the visitor matches the ID proof before saving the visitor {movement}."
+                        _("Confirm that the visitor matches the ID proof before saving the visitor {0}.").format(
+                            _(movement)
+                        )
                     )
                 if not self.pass_photo_match:
                     frappe.throw(
-                        f"Confirm that the visitor matches the pass creation photo before saving the visitor {movement}."
+                        _(
+                            "Confirm that the visitor matches the pass creation photo before saving the visitor {0}."
+                        ).format(_(movement))
                     )
 
         if self.event_type == 'Gate Transfer' and not self.visited_area:
-            frappe.throw("Visited Area is required for gate transfer tracking.")
+            frappe.throw(_("Visited Area is required for gate transfer tracking."))
 
         if (
             self.is_new()
@@ -515,13 +533,7 @@ class SecurityLog(Document):
             self._sync_gate_verification()
             self._sync_item_verification()
             # Also update the Pass status to Checked-In
-            self._advance_pass(
-                {
-                    'status': 'Checked-In',
-                    'actual_checkin': self.check_in_date_time or now_datetime(),
-                    'no_show': 0,
-                }
-            )
+            self._advance_pass(self._checkin_times())
             self._notify_host_arrival()
 
         elif self.event_type == 'Check-Out':
@@ -538,6 +550,7 @@ class SecurityLog(Document):
     # --------------------------------------------------
 
     def on_update(self):
+        adopt_stray_uploads(self)
         if self.event_type == 'Check-In' and self.visitor_pass:
             # `photo_at_gate` used to fall back to the visitor's own
             # pre-registration photo whenever the officer had not captured one.
@@ -576,6 +589,26 @@ class SecurityLog(Document):
             values['visitor_photo'] = self.photo_at_gate
 
         frappe.db.set_value('Visitor Pass', self.visitor_pass, values)
+
+        # The photo is a private file attached to this log. Copying its URL onto
+        # the pass is not enough for the pass's own readers (host, approvers) to
+        # open it: Frappe grants a private file through the record it is attached
+        # to. Give the pass its own File row for each field it now shows — only
+        # for a photo actually taken for this log: a URL typed into
+        # photo_at_gate (another pass's ID scan, say) would otherwise be handed
+        # to this pass's host.
+        taken_here = frappe.db.exists(
+            'File',
+            {
+                'file_url': self.photo_at_gate,
+                'attached_to_doctype': self.doctype,
+                'attached_to_name': self.name,
+                'attached_to_field': 'photo_at_gate',
+            },
+        )
+        for fieldname in ('gate_verified_photo', 'visitor_photo'):
+            if taken_here and values.get(fieldname):
+                attach_existing_file(values[fieldname], 'Visitor Pass', self.visitor_pass, fieldname)
 
     # --------------------------------------------------
 
@@ -695,6 +728,24 @@ class SecurityLog(Document):
               "Verification.").format(movement, ", ".join(outstanding)),
             title=_("Items Not Verified"),
         )
+
+    def _checkin_times(self):
+        """Pass fields for a check-in, re-entry included.
+
+        A visitor who steps out and comes back the same day has not newly
+        arrived: `actual_checkin` keeps the first arrival of the day (the
+        overstay alert counts hours on site from it) — overwriting it with the
+        return time made a visitor in since 09:00 look like they came at 14:00.
+        On another day of a multi-day pass it is a new arrival. Either way the
+        visitor is inside again, so the last `actual_checkout` no longer applies.
+        Every movement is still on its own Security Log.
+        """
+        arrived = self.check_in_date_time or now_datetime()
+        updates = {'status': 'Checked-In', 'no_show': 0, 'actual_checkout': None}
+        first_arrival = frappe.db.get_value('Visitor Pass', self.visitor_pass, 'actual_checkin')
+        if not (first_arrival and getdate(first_arrival) == getdate(arrived)):
+            updates['actual_checkin'] = arrived
+        return updates
 
     def _advance_pass(self, updates):
         """Move the pass to its next state and let the alerts see the transition.

@@ -24,14 +24,9 @@ frappe.ui.form.on("Visitor Invitation", {
 		// On new forms, auto-fill Host Employee with the logged-in user's Employee
 		if (frm.is_new() && !frm.doc.host_employee && !["Administrator", "Guest"].includes(frappe.session.user)) {
 			frappe.call({
-				method: "frappe.client.get_value",
-				args: {
-					doctype: "Employee",
-					filters: { user_id: frappe.session.user, status: "Active" },
-					fieldname: "name",
-				},
+				method: "visitormanagement.visitor_management.link_details.get_own_employee",
 				callback: (r) => {
-					const emp = r && r.message && r.message.name;
+					const emp = r && r.message;
 					if (emp && !frm.doc.host_employee) {
 						frm.set_value("host_employee", emp);
 					}

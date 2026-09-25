@@ -73,12 +73,12 @@
    "read_only": 1
   },
   {
+   "description": "Auto-linked when this booking is created from a Visitor Pass.",
    "fieldname": "visitor_pass",
    "fieldtype": "Link",
    "label": "Visitor Pass",
    "options": "Visitor Pass",
-   "read_only": 1,
-   "description": "Auto-linked when this booking is created from a Visitor Pass."
+   "read_only": 1
   },
   {
    "fieldname": "column_break_basic",
@@ -157,13 +157,12 @@
   {
    "fieldname": "booked_by",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Booked By",
    "options": "Employee",
-   "reqd": 1,
-   "ignore_user_permissions": 1
+   "reqd": 1
   },
   {
-   "fetch_from": "booked_by.department",
    "fieldname": "department",
    "fieldtype": "Link",
    "label": "Department",
@@ -238,7 +237,7 @@
  "is_calendar_and_gantt": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-08 13:41:54.456702",
+ "modified": "2026-09-25 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Conference Room",
  "name": "Conference Room Booking",

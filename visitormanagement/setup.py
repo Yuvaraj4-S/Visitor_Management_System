@@ -42,14 +42,17 @@ ROLES = [
 	"CEO",
 ]
 
-# Roles that need to read Employee so host//approver link widgets resolve.
+# Roles that pick an Employee in a VMS link field (host, guard, tour guide, driver).
+# SELECT only: READ is the whole HR record — bank account, salary, PAN, date of
+# birth, health — and these roles need a name in a dropdown. The few host fields a
+# pass copies come from visitor_management/link_details.py instead.
 EMPLOYEE_READERS = [
 	"Security", "Hospitality Manager", "Host Employee", "Facility Manager",
 	"HOD", "HR Manager", "Sales Manager", "CEO",
 ]
 
 # Roles that fill the cab-vendor / hotel-name Links on Hospitality Request and so
-# need to be able to SELECT an existing Supplier. Read only — see _ensure_permissions.
+# need to be able to SELECT an existing Supplier. SELECT only — see _ensure_permissions.
 SUPPLIER_READERS = ["Hospitality Manager", "Hospitality User", "Facility Manager"]
 
 # Link widgets on Conference Room Booking / Hospitality Request show the
@@ -220,6 +223,11 @@ _PORTAL_UPLOADS_MARKER = "vms_portal_uploads_configured"
 # rule (see uninstall.py).
 _PORTAL_UPLOADS_SELF_ENABLED_MARKER = "vms_portal_uploads_self_enabled"
 
+# Set when setup found `allow_guests_to_upload_files` already on: the site allowed
+# guest uploads before this app arrived, so its guard must leave every page other
+# than the visitor portal exactly as it was (portal_upload.guard_guest_upload).
+_PORTAL_UPLOADS_PREEXISTING_MARKER = "vms_portal_uploads_preexisting"
+
 # Same one-time-say pattern as `_PORTAL_UPLOADS_MARKER`, for the historical
 # blacklist backfill. See `_activate_blacklist_entries`.
 _BLACKLIST_BACKFILL_MARKER = "vms_blacklist_backfill_done"
@@ -359,8 +367,56 @@ def _stale_self_property_setters():
 # ─────────────────────────────────────────────────────────
 # after_install / after_migrate
 # ─────────────────────────────────────────────────────────
+# Shared-name records this app may bring to a site. Frappe creates a role the
+# moment a DocType's permissions name it (during sync, before after_install), and
+# the workflow builder creates states and actions — so "did this app create it?"
+# can only be answered by looking before install.
+_PREEXISTING_MARKER = "vms_preexisting:{doctype}"
+_CREATED_MARKER = "vms_created:{doctype}:{name}"
+
+
+def _shared_records():
+	from visitormanagement.visitor_management import workflow_builder as wb
+
+	return {
+		"Role": list(ROLES),
+		"Workflow State": sorted({*wb.STATE_STYLES, "Pending Approval", "Items Verified", "Checked-In", "Checked-Out"}),
+		"Workflow Action Master": [
+			wb.ACTION_SUBMIT, wb.ACTION_APPROVE, wb.ACTION_REJECT, wb.ACTION_REAPPLY, wb.ACTION_CANCEL
+		],
+	}
+
+
+def before_install():
+	import json
+
+	for doctype, names in _shared_records().items():
+		existing = [n for n in names if frappe.db.exists(doctype, n)]
+		frappe.db.set_default(_PREEXISTING_MARKER.format(doctype=doctype), json.dumps(existing))
+
+
+def mark_created(doctype, name):
+	"""Record that this app created a shared-name record (see uninstall)."""
+	frappe.db.set_default(_CREATED_MARKER.format(doctype=doctype, name=name), "1")
+
+
+def _mark_install_created_records():
+	"""After a fresh install: everything in the list the site did not have is ours."""
+	import json
+
+	for doctype, names in _shared_records().items():
+		raw = frappe.db.get_default(_PREEXISTING_MARKER.format(doctype=doctype))
+		if raw is None:
+			continue  # installed by a version without before_install: cannot tell
+		preexisting = set(json.loads(raw))
+		for name in names:
+			if name not in preexisting and frappe.db.exists(doctype, name):
+				mark_created(doctype, name)
+
+
 def after_install():
 	setup_visitor_management()
+	_mark_install_created_records()
 
 
 def after_migrate():
@@ -379,6 +435,7 @@ def setup_visitor_management():
 	_drop_stale_property_setters()
 	_clear_stale_layout_fields()
 	_rewrite_event_log_details()
+	_narrow_core_link_grants()
 	_allow_portal_uploads()
 	_configure_notifications()
 	_repaint_notification_history()
@@ -386,6 +443,9 @@ def setup_visitor_management():
 	_backfill_host_name()
 	_backfill_mobile_digits()
 	_repair_pending_status_drift()
+	_repair_cancelled_status()
+	_make_gate_photos_private()
+	_restore_status_knocked_back_by_badge()
 	_activate_blacklist_entries()
 	_migrate_item_category_vocabulary()
 	_harden_invitation_token_collation()
@@ -406,6 +466,7 @@ def _ensure_roles():
 			frappe.get_doc({"doctype": "Role", "role_name": role, "desk_access": 1}).insert(
 				ignore_permissions=True
 			)
+			mark_created("Role", role)
 			print(f"  created Role {role}")
 
 
@@ -437,14 +498,79 @@ def _grant(doctype, role, ptype="read"):
 	marker = _GRANT_MARKER.format(doctype=doctype, role=role, ptype=ptype)
 	if frappe.db.get_default(marker):
 		return
+	if ptype == "select" and frappe.db.get_value(
+		"Custom DocPerm", {"parent": doctype, "role": role, "permlevel": 0}, "read"
+	):
+		# READ already includes picking: nothing to add to a row the owning app
+		# (or the site) manages.
+		frappe.db.set_default(marker, "1")
+		return
 	created = False
 	if not frappe.db.exists("Custom DocPerm", {"parent": doctype, "role": role, "permlevel": 0}):
-		add_permission(doctype, role, 0)
+		# With no ptype, add_permission creates the row with READ — so every
+		# `_grant(dt, role, "select")` used to hand out full READ as well.
+		add_permission(doctype, role, 0, ptype)
 		created = True
 	update_permission_property(doctype, role, 0, ptype, 1)
-	if created and ptype != "export":
-		update_permission_property(doctype, role, 0, "export", 0)
+	if created:
+		# A new Custom DocPerm row also arrives with the DocType's defaults (print,
+		# email, report, share, and export) switched on. A new row grants what was
+		# asked for and nothing else.
+		from frappe.permissions import rights
+
+		name = frappe.db.get_value("Custom DocPerm", {"parent": doctype, "role": role, "permlevel": 0}, "name")
+		frappe.db.set_value("Custom DocPerm", name, {p: int(p == ptype) for p in rights})
+		frappe.clear_cache(doctype=doctype)
 	frappe.db.set_default(marker, "1")
+
+
+_CORE_GRANTS_NARROWED_MARKER = "vms_core_link_grants_narrowed"
+
+
+def _core_link_grants():
+	"""{core doctype: roles this app grants on it} — only ever to pick a record."""
+	grants = {"Employee": set(EMPLOYEE_READERS), "Supplier": set(SUPPLIER_READERS)}
+	for doctype, roles in LINK_TARGET_PICKERS.items():
+		grants.setdefault(doctype, set()).update(roles)
+	return grants
+
+
+def _narrow_core_link_grants():
+	"""Take back the READ (and EXPORT) earlier versions granted on core records.
+
+	`_grant` gave full READ where SELECT was meant — on Employee to eight roles,
+	and on Supplier, Job Applicant and Maintenance Visit to hosts and reception —
+	and before that EXPORT too. So a guard could open or download every
+	employee's bank account, salary, PAN and date of birth, and a host every
+	candidate's CV. These roles pick a record in a link field and nothing more.
+
+	Only rows this app created are touched: a role the owning app (HRMS, ERPNext)
+	grants itself has a standard DocPerm row, and that row's rights are theirs.
+	Once per site, like every grant here — after that the Role Permission
+	Manager owns these rows.
+	"""
+	if frappe.db.get_default(_CORE_GRANTS_NARROWED_MARKER):
+		return
+	from frappe.permissions import rights
+
+	for doctype, roles in _core_link_grants().items():
+		if not frappe.db.exists("DocType", doctype):
+			continue
+		standard_roles = set(frappe.get_all("DocPerm", filters={"parent": doctype}, pluck="role"))
+		for role in sorted(roles - standard_roles):
+			row = frappe.db.get_value(
+				"Custom DocPerm",
+				{"parent": doctype, "role": role, "permlevel": 0, "if_owner": 0},
+				["name", *rights],
+				as_dict=True,
+			)
+			wanted = {ptype: int(ptype == "select") for ptype in rights}
+			if not row or all((row.get(p) or 0) == v for p, v in wanted.items()):
+				continue
+			frappe.db.set_value("Custom DocPerm", row.name, wanted)
+			print(f"  narrowed {role} on {doctype} to select only")
+	frappe.clear_cache()
+	frappe.db.set_default(_CORE_GRANTS_NARROWED_MARKER, "1")
 
 
 def _revoke(doctype, role, ptypes):
@@ -461,7 +587,7 @@ def _revoke(doctype, role, ptypes):
 
 def _ensure_permissions():
 	for role in EMPLOYEE_READERS:
-		_grant("Employee", role)
+		_grant("Employee", role, "select")
 	# Hospitality Request's `cab_vendor` and `hotel_name` are Links to Supplier,
 	# and the Hospitality Manager who fills that screen had no permission on
 	# Supplier at all. The field accepted the typed value on screen and the save
@@ -471,7 +597,7 @@ def _ensure_permissions():
 	# they need to pick an existing supplier, never to create, edit or export the
 	# customer's supplier master.
 	for role in SUPPLIER_READERS:
-		_grant("Supplier", role)
+		_grant("Supplier", role, "select")
 	for role in HOSPITALITY_CANCELLERS:
 		_grant("Hospitality Request", role, "cancel")
 		_grant("Hospitality Request", role, "amend")
@@ -558,6 +684,8 @@ def _backfill_mobile_digits():
 	digits disagree with their number, so a second run updates nothing. It also
 	self-heals a row edited by raw SQL elsewhere, which bypasses `before_save`.
 	"""
+	if frappe.db.db_type != "mariadb":
+		return  # regexp_replace is MariaDB's; elsewhere each pass fills its digits on save
 	digits = "regexp_replace(ifnull(mobile_number, ''), '[^0-9]', '')"
 	frappe.db.sql(
 		f"""
@@ -567,6 +695,88 @@ def _backfill_mobile_digits():
 		  and ifnull(mobile_digits, '') != {digits}
 		"""  # nosemgrep: frappe-sql-format-injection - no user input, fixed expression
 	)
+
+
+def _restore_status_knocked_back_by_badge():
+	"""Put back passes that minting a badge pulled back to "Items Verified".
+
+	generate_badge_number used to set "Items Verified" whatever the pass's
+	state, so a visitor who was inside or had left could end up there — and
+	check-out then refused them. The truth is the pass's latest gate event.
+	Idempotent: only an "Items Verified" pass whose latest Check-In/Check-Out log
+	says otherwise is touched.
+	"""
+	rows = frappe.db.sql(
+		"""
+		SELECT vp.name,
+		       (SELECT sl.event_type FROM `tabSecurity Log` sl
+		        WHERE sl.visitor_pass = vp.name AND sl.event_type IN ('Check-In', 'Check-Out')
+		        ORDER BY sl.creation DESC LIMIT 1) AS last_event
+		FROM `tabVisitor Pass` vp
+		WHERE vp.status = 'Items Verified' AND vp.docstatus = 1
+		""",
+		as_dict=True,
+	)
+	for row in rows:
+		status = {"Check-In": "Checked-In", "Check-Out": "Checked-Out"}.get(row.last_event)
+		if status:
+			frappe.db.set_value("Visitor Pass", row.name, "status", status, update_modified=False)
+			print(f"  restored {row.name} to {status} (a badge had reset it to Items Verified)")
+
+
+def _make_gate_photos_private():
+	"""Move gate and item photos taken before they were uploaded private.
+
+	The gate camera uploaded them public, so a visitor's face and belongings sat
+	under a guessable /files/ URL. Frappe's own File save moves the bytes and
+	updates the record the file is attached to (the Security Log); the pass
+	fields that copy the URL are updated here, and the pass gets its own File
+	row so its readers can still open the photo. Idempotent: only public files
+	with these names match.
+	"""
+	from visitormanagement.visitor_management.uploads import attach_existing_file
+
+	for name in frappe.get_all(
+		"File",
+		filters={"is_private": 0, "file_name": ["like", "gate_photo_%"], "is_folder": 0},
+		pluck="name",
+	) + frappe.get_all(
+		"File",
+		filters={"is_private": 0, "attached_to_doctype": "Security Log", "attached_to_field": "item_image"},
+		pluck="name",
+	):
+		f = frappe.get_doc("File", name)
+		old_url = f.file_url
+		f.is_private = 1
+		f.save(ignore_permissions=True)
+		for fieldname in ("gate_verified_photo", "visitor_photo"):
+			for vp in frappe.get_all("Visitor Pass", filters={fieldname: old_url}, pluck="name"):
+				frappe.db.set_value("Visitor Pass", vp, fieldname, f.file_url, update_modified=False)
+				attach_existing_file(f.file_url, "Visitor Pass", vp, fieldname)
+		frappe.db.sql(
+			"update `tabSecurity Item Verify` set item_image = %s where item_image = %s",
+			(f.file_url, old_url),
+		)
+		print(f"  made gate photo private: {f.file_url}")
+
+
+def _repair_cancelled_status():
+	"""Set `status` to Cancelled on passes that were cancelled before on_cancel did.
+
+	Cancel skips `validate`, so nothing moved `status` off "Approved" /
+	"Checked-Out" — a cancelled pass still showed under an "Approved" filter and
+	offered the gate a Check In button. Idempotent: only rows that still disagree
+	match; update_modified=False because this corrects a derived field.
+	"""
+	frappe.db.sql(
+		"""
+		UPDATE `tabVisitor Pass`
+		SET status = 'Cancelled'
+		WHERE docstatus = 2 AND IFNULL(status, '') != 'Cancelled'
+		"""
+	)
+	if frappe.db._cursor.rowcount > 0:
+		print(f"  set status Cancelled on {frappe.db._cursor.rowcount} cancelled visitor pass(es)")
 
 
 def _repair_pending_status_drift():
@@ -799,7 +1009,7 @@ def _clear_stale_layout_fields():
 		"""
 		UPDATE `tabVisitor Pass`
 		SET crm_reference_type = NULL, crm_lead_opportunity = NULL
-		WHERE IFNULL(visitor_type_layout, '') != 'Customer'
+		WHERE (IFNULL(visitor_type_layout, '') != 'Customer' OR IFNULL(entry_type, '') != 'New')
 		  AND (IFNULL(crm_reference_type, '') != '' OR IFNULL(crm_lead_opportunity, '') != '')
 		"""
 	)
@@ -810,9 +1020,9 @@ def _clear_stale_layout_fields():
 	# options began with "Board Member" rather than a blank line, so Frappe
 	# assigned the first option to every pass that left the field empty — and the
 	# VIP layout was absent from VisitorPass.LAYOUT_FIELDS, so unlike every other
-	# layout its fields were never cleared for passes of another type. The result
-	# on this site: 145 Contractor / Customer / Auditor / Supplier / Candidate
-	# passes filed as "Board Member" in reports and exports, on records whose VIP
+	# layout its fields were never cleared for passes of another type. The result:
+	# Contractor / Customer / Supplier / Candidate passes filed as
+	# "Board Member" in reports and exports, on records whose VIP
 	# section does not even render. Both causes are fixed going forward; this
 	# clears what is already stored.
 	frappe.db.sql(
@@ -923,6 +1133,8 @@ def _allow_portal_uploads():
 		frappe.db.set_single_value("System Settings", "allow_guests_to_upload_files", 1)
 		frappe.db.set_default(_PORTAL_UPLOADS_SELF_ENABLED_MARKER, "1")
 		print("  enabled allow_guests_to_upload_files (required by the visitor portal)")
+	else:
+		frappe.db.set_default(_PORTAL_UPLOADS_PREEXISTING_MARKER, "1")
 
 	# Recorded whether or not we changed anything: the point of the marker is
 	# "setup has considered this setting", so a site that already had it on
@@ -1192,8 +1404,8 @@ def _harden_invitation_token_collation():
 
 	The column is a plain Data field, so it inherits the table's default
 	collation — `utf8mb4_unicode_ci` on every site this app has ever created —
-	and MariaDB's `_ci` collations fold case for comparison. Confirmed live: a
-	lookup for a token with its case flipped returned the same Visitor
+	and MariaDB's `_ci` collations fold case for comparison: a lookup for a
+	token with its case flipped returned the same Visitor
 	Invitation. `invitation_token` is a bearer credential (whoever holds the
 	string opens the visitor's pre-registration form), so a case-scrambled copy
 	of it should not work; folding case only throws away entropy the token was
@@ -1212,6 +1424,11 @@ def _harden_invitation_token_collation():
 	MODIFY COLUMN does not touch it, and NULL keeps comparing as distinct from
 	NULL either way.
 	"""
+	if frappe.db.db_type != "mariadb":
+		# The case folding this fixes is MariaDB's `_ci` collation; SQLite and
+		# Postgres already compare text byte-for-byte, and neither has
+		# information_schema.COLUMNS.COLLATION_NAME in this form.
+		return
 	if not frappe.db.table_exists("Visitor Invitation"):
 		return
 	if not frappe.db.has_column("Visitor Invitation", "invitation_token"):

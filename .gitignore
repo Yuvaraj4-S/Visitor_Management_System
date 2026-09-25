@@ -9,9 +9,6 @@ __pycache__
 # Ruff / tooling caches
 .ruff_cache/
 
-# AI-assistant working files. These hold this project's internal engineering
-# notes — known-bug lists, security posture, agent instructions — and must
-# never ship inside a customer install. They are untracked today; these entries
-# stop a stray `git add .` from publishing them.
+# Local developer notes; never part of the app.
 .claude/
 CLAUDE.md

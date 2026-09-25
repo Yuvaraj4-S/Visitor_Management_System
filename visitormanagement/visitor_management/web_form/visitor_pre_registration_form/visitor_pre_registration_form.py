@@ -131,6 +131,22 @@ def _hide_internal_fields(context):
 			field.hidden = 1
 
 
+def _apply_home_country(context):
+	"""The form ships with India as the home country; use the configured one, so
+	Nationality defaults to it and Visa Copy is asked of everyone else."""
+	if not getattr(context, "web_form_doc", None):
+		return
+
+	home = vms_settings.home_country()
+	foreign = f"eval:doc.custom_nationality && doc.custom_nationality != {frappe.as_json(home)}"
+	for field in context.web_form_doc.web_form_fields:
+		if field.fieldname == "custom_nationality":
+			field.default = home
+		elif field.fieldname == "custom_visa_copy":
+			field.depends_on = foreign
+			field.mandatory_depends_on = foreign
+
+
 def _theme_block():
 	"""Inline the site's palette as CSS variables.
 
@@ -177,6 +193,7 @@ def _brand_footer():
 
 def get_context(context):
 	context.no_cache = 1
+	_apply_home_country(context)
 
 	theme = _theme_block() + _brand_header()
 	trailing = _brand_footer()

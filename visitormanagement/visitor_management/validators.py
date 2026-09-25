@@ -146,7 +146,7 @@ def _load_master():
 
     Frappe is imported lazily and every failure is swallowed: this module is
     deliberately usable outside a Frappe request (portal helpers, plain-Python
-    callers, unit tests) and must never hard-depend on a site being connected.
+    callers, scripts) and must never hard-depend on a site being connected.
     """
     try:
         import frappe

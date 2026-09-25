@@ -8,12 +8,9 @@ app_icon = "octicon octicon-organization"
 app_color = "#1A56DB"
 app_logo_url = "/assets/visitormanagement/images/logo.png"
 source_link = "https://github.com/Yuvaraj4-S/Visitor_Management_System"
-# Points at README.md, not docs/README.pdf: that PDF was generated in May 2026 before
-# the v15 -> v16 port and still tells the reader this app needs Frappe/ERPNext/HRMS v15,
-# Python 3.10 and MariaDB 10.6. A customer following it fails at `bench install-app`,
-# because pyproject pins >=16.0.0,<17.0.0 and requires-python >=3.14. README.md is kept
-# current and is the authoritative install reference; regenerate the PDF from it before
-# pointing this back at a PDF.
+# README.md is the authoritative install reference. docs/README.pdf is a printable copy
+# generated from it (it was a stale v15-era manual until 2026-09-25); regenerate it
+# whenever README.md changes.
 documentation = "https://github.com/Yuvaraj4-S/Visitor_Management_System/blob/version-16/README.md"
 
 # Apps
@@ -41,7 +38,9 @@ add_to_apps_screen = [
 # Desk CSS. Currently one rule: a chart legend variable Frappe leaves
 # undefined in dark mode, which made donut chart values invisible.
 app_include_css = "/assets/visitormanagement/css/visitormanagement.css"
-# app_include_js = "/assets/visitormanagement/js/visitormanagement.js"
+# Workarounds for two Frappe core desk bugs (Phone control race, app-switcher
+# dividers requesting /undefined). See the file for the traces.
+app_include_js = "/assets/visitormanagement/js/core_fixes.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/visitormanagement/css/visitormanagement.css"
@@ -99,7 +98,9 @@ doctype_js = {"Job Applicant": "public/js/job_applicant.js"}
 # Installation
 # ------------
 
-# before_install = "visitormanagement.install.before_install"
+# Records which shared records (roles, workflow states and actions) the site
+# already had, before DocType sync creates any, so uninstall removes only ours.
+before_install = "visitormanagement.setup.before_install"
 
 # All setup lives in visitormanagement/setup.py — idempotent, and run on both
 # install and migrate. The app deliberately ships no patches: `bench install-app`
@@ -221,6 +222,11 @@ scheduler_events = {
 		"0 3 * * *": [
 			"visitormanagement.visitor_management.tasks.purge_expired_visitor_data"
 		],
+		# Always on: these files are attached to nothing and can never be (see the
+		# function). Unlike the retention purge it touches no saved record.
+		"30 3 * * *": [
+			"visitormanagement.visitor_management.tasks.purge_abandoned_uploads"
+		],
 	},
 	"hourly": [
 		"visitormanagement.visitor_management.tasks.flag_no_show_passes",
@@ -318,113 +324,25 @@ after_request = [
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
-# `import_fixtures` walks the fixtures directory in filename order — every
-# `*.json` file physically present there, not just what is declared below (see
-# the note further down, next to why Workflow was removed from this list) — so
-# a doctype that links to Role/Workflow State/Workflow Action Master would
-# otherwise be imported before the records it links to. fixture_auto_order
-# makes `bench export-fixtures` number each file by its position in the list
-# below, which keeps filename order matching this order.
-fixture_auto_order = True
-
-fixtures = [
-    # 1. Roles first — DocType permissions, workflow transitions and notification
-    #    recipients all reference them.
-    {
-        "doctype": "Role",
-        "filters": [
-            ["name", "in", [
-                "CEO",
-                "Facility Manager",
-                "Factory Tour Coordinator",
-                "Front Office Executive",
-                "Greeting Staff",
-                "HOD",
-                "Host Employee",
-                "Hospitality Manager",
-                "Hospitality User",
-                "Security",
-                "Transport Coordinator",
-            ]]
-        ]
-    },
-    # 2. Workflow states.
-    {
-        "doctype": "Workflow State",
-        "filters": [
-            ["name", "in", [
-                "Draft",
-                "Pending Approval",
-                "Pending System Manager",
-                "Pending Sales Manager",
-                "Pending HR Manager",
-                "Pending HOD",
-                "Pending CEO",
-                "Approved",
-                "Rejected",
-                "Cancelled",
-                "Items Verified",
-                "Checked-In",
-                "Checked-Out",
-            ]]
-        ]
-    },
-    # 3. Workflow Action Master holds the action *names* the transitions link to.
-    #    (The similarly-named "Workflow Action" doctype holds per-document pending
-    #    approvals — transactional rows that must never be shipped as fixtures.)
-    {
-        "doctype": "Workflow Action Master",
-        "filters": [
-            ["name", "in", [
-                "Submit",
-                "Approve",
-                "Reject",
-                "Reapply",
-                "Cancel",
-            ]]
-        ]
-    },
-    # Workflow is deliberately NOT in this list — for all three of this app's
-    # workflows now, not just Visitor Pass Approval.
-    #
-    # "Visitor Pass Approval" was already excluded: its lanes are generated at
-    # runtime from the Visitor Type masters by
-    # visitor_management/workflow_builder.py, so a fixture would overwrite
-    # whatever approver roles the site has configured.
-    #
-    # "Conference Room Booking Approval" and "Hospitality Request Approval"
-    # used to be shipped here as fixtures (as `fixtures/4_workflow.json`),
-    # which turned out to have the same failure mode by a different route:
-    # any Desk edit to their approver roles, an added approval level, or
-    # `allow_self_approval` was silently discarded on the next migrate.
-    #
-    # Removing the doctype from THIS list is not what fixed it, and is not
-    # what is keeping it fixed — this list only tells `bench export-fixtures`
-    # what to write out. Import is not driven by this list at all:
-    # `frappe.utils.fixtures.import_fixtures` globs every `*.json` file
-    # physically present in the app's `fixtures/` directory and
-    # force-imports each one (`import_file_by_path(..., force=True)`,
-    # bypassing the `modified` guard entirely) on every migrate, regardless
-    # of what this list says. Deleting the hooks.py entry while the JSON file
-    # stayed in `fixtures/` would have kept clobbering both workflows exactly
-    # as before — this was verified by editing `allow_self_approval` on a
-    # live transition and watching a migrate silently discard it even with
-    # the entry removed from here.
-    #
-    # Unlike Visitor Pass, these two have no master data to regenerate them
-    # from, so full runtime generation is not the right fix; a one-time seed
-    # is. The fix that actually works: the seed file was moved OUT of
-    # `fixtures/` to `visitormanagement/workflow_seed.json`, so Frappe's
-    # fixture importer never sees it, and
-    # `visitormanagement.setup._seed_static_workflows` reads it directly —
-    # once, on whichever migrate first finds the Workflow missing, never
-    # again after that. Edit `workflow_seed.json` by hand if the seeded
-    # starting point ever needs to change.
-    #
-    # Note: Custom Fields on Job Applicant, and the Visitor Pass property setters,
-    # ship as customisations (visitor_management/custom/*.json) and are applied by
-    # `sync_customizations` — they are deliberately not fixtures.
-]
+# No fixtures. This app used to ship its Roles, Workflow States and Workflow Action
+# Masters as fixtures, and `import_fixtures` force-imports every file in
+# `fixtures/` on every migrate. Those records are shared by name across apps:
+# "Draft", "Approved", "Rejected", "Cancelled", "Pending Approval" are every
+# workflow's states, "Approve"/"Reject"/"Cancel" every workflow's actions, and a
+# role called "HOD", "CEO" or "Security" may well belong to another app. Each
+# migrate reset their colours, icons and role settings to this app's copy.
+#
+# All of them are now created only when missing, and never updated:
+#   - roles by `setup._ensure_roles`;
+#   - states and actions by `workflow_builder._ensure_workflow_state` /
+#     `_ensure_workflow_action`, called from `build_workflow` and from
+#     `setup._ensure_seed_workflow_dependencies`.
+#
+# Workflows are not fixtures either: "Visitor Pass Approval" is generated from the
+# Visitor Type masters (workflow_builder.py) and the other two are seeded once from
+# `workflow_seed.json` (setup._seed_static_workflows). Custom Fields on Job
+# Applicant ship as customisations (visitor_management/custom/*.json).
+fixtures = []
 
 # before_migrate clears Custom Fields that have since been promoted into their
 # DocType JSON; after_migrate re-asserts the whole configuration.

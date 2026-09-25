@@ -100,6 +100,13 @@ def validate_mobile(number, label=None, region=None, required=False):
 	"""
 	label = label or _("Mobile Number")
 	value = (number or "").strip()
+	# Frappe's Phone control stores "<picker code>-<what was typed>". A visitor who
+	# follows the portal's own hint and types "+81 9012345678" while the picker
+	# still shows +91 produced "+91-+81 9012345678", which could not be parsed, so
+	# the pre-registration was refused. A code typed with the number wins.
+	head, sep, typed = value.partition("-")
+	if sep and head.startswith("+") and head[1:].isdigit() and typed.lstrip().startswith("+"):
+		value = typed.strip()
 
 	if not value:
 		if required:

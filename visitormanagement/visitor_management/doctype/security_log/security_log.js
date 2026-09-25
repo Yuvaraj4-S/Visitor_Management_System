@@ -316,6 +316,7 @@ frappe.ui.form.on("Security Log", {
 				"protocol_notes",
 				"multi_day_pass",
 				"pass_valid_until",
+				"visit_date",
 			],
 			(r) => {
 				if (!r) {
@@ -363,17 +364,18 @@ frappe.ui.form.on("Security Log", {
 					} else if (r.status === "Checked-In") {
 						event_type = "Check-Out";
 					} else if (r.status === "Checked-Out") {
-						// A multi-day Contractor pass (visit_date .. pass_valid_until) is meant
-						// to be checked in and out on each of several days — "Checked-Out" only
-						// permanently retires it once that window has passed. Without this
-						// carve-out this dialog fired on every re-entry and cleared
-						// visitor_pass, stranding the officer even though the server
-						// (security_log.py before_save) would have accepted the check-in.
-						// Same window rule as the server side.
+						// Checking out does not retire a pass: it stays valid for the rest of
+						// its visit date (a visitor stepping out for lunch), and a multi-day
+						// pass for every day through pass_valid_until. Without this carve-out
+						// this dialog fired on every re-entry and cleared visitor_pass,
+						// stranding the officer even though the server (security_log.py
+						// before_save) would have accepted the check-in. Same window rule as
+						// the server side and visitor_gate._valid_today.
 						const today = frappe.datetime.get_today();
-						const multi_day_reentry_open =
-							r.multi_day_pass && r.pass_valid_until && today <= r.pass_valid_until;
-						if (multi_day_reentry_open) {
+						const last_day =
+							r.multi_day_pass && r.pass_valid_until ? r.pass_valid_until : r.visit_date;
+						const reentry_open = r.visit_date && r.visit_date <= today && today <= last_day;
+						if (reentry_open) {
 							event_type = "Check-In";
 						} else {
 							frappe.msgprint({
@@ -472,7 +474,7 @@ frappe.ui.form.on("Security Log", {
 			],
 				primary_action_label: __("Capture"),
 				primary_action() {
-					const video = document.getElementById("capture-video");
+					const video = dialog_video(capture_dialog);
 					if (!video || !video.videoWidth || !video.videoHeight) {
 						frappe.msgprint(__("Camera is still loading. Wait a moment and capture again."));
 						return;
@@ -535,7 +537,7 @@ frappe.ui.form.on("Security Log", {
 		navigator.mediaDevices
 			.getUserMedia({ video: { facingMode: "environment" } })
 			.then((stream) => {
-				const video = document.getElementById(video_id);
+				const video = dialog_video(capture_dialog);
 				if (!video) {
 					stream.getTracks().forEach((track) => track.stop());
 					frappe.msgprint(__("Video element not found. Please try again."));
@@ -556,6 +558,16 @@ frappe.ui.form.on("Security Log", {
 			});
 	},
 });
+
+// The camera preview lives inside its own dialog. Looking it up by a page-wide id
+// failed when the dialog was opened automatically right after a QR scan: the
+// scanner dialog was still closing, the new dialog's body was not in the page
+// yet, and getElementById found nothing ("Video element not found") on every
+// scan. The element exists on the dialog from the moment its HTML is set, so
+// take it from there; srcObject set before it is attached still plays once shown.
+function dialog_video(dialog) {
+	return dialog.get_field("camera_html").$wrapper.find("video").get(0);
+}
 
 frappe.ui.form.on("Security Item Verify", {
 	item_verified(frm, cdt, cdn) {
@@ -583,7 +595,7 @@ frappe.ui.form.on("Security Item Verify", {
 			],
 				primary_action_label: __("Capture"),
 				primary_action() {
-					const video = document.getElementById("item-capture-video");
+					const video = dialog_video(capture_dialog);
 					if (!video || !video.videoWidth || !video.videoHeight) {
 						frappe.msgprint(__("Camera is still loading. Wait a moment and capture again."));
 						return;
@@ -643,7 +655,7 @@ frappe.ui.form.on("Security Item Verify", {
 		navigator.mediaDevices
 			.getUserMedia({ video: { facingMode: "environment" } })
 			.then((stream) => {
-				const video = document.getElementById(video_id);
+				const video = dialog_video(capture_dialog);
 				if (!video) {
 					stream.getTracks().forEach((track) => track.stop());
 					frappe.msgprint(__("Video element not found. Please try again."));
@@ -671,7 +683,10 @@ function upload_captured_image({ file, doctype, docname, fieldname }) {
 		const form_data = new FormData();
 
 		form_data.append("file", file, file.name);
-		form_data.append("is_private", 0);
+		// Gate and item photos are of a person and their belongings — private, like
+		// the ID scan and visitor photo. They were uploaded public (is_private 0), so
+		// anyone with the /files/ URL could open them without logging in.
+		form_data.append("is_private", 1);
 		form_data.append("doctype", doctype);
 		form_data.append("docname", docname);
 		form_data.append("fieldname", fieldname);

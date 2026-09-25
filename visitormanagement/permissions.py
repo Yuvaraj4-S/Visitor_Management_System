@@ -332,9 +332,8 @@ def has_hospitality_request_permission(doc, user=None, ptype=None, debug=False):
 # Hospitality Request above — no query condition or has_permission hook was
 # ever registered for it. So any member of staff could open any other
 # employee's booking: its `meeting_title`, `department`, attendee count and
-# `booked_by` are all visible with no scoping at all. This is not
-# hypothetical on this site — "Board interview — CFO candidate" is a real
-# meeting_title, readable by every Employee.
+# `booked_by` are all visible with no scoping at all — a title such as
+# "Board interview — CFO candidate" was readable by every Employee.
 #
 # Scoped the same way Hospitality Request is: the people who run the rooms
 # see everything, and everyone else sees only their own bookings — made by

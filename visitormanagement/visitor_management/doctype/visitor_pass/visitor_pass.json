@@ -205,6 +205,7 @@
    "hidden": 1,
    "in_list_view": 1,
    "label": "Status",
+   "no_copy": 1,
    "options": "Draft\nPending Approval\nRejected\nApproved\nItems Verified\nChecked-In\nChecked-Out\nCancelled",
    "read_only": 1
   },
@@ -228,6 +229,7 @@
    "fieldtype": "Link",
    "hidden": 1,
    "label": "Visitor Invitation",
+   "no_copy": 1,
    "options": "Visitor Invitation",
    "read_only": 1
   },
@@ -340,7 +342,6 @@
   },
   {
    "description": "The host's name, for emails and alerts. person_to_visit holds an Employee ID, which is meaningless to a visitor reading a message.",
-   "fetch_from": "person_to_visit.employee_name",
    "fieldname": "host_name",
    "fieldtype": "Data",
    "label": "Host Name",
@@ -348,15 +349,13 @@
    "read_only": 1
   },
   {
-   "fetch_from": "person_to_visit.department",
    "fieldname": "host_department",
    "fieldtype": "Data",
    "label": "Host Department",
    "read_only": 1
   },
   {
-   "description": "Filled from the host's linked user. Notifications address the host here \u2014 a Link field holds an Employee ID, which is not a deliverable address. Not format-validated on purpose: a bad value should cost an email, not block a gate operation.",
-   "fetch_from": "person_to_visit.user_id",
+   "description": "Filled from the host's linked user. Notifications address the host here — a Link field holds an Employee ID, which is not a deliverable address. Not format-validated on purpose: a bad value should cost an email, not block a gate operation.",
    "fieldname": "host_email",
    "fieldtype": "Data",
    "label": "Host Email",
@@ -526,7 +525,6 @@
   },
   {
    "depends_on": "eval:doc.visitor_type_layout == 'Candidate'",
-   "fetch_from": "job_applicant_link.job_title",
    "fieldname": "position_applied",
    "fieldtype": "Data",
    "label": "Position Applied",
@@ -754,6 +752,7 @@
    "hidden": 1,
    "ignore_user_permissions": 1,
    "label": "Food Dept Staff Assigned",
+   "no_copy": 1,
    "options": "Employee"
   },
   {
@@ -762,6 +761,7 @@
    "fieldtype": "Select",
    "hidden": 1,
    "label": "Food Status",
+   "no_copy": 1,
    "options": "Pending\nOrdered\nServed\nCompleted\nCancelled"
   },
   {
@@ -775,6 +775,7 @@
    "fieldname": "hospitality_request",
    "fieldtype": "Link",
    "label": "Hospitality Request",
+   "no_copy": 1,
    "options": "Hospitality Request",
    "read_only": 1
   },
@@ -824,6 +825,7 @@
    "fieldtype": "Select",
    "hidden": 1,
    "label": "Hospitality Overall Status",
+   "no_copy": 1,
    "options": "Not Required\nPending\nIn Progress\nCompleted\nCancelled",
    "read_only": 1
   },
@@ -835,10 +837,11 @@
    "label": "Approval & Gate Audit"
   },
   {
-   "description": "Minted atomically on approval. Must be unique in practice \u2014 see the duplicate check in setup.",
+   "description": "Minted atomically on approval. Must be unique in practice — see the duplicate check in setup.",
    "fieldname": "badge_number",
    "fieldtype": "Data",
    "label": "Badge Number",
+   "no_copy": 1,
    "read_only": 1,
    "search_index": 1
   },
@@ -853,12 +856,14 @@
    "fieldname": "approval_date",
    "fieldtype": "Datetime",
    "label": "Approval Date",
+   "no_copy": 1,
    "read_only": 1
   },
   {
    "fieldname": "approved_by",
    "fieldtype": "Link",
    "label": "Approved By",
+   "no_copy": 1,
    "options": "User",
    "read_only": 1
   },
@@ -870,6 +875,7 @@
    "fieldname": "qr_code_image",
    "fieldtype": "Attach Image",
    "label": "QR Code Image",
+   "no_copy": 1,
    "read_only": 1
   },
   {
@@ -877,6 +883,7 @@
    "fieldname": "gate_verified_photo",
    "fieldtype": "Attach Image",
    "label": "Gate Verified Photo",
+   "no_copy": 1,
    "read_only": 1
   },
   {
@@ -884,6 +891,7 @@
    "fieldname": "gate_verified_on",
    "fieldtype": "Datetime",
    "label": "Gate Verified On",
+   "no_copy": 1,
    "read_only": 1
   },
   {
@@ -892,6 +900,7 @@
    "fieldtype": "Link",
    "ignore_user_permissions": 1,
    "label": "Gate Verified By",
+   "no_copy": 1,
    "options": "Employee",
    "read_only": 1
   },
@@ -907,6 +916,7 @@
    "fieldname": "actual_checkin",
    "fieldtype": "Datetime",
    "label": "Actual Check-In",
+   "no_copy": 1,
    "read_only": 1
   },
   {
@@ -914,6 +924,7 @@
    "fieldname": "actual_checkout",
    "fieldtype": "Datetime",
    "label": "Actual Check-Out",
+   "no_copy": 1,
    "read_only": 1
   },
   {
@@ -922,6 +933,7 @@
    "fieldname": "no_show",
    "fieldtype": "Check",
    "label": "No Show",
+   "no_copy": 1,
    "read_only": 1
   },
   {
@@ -929,6 +941,7 @@
    "fieldname": "current_location",
    "fieldtype": "Data",
    "label": "Current Location",
+   "no_copy": 1,
    "read_only": 1
   },
   {
@@ -936,6 +949,7 @@
    "fieldname": "item_verification_status",
    "fieldtype": "Select",
    "label": "Item Verification Status",
+   "no_copy": 1,
    "options": "Pending\nPartial\nAll Verified",
    "read_only": 1
   },
@@ -944,6 +958,7 @@
    "fieldname": "items_verified",
    "fieldtype": "Check",
    "label": "Items Verified",
+   "no_copy": 1,
    "read_only": 1
   },
   {
@@ -951,6 +966,7 @@
    "fieldname": "all_items_verified",
    "fieldtype": "Check",
    "label": "All Items Verified",
+   "no_copy": 1,
    "read_only": 1
   },
   {
@@ -964,7 +980,7 @@
    "label": "Declared Items"
   },
   {
-   "description": "e.g. laptop, toolkit \u2014 list the items the visitor will be carrying.",
+   "description": "e.g. laptop, toolkit — list the items the visitor will be carrying.",
    "fieldname": "items_carried",
    "fieldtype": "Small Text",
    "label": "Items"
@@ -1020,7 +1036,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-31 10:00:00.000000",
+ "modified": "2026-09-25 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Pass",

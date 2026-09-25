@@ -1,6 +1,7 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 
 
 # Indicator colours come from Visitor Type.badge_colour so a custom type is
@@ -27,19 +28,19 @@ def execute(filters=None):
 
 def get_columns():
     return [
-        {"label": "Pass ID", "fieldname": "visitor_pass", "fieldtype": "Link",
+        {"label": _("Pass ID"), "fieldname": "visitor_pass", "fieldtype": "Link",
          "options": "Visitor Pass", "width": 140},
-        {"label": "Visitor", "fieldname": "visitor_name", "fieldtype": "Data", "width": 180},
-        {"label": "Type", "fieldname": "visitor_type", "fieldtype": "Data", "width": 100},
-        {"label": "Company", "fieldname": "company", "fieldtype": "Data", "width": 170},
-        {"label": "Host", "fieldname": "person_to_visit", "fieldtype": "Link",
+        {"label": _("Visitor"), "fieldname": "visitor_name", "fieldtype": "Data", "width": 180},
+        {"label": _("Type"), "fieldname": "visitor_type", "fieldtype": "Data", "width": 100},
+        {"label": _("Company"), "fieldname": "company", "fieldtype": "Data", "width": 170},
+        {"label": _("Host"), "fieldname": "person_to_visit", "fieldtype": "Link",
          "options": "Employee", "width": 140},
-        {"label": "Gate", "fieldname": "gate_name", "fieldtype": "Data", "width": 110},
-        {"label": "Checked-In", "fieldname": "checkin_time", "fieldtype": "Datetime", "width": 160},
-        {"label": "Time Inside", "fieldname": "duration_label", "fieldtype": "Data", "width": 110},
-        {"label": "Expected Out", "fieldname": "expected_checkout", "fieldtype": "Time", "width": 110},
-        {"label": "Item Status", "fieldname": "item_verification_status", "fieldtype": "Data", "width": 100},
-        {"label": "Badge", "fieldname": "badge_number", "fieldtype": "Data", "width": 140},
+        {"label": _("Gate"), "fieldname": "gate_name", "fieldtype": "Data", "width": 110},
+        {"label": _("Checked-In"), "fieldname": "checkin_time", "fieldtype": "Datetime", "width": 160},
+        {"label": _("Time Inside"), "fieldname": "duration_label", "fieldtype": "Data", "width": 110},
+        {"label": _("Expected Out"), "fieldname": "expected_checkout", "fieldtype": "Time", "width": 110},
+        {"label": _("Item Status"), "fieldname": "item_verification_status", "fieldtype": "Data", "width": 100},
+        {"label": _("Badge"), "fieldname": "badge_number", "fieldtype": "Data", "width": 140},
     ]
 
 
@@ -121,9 +122,9 @@ def get_summary(data):
     pending_items = sum(1 for r in data if r.item_verification_status in ("Pending", "Partial"))
 
     return [
-        {"value": total, "label": "Currently Inside", "indicator": "Green"},
-        {"value": vip_count, "label": "VIP / Executive", "indicator": "Red"},
-        {"value": pending_items, "label": "Items Pending", "indicator": "Orange"},
+        {"value": total, "label": _("Currently Inside"), "indicator": "Green"},
+        {"value": vip_count, "label": _("VIP / Executive"), "indicator": "Red"},
+        {"value": pending_items, "label": _("Items Pending"), "indicator": "Orange"},
     ]
 
 

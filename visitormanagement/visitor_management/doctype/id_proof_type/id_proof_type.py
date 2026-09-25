@@ -23,7 +23,7 @@ class IDProofType(Document):
 				re.compile(self.validation_regex)
 			except re.error as exc:
 				frappe.throw(
-					_("Validation Regex is not a valid pattern: {0}").format(exc),
+					_("Validation Regex is not a valid pattern: {0}").format(str(exc)),
 					title=_("Invalid Regex"),
 				)
 

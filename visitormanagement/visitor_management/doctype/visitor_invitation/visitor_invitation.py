@@ -1,5 +1,6 @@
 # For license information, please see license.txt
 
+import functools
 import secrets
 
 import re
@@ -11,6 +12,7 @@ from frappe.utils import add_days, get_datetime, get_time, get_url, now_datetime
 
 from visitormanagement.visitor_management import settings as vms_settings
 from visitormanagement.visitor_management.lifecycle import derive_hospitality_meal_plan
+from visitormanagement.visitor_management.mail import send_checked
 
 
 def _coerce_datetime(value):
@@ -148,14 +150,17 @@ def get_web_form_context(token):
 				"visitor_full_name": existing_pass.visitor_full_name,
 				"mobile_number": existing_pass.mobile_number,
 				"company__organisation": existing_pass.company__organisation,
+				"custom_nationality": existing_pass.custom_nationality,
 				# NOTE: only fields the portal form actually shows are echoed
 				# back. This response goes to whoever holds the invitation token,
 				# so internal values staff added to the draft pass —
 				# supplier_link / contractor_link / job_applicant_link,
 				# work_order_ref, products_discussed, meeting_outcome,
-				# followup_date, mdceo_notified — are deliberately left out.
-				# They are staff notes and internal record IDs; the visitor has
-				# no reason to see them and no way to have entered them.
+				# followup_date, mdceo_notified, and the staff-set interview_panel /
+				# vip_category / protocol_notes (escort and security instructions;
+				# portal._build_visitor_pass_values refuses them from the visitor
+				# too) — are deliberately left out. They are staff notes and
+				# internal record IDs; the visitor has no reason to see them.
 				"supplier_visit_mode": existing_pass.supplier_visit_mode,
 				"visit_category": existing_pass.visit_category,
 				"tools_list": existing_pass.tools_list,
@@ -163,11 +168,8 @@ def get_web_form_context(token):
 				"pass_valid_until": str(existing_pass.pass_valid_until) if existing_pass.pass_valid_until else "",
 				"position_applied": existing_pass.position_applied,
 				"candidate_interview_type": existing_pass.candidate_interview_type,
-				"interview_panel": existing_pass.interview_panel,
-				"vip_category": existing_pass.vip_category,
 				"interpreter_required": existing_pass.interpreter_required,
 				"interpreter_language": existing_pass.interpreter_language,
-				"protocol_notes": existing_pass.protocol_notes,
 				"meal_required": existing_pass.meal_required,
 				"meal_type": existing_pass.meal_type or values.get("meal_type"),
 				"assigned_meal_slots": existing_pass.assigned_meal_slots or values.get("assigned_meal_slots"),
@@ -200,6 +202,39 @@ def get_web_form_context(token):
 		"invitation": invitation.name,
 		"values": values,
 	}
+
+
+def _report_undelivered_invitation(invitation, visitor_email, user, error):
+	"""The host was told the invitation went; the send after commit then failed.
+
+	Left alone they would wait for a visitor who never got the link. Say so on the
+	invitation's timeline and in the sender's notifications. The mail stays queued
+	and is retried automatically; the link can be copied from the invitation.
+	"""
+	message = _(
+		"The invitation email to {0} has not been delivered ({1}). It will be retried "
+		"automatically — to be sure the visitor gets it, use Copy Invitation Link and send it directly."
+	).format(visitor_email, error or _("mail server error"))
+	frappe.get_doc(
+		{
+			"doctype": "Comment",
+			"comment_type": "Info",
+			"reference_doctype": "Visitor Invitation",
+			"reference_name": invitation,
+			"content": message,
+		}
+	).insert(ignore_permissions=True)
+	if user and user != "Guest":
+		frappe.get_doc(
+			{
+				"doctype": "Notification Log",
+				"for_user": user,
+				"type": "Alert",
+				"document_type": "Visitor Invitation",
+				"document_name": invitation,
+				"subject": message,
+			}
+		).insert(ignore_permissions=True)
 
 
 class VisitorInvitation(Document):
@@ -314,10 +349,10 @@ class VisitorInvitation(Document):
 	@frappe.whitelist()
 	def send_invitation(self):
 		if self.is_new():
-			frappe.throw("Save the Visitor Invitation before sending the invitation mail.")
+			frappe.throw(_("Save the Visitor Invitation before sending the invitation mail."))
 
 		if not self.visitor_email:
-			frappe.throw("Visitor Email is required before sending invitation.")
+			frappe.throw(_("Visitor Email is required before sending invitation."))
 
 		# Reuse a token that is already live. Minting a fresh one on every send
 		# silently invalidates the link the visitor may already be holding — and
@@ -332,7 +367,7 @@ class VisitorInvitation(Document):
 		)
 
 		if expires_on < sent_on:
-			frappe.throw("Invitation Expiry must be later than the send time.")
+			frappe.throw(_("Invitation Expiry must be later than the send time."))
 
 		link = build_invitation_link(token)
 
@@ -369,10 +404,9 @@ class VisitorInvitation(Document):
 		]
 		if branding["footer_note"]:
 			message += ["", branding["footer_note"]]
-		# `now=True` raises on a site with no outgoing Email Account, and that
-		# rollback would take the token and the Sent status with it — leaving the
-		# host with no link at all. Mint the link regardless and report delivery
-		# separately, so it can still be copied and shared by hand.
+		# A failed send must not roll back the token and the Sent status — the host
+		# would be left with no link at all. Mint the link regardless and report
+		# delivery separately, so it can still be copied and shared by hand.
 		delivered, error = self._deliver_invitation_mail(message)
 		if delivered:
 			self.db_set({"invitation_sent_on": sent_on, "invitation_status": "Sent"})
@@ -381,13 +415,18 @@ class VisitorInvitation(Document):
 
 	def _deliver_invitation_mail(self, message):
 		try:
-			frappe.sendmail(
+			# Checks the mail server takes our login before telling the host it was
+			# sent. `now=True` only sent after commit, so a mail-server failure was
+			# never reported here — it surfaced as a 500 after the invitation saved.
+			send_checked(
+				on_failure=functools.partial(
+					_report_undelivered_invitation, self.name, self.visitor_email, frappe.session.user
+				),
 				recipients=[self.visitor_email],
 				reference_doctype=self.doctype,
 				reference_name=self.name,
 				subject="Visitor Pre-Registration Invitation",
 				message="<br>".join(message),
-				now=True,
 			)
 			return True, None
 		except Exception as exc:

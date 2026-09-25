@@ -1,6 +1,7 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.utils import today
 
 
@@ -15,12 +16,12 @@ def execute(filters=None):
 
 def get_columns():
 	return [
-		{"label": "Gate", "fieldname": "gate_name", "fieldtype": "Data", "width": 180},
-		{"label": "Check-Ins", "fieldname": "checkins", "fieldtype": "Int", "width": 110},
-		{"label": "Check-Outs", "fieldname": "checkouts", "fieldtype": "Int", "width": 110},
-		{"label": "Currently Inside", "fieldname": "inside", "fieldtype": "Int", "width": 140},
-		{"label": "Items Pending", "fieldname": "pending_verify", "fieldtype": "Int", "width": 130},
-		{"label": "% of On-Site", "fieldname": "occupancy_pct", "fieldtype": "Percent", "width": 110},
+		{"label": _("Gate"), "fieldname": "gate_name", "fieldtype": "Data", "width": 180},
+		{"label": _("Check-Ins"), "fieldname": "checkins", "fieldtype": "Int", "width": 110},
+		{"label": _("Check-Outs"), "fieldname": "checkouts", "fieldtype": "Int", "width": 110},
+		{"label": _("Currently Inside"), "fieldname": "inside", "fieldtype": "Int", "width": 140},
+		{"label": _("Items Pending"), "fieldname": "pending_verify", "fieldtype": "Int", "width": 130},
+		{"label": _("% of On-Site"), "fieldname": "occupancy_pct", "fieldtype": "Percent", "width": 110},
 	]
 
 
@@ -156,10 +157,10 @@ def get_summary(data):
 	pending = sum(r.get("pending_verify") or 0 for r in data)
 
 	return [
-		{"value": total_in, "label": "Total Check-Ins", "indicator": "Green"},
-		{"value": total_out, "label": "Total Check-Outs", "indicator": "Grey"},
-		{"value": currently_inside, "label": "Total Currently Inside", "indicator": "Blue"},
-		{"value": pending, "label": "Total Items Pending", "indicator": "Orange"},
+		{"value": total_in, "label": _("Total Check-Ins"), "indicator": "Green"},
+		{"value": total_out, "label": _("Total Check-Outs"), "indicator": "Grey"},
+		{"value": currently_inside, "label": _("Total Currently Inside"), "indicator": "Blue"},
+		{"value": pending, "label": _("Total Items Pending"), "indicator": "Orange"},
 	]
 
 

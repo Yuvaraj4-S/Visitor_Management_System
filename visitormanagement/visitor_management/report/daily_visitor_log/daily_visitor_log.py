@@ -1,6 +1,7 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.utils import add_days, today
 
 MAX_ROWS = 5000
@@ -39,28 +40,28 @@ def _validate_filters(filters):
 def get_columns():
 	return [
 		{
-			"label": "Pass ID",
+			"label": _("Pass ID"),
 			"fieldname": "visitor_pass",
 			"fieldtype": "Link",
 			"options": "Visitor Pass",
 			"width": 140,
 		},
-		{"label": "Visit Date", "fieldname": "visit_date", "fieldtype": "Date", "width": 105},
-		{"label": "Visitor", "fieldname": "visitor_name", "fieldtype": "Data", "width": 180},
-		{"label": "Type", "fieldname": "visitor_type", "fieldtype": "Data", "width": 100},
-		{"label": "Company", "fieldname": "company", "fieldtype": "Data", "width": 160},
+		{"label": _("Visit Date"), "fieldname": "visit_date", "fieldtype": "Date", "width": 105},
+		{"label": _("Visitor"), "fieldname": "visitor_name", "fieldtype": "Data", "width": 180},
+		{"label": _("Type"), "fieldname": "visitor_type", "fieldtype": "Data", "width": 100},
+		{"label": _("Company"), "fieldname": "company", "fieldtype": "Data", "width": 160},
 		{
-			"label": "Host",
+			"label": _("Host"),
 			"fieldname": "person_to_visit",
 			"fieldtype": "Link",
 			"options": "Employee",
 			"width": 140,
 		},
-		{"label": "Purpose", "fieldname": "purpose_of_visit", "fieldtype": "Small Text", "width": 220},
-		{"label": "Checked-In", "fieldname": "checkin", "fieldtype": "Datetime", "width": 155},
-		{"label": "Checked-Out", "fieldname": "checkout", "fieldtype": "Datetime", "width": 155},
-		{"label": "Gate", "fieldname": "gate_name", "fieldtype": "Data", "width": 110},
-		{"label": "Status", "fieldname": "status", "fieldtype": "Data", "width": 115},
+		{"label": _("Purpose"), "fieldname": "purpose_of_visit", "fieldtype": "Small Text", "width": 220},
+		{"label": _("Checked-In"), "fieldname": "checkin", "fieldtype": "Datetime", "width": 155},
+		{"label": _("Checked-Out"), "fieldname": "checkout", "fieldtype": "Datetime", "width": 155},
+		{"label": _("Gate"), "fieldname": "gate_name", "fieldtype": "Data", "width": 110},
+		{"label": _("Status"), "fieldname": "status", "fieldtype": "Data", "width": 115},
 	]
 
 
@@ -138,10 +139,10 @@ def get_summary(data):
 	no_show = sum(1 for r in data if r.status == "Approved" and not r.checkin)
 
 	return [
-		{"value": total, "label": "Total Visits", "indicator": "Blue"},
-		{"value": checked_in, "label": "Currently Inside", "indicator": "Green"},
-		{"value": checked_out, "label": "Completed Visits", "indicator": "Grey"},
-		{"value": approved, "label": "Awaiting Check-In", "indicator": "Orange"},
+		{"value": total, "label": _("Total Visits"), "indicator": "Blue"},
+		{"value": checked_in, "label": _("Currently Inside"), "indicator": "Green"},
+		{"value": checked_out, "label": _("Completed Visits"), "indicator": "Grey"},
+		{"value": approved, "label": _("Awaiting Check-In"), "indicator": "Orange"},
 	]
 
 

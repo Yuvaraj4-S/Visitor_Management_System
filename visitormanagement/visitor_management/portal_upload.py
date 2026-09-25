@@ -59,10 +59,20 @@ def guard_guest_upload(doc, method=None):
 	if not frappe.request:
 		return
 
-	# A guest who is not filling in the portal has no business uploading at all.
 	# Files arrive before the Visitor Pass exists, so they are unattached at this
 	# point — the portal is identified by the form the request came from.
-	_reject_unless_portal_request()
+	if not _is_portal_request():
+		# Another page's guest upload is not this app's business. It used to be
+		# refused outright, which also refused other apps' public forms (a careers
+		# page taking CVs). Now it gets exactly what it would get without this app:
+		# allowed if the site had guest uploads on before, refused if the only
+		# reason they are on is this portal — unless an admin listed the page.
+		if _other_page_may_upload():
+			return
+		frappe.throw(
+			_("File uploads are only accepted from the visitor pre-registration form."),
+			frappe.PermissionError,
+		)
 	_enforce_rate_limit()
 	_reject_foreign_attachment_target(doc)
 
@@ -101,6 +111,56 @@ def guard_guest_upload(doc, method=None):
 	# readable by URL guessing, whatever the caller asked for.
 	doc.is_private = 1
 
+	_remember_upload_key(doc)
+
+
+# Every guest shares Frappe's one "Guest" session, so nothing on the server can
+# tell two anonymous visitors apart — on a shared reception kiosk, one visitor's
+# freshly uploaded ID scan could be claimed by the next person's submission if
+# they learnt its URL. The portal page makes a random key when it loads, sends it
+# with each upload and again with the submission; a file is only adopted by the
+# submission holding the key it was uploaded with (portal._adopt_uploaded_file).
+UPLOAD_KEY_FIELD = "vms_upload_key"
+_UPLOAD_KEY_TTL_SECONDS = 2 * 60 * 60  # comfortably longer than the adoption window
+
+
+def _upload_key_cache_key(file_url):
+	return f"vms:portal-upload-key:{file_url}"
+
+
+def _hash_upload_key(key):
+	import hashlib
+
+	return hashlib.sha256(key.encode()).hexdigest()
+
+
+def _valid_upload_key(key):
+	import re
+
+	return bool(key and isinstance(key, str) and re.fullmatch(r"[A-Za-z0-9_-]{32,128}", key))
+
+
+def _remember_upload_key(doc):
+	key = (frappe.form_dict.get(UPLOAD_KEY_FIELD) or "").strip()
+	if not _valid_upload_key(key):
+		frappe.throw(
+			_("Please reload the pre-registration page and upload the file again."),
+			frappe.PermissionError,
+		)
+	frappe.cache.set_value(
+		_upload_key_cache_key(doc.file_url), _hash_upload_key(key), expires_in_sec=_UPLOAD_KEY_TTL_SECONDS
+	)
+
+
+def upload_key_matches(file_url, key):
+	"""True when `key` is the one this portal upload was made with."""
+	import hmac
+
+	if not _valid_upload_key(key):
+		return False
+	expected = frappe.cache.get_value(_upload_key_cache_key(file_url))
+	return bool(expected) and hmac.compare_digest(expected, _hash_upload_key(key))
+
 
 # The only fields on the only doctype this portal ever asks a visitor to attach
 # something to. Everything else is somebody else's record.
@@ -123,9 +183,9 @@ def _reject_foreign_attachment_target(doc):
 
 	So turning this setting on for the visitor portal handed the whole bench an
 	unauthenticated write primitive: any caller could POST a genuine JPG with
-	`doctype=Employee&docname=HR-EMP-00060` and have it attach, with no permission
-	check anywhere in the chain. Confirmed against this site — the file landed on
-	the Employee record. The checks above did not stop it: they inspect the file's
+	`doctype=Employee&docname=<any employee>` and have it attach to that record,
+	with no permission check anywhere in the chain. The checks above did not stop
+	it: they inspect the file's
 	*content*, never where it is going, and the Referer check says in its own
 	docstring that it is not a boundary.
 
@@ -211,50 +271,58 @@ def _count_or_throw(key, ceiling, message=None):
 		)
 
 
-def _reject_unless_portal_request():
-	"""Only accept uploads that came from this site's own portal page.
+def _referrer_path():
+	"""The path of the same-origin page this request came from, or None.
 
-	The previous check asked whether the string "visitor-pre-registration-form"
-	appeared *anywhere* in the Referer, which any origin satisfies —
-	`https://evil.example/visitor-pre-registration-form` passed, as did
-	`https://evil.example/?x=visitor-pre-registration-form`. Both the host and the
-	path have to be checked, against this site's own URL.
+	Compared against the host this request actually arrived on, not the site's
+	configured URL. A site is commonly reached by more than one name — an IP
+	and port on a gate terminal, a LAN hostname, the canonical domain — and
+	`get_url()` only ever knows the last of those. Matching the request's own
+	Host is what "same origin" means from the browser's point of view, and it
+	is the browser's view that decides what it puts in Referer.
 
 	This is a defence-in-depth layer, not the boundary: a non-browser client sets
 	Referer freely. The controls that actually bound the damage are the content,
-	size and rate checks around it.
+	size and rate checks, and the upload key the portal ties each file to
+	(`upload_key_matches`).
 	"""
 	if not frappe.request:
-		frappe.throw(
-			_("File uploads are only accepted from the visitor pre-registration form."),
-			frappe.PermissionError,
-		)
-
+		return None
 	referrer = frappe.request.headers.get("Referer", "") or ""
 	try:
 		from urllib.parse import urlparse
 
 		referrer_url = urlparse(referrer)
 	except Exception:
-		referrer_url = None
-
-	# Compare against the host this request actually arrived on, not the site's
-	# configured URL. A site is commonly reached by more than one name — an IP
-	# and port on a gate terminal, a LAN hostname, the canonical domain — and
-	# `get_url()` only ever knows the last of those. Matching the request's own
-	# Host is what "same origin" means from the browser's point of view, and it
-	# is the browser's view that decides what it puts in Referer.
+		return None
 	request_host = (frappe.request.host or "").lower()
-	same_origin = bool(referrer_url and referrer_url.netloc and referrer_url.netloc.lower() == request_host)
-	on_portal_path = bool(referrer_url and referrer_url.path.startswith("/visitor-pre-registration-form"))
+	if not (referrer_url.netloc and referrer_url.netloc.lower() == request_host):
+		return None
+	return referrer_url.path or "/"
 
-	if same_origin and on_portal_path:
-		return
 
-	frappe.throw(
-		_("File uploads are only accepted from the visitor pre-registration form."),
-		frappe.PermissionError,
-	)
+def _is_portal_request():
+	"""Did this upload come from this site's own visitor pre-registration form?
+
+	The check once asked whether the string "visitor-pre-registration-form"
+	appeared *anywhere* in the Referer, which any origin satisfies —
+	`https://evil.example/visitor-pre-registration-form` passed. Both the host and
+	the path are checked.
+	"""
+	path = _referrer_path()
+	return bool(path and path.startswith("/visitor-pre-registration-form"))
+
+
+def _other_page_may_upload():
+	from visitormanagement.setup import _PORTAL_UPLOADS_PREEXISTING_MARKER
+	from visitormanagement.visitor_management import settings as vms_settings
+
+	if frappe.db.get_default(_PORTAL_UPLOADS_PREEXISTING_MARKER):
+		return True
+	path = (_referrer_path() or "").rstrip("/") or None
+	if not path:
+		return False
+	return any(path == route or path.startswith(route + "/") for route in vms_settings.guest_upload_other_routes())
 
 
 def _content_head(doc):

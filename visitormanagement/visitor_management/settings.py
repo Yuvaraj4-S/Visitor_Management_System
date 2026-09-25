@@ -103,6 +103,17 @@ def max_portal_submissions_per_hour():
 	return _int("max_portal_submissions_per_hour", DEFAULT_MAX_PORTAL_SUBMISSIONS_PER_HOUR)
 
 
+def guest_upload_other_routes():
+	"""Page paths besides the visitor portal whose guests may upload files."""
+	raw = getattr(_settings(), "guest_upload_other_routes", None) or ""
+	routes = []
+	for line in raw.splitlines():
+		line = line.strip()
+		if line:
+			routes.append("/" + line.strip("/"))
+	return routes
+
+
 def country_code():
 	doc = _settings()
 	raw = (getattr(doc, "default_country_code", None) or "") if doc else ""

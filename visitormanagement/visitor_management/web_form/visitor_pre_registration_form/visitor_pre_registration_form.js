@@ -1,5 +1,35 @@
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
+// Every anonymous visitor shares one server session, so the server cannot tell
+// whose upload is whose. This page makes a random key, sends it with every file
+// it uploads and again with the submission; the server only lets a submission
+// claim files uploaded with its own key (portal_upload.UPLOAD_KEY_FIELD).
+const VMS_UPLOAD_KEY = (() => {
+	const bytes = new Uint8Array(24);
+	crypto.getRandomValues(bytes);
+	return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+})();
+
+(function tagPortalUploads() {
+	const proto = XMLHttpRequest.prototype;
+	if (proto.vmsTagsUploads) {
+		return;
+	}
+	proto.vmsTagsUploads = true;
+	const open = proto.open;
+	const send = proto.send;
+	proto.open = function (method, url, ...rest) {
+		this.vmsUploadUrl = String(url || "");
+		return open.call(this, method, url, ...rest);
+	};
+	proto.send = function (body) {
+		if (body instanceof FormData && this.vmsUploadUrl.includes("upload_file") && !body.has("vms_upload_key")) {
+			body.append("vms_upload_key", VMS_UPLOAD_KEY);
+		}
+		return send.call(this, body);
+	};
+})();
+
 const ALWAYS_LOCKED_FIELDS = [
 	"visitor_type",
 	"email_id",
@@ -58,6 +88,35 @@ function isValidMobile(value) {
 	return false;
 }
 
+// Choosing a nationality moves the phone's country code with it, as the desk
+// form does (visitor_pass.js sync_mobile_country_with_nationality). A foreign
+// visitor otherwise typed their number under +91 and it was refused. Bound from
+// attachMobileValidator, which runs for both the invitation and direct links.
+function bindNationalityToPhone() {
+	const $nationality = frappe.web_form.get_input("custom_nationality");
+	if (!$nationality || !$nationality.length || $nationality.data("vmPhoneSync")) {
+		return;
+	}
+	$nationality.data("vmPhoneSync", true);
+	$nationality.on("change awesomplete-selectcomplete", () => {
+		setTimeout(() => {
+			const country = getFieldValue("custom_nationality");
+			const phone = frappe.web_form.fields_dict?.mobile_number;
+			if (
+				country &&
+				phone &&
+				phone.country_codes &&
+				phone.country_codes[country] &&
+				phone.country_code_picker &&
+				phone.$isd &&
+				phone.$isd.length
+			) {
+				phone.country_code_picker.on_change(country, false);
+			}
+		}, 0);
+	});
+}
+
 function attachMobileValidator() {
 	const field = frappe.web_form?.fields_dict?.mobile_number;
 	if (!field) {
@@ -66,6 +125,7 @@ function attachMobileValidator() {
 	// Do this before anything else touches the control — core throws on its own
 	// first render, whether or not we are prefilling a value.
 	guardPhoneControl(field);
+	bindNationalityToPhone();
 	if (field._vmMobileValidatorBound) {
 		return;
 	}
@@ -600,6 +660,7 @@ function bindGenericFormHandlers() {
 			applyVisitorTypeSections(getFieldValue("visitor_type"));
 		}, 0);
 	});
+
 }
 
 function unlockDirectAccessFields() {
@@ -988,6 +1049,7 @@ function setupInvitationHooks() {
 		this.doc.doctype = this.doc_type;
 		this.doc.web_form_name = this.name;
 		this.doc.invitation_token = getInvitationToken();
+		this.doc.upload_key = VMS_UPLOAD_KEY;
 		this.doc.entry_type = "New";
 		this.doc.request_channel = "Portal";
 		this.doc.submission_action = "submit";

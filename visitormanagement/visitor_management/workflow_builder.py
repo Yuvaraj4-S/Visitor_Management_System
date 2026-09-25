@@ -124,12 +124,16 @@ def get_visitor_type_approvers() -> dict:
 # ─────────────────────────────────────────────────────────
 # Dependency records
 # ─────────────────────────────────────────────────────────
+# Created only when missing and never updated: states, actions and roles are
+# shared by name with every other app's workflows. What this app creates is
+# recorded, so uninstall can remove it (setup.mark_created).
 def _ensure_workflow_state(state: str, style: str):
 	if frappe.db.exists("Workflow State", state):
 		return
 	frappe.get_doc(
 		{"doctype": "Workflow State", "workflow_state_name": state, "style": style}
 	).insert(ignore_permissions=True)
+	_mark_created("Workflow State", state)
 
 
 def _ensure_workflow_action(action: str):
@@ -138,11 +142,19 @@ def _ensure_workflow_action(action: str):
 	frappe.get_doc(
 		{"doctype": "Workflow Action Master", "workflow_action_name": action}
 	).insert(ignore_permissions=True)
+	_mark_created("Workflow Action Master", action)
 
 
 def _ensure_role(role: str):
 	if not frappe.db.exists("Role", role):
 		frappe.get_doc({"doctype": "Role", "role_name": role}).insert(ignore_permissions=True)
+		_mark_created("Role", role)
+
+
+def _mark_created(doctype, name):
+	from visitormanagement.setup import mark_created
+
+	mark_created(doctype, name)
 
 
 # ─────────────────────────────────────────────────────────
@@ -173,11 +185,31 @@ def _is_final_approver(role):
 # ─────────────────────────────────────────────────────────
 # Builder
 # ─────────────────────────────────────────────────────────
+_FINGERPRINT_KEY = "vms_visitor_pass_workflow_fingerprint"
+
+
+def _fingerprint(states, transitions):
+	import hashlib
+	import json
+
+	return hashlib.sha256(json.dumps([states, transitions], sort_keys=True).encode()).hexdigest()
+
+
 def build_workflow(commit=False):
 	"""Rebuild `Visitor Pass Approval` from the current Visitor Type masters.
 
-	Idempotent. Returns the workflow name, or None when no active Visitor Type
-	carries an approver role (nothing sensible to build).
+	Returns the workflow name when it was written, or None when there was nothing
+	to write: no active Visitor Type carries an approver role, or the generated
+	lanes are exactly what was generated last time.
+
+	That second case is what keeps a hand edit alive. This used to rewrite the
+	whole workflow on every migrate and every Visitor Type save, so anything an
+	admin changed on it (an extra condition, a renamed action, allow_self_approval)
+	vanished on the next deploy. The generated shape is fingerprinted: it is only
+	written again when the approval routing itself changes — a Visitor Type's
+	approver roles, or this generator's own rules in a new app version — or when
+	the workflow is missing. A routing change still replaces the whole workflow,
+	because the lanes are derived from the Visitor Types and cannot be merged.
 	"""
 	rows = [r for r in _visitor_type_rows() if r.approver_role]
 	if not rows:
@@ -207,7 +239,9 @@ def build_workflow(commit=False):
 	transitions = []
 
 	# Draft -> the lane owned by each type's primary approver.
-	for role in {r.approver_role for r in rows if r.approver_role}:
+	# Sorted: a set's order changes between processes, and the fingerprint below
+	# must be the same for the same routing.
+	for role in sorted({r.approver_role for r in rows if r.approver_role}):
 		transitions.append(
 			{
 				"state": DRAFT,
@@ -286,6 +320,10 @@ def build_workflow(commit=False):
 		)
 
 	# --- persist ------------------------------------------------------
+	fingerprint = _fingerprint(states, transitions)
+	if frappe.db.exists("Workflow", WORKFLOW_NAME) and frappe.db.get_default(_FINGERPRINT_KEY) == fingerprint:
+		return None
+
 	workflow = (
 		frappe.get_doc("Workflow", WORKFLOW_NAME)
 		if frappe.db.exists("Workflow", WORKFLOW_NAME)
@@ -311,6 +349,7 @@ def build_workflow(commit=False):
 		workflow.insert(ignore_permissions=True)
 	else:
 		workflow.save(ignore_permissions=True)
+	frappe.db.set_default(_FINGERPRINT_KEY, fingerprint)
 
 	if commit:
 		frappe.db.commit()

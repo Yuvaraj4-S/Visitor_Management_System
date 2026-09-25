@@ -11,6 +11,7 @@ from frappe.utils import (
 
 from visitormanagement.visitor_management import settings as vms_settings
 from visitormanagement.visitor_management.lifecycle import _format_event_details
+from visitormanagement.visitor_management.mail import esc
 
 # Recipient roles are configured in VMS Settings; see
 # visitor_management.settings.digest_recipient_roles for the fallback list.
@@ -84,7 +85,9 @@ def _build_html(today, rows):
 			return f"<h3>{title} (0)</h3><p style='color:#829ab1'>None scheduled.</p>"
 		html = [f"<h3>{title} ({len(items)})</h3><ul>"]
 		for r in items:
-			html.append(f"<li>{render_row(r)}</li>")
+			# Driver names, booking references and pickup points are typed by staff;
+			# escaped so a planted link or image cannot reach the digest's readers.
+			html.append(f"<li>{render_row(frappe._dict({k: esc(v, None) for k, v in r.items()}))}</li>")
 		html.append("</ul>")
 		return "".join(html)
 
@@ -412,8 +415,8 @@ def flag_overstaying_visitors():
 
 	`flag_no_show_passes` catches the visitor who never arrived. Nothing caught
 	the opposite and more serious case: the visitor who arrived, never checked
-	out, and stays "Checked-In" forever. On this site that left 17 people shown
-	as on the premises, the oldest for 25 days — so the honest answer to "who is
+	out, and stays "Checked-In" forever — shown as on the premises for days or
+	weeks, so the honest answer to "who is
 	in the building right now", the one question a gate exists to answer, was
 	wrong by 17.
 
@@ -439,8 +442,7 @@ def flag_overstaying_visitors():
 			"status": "Checked-In",
 			"docstatus": ("<", 2),
 			# A pass stuck at Checked-In is never auto-checked-out (see the
-			# docstring above), so without a bound this scan only ever grows —
-			# on this site 17 of 187 passes are already stuck, one for 25 days.
+			# docstring above), so without a bound this scan only ever grows.
 			# Anything that checked in more than OVERSTAY_SCAN_WINDOW_DAYS ago
 			# and is still "overstaying" was already over `max_hours` (which is
 			# hours, not days) long before it aged out of this window, so it was
@@ -530,9 +532,9 @@ def _notify_overstay(rows, max_hours):
 	for row in rows:
 		lines.append(
 			"<tr>"
-			f"<td style='padding:4px 2px;color:#1f2933;word-break:break-word;'>{row.visitor_full_name or row.name}</td>"
-			f"<td style='padding:4px 2px;color:#5b6b7b;word-break:break-word;'>host {row.host_name or '-'}</td>"
-			f"<td style='padding:4px 2px;color:#b42318;'>{row.hours_in} h on site</td>"
+			f"<td style='padding:4px 2px;color:#1f2933;word-break:break-word;'>{esc(row.visitor_full_name or row.name)}</td>"
+			f"<td style='padding:4px 2px;color:#5b6b7b;word-break:break-word;'>host {esc(row.host_name, '-')}</td>"
+			f"<td style='padding:4px 2px;color:#b42318;'>{esc(row.hours_in)} h on site</td>"
 			"</tr>"
 		)
 	lines.append("</table>")
@@ -597,10 +599,8 @@ _TERMINAL_PASS_STATUSES = ("Checked-Out", "Rejected", "Cancelled")
 # `status in ("Approved", "Items Verified")`. The no_show branch below must
 # reuse that same restriction rather than trusting the flag alone.
 #
-# Found the hard way: a live proof run on a shared site purged
-# VP-2026-00221 (host HR-EMP-00057) — a Visitor Pass sitting in "Pending
-# Approval" / "Pending System Manager", i.e. still actively awaiting
-# approval right now — solely because it carried a stale no_show=1 that
+# Without it, a Visitor Pass sitting in "Pending Approval" — still actively
+# awaiting approval — was purged solely because it carried a stale no_show=1 that
 # had no business surviving whatever earlier event (a Reject-then-Reapply,
 # most likely) put it back into an active lane. `no_show` is never cleared
 # on that path, so treating no_show=1 as sufficient by itself is wrong: it
@@ -682,6 +682,91 @@ def _delete_file(file_url):
 		frappe.log_error(
 			f"Data retention: could not delete File {name} ({file_url}): {exc}", "VMS Data Retention"
 		)
+
+
+# Doctypes whose forms take uploads; a file attached to one of their unsaved
+# ("new-...") names belongs to a form that was abandoned.
+_UPLOAD_DOCTYPES = ("Visitor Pass", "Security Log", "Visitor Invitation", "Visitor Blacklist")
+
+
+def purge_abandoned_uploads():
+	"""Put strays back on their record, and delete uploads nothing ever used.
+
+	Two kinds of File row are looked at once they are a day old:
+	  - desk uploads still on an unsaved form's "new-..." name. Frappe relinks
+	    those only within 60 minutes of the upload; a pass finished later still
+	    uses the file. Such a row is moved onto that record (or dropped if the
+	    record already has its own row for it). Only a row no saved record uses
+	    is deleted — the form really was abandoned;
+	  - portal uploads a visitor never submitted (the portal adopts an unattached
+	    guest file for 30 minutes only), unless a saved record uses the URL.
+	They are mostly ID scans and face photos, so the abandoned ones should not
+	linger. A deleted row's bytes are removed only when no other File row shares
+	them (File._delete_file_on_disk). See visitor_management/uploads.py.
+	"""
+	from visitormanagement.visitor_management.uploads import saved_record_using
+
+	cutoff = add_to_date(now_datetime(), days=-1)
+	relinked, deleted = 0, 0
+
+	for f in frappe.get_all(
+		"File",
+		filters={
+			"attached_to_doctype": ("in", _UPLOAD_DOCTYPES),
+			"attached_to_name": ("like", "new-%"),
+			"creation": ("<", cutoff),
+		},
+		fields=["name", "file_url", "attached_to_doctype", "owner"],
+	):
+		used_by = saved_record_using(f.attached_to_doctype, f.file_url)
+		if not used_by:
+			deleted += _delete_upload(f.name)
+			continue
+		record, fieldname = used_by
+		if frappe.db.get_value(f.attached_to_doctype, record, "owner") != f.owner:
+			# Someone else's record holds this URL: a stray is its creator's own upload,
+			# so this one was pasted in. Moving it would hand the file to that record's
+			# readers; it is dropped like any abandoned upload.
+			deleted += _delete_upload(f.name)
+			continue
+		if frappe.db.exists(
+			"File",
+			{"file_url": f.file_url, "attached_to_doctype": f.attached_to_doctype, "attached_to_name": record},
+		):
+			deleted += _delete_upload(f.name)  # a duplicate row; the record's own row keeps the bytes
+		else:
+			frappe.db.set_value(
+				"File",
+				f.name,
+				{"attached_to_name": record, "attached_to_field": fieldname},
+				update_modified=False,
+			)
+			relinked += 1
+
+	for f in frappe.get_all(
+		"File",
+		filters={
+			"owner": "Guest",
+			"attached_to_doctype": ("is", "not set"),
+			"is_folder": 0,
+			"creation": ("<", cutoff),
+		},
+		fields=["name", "file_url"],
+	):
+		# The portal once stored a guest-supplied URL without attaching its File.
+		if not any(saved_record_using(dt, f.file_url) for dt in _UPLOAD_DOCTYPES):
+			deleted += _delete_upload(f.name)
+
+	return {"relinked": relinked, "deleted": deleted}
+
+
+def _delete_upload(name):
+	try:
+		frappe.delete_doc("File", name, ignore_permissions=True, force=True, delete_permanently=True)
+		return 1
+	except Exception as exc:
+		frappe.log_error(f"Could not delete abandoned upload {name}: {exc}", "VMS Abandoned Uploads")
+		return 0
 
 
 def _retention_cutoff():

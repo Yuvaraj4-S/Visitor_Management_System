@@ -6,7 +6,9 @@ authors = [
 description = "Visitor Management System"
 requires-python = ">=3.14"
 readme = "README.md"
-version = "2.0.0"
+# Single source: visitormanagement/__init__.py:__version__ (what Frappe shows as the
+# installed version). The two used to disagree — 2.0.0 here, 1.0.0 there.
+dynamic = ["version"]
 dependencies = [
     # "frappe~=16.0.0" # Installed and managed by bench.
     "qrcode[pil]>=7.4",

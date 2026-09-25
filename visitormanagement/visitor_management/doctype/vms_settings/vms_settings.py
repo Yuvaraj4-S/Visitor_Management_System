@@ -60,8 +60,8 @@ class VMSSettings(Document):
 		`File.handle_is_private_changed` moves the file on disk and rewrites
 		`file_url`, and the new public URL is stored back here.
 
-		A URL with no File record behind it — an attachment deleted after it was set,
-		which is the state site.local was found in — cannot be repaired that way. That
+		A URL with no File record behind it — an attachment deleted after it was
+		set — cannot be repaired that way. That
 		is cleared with a visible message rather than thrown, so a dangling logo can
 		never wedge the Settings form and lock an admin out of every other field on it.
 		"""

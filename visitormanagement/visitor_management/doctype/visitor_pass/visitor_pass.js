@@ -16,6 +16,10 @@
 // A linked master is a convenience for blank fields, not an authority over what a
 // human just entered. Same "did a person choose this?" principle the server side
 // already applies to meal_type and special_diet in lifecycle.py.
+// Returns only the fields a pass copies from a picked Employee / Job Applicant /
+// Supplier, to anyone allowed to pick one — so no role needs full READ on them.
+const LINK_DETAILS_METHOD = "visitormanagement.visitor_management.link_details.get_link_details";
+
 function fill_if_blank(frm, fieldname, value) {
 	if (!value) {
 		return;
@@ -101,7 +105,29 @@ function sync_mobile_country_with_nationality(frm) {
 	}
 }
 
+// Mirrors VisitorPass.VISIT_ONLY_FIELDS. Frappe copies no_copy fields on Amend
+// (frappe.model.copy_doc skips them only when not amending), so an amended copy
+// of a cancelled pass opened showing the old visit's approval, check-in times,
+// QR code and hospitality request. The server clears them on save as well.
+const VISIT_ONLY_FIELDS = [
+	"approved_by", "approval_date", "badge_number", "qr_code_image",
+	"gate_verified_photo", "gate_verified_on", "gate_verified_by",
+	"actual_checkin", "actual_checkout", "no_show", "current_location",
+	"item_verification_status", "items_verified", "all_items_verified",
+	"hospitality_request", "hospitality_overall_status", "food_status",
+	"food_dept_staff_assigned",
+];
+
 frappe.ui.form.on("Visitor Pass", {
+	onload(frm) {
+		if (frm.is_new() && frm.doc.amended_from) {
+			VISIT_ONLY_FIELDS.forEach((fieldname) => {
+				frm.doc[fieldname] = null;
+			});
+			frm.doc.status = "Draft";
+		}
+	},
+
 	refresh(frm) {
 		ensure_customer_crm_defaults(frm);
 		setup_supplier_pass_query(frm);
@@ -144,7 +170,7 @@ frappe.ui.form.on("Visitor Pass", {
 	supplier_link(frm) {
 		if (frm.doc.supplier_link) {
 			frappe.call({
-				method: 'frappe.client.get',
+				method: LINK_DETAILS_METHOD,
 				args: { doctype: 'Supplier', name: frm.doc.supplier_link },
 				callback: function(r) {
 					if (r.message) {
@@ -161,7 +187,7 @@ frappe.ui.form.on("Visitor Pass", {
 	contractor_link(frm) {
 		if (frm.doc.contractor_link) {
 			frappe.call({
-				method: 'frappe.client.get',
+				method: LINK_DETAILS_METHOD,
 				args: { doctype: 'Supplier', name: frm.doc.contractor_link },
 				callback: function(r) {
 					if (r.message) {
@@ -178,18 +204,41 @@ frappe.ui.form.on("Visitor Pass", {
 	job_applicant_link(frm) {
 		if (frm.doc.job_applicant_link) {
 			frappe.call({
-				method: 'frappe.client.get',
+				method: LINK_DETAILS_METHOD,
 				args: { doctype: 'Job Applicant', name: frm.doc.job_applicant_link },
 				callback: function(r) {
 					if (r.message) {
 						fill_if_blank(frm, 'visitor_full_name', r.message.applicant_name);
 						fill_if_blank(frm, 'mobile_number', r.message.phone_number);
 						fill_if_blank(frm, 'email_id', r.message.email_id);
-						fill_if_blank(frm, 'company__organisation', r.message.company_name);
+						frm.set_value('position_applied', r.message.job_title || '');
 					}
 				}
 			});
+		} else {
+			frm.set_value('position_applied', '');
 		}
+	},
+
+	person_to_visit(frm) {
+		// Was `fetch_from` on the three host fields, which needs READ on the whole
+		// Employee record; this returns only these three (see link_details.py).
+		if (!frm.doc.person_to_visit) {
+			frm.set_value({ host_name: '', host_department: '', host_email: '' });
+			return;
+		}
+		frappe.call({
+			method: LINK_DETAILS_METHOD,
+			args: { doctype: 'Employee', name: frm.doc.person_to_visit },
+			callback: function(r) {
+				const d = r.message || {};
+				frm.set_value({
+					host_name: d.employee_name || '',
+					host_department: d.department || '',
+					host_email: d.user_id || '',
+				});
+			}
+		});
 	},
 
 	mobile_number(frm) {
@@ -1081,12 +1130,25 @@ function call_gate_endpoint(frm, method) {
 	});
 }
 
+// Same window as visitor_gate._valid_today: the visit date, or visit_date ..
+// pass_valid_until for a multi-day pass. Checking out does not end it.
+function pass_valid_today(frm) {
+	const { visit_date, multi_day_pass, pass_valid_until } = frm.doc;
+	if (!visit_date) return false;
+	const today = frappe.datetime.get_today();
+	const last_day = multi_day_pass && pass_valid_until ? pass_valid_until : visit_date;
+	return visit_date <= today && today <= last_day;
+}
+
 function add_gate_buttons(frm) {
-	if (frm.is_new()) return;
+	// Only a submitted (approved) pass reaches the gate — never a draft or a cancelled one.
+	if (frm.is_new() || frm.doc.docstatus !== 1) return;
 
 	const stage = frm.doc.status;
+	// A visitor who stepped out comes back in on the same pass.
+	const reentry = stage === "Checked-Out" && pass_valid_today(frm);
 
-	if (["Approved", "Items Verified"].includes(stage)) {
+	if (["Approved", "Items Verified"].includes(stage) || reentry) {
 		frm.add_custom_button(__("Check In"), () => call_gate_endpoint(frm, "visitor_checkin"));
 	}
 

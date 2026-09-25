@@ -28,6 +28,30 @@ _Changes on the `version-16` branch that are not yet in a tagged release._
 
 ### Security
 
+- **Guards and hosts can no longer read the whole HR record.** The app granted READ on
+  Employee to eight roles (Security, Host Employee, HOD, CEO, Sales Manager, Facility and
+  Hospitality Manager) so they could pick a person in a link field — and READ is the whole
+  record: bank account, salary, PAN, date of birth, health details. Earlier versions granted
+  EXPORT too. A bug in the permission helper also gave hosts and reception READ on Job
+  Applicant (candidates' CVs), Supplier and Maintenance Visit where only "select" was meant.
+  These roles now get SELECT only, and the few fields a pass copies from the picked record
+  (host name, department and email; candidate or supplier name, phone and email) come from
+  a narrow endpoint. Existing sites are narrowed once on migrate; roles HRMS or ERPNext grant
+  themselves are not touched.
+- **A draft pass's status can no longer be set by hand.** `status` is read-only on the form,
+  but the API does not honour read-only, so the owner of a draft could mark it "Checked-In".
+  The Active Visitors and Daily Visitor Log reports then showed a visitor on site who was
+  never approved, and the draft appeared to Security. A draft's status is now always derived
+  from its approval stage. (The gate itself was never fooled.)
+- **Values in staff and visitor emails are escaped.** Driver names, item names, purposes and
+  similar fields were pasted into HTML mails as typed; a planted link or image survived
+  Frappe's sanitiser and reached every recipient of the daily hospitality digest. All seven
+  mails the app builds now escape record values.
+- **A visitor's upload can only be claimed by their own submission.** On a shared reception
+  kiosk, two anonymous visitors were indistinguishable, so a file one had just uploaded could
+  be claimed by the other's submission if its address leaked. The portal page now makes a
+  random key, sends it with each upload and with the submission, and only matching files are
+  accepted.
 - **Invitation links are now case-sensitive.** The pre-registration token is a bearer
   credential — whoever holds the string can open that visitor's form — but it was stored in a
   case-insensitive database collation, so a token with its letters' case flipped opened the
@@ -37,6 +61,22 @@ _Changes on the `version-16` branch that are not yet in a tagged release._
 
 ### Fixed
 
+- **Installing the app no longer changes other apps.** Workflow states ("Draft", "Approved",
+  "Rejected", "Cancelled", "Pending Approval"), workflow actions and roles ("HOD", "CEO",
+  "Security") were shipped as fixtures, which Frappe re-imports on every migrate — so each
+  update reset their colours, icons and role settings for every app on the site. They are now
+  created only when missing. Guest uploads from other apps' public forms are no longer refused
+  by this app's upload guard: a site that allowed guest uploads before this app keeps doing so,
+  and a page can be allowed in **VMS Settings → Other Pages That May Accept Guest Uploads**.
+- **Hand edits to the Visitor Pass workflow survive a migrate.** It used to be regenerated on
+  every migrate and every Visitor Type save; it is now rewritten only when the approval routing
+  itself changes.
+- **Uninstalling leaves the site clean.** Frappe's uninstall left the Job Applicant interview
+  fields, the three workflows, two notifications, this app's permission rows on HRMS/ERPNext
+  DocTypes (which also froze those DocTypes' permissions), its roles, scheduled jobs — and
+  visitors' ID scans and photos on disk. The app's uninstall hook now removes them, and leaves
+  alone anything the site may own too. `uninstall-app --dry-run` no longer switches guest
+  uploads off.
 - **A multi-day pass can now be used on more than one day.** A contractor pass valid from,
   say, Monday to Friday was refused at the gate on Tuesday, because checking out on Monday
   retired the pass. Re-entry is now allowed for any day inside the pass's validity window;

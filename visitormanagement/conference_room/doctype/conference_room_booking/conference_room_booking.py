@@ -8,11 +8,14 @@ from frappe.model.document import Document
 from frappe.utils import cint, flt, get_datetime, get_time, getdate, time_diff_in_hours, today
 
 from visitormanagement.permissions import get_conference_room_booking_permission_query_conditions
+from visitormanagement.visitor_management.link_details import fill_from_link
 
 
 class ConferenceRoomBooking(Document):
 
 	def validate(self):
+		# Was `fetch_from: booked_by.department`, which needed READ on Employee.
+		fill_from_link(self, "booked_by", "Employee", {"department": "department"})
 		self.validate_schedule()
 		self.calculate_duration()
 		self.validate_capacity()
@@ -231,7 +234,7 @@ def get_available_rooms(booking_date, start_time, end_time, min_capacity=0, excl
 		FROM `tabConference Room Booking`
 		WHERE booking_date = %(date)s
 		  AND docstatus < 2
-		  AND status NOT IN ('Cancelled')
+		  AND status NOT IN ('Cancelled', 'Rejected')
 		  AND (start_time < %(end_time)s AND end_time > %(start_time)s)
 		"""
 		+ exclude_clause,
@@ -253,7 +256,8 @@ def get_room_schedule(conference_room, booking_date):
 			"conference_room": conference_room,
 			"booking_date": booking_date,
 			"docstatus": ["<", 2],
-			"status": ["not in", ["Cancelled"]],
+			# Same exclusions as validate_overlap: a rejected booking holds no slot.
+			"status": ["not in", ["Cancelled", "Rejected"]],
 		},
 		fields=[
 			"name", "meeting_title", "start_time", "end_time",

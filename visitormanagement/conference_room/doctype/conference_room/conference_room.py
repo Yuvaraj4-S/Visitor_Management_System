@@ -14,9 +14,9 @@ class ConferenceRoom(Document):
 			# reach validate() as a string, and the Desk sends a single-digit hour
 			# without a leading zero. "9:00:00" >= "17:00:00" is True as strings
 			# ('9' > '1'), so a room open 09:00-17:00 was rejected as "'Available
-			# From' must be before 'Available To'". Every room on this site has a
-			# single-digit opening hour, so a Facility Manager could not re-save an
-			# existing room at all — even without touching the time fields.
+			# From' must be before 'Available To'". A room opening before 10:00
+			# therefore could not be re-saved at all — even without touching the
+			# time fields.
 			# conference_room_booking.py:87 already compares this way; matched here.
 			if get_time(self.available_from) >= get_time(self.available_to):
 				frappe.throw(_("'Available From' must be before 'Available To'."))

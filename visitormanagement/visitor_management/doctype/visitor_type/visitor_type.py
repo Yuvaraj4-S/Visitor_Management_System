@@ -33,7 +33,6 @@ class VisitorType(Document):
 		saves happily as Draft and then dies at Submit with Frappe's generic
 		"Not a valid Workflow Action" — a message that says nothing about the real
 		cause, which is an incomplete master somebody configured days earlier.
-		Reproduced live: VP-2026-00706 on a type with no approver.
 
 		Catching it here means the person who can actually fix it is told at the
 		moment they cause it, instead of a receptionist meeting a dead end later.

@@ -50,6 +50,24 @@ def _assert_gate_permission():
 		)
 
 
+def _valid_today(vp):
+	"""True if today falls inside the days this pass is good for.
+
+	The same window SecurityLog.before_save enforces: the visit date, or for a
+	multi-day pass visit_date..pass_valid_until. Checking out does not end that
+	window — a visitor who steps out for lunch comes back on the same pass — so
+	the gate must offer re-entry for a Checked-Out pass while it is still valid.
+	Without this the Security Log allowed re-entry but nothing could reach it:
+	the endpoint and the QR scan both refused a Checked-Out pass outright.
+	"""
+	if not vp.visit_date:
+		return False
+	today_date = getdate(today())
+	first_day = getdate(vp.visit_date)
+	last_day = getdate(vp.pass_valid_until) if cint(vp.multi_day_pass) and vp.pass_valid_until else first_day
+	return first_day <= today_date <= last_day
+
+
 def _default_gate(visitor_type):
 	"""Same resolution the Security Log controller uses, so the prefilled gate
 	matches what would be auto-assigned on save."""
@@ -98,12 +116,23 @@ def visitor_checkin(docname):
 	_assert_gate_permission()
 
 	pass_state = frappe.db.get_value(
-		"Visitor Pass", docname, ["status", "docstatus", "workflow_state"], as_dict=True
+		"Visitor Pass",
+		docname,
+		["status", "docstatus", "workflow_state", "visit_date", "multi_day_pass", "pass_valid_until"],
+		as_dict=True,
 	)
 	if not pass_state:
 		frappe.throw(_("Visitor Pass {0} does not exist.").format(docname))
 
-	if pass_state.status not in ENTRY_STATUSES:
+	if pass_state.status == "Cancelled" or cint(pass_state.docstatus) == 2:
+		frappe.throw(_("Pass {0} has been cancelled. Entry refused.").format(docname), title=_("Cancelled Pass"))
+
+	if pass_state.status == "Checked-Out":
+		if not _valid_today(pass_state):
+			frappe.throw(
+				_("Visitor has already checked out and pass {0} is no longer valid today.").format(docname)
+			)
+	elif pass_state.status not in ENTRY_STATUSES:
 		frappe.throw(
 			_("Pass must be 'Approved' or 'Items Verified' to Check-In. Current status: {0}").format(
 				pass_state.status
@@ -196,7 +225,7 @@ def scan_qr_checkin(qr_data):
 			{
 				"visitor_full_name": visitor_name,
 				"visit_date": visit_date,
-				"status": ["in", list(ENTRY_STATUSES)],
+				"status": ["in", [*ENTRY_STATUSES, "Checked-Out"]],
 			},
 			"name",
 		)
@@ -207,21 +236,33 @@ def scan_qr_checkin(qr_data):
 	vp_info = frappe.db.get_value(
 		"Visitor Pass",
 		doc_name,
-		["status", "visit_date", "id_proof_number", "visitor_full_name", "id_proof_type", "mobile_number"],
+		[
+			"status",
+			"visit_date",
+			"multi_day_pass",
+			"pass_valid_until",
+			"id_proof_number",
+			"visitor_full_name",
+			"id_proof_type",
+			"mobile_number",
+		],
 		as_dict=True,
 	)
 	doc_status = vp_info.status
 
-	# Visit date must match today (checkout still allowed for an already Checked-In pass)
+	# The pass must be valid today (checkout still allowed for an already Checked-In pass).
+	# A multi-day pass is valid on every day of its window, not only the first.
 	if vp_info.visit_date and doc_status != "Checked-In":
-		if getdate(vp_info.visit_date) != getdate(today()):
+		if not _valid_today(vp_info):
 			frappe.throw(
 				_("Visitor Pass {0} is for {1}, not today. QR code not valid for this date.").format(
 					doc_name, vp_info.visit_date
 				)
 			)
 
-	if doc_status in ENTRY_STATUSES:
+	# Checked-Out on a day the pass is still valid is a re-entry (the date check
+	# above has already refused one that is not).
+	if doc_status in ENTRY_STATUSES or doc_status == "Checked-Out":
 		# Re-check blacklist only at entry — a Checked-In blacklisted visitor must still
 		# be allowed to check out. Match by ID number first, fall back to name + ID type.
 		from visitormanagement.visitor_management.doctype.visitor_blacklist.visitor_blacklist import (
@@ -243,13 +284,6 @@ def scan_qr_checkin(qr_data):
 
 	if doc_status == "Checked-In":
 		return visitor_checkout(doc_name)
-
-	if doc_status == "Checked-Out":
-		frappe.throw(
-			_("Visitor Pass {0} has already been used (Checked-Out). This QR code is now inactive.").format(
-				doc_name
-			)
-		)
 
 	frappe.throw(
 		_("Visitor Pass {0} is in '{1}' state. Expected 'Approved', 'Items Verified', or 'Checked-In'.").format(

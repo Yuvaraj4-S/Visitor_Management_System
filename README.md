@@ -48,22 +48,30 @@ the request body. Left unfenced, anyone on the internet could attach a file to a
 your site.
 
 **What fences it:** a `File` `before_insert` hook — `visitormanagement/visitor_management/portal_upload.py`,
-wired at `hooks.py` `doc_events` — inspects every file a not-logged-in caller creates and
-rejects it unless it is destined for the visitor pre-registration form. Specifically, an
-anonymous upload must be unattached or aimed at **Visitor Pass → ID Proof Scan / Visitor
-Photo**; anything pointed at any other DocType is refused. On top of that it must be a real
-JPG, PNG or PDF (checked by reading the file's own bytes, not trusting its name), be under
-5 MB, and stay within 30 uploads per hour per IP address. Every such file is forced private,
-so it cannot be read by guessing a URL. Logged-in users of any app are not touched by this
-hook at all.
+wired at `hooks.py` `doc_events` — inspects every file a not-logged-in caller creates.
+An upload from the visitor pre-registration form must be unattached or aimed at **Visitor
+Pass → ID Proof Scan / Visitor Photo**; it must be a real JPG, PNG or PDF (checked by reading
+the file's own bytes, not trusting its name), be under 5 MB, stay within 30 uploads per hour
+per IP address, and carry the random key the form page made when it loaded — only the
+submission holding that key can claim the file, so two visitors on a shared kiosk cannot take
+each other's documents. Every such file is forced private, so it cannot be read by guessing a
+URL. Logged-in users of any app are not touched by this hook at all.
+
+**Other apps' public forms** get exactly what they would get without this app:
+
+- If **Allow Guests to Upload Files** was already on before you installed this app, guest
+  uploads from every other page keep working as before.
+- If this app is what switched it on, guest uploads from other pages are refused — the same
+  as Frappe does with the setting off. To let another app's public form (a careers page taking
+  CVs, say) accept uploads, list its path in **VMS Settings → Other Pages That May Accept
+  Guest Uploads**, one per line (for example `/job_application`).
 
 **What you must still do yourself:**
 
 - The setting is turned on **once, at install**. If you switch it off later, `bench migrate`
   will not switch it back on — it prints a note saying the portal cannot accept uploads.
-- **Uninstalling the app does not switch it back off.** There is no uninstall hook in this
-  version. If you remove the app, go to **System Settings** and untick **Allow Guests to
-  Upload Files** yourself.
+- **Uninstalling the app switches it back off** — but only if this app is what switched it on.
+  If it was already on before, it is left as it is and the uninstall says so.
 - If you do not intend to use the guest pre-registration portal, switch the setting off after
   install. The rest of the app — walk-in passes, the gate, hospitality, rooms — works without
   it.
@@ -98,6 +106,15 @@ checks look the number up directly, and an encrypted column cannot be searched t
   **read no longer silently brings `export` with it** (changed in 2.0.0). It is asserted once
   and then belongs to your Role Permission Manager — the app will not re-open a permission an
   administrator has tightened.
+- On other apps' records — **Employee, Job Applicant, Supplier, Maintenance Visit** — the app
+  grants its roles **select** only: enough to pick a host, candidate or supplier in a link
+  field, not to open the record. (Earlier versions granted read, which on Employee is the
+  whole HR record — bank account, salary, PAN, date of birth. Migrating narrows those grants
+  once; roles HRMS or ERPNext grant themselves are not touched.) The few fields a pass copies
+  from the picked record come from a dedicated endpoint that returns only those fields.
+  Note that HRMS's own **Employee** role reads Employee records: give each employee user a
+  User Permission to their own Employee (HRMS does this when "Create User Permission" is
+  ticked on the Employee) or every employee can read every colleague's record.
 
 **Who can export identity data today.** Be aware that the shipped DocType permissions do give
 `export` on Visitor Pass — which includes the ID number column — to **CEO, HOD, HR Manager,
@@ -182,14 +199,28 @@ Migrations are idempotent — `bench migrate` is safe to run any number of times
 on migrate, and re-applying it does not overwrite a choice you have since made in the
 Role Permission Manager.
 
+### Uninstall
+
+```bash
+bench --site your-site uninstall-app visitormanagement
+```
+
+Besides the app's own DocTypes and records, the uninstall removes what the app added
+elsewhere: the Job Applicant interview fields, its three workflows and notifications, its
+permission rows on Employee / Supplier / Job Applicant / Maintenance Visit (restoring those
+DocTypes' standard permissions when nothing else was customised), the roles it created, its
+scheduled jobs, and every visitor's ID scan, photo and visa copy on disk. It switches **Allow
+Guests to Upload Files** back off if the app switched it on. Roles or settings that existed
+before the app are left alone. `--dry-run` changes nothing.
+
 ### Check it worked
 
 Open **`/app/visitor-management`** — the Visitor Management workspace. On Frappe v16 the desk
 is served at `/desk`, and `/app` redirects there. The app also appears as a tile on the
 `/apps` screen.
 
-This README is the authoritative installation reference for v16. The PDF under `docs/` was
-written for the v15 release and its stated versions are out of date.
+This README is the authoritative installation reference for v16. `docs/README.pdf` is a
+printable copy generated from it; regenerate it whenever this file changes.
 
 ---
 

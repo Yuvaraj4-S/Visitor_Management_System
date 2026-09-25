@@ -1,6 +1,7 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.utils import getdate, nowdate
 
 
@@ -16,13 +17,13 @@ def execute(filters=None):
 
 def _get_columns():
 	return [
-		{"label": "Service", "fieldname": "service", "fieldtype": "Data", "width": 110},
-		{"label": "Time", "fieldname": "time", "fieldtype": "Data", "width": 140},
-		{"label": "Visitor Pass", "fieldname": "visitor_pass", "fieldtype": "Link", "options": "Visitor Pass", "width": 130},
-		{"label": "Hospitality Request", "fieldname": "hospitality_request", "fieldtype": "Link", "options": "Hospitality Request", "width": 160},
-		{"label": "Details", "fieldname": "details", "fieldtype": "Data", "width": 260},
-		{"label": "Assignee", "fieldname": "assignee", "fieldtype": "Data", "width": 160},
-		{"label": "Status", "fieldname": "status", "fieldtype": "Data", "width": 110},
+		{"label": _("Service"), "fieldname": "service", "fieldtype": "Data", "width": 110},
+		{"label": _("Time"), "fieldname": "time", "fieldtype": "Data", "width": 140},
+		{"label": _("Visitor Pass"), "fieldname": "visitor_pass", "fieldtype": "Link", "options": "Visitor Pass", "width": 130},
+		{"label": _("Hospitality Request"), "fieldname": "hospitality_request", "fieldtype": "Link", "options": "Hospitality Request", "width": 160},
+		{"label": _("Details"), "fieldname": "details", "fieldtype": "Data", "width": 260},
+		{"label": _("Assignee"), "fieldname": "assignee", "fieldtype": "Data", "width": 160},
+		{"label": _("Status"), "fieldname": "status", "fieldtype": "Data", "width": 110},
 	]
 
 

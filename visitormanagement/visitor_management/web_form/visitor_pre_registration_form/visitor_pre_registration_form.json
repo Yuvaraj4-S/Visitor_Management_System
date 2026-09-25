@@ -20,7 +20,7 @@
  "list_columns": [],
  "login_required": 0,
  "max_attachment_size": 5,
- "modified": "2026-09-17 18:57:20.652792",
+ "modified": "2026-09-25 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "visitor-pre-registration-form",
@@ -106,6 +106,21 @@
    "max_value": 0,
    "read_only": 0,
    "reqd": 0,
+   "show_in_filter": 0
+  },
+  {
+   "allow_read_on_all_link_options": 0,
+   "default": "India",
+   "description": "Your nationality as shown on your passport. Visitors from another country must use a passport as ID proof and upload their visa.",
+   "fieldname": "custom_nationality",
+   "fieldtype": "Link",
+   "hidden": 0,
+   "label": "Nationality",
+   "max_length": 0,
+   "max_value": 0,
+   "options": "Country",
+   "read_only": 0,
+   "reqd": 1,
    "show_in_filter": 0
   },
   {
@@ -281,6 +296,21 @@
    "max_value": 0,
    "read_only": 0,
    "reqd": 1,
+   "show_in_filter": 0
+  },
+  {
+   "allow_read_on_all_link_options": 0,
+   "depends_on": "eval:doc.custom_nationality && doc.custom_nationality != 'India'",
+   "description": "Required for visitors from another country. JPG, PNG or PDF, max 5 MB.",
+   "fieldname": "custom_visa_copy",
+   "fieldtype": "Attach",
+   "hidden": 0,
+   "label": "Visa Copy",
+   "mandatory_depends_on": "eval:doc.custom_nationality && doc.custom_nationality != 'India'",
+   "max_length": 0,
+   "max_value": 0,
+   "read_only": 0,
+   "reqd": 0,
    "show_in_filter": 0
   },
   {

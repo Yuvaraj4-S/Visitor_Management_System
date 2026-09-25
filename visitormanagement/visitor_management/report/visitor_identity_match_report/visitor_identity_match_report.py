@@ -77,19 +77,19 @@ def _enforce_date_range(filters):
 
 def get_columns():
 	return [
-		{"label": "Type Comparison", "fieldname": "match_scope", "fieldtype": "Data", "width": 130},
-		{"label": "Matched On", "fieldname": "match_basis", "fieldtype": "Data", "width": 150},
-		{"label": "Primary Pass", "fieldname": "primary_pass", "fieldtype": "Link", "options": "Visitor Pass", "width": 130},
-		{"label": "Primary Visitor", "fieldname": "primary_visitor", "fieldtype": "Data", "width": 170},
-		{"label": "Primary Type", "fieldname": "primary_type", "fieldtype": "Data", "width": 105},
-		{"label": "Primary Visit", "fieldname": "primary_visit_date", "fieldtype": "Date", "width": 105},
-		{"label": "Matched Pass", "fieldname": "matched_pass", "fieldtype": "Link", "options": "Visitor Pass", "width": 130},
-		{"label": "Matched Visitor", "fieldname": "matched_visitor", "fieldtype": "Data", "width": 170},
-		{"label": "Matched Type", "fieldname": "matched_type", "fieldtype": "Data", "width": 105},
-		{"label": "Matched Visit", "fieldname": "matched_visit_date", "fieldtype": "Date", "width": 105},
-		{"label": "ID Proof", "fieldname": "id_proof_number", "fieldtype": "Data", "width": 140},
-		{"label": "Mobile", "fieldname": "mobile_number", "fieldtype": "Data", "width": 130},
-		{"label": "Email", "fieldname": "email_id", "fieldtype": "Data", "width": 200},
+		{"label": _("Type Comparison"), "fieldname": "match_scope", "fieldtype": "Data", "width": 130},
+		{"label": _("Matched On"), "fieldname": "match_basis", "fieldtype": "Data", "width": 150},
+		{"label": _("Primary Pass"), "fieldname": "primary_pass", "fieldtype": "Link", "options": "Visitor Pass", "width": 130},
+		{"label": _("Primary Visitor"), "fieldname": "primary_visitor", "fieldtype": "Data", "width": 170},
+		{"label": _("Primary Type"), "fieldname": "primary_type", "fieldtype": "Data", "width": 105},
+		{"label": _("Primary Visit"), "fieldname": "primary_visit_date", "fieldtype": "Date", "width": 105},
+		{"label": _("Matched Pass"), "fieldname": "matched_pass", "fieldtype": "Link", "options": "Visitor Pass", "width": 130},
+		{"label": _("Matched Visitor"), "fieldname": "matched_visitor", "fieldtype": "Data", "width": 170},
+		{"label": _("Matched Type"), "fieldname": "matched_type", "fieldtype": "Data", "width": 105},
+		{"label": _("Matched Visit"), "fieldname": "matched_visit_date", "fieldtype": "Date", "width": 105},
+		{"label": _("ID Proof"), "fieldname": "id_proof_number", "fieldtype": "Data", "width": 140},
+		{"label": _("Mobile"), "fieldname": "mobile_number", "fieldtype": "Data", "width": 130},
+		{"label": _("Email"), "fieldname": "email_id", "fieldtype": "Data", "width": 200},
 	]
 
 
@@ -289,14 +289,14 @@ def get_report_summary(data, skipped_groups=None):
 	skipped_count = len(skipped_groups or [])
 
 	summary = [
-		{"value": len(data), "label": "Matched Pairs", "indicator": "Blue"},
-		{"value": same_type, "label": "Same Type", "indicator": "Green"},
-		{"value": different_type, "label": "Different Type", "indicator": "Orange"},
+		{"value": len(data), "label": _("Matched Pairs"), "indicator": "Blue"},
+		{"value": same_type, "label": _("Same Type"), "indicator": "Green"},
+		{"value": different_type, "label": _("Different Type"), "indicator": "Orange"},
 	]
 	# Only shown when non-zero, so a normal run's summary is unchanged from before
 	# this fix — this is purely the "too many to show" signal from defect 2b.
 	if skipped_count:
-		summary.append({"value": skipped_count, "label": "Groups Skipped (Too Large)", "indicator": "Red"})
+		summary.append({"value": skipped_count, "label": _("Groups Skipped (Too Large)"), "indicator": "Red"})
 	return summary
 
 
@@ -322,12 +322,8 @@ def _visitor_pass_scope(alias="vp"):
 	ID proof numbers, mobile numbers and email addresses for every pass on the
 	site to anyone who could open it, with no row-level scoping at all.
 
-	This is now triplicated across three reports rather than shared from one
-	module. Left that way deliberately for this change — the two existing
-	copies belong to work another agent has in flight in parallel, and editing
-	them to extract a shared helper is out of scope here. Flagging as follow-up:
-	extract `_visitor_pass_scope` into a shared module once that parallel work
-	lands, so there is one copy instead of three to keep in sync.
+	The same function exists in all three reports; a change to one must be made
+	in the other two.
 
 	Script reports build their rows with raw SQL, which bypasses
 	`permission_query_conditions` entirely — so the row filter the list view

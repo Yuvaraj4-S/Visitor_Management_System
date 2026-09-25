@@ -31,6 +31,7 @@
   "default_country_code",
   "fever_threshold_c",
   "max_portal_submissions_per_hour",
+  "guest_upload_other_routes",
   "section_meals",
   "meal_windows",
   "section_notify",
@@ -80,10 +81,10 @@
   },
   {
    "default": "18:00:00",
+   "description": "Used as the expected check-out when a pass or invitation does not specify one.",
    "fieldname": "default_checkout_time",
    "fieldtype": "Time",
-   "label": "Default Checkout Time",
-   "description": "Used as the expected check-out when a pass or invitation does not specify one."
+   "label": "Default Checkout Time"
   },
   {
    "default": "12",
@@ -122,10 +123,10 @@
   },
   {
    "default": "0",
+   "description": "Leave OFF (the default) to require every declared item to be verified before a Check-In or Check-Out can be saved. Tick only if your site deliberately admits visitors without checking their declared items.",
    "fieldname": "allow_gate_without_item_verification",
    "fieldtype": "Check",
-   "label": "Allow Gate Events Without Item Verification",
-   "description": "Leave OFF (the default) to require every declared item to be verified before a Check-In or Check-Out can be saved. Tick only if your site deliberately admits visitors without checking their declared items."
+   "label": "Allow Gate Events Without Item Verification"
   },
   {
    "fieldname": "column_break_gate",
@@ -156,8 +157,8 @@
    "description": "Superseded by 'Requires Physical Badge' on each Visitor Type. Retained only for sites that have not yet set that flag.",
    "fieldname": "badge_required_for",
    "fieldtype": "Small Text",
-   "label": "Badge Required For (legacy)",
    "hidden": 1,
+   "label": "Badge Required For (legacy)",
    "read_only": 1
   },
   {
@@ -166,54 +167,60 @@
    "label": "Visit Policy"
   },
   {
+   "default": "90",
+   "description": "How far ahead a visit may be scheduled. 0 = no limit.",
    "fieldname": "max_advance_booking_days",
    "fieldtype": "Int",
-   "label": "Max Advance Booking (days)",
-   "default": "90",
-   "description": "How far ahead a visit may be scheduled. 0 = no limit."
+   "label": "Max Advance Booking (days)"
   },
   {
+   "default": "7",
    "fieldname": "invitation_expiry_days",
    "fieldtype": "Int",
-   "label": "Invitation Link Expiry (days)",
-   "default": "7"
+   "label": "Invitation Link Expiry (days)"
   },
   {
    "fieldname": "column_break_policy",
    "fieldtype": "Column Break"
   },
   {
+   "default": "4",
    "fieldname": "no_show_grace_hours",
    "fieldtype": "Int",
-   "label": "No-Show Grace (hours)",
-   "default": "4"
+   "label": "No-Show Grace (hours)"
   },
   {
+   "default": "91",
+   "description": "ISD code applied to local mobile numbers, without '+'.",
    "fieldname": "default_country_code",
    "fieldtype": "Data",
-   "label": "Default Phone Country Code",
-   "default": "91",
-   "description": "ISD code applied to local mobile numbers, without '+'."
+   "label": "Default Phone Country Code"
   },
   {
+   "default": "37.5",
+   "description": "Body temperature at or above which a Contact Trace Record's exposure risk is classified High. Health policy differs by site and authority.",
    "fieldname": "fever_threshold_c",
    "fieldtype": "Float",
-   "label": "Fever Threshold (°C)",
-   "default": "37.5",
-   "description": "Body temperature at or above which a Contact Trace Record's exposure risk is classified High. Health policy differs by site and authority."
+   "label": "Fever Threshold (°C)"
   },
   {
+   "default": "20",
+   "description": "Guest pre-registration submissions allowed per identity, per hour, before the public portal rate-limits further attempts. 0 is read as unset (falls back to the default), not as no limit.",
    "fieldname": "max_portal_submissions_per_hour",
    "fieldtype": "Int",
-   "label": "Max Portal Submissions per Hour",
-   "default": "20",
-   "description": "Guest pre-registration submissions allowed per identity, per hour, before the public portal rate-limits further attempts. 0 is read as unset (falls back to the default), not as no limit."
+   "label": "Max Portal Submissions per Hour"
   },
   {
+   "description": "One page path per line, e.g. /job_application. Guest file uploads from any page other than the visitor pre-registration form are refused while Visitor Management keeps 'Allow Guests to Upload Files' on for its portal — the same as Frappe does with that setting off. List another app's public form here to let its visitors upload again. Not needed if guest uploads were already on before this app was installed: those sites keep their own behaviour.",
+   "fieldname": "guest_upload_other_routes",
+   "fieldtype": "Small Text",
+   "label": "Other Pages That May Accept Guest Uploads"
+  },
+  {
+   "description": "Visit windows overlapping these slots auto-derive the meal plan.",
    "fieldname": "section_meals",
    "fieldtype": "Section Break",
-   "label": "Meal Windows",
-   "description": "Visit windows overlapping these slots auto-derive the meal plan."
+   "label": "Meal Windows"
   },
   {
    "fieldname": "meal_windows",
@@ -222,41 +229,41 @@
    "options": "VMS Meal Window"
   },
   {
+   "description": "Who receives VMS alerts. Leave a table empty to fall back to the built-in role list.",
    "fieldname": "section_notify",
    "fieldtype": "Section Break",
-   "label": "Notification Recipients",
-   "description": "Who receives VMS alerts. Leave a table empty to fall back to the built-in role list."
+   "label": "Notification Recipients"
   },
   {
+   "description": "Notified when a blacklisted visitor is matched.",
    "fieldname": "security_alert_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Security Alert Roles",
-   "options": "VMS Notification Role",
-   "description": "Notified when a blacklisted visitor is matched."
+   "options": "VMS Notification Role"
   },
   {
    "fieldname": "column_break_notify",
    "fieldtype": "Column Break"
   },
   {
+   "description": "Receive the daily hospitality schedule digest.",
    "fieldname": "digest_recipient_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Hospitality Digest Roles",
-   "options": "VMS Notification Role",
-   "description": "Receive the daily hospitality schedule digest."
+   "options": "VMS Notification Role"
   },
   {
+   "description": "DPDP / GDPR-style data minimisation for visitor identity data. OFF by default — nothing is ever deleted or anonymised unless this is explicitly turned on.",
    "fieldname": "section_retention",
    "fieldtype": "Section Break",
-   "label": "Data Retention & Purge",
-   "description": "DPDP / GDPR-style data minimisation for visitor identity data. OFF by default — nothing is ever deleted or anonymised unless this is explicitly turned on."
+   "label": "Data Retention & Purge"
   },
   {
    "default": "0",
+   "description": "When ticked, a nightly job anonymises name, mobile, email, ID number and photos on visits that are already over (Checked-Out, Rejected, Cancelled or No-Show) and older than the retention period. The visit record itself — dates, host, gate, badge, workflow history — is kept for audit and statistics. Leave this OFF until your compliance/legal function has confirmed a retention period: this app never purges anything on its own.",
    "fieldname": "data_retention_enabled",
    "fieldtype": "Check",
-   "label": "Enable Data Retention Purge",
-   "description": "When ticked, a nightly job anonymises name, mobile, email, ID number and photos on visits that are already over (Checked-Out, Rejected, Cancelled or No-Show) and older than the retention period. The visit record itself — dates, host, gate, badge, workflow history — is kept for audit and statistics. Leave this OFF until your compliance/legal function has confirmed a retention period: this app never purges anything on its own."
+   "label": "Enable Data Retention Purge"
   },
   {
    "fieldname": "column_break_retention",
@@ -265,52 +272,52 @@
   {
    "default": "365",
    "depends_on": "eval:doc.data_retention_enabled",
+   "description": "How long, after a visit is over, its identity data is kept before being anonymised. Only takes effect once Enable Data Retention Purge is ticked.",
    "fieldname": "data_retention_days",
    "fieldtype": "Int",
-   "label": "Retention Period (days)",
-   "description": "How long, after a visit is over, its identity data is kept before being anonymised. Only takes effect once Enable Data Retention Purge is ticked."
+   "label": "Retention Period (days)"
   },
   {
+   "description": "Controls how the public pre-registration page looks. The whole palette is derived from the brand colour, so one setting themes the page.",
    "fieldname": "section_branding",
    "fieldtype": "Section Break",
-   "label": "Portal Branding",
-   "description": "Controls how the public pre-registration page looks. The whole palette is derived from the brand colour, so one setting themes the page."
+   "label": "Portal Branding"
   },
   {
+   "default": "#1A56DB",
+   "description": "Used for step markers, focus rings and the submit button.",
    "fieldname": "portal_brand_colour",
    "fieldtype": "Color",
-   "label": "Brand Colour",
-   "default": "#1A56DB",
-   "description": "Used for step markers, focus rings and the submit button."
+   "label": "Brand Colour"
   },
   {
+   "description": "Shown above the form title. Leave blank to show no logo.",
    "fieldname": "portal_logo",
    "fieldtype": "Attach Image",
-   "label": "Portal Logo",
-   "description": "Shown above the form title. Leave blank to show no logo."
+   "label": "Portal Logo"
   },
   {
    "fieldname": "column_break_branding",
    "fieldtype": "Column Break"
   },
   {
+   "description": "Shown beside the logo and in the page footer.",
    "fieldname": "portal_organisation_name",
    "fieldtype": "Data",
-   "label": "Organisation Name",
-   "description": "Shown beside the logo and in the page footer."
+   "label": "Organisation Name"
   },
   {
+   "description": "Optional line under the form — e.g. a privacy statement or help contact.",
    "fieldname": "portal_footer_note",
    "fieldtype": "Small Text",
-   "label": "Footer Note",
-   "description": "Optional line under the form — e.g. a privacy statement or help contact."
+   "label": "Footer Note"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-05 10:00:00.000000",
+ "modified": "2026-09-25 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS Settings",

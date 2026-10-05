@@ -71,6 +71,12 @@ doctype_js = {"Job Applicant": "public/js/job_applicant.js"}
 # 	"Role": "home_page"
 # }
 
+# Security Gate PWA (/gate) — Vue app built from gate_app/ into public/gate/
+website_route_rules = [
+	{"from_route": "/gate/<path:app_path>", "to_route": "_gate"},
+	{"from_route": "/gate", "to_route": "_gate"},
+]
+
 # Generators
 # ----------
 

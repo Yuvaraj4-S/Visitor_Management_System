@@ -118,3 +118,67 @@ frappe.ui.form.on("Hospitality Request", {
 		);
 	},
 });
+
+// ── Financial approval for cab / hotel (Phase 5) ──────────────────────────────
+const VMS_HR_FIN = "visitormanagement.visitor_management.hospitality_extensions";
+
+frappe.ui.form.on("Hospitality Request", {
+	refresh(frm) {
+		if (frm.is_new() || !frm.doc.requires_financial_approval) return;
+		const status = frm.doc.financial_approval_status;
+		const has = (roles) => roles.some((r) => frappe.user.has_role(r));
+
+		// bookings can be confirmed only after Finance approval
+		const locked = status !== "Finance Approved";
+		["cab_booking_confirmed", "hotel_booking_confirmed"].forEach((f) =>
+			frm.set_df_property(f, "read_only", locked ? 1 : 0)
+		);
+		if (locked) {
+			frm.dashboard.set_headline(
+				__("Cab / Hotel financial approval: {0}", [`<b>${__(status)}</b>`]),
+				status === "Rejected" ? "red" : "orange"
+			);
+		}
+
+		if (["Pending Estimate", "Rejected"].includes(status) && has(["Transport Coordinator", "Hospitality Manager", "System Manager"])) {
+			frm.add_custom_button(__("Submit Estimate"), () => {
+				frappe.prompt(
+					[
+						{ fieldname: "estimated_cab_cost", label: __("Estimated Cab Cost"), fieldtype: "Currency", default: frm.doc.estimated_cab_cost },
+						{ fieldname: "estimated_hotel_cost", label: __("Estimated Hotel Cost"), fieldtype: "Currency", default: frm.doc.estimated_hotel_cost },
+						{ fieldname: "cost_estimate_notes", label: __("Notes"), fieldtype: "Small Text", default: frm.doc.cost_estimate_notes },
+					],
+					(v) => vms_hr_call(frm, "submit_estimate", v),
+					__("Submit Cost Estimate"),
+					__("Submit")
+				);
+			}, __("Financial Approval"));
+		}
+		if (status === "Estimate Submitted" && has(["HOD", "System Manager"])) {
+			vms_hr_decision_buttons(frm, "dept_head_decision", __("Dept Head"));
+		}
+		if (status === "Dept Head Approved" && has(["VMS Finance Approver", "System Manager"])) {
+			vms_hr_decision_buttons(frm, "finance_decision", __("Finance"));
+		}
+	},
+});
+
+function vms_hr_decision_buttons(frm, method, stage) {
+	frm.add_custom_button(__("Approve ({0})", [stage]), () => {
+		frappe.prompt({ fieldname: "remarks", label: __("Remarks"), fieldtype: "Small Text" },
+			(v) => vms_hr_call(frm, method, { approve: 1, remarks: v.remarks }), __("Approve"), __("Approve"));
+	}, __("Financial Approval"));
+	frm.add_custom_button(__("Reject ({0})", [stage]), () => {
+		frappe.prompt({ fieldname: "remarks", label: __("Reason"), fieldtype: "Small Text", reqd: 1 },
+			(v) => vms_hr_call(frm, method, { approve: 0, remarks: v.remarks }), __("Reject"), __("Reject"));
+	}, __("Financial Approval"));
+}
+
+function vms_hr_call(frm, method, args) {
+	frappe.call({
+		method: `${VMS_HR_FIN}.${method}`,
+		args: Object.assign({ hospitality_request: frm.doc.name }, args),
+		freeze: true,
+		callback: () => frm.reload_doc(),
+	});
+}

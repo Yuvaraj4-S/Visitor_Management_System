@@ -16,9 +16,12 @@
   "qr_scan_required_at_gate",
   "require_item_declaration",
   "block_check_in_without_verification",
+  "validate_aadhaar_number",
+  "validate_pan_number",
   "column_break_gate",
   "blacklist_action",
   "gate_list",
+  "gate_entry_timeout_hours",
   "section_badge",
   "enable_badge",
   "badge_required_for",
@@ -32,7 +35,20 @@
   "badge_prefix_supplier",
   "badge_colour_supplier",
   "badge_prefix_vip",
-  "badge_colour_vip"
+  "badge_colour_vip",
+  "section_team_routing",
+  "food_notification_role",
+  "transport_notification_role",
+  "greeting_notification_role",
+  "tour_notification_role",
+  "column_break_team_routing",
+  "travel_desk_email",
+  "admin_team_email",
+  "section_visit_rules",
+  "max_recurring_days",
+  "column_break_visit_rules",
+  "auto_checkout_enabled",
+  "auto_checkout_time"
  ],
  "fields": [
   {
@@ -98,6 +114,20 @@
    "label": "Block Check-In Without Verification"
   },
   {
+   "default": "1",
+   "description": "Check the Aadhaar number format and UIDAI checksum. Untick to accept any Aadhaar number.",
+   "fieldname": "validate_aadhaar_number",
+   "fieldtype": "Check",
+   "label": "Validate Aadhaar Number"
+  },
+  {
+   "default": "1",
+   "description": "Check the PAN format (ABCDE1234F). Untick to accept any PAN number.",
+   "fieldname": "validate_pan_number",
+   "fieldtype": "Check",
+   "label": "Validate PAN Number"
+  },
+  {
    "fieldname": "column_break_gate",
    "fieldtype": "Column Break"
   },
@@ -112,6 +142,13 @@
    "fieldname": "gate_list",
    "fieldtype": "Small Text",
    "label": "Gate List"
+  },
+  {
+   "fieldname": "gate_entry_timeout_hours",
+   "fieldtype": "Int",
+   "label": "Gate Entry Request Timeout (hours)",
+   "default": "2",
+   "description": "A Gate Entry Request nobody approves or rejects within this time expires automatically."
   },
   {
    "fieldname": "section_badge",
@@ -211,13 +248,95 @@
    "fieldtype": "Select",
    "label": "Badge Colour — VIP",
    "options": "Orange\nPurple\nGreen\nTeal\nGold\nBlue\nRed\nGrey"
+  },
+  {
+   "fieldname": "section_team_routing",
+   "fieldtype": "Section Break",
+   "label": "Hospitality Team Routing",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "food_notification_role",
+   "fieldtype": "Link",
+   "label": "Food / Meals Team Role",
+   "options": "Role",
+   "default": "Hospitality Manager"
+  },
+  {
+   "fieldname": "transport_notification_role",
+   "fieldtype": "Link",
+   "label": "Transport (Cab / Hotel / Buggy) Role",
+   "options": "Role",
+   "default": "Transport Coordinator"
+  },
+  {
+   "fieldname": "greeting_notification_role",
+   "fieldtype": "Link",
+   "label": "Greeting Team Role",
+   "options": "Role",
+   "default": "Greeting Staff"
+  },
+  {
+   "fieldname": "tour_notification_role",
+   "fieldtype": "Link",
+   "label": "Factory Tour Team Role",
+   "options": "Role",
+   "default": "Factory Tour Coordinator"
+  },
+  {
+   "fieldname": "column_break_team_routing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "travel_desk_email",
+   "fieldtype": "Data",
+   "label": "Travel Desk Email",
+   "options": "Email",
+   "description": "Used for cab / hotel / buggy requests when no user has the transport role."
+  },
+  {
+   "fieldname": "admin_team_email",
+   "fieldtype": "Data",
+   "label": "Admin Team Email",
+   "options": "Email",
+   "description": "Used for meal / greeting / tour requests when no user has the team role."
+  },
+  {
+   "fieldname": "section_visit_rules",
+   "fieldtype": "Section Break",
+   "label": "Recurring Visits & Auto Checkout",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "max_recurring_days",
+   "fieldtype": "Int",
+   "label": "Max Recurring Visit Days",
+   "default": "30"
+  },
+  {
+   "fieldname": "column_break_visit_rules",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "auto_checkout_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Auto Checkout",
+   "default": "1",
+   "description": "Visitors still checked in at the auto checkout time are checked out automatically."
+  },
+  {
+   "fieldname": "auto_checkout_time",
+   "fieldtype": "Time",
+   "label": "Auto Checkout Time",
+   "default": "23:00:00",
+   "depends_on": "eval:doc.auto_checkout_enabled"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-04-11 12:00:00.000000",
+ "modified": "2026-10-04 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS Settings",

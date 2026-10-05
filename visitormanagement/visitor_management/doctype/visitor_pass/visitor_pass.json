@@ -16,6 +16,7 @@
   "workflow_state",
   "request_channel",
   "visitor_invitation",
+  "gate_entry_request",
   "section_break_identity_details",
   "visitor_full_name",
   "visitor_summary",
@@ -30,12 +31,20 @@
   "visit_plan_tab",
   "section_break_visit_plan",
   "purpose_of_visit",
+  "mapping_type",
   "person_to_visit",
+  "visitor_group",
   "host_department",
   "column_break_visit_plan",
   "visit_date",
   "expected_checkin",
   "expected_checkout",
+  "is_recurring",
+  "recurring_start_date",
+  "recurring_end_date",
+  "recurring_days",
+  "recurring_checkin_count",
+  "recurring_note",
   "vehicle_number",
   "visit_type_details_tab",
   "section_break_customer",
@@ -187,7 +196,7 @@
    "fieldname": "request_channel",
    "fieldtype": "Select",
    "label": "Request Channel",
-   "options": "Desk\nPortal\nPhone\nEmail"
+   "options": "Desk\nPortal\nPhone\nEmail\nGate"
   },
   {
    "fieldname": "visitor_invitation",
@@ -196,6 +205,15 @@
    "label": "Visitor Invitation",
    "options": "Visitor Invitation",
    "read_only": 1
+  },
+  {
+   "fieldname": "gate_entry_request",
+   "fieldtype": "Link",
+   "label": "Gate Entry Request",
+   "options": "Gate Entry Request",
+   "read_only": 1,
+   "no_copy": 1,
+   "depends_on": "eval:doc.gate_entry_request"
   },
   {
    "fieldname": "section_break_identity_details",
@@ -227,7 +245,7 @@
    "fieldname": "email_id",
    "fieldtype": "Data",
    "label": "Email ID",
-   "reqd": 1
+   "mandatory_depends_on": "eval:doc.request_channel!='Gate'"
   },
   {
    "depends_on": "eval:doc.visitor_type == 'Contractor' || doc.visitor_type == 'Supplier' || doc.visitor_type == 'Customer'",
@@ -283,11 +301,27 @@
    "reqd": 1
   },
   {
+   "fieldname": "mapping_type",
+   "fieldtype": "Select",
+   "label": "Visit Mapping",
+   "options": "Single Person\nGroup",
+   "default": "Single Person"
+  },
+  {
    "fieldname": "person_to_visit",
    "fieldtype": "Link",
    "label": "Person to Visit",
    "options": "Employee",
-   "reqd": 1
+   "mandatory_depends_on": "eval:doc.mapping_type!='Group'",
+   "description": "For a Group visit this is filled in automatically with the group lead."
+  },
+  {
+   "fieldname": "visitor_group",
+   "fieldtype": "Link",
+   "label": "Visitor Group",
+   "options": "Employee Group",
+   "depends_on": "eval:doc.mapping_type=='Group'",
+   "mandatory_depends_on": "eval:doc.mapping_type=='Group'"
   },
   {
    "fetch_from": "person_to_visit.department",
@@ -318,6 +352,51 @@
    "fieldtype": "Time",
    "label": "Expected Check-Out",
    "reqd": 1
+  },
+  {
+   "fieldname": "is_recurring",
+   "fieldtype": "Check",
+   "label": "Recurring Visit",
+   "default": "0",
+   "description": "One pass and QR code valid for a date range; the visitor checks in and out each day."
+  },
+  {
+   "fieldname": "recurring_start_date",
+   "fieldtype": "Date",
+   "label": "Valid From",
+   "depends_on": "eval:doc.is_recurring",
+   "mandatory_depends_on": "eval:doc.is_recurring"
+  },
+  {
+   "fieldname": "recurring_end_date",
+   "fieldtype": "Date",
+   "label": "Valid Until",
+   "depends_on": "eval:doc.is_recurring",
+   "mandatory_depends_on": "eval:doc.is_recurring"
+  },
+  {
+   "fieldname": "recurring_days",
+   "fieldtype": "Int",
+   "label": "Total Days",
+   "read_only": 1,
+   "depends_on": "eval:doc.is_recurring"
+  },
+  {
+   "fieldname": "recurring_checkin_count",
+   "fieldtype": "Int",
+   "label": "Check-Ins Completed",
+   "read_only": 1,
+   "no_copy": 1,
+   "default": "0",
+   "depends_on": "eval:doc.is_recurring",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "recurring_note",
+   "fieldtype": "Small Text",
+   "label": "Recurring Visit Note",
+   "depends_on": "eval:doc.is_recurring",
+   "allow_on_submit": 1
   },
   {
    "fieldname": "vehicle_number",
@@ -612,7 +691,7 @@
    "fieldname": "badge_colour",
    "fieldtype": "Select",
    "label": "Badge Colour",
-   "options": "Orange\nPurple\nGreen\nTeal\nGold"
+   "options": "Orange\nPurple\nGreen\nTeal\nGold\nBlue\nRed\nGrey"
   },
   {
    "fieldname": "approval_date",
@@ -914,7 +993,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-15 11:35:42.440403",
+ "modified": "2026-10-04 19:30:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Pass",

@@ -9,6 +9,7 @@
  "field_order": [
   "naming_series",
   "meeting_title",
+  "meeting_purpose",
   "conference_room",
   "room_capacity",
   "visitor_pass",
@@ -26,6 +27,8 @@
   "department",
   "column_break_organizer",
   "expected_attendees",
+  "section_room_suggestion",
+  "suggested_room",
   "section_services",
   "room_cleaning_required",
   "coffee_tea_required",
@@ -53,6 +56,14 @@
    "in_list_view": 1,
    "label": "Meeting Title",
    "reqd": 1
+  },
+  {
+   "fieldname": "meeting_purpose",
+   "fieldtype": "Select",
+   "label": "Meeting Purpose",
+   "options": "\nTeam Meeting\nVisitor - Customer\nVisitor - Supplier\nVisitor - General\nInterview\nTraining\nBoard Meeting",
+   "mandatory_depends_on": "eval:!doc.visitor_pass",
+   "description": "Sets the meeting type and which rooms are suggested."
   },
   {
    "fieldname": "conference_room",
@@ -171,6 +182,18 @@
    "reqd": 1
   },
   {
+   "fieldname": "section_room_suggestion",
+   "fieldtype": "Section Break",
+   "label": "Room Suggestions",
+   "depends_on": "eval:doc.docstatus==0",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "suggested_room",
+   "fieldtype": "HTML",
+   "label": "Suggested Rooms"
+  },
+  {
    "fieldname": "section_services",
    "fieldtype": "Section Break",
    "label": "Service Preparation"
@@ -228,7 +251,7 @@
  "is_calendar_and_gantt": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-10 16:30:22.838419",
+ "modified": "2026-10-04 20:00:00.000000",
  "modified_by": "Administrator",
  "module": "Conference Room",
  "name": "Conference Room Booking",

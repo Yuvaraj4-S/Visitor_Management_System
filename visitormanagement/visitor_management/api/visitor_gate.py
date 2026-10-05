@@ -31,7 +31,10 @@ def visitor_checkin(docname):
 
     doc = frappe.get_doc("Visitor Pass", docname)
 
-    if doc.status not in ("Approved", "Items Verified"):
+    from visitormanagement.visitor_management.utils import checked_in_on, in_recurring_window
+
+    recurring_reentry = doc.status == "Checked-Out" and in_recurring_window(doc) and not checked_in_on(doc.name)
+    if doc.status not in ("Approved", "Items Verified") and not recurring_reentry:
         frappe.throw(
             _("Pass must be 'Approved' or 'Items Verified' to Check-In. Current status: {0}").format(doc.status)
         )
@@ -134,14 +137,28 @@ def scan_qr_checkin(qr_data):
     # Fetch status + visit_date for early validation
     vp_info = frappe.db.get_value(
         "Visitor Pass", doc_name,
-        ["status", "visit_date", "id_proof_number", "visitor_full_name", "id_proof_type"],
+        ["name", "status", "visit_date", "id_proof_number", "visitor_full_name", "id_proof_type",
+         "is_recurring", "recurring_start_date", "recurring_end_date"],
         as_dict=True,
     )
     doc_status = vp_info.status
 
+    # Recurring pass: valid on any day of its window; a checked-out pass re-enters once per day
+    from visitormanagement.visitor_management.utils import checked_in_on, in_recurring_window, recurring_window
+    if recurring_window(vp_info):
+        if doc_status != "Checked-In" and not in_recurring_window(vp_info):
+            start, end = recurring_window(vp_info)
+            frappe.throw(
+                _("Visitor Pass {0} is valid from {1} to {2}, not today.").format(doc_name, start, end)
+            )
+        if doc_status == "Checked-Out":
+            if checked_in_on(doc_name):
+                frappe.throw(_("Visitor Pass {0} has already been used today.").format(doc_name))
+            doc_status = "Items Verified"  # route to check-in; Security Log re-validates
+
     # Visit date must match today (or checkout allowed for already Checked-In)
     from frappe.utils import getdate, today as _today
-    if vp_info.visit_date and doc_status != "Checked-In":
+    if vp_info.visit_date and doc_status != "Checked-In" and not recurring_window(vp_info):
         if getdate(vp_info.visit_date) != getdate(_today()):
             frappe.throw(
                 _("Visitor Pass {0} is for {1}, not today. QR code not valid for this date.").format(

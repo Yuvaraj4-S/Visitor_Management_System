@@ -3,6 +3,7 @@
 import frappe
 from frappe.model.document import Document
 from frappe.utils import get_datetime, getdate, now_datetime, time_diff_in_seconds
+from visitormanagement.visitor_management.utils import checked_in_on, in_recurring_window, recurring_window
 
 import re
 
@@ -59,8 +60,14 @@ def _get_employee_email(employee_name):
 
 
 def _send_host_checkin_email(visitor_pass, security_log):
-    host_email = _get_employee_email(visitor_pass.person_to_visit)
-    if not host_email:
+    recipients = [_get_employee_email(visitor_pass.person_to_visit)]
+    # Group visit: every member of the mapped group is told the visitor arrived
+    if visitor_pass.get("mapping_type") == "Group" and visitor_pass.get("visitor_group"):
+        from visitormanagement.visitor_management.utils import get_group_employees
+
+        recipients += [_get_employee_email(e) for e in get_group_employees(visitor_pass.visitor_group)]
+    recipients = sorted({e for e in recipients if e})
+    if not recipients:
         return
 
     items_summary = "No items declared."
@@ -77,7 +84,7 @@ def _send_host_checkin_email(visitor_pass, security_log):
 
     try:
         frappe.sendmail(
-            recipients=[host_email],
+            recipients=recipients,
             subject=f"Visitor Arrived: {visitor_pass.visitor_full_name}",
             message=(
                 f"<p>Visitor <b>{visitor_pass.visitor_full_name}</b> has checked in.</p>"
@@ -95,6 +102,12 @@ def _send_host_checkin_email(visitor_pass, security_log):
     except Exception as exc:
         # Don't let a missing/misconfigured Email Account block check-in.
         frappe.log_error(f"Host check-in email failed for {security_log.name}: {exc}", "VMS Host Check-in Email")
+
+
+def _recurring_reentry_allowed(vp, check_in_date_time=None):
+    """A recurring pass that checked out can check in again on a later day of its window."""
+    day = getdate(check_in_date_time or now_datetime())
+    return in_recurring_window(vp, day) and not checked_in_on(vp.name, day)
 
 
 class SecurityLog(Document):
@@ -178,20 +191,41 @@ class SecurityLog(Document):
         if vp:
             current_status = vp.status
             if self.event_type == 'Check-In':
-                if current_status not in {'Approved', 'Items Verified'}:
+                # Recurring pass: a checked-out pass may check in again on another day
+                # of its validity window, once per day.
+                recurring_reentry = current_status == 'Checked-Out' and _recurring_reentry_allowed(vp, self.check_in_date_time)
+                if current_status == 'Checked-Out' and recurring_window(vp) and not recurring_reentry:
+                    day = frappe.utils.getdate(self.check_in_date_time or now)
+                    start, end = recurring_window(vp)
+                    if not in_recurring_window(vp, day):
+                        frappe.throw(f"Recurring pass {vp.name} is valid from {start} to {end}, not on {day}.")
+                    frappe.throw(f"Visitor {vp.visitor_full_name} has already checked in on {day}. A recurring pass allows one check-in per day.")
+                if current_status not in {'Approved', 'Items Verified'} and not recurring_reentry:
                     frappe.throw(
                         f"Visitor {self.visitor_name or vp.visitor_full_name} must be approved before check-in. (Current Status: {current_status})"
                     )
                 if current_status == 'Checked-In':
                     frappe.throw(f"Visitor {self.visitor_name} is already Checked-In.")
-                if current_status == 'Checked-Out':
+                if current_status == 'Checked-Out' and not recurring_reentry:
                     frappe.throw(f"Visitor {self.visitor_name} has already Checked-Out and the pass is now inactive.")
                 
                 if not self.check_in_date_time:
                     self.check_in_date_time = now
 
+                # Recurring pass: any day inside its validity window, once per day
+                if recurring_window(vp) and self.check_in_date_time:
+                    # frappe.utils.getdate: a later local import makes bare `getdate` local here
+                    checkin_day = frappe.utils.getdate(self.check_in_date_time)
+                    if not in_recurring_window(vp, checkin_day):
+                        start, end = recurring_window(vp)
+                        frappe.throw(
+                            f"Check-in date ({checkin_day}) is outside the recurring pass validity ({start} to {end})."
+                        )
+                    if checked_in_on(vp.name, checkin_day):
+                        frappe.throw(f"Visitor {self.visitor_name or vp.visitor_full_name} has already checked in today.")
+
                 # Validate check-in is within reasonable window of expected visit
-                if vp.visit_date and self.check_in_date_time:
+                elif vp.visit_date and self.check_in_date_time:
                     from frappe.utils import getdate, get_datetime as _get_dt
                     checkin_date = getdate(self.check_in_date_time)
                     expected_date = getdate(vp.visit_date)
@@ -222,6 +256,7 @@ class SecurityLog(Document):
                     "Security Log",
                     {"visitor_pass": self.visitor_pass, "event_type": "Check-In", "docstatus": ["<", 2]},
                     "check_in_date_time",
+                    order_by="check_in_date_time desc",
                 )
                 if prior_checkin and get_datetime(self.check_out_date_time) <= get_datetime(prior_checkin):
                     frappe.throw(
@@ -242,6 +277,12 @@ class SecurityLog(Document):
             )
             if emp:
                 self.security_officer = emp
+
+        # End-of-day auto checkout (tasks.auto_checkout_end_of_day): the visitor is not
+        # at the gate, so the QR / photo / ID checks below cannot apply.
+        if self.is_auto_checkout and self.event_type == 'Check-Out' and self.is_new():
+            self.all_items_confirmed = 1
+            return
 
         if self.event_type == 'Check-In':
             if not self.qr_code_scanned:
@@ -323,6 +364,9 @@ class SecurityLog(Document):
                     'no_show': 0,
                 },
             )
+            if frappe.db.get_value('Visitor Pass', self.visitor_pass, 'is_recurring'):
+                count = frappe.db.count('Security Log', {'visitor_pass': self.visitor_pass, 'event_type': 'Check-In'})
+                frappe.db.set_value('Visitor Pass', self.visitor_pass, 'recurring_checkin_count', count)
             self._notify_host_arrival()
 
         elif self.event_type == 'Check-Out':

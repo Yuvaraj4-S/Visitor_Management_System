@@ -1,0 +1,391 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "GER-.YYYY.-.#####",
+ "creation": "2026-10-04 18:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "visitor_section",
+  "visitor_full_name",
+  "mobile_number",
+  "email_id",
+  "visitor_type",
+  "visitor_company",
+  "number_of_visitors",
+  "column_break_visitor",
+  "id_proof_type",
+  "id_proof_number",
+  "id_proof_scan",
+  "visitor_photo",
+  "mapping_section",
+  "mapping_type",
+  "person_to_visit",
+  "person_to_visit_name",
+  "visitor_group",
+  "column_break_mapping",
+  "purpose_of_visit",
+  "expected_duration",
+  "hospitality_section",
+  "meal_required",
+  "cab_required",
+  "hotel_required",
+  "column_break_hospitality",
+  "factory_tour_required",
+  "greeting_required",
+  "special_instructions",
+  "items_section",
+  "visitor_items",
+  "status_section",
+  "status",
+  "request_datetime",
+  "security_officer",
+  "gate_name",
+  "column_break_status",
+  "approved_by",
+  "approval_datetime",
+  "rejected_by",
+  "rejection_reason",
+  "visitor_pass"
+ ],
+ "fields": [
+  {
+   "fieldname": "visitor_section",
+   "fieldtype": "Section Break",
+   "label": "Visitor Details"
+  },
+  {
+   "fieldname": "visitor_full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Visitor Full Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "mobile_number",
+   "fieldtype": "Phone",
+   "label": "Mobile Number",
+   "reqd": 1
+  },
+  {
+   "description": "Optional. If given, the approved pass and QR code are emailed to the visitor.",
+   "fieldname": "email_id",
+   "fieldtype": "Data",
+   "label": "Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "visitor_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Visitor Type",
+   "options": "\nContractor\nCandidate\nCustomer\nSupplier\nVIP",
+   "reqd": 1
+  },
+  {
+   "fieldname": "visitor_company",
+   "fieldtype": "Data",
+   "label": "Company / Organization",
+   "mandatory_depends_on": "eval:['Contractor','Supplier','Customer'].includes(doc.visitor_type)"
+  },
+  {
+   "default": "1",
+   "fieldname": "number_of_visitors",
+   "fieldtype": "Int",
+   "label": "Number of Visitors"
+  },
+  {
+   "fieldname": "column_break_visitor",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "id_proof_type",
+   "fieldtype": "Select",
+   "label": "ID Proof Type",
+   "options": "Aadhaar\nPAN Card\nPassport\nDriving License",
+   "reqd": 1
+  },
+  {
+   "fieldname": "id_proof_number",
+   "fieldtype": "Data",
+   "label": "ID Proof Number",
+   "reqd": 1
+  },
+  {
+   "fieldname": "id_proof_scan",
+   "fieldtype": "Attach Image",
+   "label": "ID Proof Scan",
+   "reqd": 1
+  },
+  {
+   "fieldname": "visitor_photo",
+   "fieldtype": "Attach Image",
+   "label": "Visitor Photo",
+   "reqd": 1
+  },
+  {
+   "fieldname": "mapping_section",
+   "fieldtype": "Section Break",
+   "label": "Visit Mapping"
+  },
+  {
+   "default": "Single Person",
+   "fieldname": "mapping_type",
+   "fieldtype": "Select",
+   "label": "Visit Mapping",
+   "options": "Single Person\nGroup",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.mapping_type=='Single Person'",
+   "fieldname": "person_to_visit",
+   "fieldtype": "Link",
+   "ignore_user_permissions": 1,
+   "in_list_view": 1,
+   "label": "Person to Visit",
+   "mandatory_depends_on": "eval:doc.mapping_type=='Single Person'",
+   "options": "Employee"
+  },
+  {
+   "depends_on": "eval:doc.mapping_type=='Single Person'",
+   "fetch_from": "person_to_visit.employee_name",
+   "fieldname": "person_to_visit_name",
+   "fieldtype": "Data",
+   "label": "Person to Visit Name",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.mapping_type=='Group'",
+   "fieldname": "visitor_group",
+   "fieldtype": "Link",
+   "label": "Visitor Group",
+   "mandatory_depends_on": "eval:doc.mapping_type=='Group'",
+   "options": "Employee Group"
+  },
+  {
+   "fieldname": "column_break_mapping",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "purpose_of_visit",
+   "fieldtype": "Small Text",
+   "label": "Purpose of Visit",
+   "reqd": 1
+  },
+  {
+   "default": "2",
+   "fieldname": "expected_duration",
+   "fieldtype": "Float",
+   "label": "Expected Duration (hours)"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "hospitality_section",
+   "fieldtype": "Section Break",
+   "label": "Hospitality Quick Flags"
+  },
+  {
+   "default": "0",
+   "fieldname": "meal_required",
+   "fieldtype": "Check",
+   "label": "Meal Required"
+  },
+  {
+   "default": "0",
+   "fieldname": "cab_required",
+   "fieldtype": "Check",
+   "label": "Cab Required"
+  },
+  {
+   "default": "0",
+   "fieldname": "hotel_required",
+   "fieldtype": "Check",
+   "label": "Hotel Required"
+  },
+  {
+   "fieldname": "column_break_hospitality",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "factory_tour_required",
+   "fieldtype": "Check",
+   "label": "Factory Tour Required"
+  },
+  {
+   "default": "0",
+   "fieldname": "greeting_required",
+   "fieldtype": "Check",
+   "label": "Greeting Required"
+  },
+  {
+   "fieldname": "special_instructions",
+   "fieldtype": "Small Text",
+   "label": "Special Instructions"
+  },
+  {
+   "fieldname": "items_section",
+   "fieldtype": "Section Break",
+   "label": "Items Carried (Belongings)",
+   "description": "Laptop, tools, documents, samples etc. the visitor brings in. Copied to the Visitor Pass and verified by Security at check-in."
+  },
+  {
+   "fieldname": "visitor_items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "Visitor Item"
+  },
+  {
+   "fieldname": "status_section",
+   "fieldtype": "Section Break",
+   "label": "Request Status"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "no_copy": 1,
+   "options": "Draft\nPending Approval\nApproved\nRejected\nExpired",
+   "read_only": 1
+  },
+  {
+   "fieldname": "request_datetime",
+   "fieldtype": "Datetime",
+   "label": "Request Date & Time",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "security_officer",
+   "fieldtype": "Link",
+   "ignore_user_permissions": 1,
+   "label": "Security Officer",
+   "options": "Employee",
+   "read_only": 1
+  },
+  {
+   "fieldname": "gate_name",
+   "fieldtype": "Select",
+   "label": "Gate",
+   "options": "\nMain Gate\nBack Gate\nVIP Entrance\nLoading Dock\nEmergency Exit"
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "no_copy": 1,
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_datetime",
+   "fieldtype": "Datetime",
+   "label": "Approved On",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "rejected_by",
+   "fieldtype": "Link",
+   "label": "Rejected By",
+   "no_copy": 1,
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rejection_reason",
+   "fieldtype": "Small Text",
+   "label": "Rejection Reason",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "visitor_pass",
+   "fieldtype": "Link",
+   "label": "Visitor Pass",
+   "no_copy": 1,
+   "options": "Visitor Pass",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-04 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Gate Entry Request",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security",
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 0,
+   "read": 1,
+   "report": 0,
+   "role": "Employee"
+  },
+  {
+   "email": 1,
+   "print": 0,
+   "read": 1,
+   "report": 0,
+   "role": "HOD"
+  },
+  {
+   "email": 1,
+   "print": 0,
+   "read": 1,
+   "report": 0,
+   "role": "Sales Manager"
+  },
+  {
+   "email": 1,
+   "print": 0,
+   "read": 1,
+   "report": 0,
+   "role": "HR Manager"
+  },
+  {
+   "email": 1,
+   "print": 0,
+   "read": 1,
+   "report": 0,
+   "role": "CEO"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "visitor_full_name",
+ "track_changes": 1
+}

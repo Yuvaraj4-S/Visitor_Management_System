@@ -280,6 +280,9 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"expected_checkin": _normalize_time(str(invitation.expected_checkin) if invitation else data.get("expected_checkin")),
 		"expected_checkout": _normalize_time(str(invitation.expected_checkout) if invitation else data.get("expected_checkout")),
 		"person_to_visit": person_to_visit,
+		# Group visits: the invitation's group carries over; host stays the group lead
+		"mapping_type": (invitation.get("mapping_type") if invitation else None) or "Single Person",
+		"visitor_group": invitation.get("visitor_group") if invitation else None,
 		"purpose_of_visit": invitation.purpose_of_visit if invitation else data.get("purpose_of_visit"),
 		"visitor_type": visitor_type,
 		"supplier_link": data.get("supplier_link"),

@@ -8,14 +8,27 @@ from frappe.model.document import Document
 from frappe.utils import cint, flt, get_datetime, get_time, getdate, time_diff_in_hours, today
 
 
+INTERNAL_PURPOSES = ("Team Meeting", "Training", "Board Meeting")
+
+
+def purpose_for_visitor_type(visitor_type):
+	return {
+		"Customer": "Visitor - Customer",
+		"Supplier": "Visitor - Supplier",
+		"Candidate": "Interview",
+	}.get(visitor_type, "Visitor - General")
+
+
 class ConferenceRoomBooking(Document):
 
 	def validate(self):
+		self.apply_meeting_purpose()
 		self.validate_schedule()
 		self.calculate_duration()
 		self.validate_capacity()
 		self.validate_overlap()
 		self.validate_operating_hours()
+		self.validate_room_purpose()
 		self.auto_set_service_flags()
 		self._validate_visitor_pass_approved()
 
@@ -36,6 +49,33 @@ class ConferenceRoomBooking(Document):
 					"Pass is Approved before submitting this Conference Room Booking."
 				).format(self.visitor_pass, vp_status or _("Draft")),
 				title=_("Approval Not Allowed"),
+			)
+
+	# -- Meeting Purpose --
+
+	def apply_meeting_purpose(self):
+		"""Purpose drives the meeting type; visitor-linked bookings default it from the visitor type."""
+		if not self.meeting_purpose and self.visitor_pass:
+			visitor_type = frappe.db.get_value("Visitor Pass", self.visitor_pass, "visitor_type")
+			self.meeting_purpose = purpose_for_visitor_type(visitor_type)
+		if not self.meeting_purpose:
+			# bookings created without a purpose (API / import / older code) keep working
+			self.meeting_purpose = "Team Meeting" if self.meeting_type == "Internal" else "Visitor - General"
+		if self.meeting_purpose and self.meeting_type != "Hybrid":
+			self.meeting_type = "Internal" if self.meeting_purpose in INTERNAL_PURPOSES else "External"
+
+	def validate_room_purpose(self):
+		if not (self.meeting_purpose and self.conference_room):
+			return
+		from visitormanagement.conference_room.doctype.conference_room.conference_room import allowed_purposes
+
+		room = frappe.get_cached_doc("Conference Room", self.conference_room)
+		if self.meeting_purpose not in allowed_purposes(room):
+			frappe.throw(
+				_("{0} is not set up for {1} meetings. Allowed: {2}.").format(
+					self.conference_room, self.meeting_purpose, ", ".join(allowed_purposes(room)) or _("none")
+				),
+				title=_("Room Not Suitable"),
 			)
 
 	# -- Auto-Set Service Flags --
@@ -165,7 +205,7 @@ class ConferenceRoomBooking(Document):
 # -- Whitelisted API --
 
 @frappe.whitelist()
-def get_available_rooms(booking_date, start_time, end_time, min_capacity=0, exclude_booking=None):
+def get_available_rooms(booking_date, start_time, end_time, min_capacity=0, exclude_booking=None, meeting_purpose=None):
 	"""Return rooms available for the given slot, sorted smallest-suitable-first."""
 	if not booking_date or not start_time or not end_time:
 		return []
@@ -203,7 +243,67 @@ def get_available_rooms(booking_date, start_time, end_time, min_capacity=0, excl
 		params,
 	)
 
-	return [r for r in rooms if r.name not in booked]
+	available = [r for r in rooms if r.name not in booked]
+	if not meeting_purpose:
+		return available  # original behaviour for the "Find Available Rooms" dialog
+
+	from visitormanagement.conference_room.doctype.conference_room.conference_room import allowed_purposes
+
+	fits = []
+	for r in available:
+		room = frappe.get_cached_doc("Conference Room", r.name)
+		if meeting_purpose not in allowed_purposes(room):
+			continue
+		if room.available_from and get_time(start_time) < get_time(room.available_from):
+			continue
+		if room.available_to and get_time(end_time) > get_time(room.available_to):
+			continue
+		r.priority_order = cint(room.get("priority_order"))
+		fits.append(r)
+	# smallest room that fits first, then the configured priority
+	fits.sort(key=lambda r: (cint(r.capacity) - cint(min_capacity), r.priority_order, r.room_name))
+	for i, r in enumerate(fits):
+		r.best_fit = 1 if i == 0 else 0
+	return fits
+
+
+@frappe.whitelist()
+def get_room_suggestions(meeting_purpose, booking_date, start_time, end_time, attendee_count=0, exclude_booking=None):
+	"""Rooms for the purpose / slot / head-count, plus the ones ruled out and why."""
+	if not (meeting_purpose and booking_date and start_time and end_time):
+		return {"available_rooms": [], "unavailable_rooms": [], "suggestion": "", "total_available": 0}
+	attendee_count = cint(attendee_count)
+	available = get_available_rooms(booking_date, start_time, end_time, attendee_count, exclude_booking, meeting_purpose)
+	available_names = {r.name for r in available}
+	unavailable = []
+	from visitormanagement.conference_room.doctype.conference_room.conference_room import allowed_purposes
+
+	for room in frappe.get_all("Conference Room", filters={"is_active": 1}, pluck="name"):
+		if room in available_names:
+			continue
+		doc = frappe.get_cached_doc("Conference Room", room)
+		if meeting_purpose not in allowed_purposes(doc):
+			reason = _("not for {0}").format(meeting_purpose)
+		elif cint(doc.capacity) < attendee_count:
+			reason = _("seats {0}").format(doc.capacity)
+		elif (doc.available_from and get_time(start_time) < get_time(doc.available_from)) or (
+			doc.available_to and get_time(end_time) > get_time(doc.available_to)
+		):
+			reason = _("open {0}–{1}").format(doc.available_from, doc.available_to)
+		else:
+			reason = _("already booked")
+		unavailable.append({"name": room, "room_name": doc.room_name, "capacity": doc.capacity, "reason": reason})
+	if available:
+		best = available[0]
+		suggestion = _("Best fit: {0} ({1} seats for {2} attendees).").format(best.room_name, best.capacity, attendee_count or 1)
+	else:
+		suggestion = _("No room fits this purpose, time and head-count.")
+	return {
+		"available_rooms": available,
+		"unavailable_rooms": unavailable,
+		"suggestion": suggestion,
+		"total_available": len(available),
+	}
 
 
 @frappe.whitelist()

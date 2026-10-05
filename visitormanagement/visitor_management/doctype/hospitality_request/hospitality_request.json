@@ -47,6 +47,9 @@
   "cab_vendor",
   "driver_name",
   "driver_phone",
+  "cab_number",
+  "cab_booking_confirmed",
+  "cab_details_sent_to_visitor",
   "hotel_section",
   "hotel_name",
   "check_in",
@@ -59,6 +62,9 @@
   "booking_reference",
   "hotel_special_requests",
   "hotel_cost",
+  "hotel_booking_confirmed",
+  "hotel_booking_voucher",
+  "hotel_details_sent_to_visitor",
   "factory_tour_section",
   "tour_date",
   "tour_start_time",
@@ -80,9 +86,31 @@
   "greeting_col_break",
   "greeting_assigned_to",
   "greeting_cost",
+  "section_financial_approval",
+  "requires_financial_approval",
+  "financial_approval_status",
+  "estimated_cab_cost",
+  "estimated_hotel_cost",
+  "total_estimated_cost",
+  "cost_estimate_notes",
+  "col_break_financial",
+  "estimated_by",
+  "estimated_on",
+  "dept_head_approved_by",
+  "dept_head_approved_on",
+  "dept_head_remarks",
+  "finance_approved_by",
+  "finance_approved_on",
+  "finance_remarks",
+  "section_actual_cost",
+  "actual_cab_cost",
+  "actual_hotel_cost",
+  "col_break_actual_cost",
+  "total_actual_cost",
   "section_break_status",
   "status",
   "notes",
+  "teams_notified",
   "amended_from"
  ],
  "fields": [
@@ -348,14 +376,16 @@
    "fieldtype": "Link",
    "hidden": 1,
    "label": "Cab Vendor",
-   "options": "Supplier"
+   "options": "Supplier",
+   "allow_on_submit": 1
   },
   {
    "depends_on": "eval:doc.cab_required",
    "fieldname": "driver_name",
    "fieldtype": "Data",
    "hidden": 1,
-   "label": "Driver Name"
+   "label": "Driver Name",
+   "allow_on_submit": 1
   },
   {
    "depends_on": "eval:doc.cab_required",
@@ -363,7 +393,30 @@
    "fieldtype": "Data",
    "hidden": 1,
    "label": "Driver Phone",
-   "options": "Phone"
+   "options": "Phone",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "cab_number",
+   "fieldtype": "Data",
+   "label": "Cab / Vehicle Number",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "cab_booking_confirmed",
+   "fieldtype": "Check",
+   "label": "Cab Booking Confirmed",
+   "default": "0",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "cab_details_sent_to_visitor",
+   "fieldtype": "Check",
+   "label": "Cab Details Sent to Visitor",
+   "default": "0",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
   },
   {
    "collapsible": 1,
@@ -379,7 +432,8 @@
    "fieldtype": "Link",
    "hidden": 1,
    "label": "Hotel",
-   "options": "Supplier"
+   "options": "Supplier",
+   "allow_on_submit": 1
   },
   {
    "depends_on": "eval:doc.hotel_required",
@@ -430,7 +484,8 @@
    "fieldname": "booking_reference",
    "fieldtype": "Data",
    "hidden": 1,
-   "label": "Booking Reference"
+   "label": "Booking Reference",
+   "allow_on_submit": 1
   },
   {
    "depends_on": "eval:doc.hotel_required",
@@ -444,7 +499,30 @@
    "fieldname": "hotel_cost",
    "fieldtype": "Currency",
    "hidden": 1,
-   "label": "Hotel Cost"
+   "label": "Hotel Cost",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "hotel_booking_confirmed",
+   "fieldtype": "Check",
+   "label": "Hotel Booking Confirmed",
+   "default": "0",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "hotel_booking_voucher",
+   "fieldtype": "Attach",
+   "label": "Booking Voucher",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "hotel_details_sent_to_visitor",
+   "fieldtype": "Check",
+   "label": "Hotel Details Sent to Visitor",
+   "default": "0",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
   },
   {
    "collapsible": 1,
@@ -478,7 +556,8 @@
    "fieldname": "tour_guide",
    "fieldtype": "Link",
    "label": "Tour Guide",
-   "options": "Employee"
+   "options": "Employee",
+   "allow_on_submit": 1
   },
   {
    "fieldname": "tour_col_break",
@@ -525,7 +604,8 @@
    "fieldname": "buggy_number",
    "fieldtype": "Data",
    "hidden": 1,
-   "label": "Buggy Number"
+   "label": "Buggy Number",
+   "allow_on_submit": 1
   },
   {
    "depends_on": "eval:doc.buggy_required",
@@ -533,7 +613,8 @@
    "fieldtype": "Link",
    "hidden": 1,
    "label": "Buggy Driver",
-   "options": "Employee"
+   "options": "Employee",
+   "allow_on_submit": 1
   },
   {
    "collapsible": 1,
@@ -571,14 +652,168 @@
    "fieldtype": "Link",
    "hidden": 1,
    "label": "Assigned To",
-   "options": "Employee"
+   "options": "Employee",
+   "allow_on_submit": 1
   },
   {
    "depends_on": "eval:doc.greeting_required",
    "fieldname": "greeting_cost",
    "fieldtype": "Currency",
    "hidden": 1,
-   "label": "Greeting Cost"
+   "label": "Greeting Cost",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "section_financial_approval",
+   "fieldtype": "Section Break",
+   "label": "Financial Approval (Cab / Hotel)",
+   "depends_on": "eval:doc.requires_financial_approval",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "requires_financial_approval",
+   "fieldtype": "Check",
+   "label": "Requires Financial Approval",
+   "default": "0",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "financial_approval_status",
+   "fieldtype": "Select",
+   "label": "Financial Approval Status",
+   "options": "Not Required\nPending Estimate\nEstimate Submitted\nDept Head Approved\nFinance Approved\nRejected",
+   "default": "Not Required",
+   "read_only": 1,
+   "no_copy": 1,
+   "in_standard_filter": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "estimated_cab_cost",
+   "fieldtype": "Currency",
+   "label": "Estimated Cab Cost",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "estimated_hotel_cost",
+   "fieldtype": "Currency",
+   "label": "Estimated Hotel Cost",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "total_estimated_cost",
+   "fieldtype": "Currency",
+   "label": "Total Estimated Cost",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "cost_estimate_notes",
+   "fieldtype": "Small Text",
+   "label": "Estimate Notes",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "col_break_financial",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "estimated_by",
+   "fieldtype": "Link",
+   "label": "Estimated By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "estimated_on",
+   "fieldtype": "Date",
+   "label": "Estimated On",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "dept_head_approved_by",
+   "fieldtype": "Link",
+   "label": "Dept Head Approved By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "dept_head_approved_on",
+   "fieldtype": "Datetime",
+   "label": "Dept Head Approved On",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "dept_head_remarks",
+   "fieldtype": "Small Text",
+   "label": "Dept Head Remarks",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "finance_approved_by",
+   "fieldtype": "Link",
+   "label": "Finance Approved By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "finance_approved_on",
+   "fieldtype": "Datetime",
+   "label": "Finance Approved On",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "finance_remarks",
+   "fieldtype": "Small Text",
+   "label": "Finance Remarks",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "section_actual_cost",
+   "fieldtype": "Section Break",
+   "label": "Actual Cost",
+   "depends_on": "eval:doc.financial_approval_status=='Finance Approved'",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "actual_cab_cost",
+   "fieldtype": "Currency",
+   "label": "Actual Cab Cost",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "actual_hotel_cost",
+   "fieldtype": "Currency",
+   "label": "Actual Hotel Cost",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "col_break_actual_cost",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_actual_cost",
+   "fieldtype": "Currency",
+   "label": "Total Actual Cost",
+   "read_only": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "section_break_status",
@@ -602,6 +837,15 @@
    "label": "Notes"
   },
   {
+   "fieldname": "teams_notified",
+   "fieldtype": "Small Text",
+   "label": "Teams Notified",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
    "fieldname": "amended_from",
    "fieldtype": "Link",
    "label": "Amended From",
@@ -616,7 +860,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-22 16:00:00.000000",
+ "modified": "2026-10-04 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Hospitality Request",
@@ -688,6 +932,37 @@
    "report": 1,
    "role": "CEO",
    "share": 1
+  },
+  {
+   "role": "Transport Coordinator",
+   "read": 1,
+   "write": 1,
+   "email": 1,
+   "print": 1,
+   "report": 1
+  },
+  {
+   "role": "Greeting Staff",
+   "read": 1,
+   "write": 1,
+   "email": 1,
+   "print": 1,
+   "report": 1
+  },
+  {
+   "role": "Factory Tour Coordinator",
+   "read": 1,
+   "write": 1,
+   "email": 1,
+   "print": 1,
+   "report": 1
+  },
+  {
+   "role": "VMS Finance Approver",
+   "read": 1,
+   "email": 1,
+   "print": 1,
+   "report": 1
   }
  ],
  "row_format": "Dynamic",

@@ -23,6 +23,13 @@
   "column_break_hours",
   "min_booking_minutes",
   "max_booking_hours",
+  "section_usage",
+  "is_for_internal",
+  "is_for_visitor",
+  "is_for_interview",
+  "column_break_usage",
+  "allowed_purposes",
+  "priority_order",
   "section_details",
   "amenities",
   "column_break_details",
@@ -115,6 +122,46 @@
    "label": "Max Booking Duration (hours)"
   },
   {
+   "fieldname": "section_usage",
+   "fieldtype": "Section Break",
+   "label": "Usage"
+  },
+  {
+   "fieldname": "is_for_internal",
+   "fieldtype": "Check",
+   "label": "Available for Internal Meetings",
+   "default": "1"
+  },
+  {
+   "fieldname": "is_for_visitor",
+   "fieldtype": "Check",
+   "label": "Available for Visitor Meetings",
+   "default": "1"
+  },
+  {
+   "fieldname": "is_for_interview",
+   "fieldtype": "Check",
+   "label": "Available for Interviews",
+   "default": "1"
+  },
+  {
+   "fieldname": "column_break_usage",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "allowed_purposes",
+   "fieldtype": "Small Text",
+   "label": "Allowed Purposes",
+   "read_only": 1
+  },
+  {
+   "fieldname": "priority_order",
+   "fieldtype": "Int",
+   "label": "Priority Order",
+   "default": "0",
+   "description": "Lower number = suggested first when rooms fit equally well."
+  },
+  {
    "fieldname": "section_details",
    "fieldtype": "Section Break",
    "label": "Details"
@@ -136,7 +183,7 @@
  ],
  "icon": "fa fa-building",
  "links": [],
- "modified": "2026-04-10 12:00:00.000000",
+ "modified": "2026-10-04 20:00:00.000000",
  "modified_by": "Administrator",
  "module": "Conference Room",
  "name": "Conference Room",

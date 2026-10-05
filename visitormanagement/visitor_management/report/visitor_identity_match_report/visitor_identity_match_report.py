@@ -11,6 +11,12 @@ def execute(filters=None):
 
 	columns = get_columns()
 	data = get_data(filters)
+	if "System Manager" not in frappe.get_roles():
+		from visitormanagement.visitor_management.utils import mask_id_proof
+
+		for row in data:
+			if row.get("id_proof_number"):
+				row["id_proof_number"] = mask_id_proof(row["id_proof_number"])
 	report_summary = get_report_summary(data)
 	chart = get_chart(data)
 

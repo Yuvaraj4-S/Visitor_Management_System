@@ -15,6 +15,16 @@ from visitormanagement.visitor_management.validators import (
     id_proof_error_message,
     validate_id,
 )
+from visitormanagement.visitor_management.utils import (
+    GROUP,
+    SINGLE_PERSON,
+    get_employee_email,
+    get_group_employees,
+    mask_for_user,
+    mask_id_proof,
+    restore_masked_id,
+    send_mail,
+)
 
 PENDING_LANES_BY_VISITOR_TYPE = {
     "Contractor": ("Pending System Manager",),
@@ -45,7 +55,20 @@ class VisitorPass(Document):
     def company(self):
         return self.company__organisation
 
+    def onload(self):
+        # Show the ID proof number masked unless the viewer may see it in full
+        # (owner, host / group member, System Manager, Security during the visit).
+        masked = mask_for_user(self)
+        if masked != self.id_proof_number:
+            self.id_proof_number = masked
+            self.set_onload("id_masked", 1)
+
     def validate(self):
+        restore_masked_id(self)
+        self._restore_masked_id_from_existing_pass()
+        self._apply_visit_mapping()
+        self._validate_conditional_mandatory()
+        self._sync_recurring_visit()
         normalize_visitor_pass(self)
         self._align_workflow_lane_with_visitor_type()
         self._validate_schedule()
@@ -53,6 +76,71 @@ class VisitorPass(Document):
         self._validate_host_active()
         self._validate_duplicate_pass()
         self._validate_visit_duration()
+
+    def _restore_masked_id_from_existing_pass(self):
+        """"Existing visitor" copies details from an earlier pass; a viewer who sees
+        that pass masked copies the masked ID. Swap it back for the stored value."""
+        if not (self.is_new() and self.existing_visitor_pass and self.id_proof_number):
+            return
+        stored = frappe.db.get_value("Visitor Pass", self.existing_visitor_pass, "id_proof_number")
+        if stored and self.id_proof_number == mask_id_proof(stored, self.id_proof_type):
+            self.id_proof_number = stored
+
+    def _sync_recurring_visit(self):
+        """One pass for a date range. The legacy Contractor multi-day fields map onto it."""
+        if cint(self.multi_day_pass) and self.pass_valid_until and not cint(self.is_recurring):
+            self.is_recurring = 1
+            self.recurring_start_date = self.recurring_start_date or self.visit_date
+            self.recurring_end_date = self.pass_valid_until
+
+        if not cint(self.is_recurring):
+            self.recurring_start_date = self.recurring_end_date = None
+            self.recurring_days = 0
+            return
+
+        self.recurring_start_date = self.recurring_start_date or self.visit_date
+        if not self.recurring_end_date:
+            frappe.throw(_("Valid Until is required for a recurring visit."), title=_("Recurring Visit"))
+        start, end = getdate(self.recurring_start_date), getdate(self.recurring_end_date)
+        if end < start:
+            frappe.throw(_("Valid Until cannot be before Valid From."), title=_("Recurring Visit"))
+        self.recurring_days = date_diff(end, start) + 1
+        max_days = cint(frappe.db.get_single_value("VMS Settings", "max_recurring_days")) or 30
+        if self.recurring_days > max_days:
+            frappe.throw(
+                _("A recurring visit can cover at most {0} days (VMS Settings); this one covers {1}.").format(
+                    max_days, self.recurring_days
+                ),
+                title=_("Recurring Visit Too Long"),
+            )
+        # the first day is the visit date, so every date-based rule keeps a single anchor
+        self.visit_date = self.recurring_start_date
+        if cint(self.multi_day_pass):
+            self.pass_valid_until = self.recurring_end_date
+
+    def _apply_visit_mapping(self):
+        """Group visits keep `person_to_visit` filled with the group lead so every
+        existing host-based rule (approval email, hospitality, room booking,
+        permissions) keeps working unchanged."""
+        if self.mapping_type != GROUP:
+            self.mapping_type = SINGLE_PERSON
+            self.visitor_group = None
+            return
+        if not self.visitor_group:
+            frappe.throw(_("Visitor Group is required when Visit Mapping is Group."), title=_("Missing Visitor Group"))
+        members = get_group_employees(self.visitor_group)
+        if not members:
+            frappe.throw(_("Employee Group {0} has no active employees.").format(self.visitor_group))
+        if self.person_to_visit not in members:
+            self.person_to_visit = members[0]
+
+    def _validate_conditional_mandatory(self):
+        # mandatory_depends_on is only enforced by the desk form, so keep the
+        # previous server-side guarantees for API / import paths too.
+        if not self.email_id and self.request_channel != "Gate":
+            frappe.throw(_("Email ID is required."), frappe.MandatoryError, title=_("Missing Email"))
+        if not self.person_to_visit:
+            frappe.throw(_("Person to Visit is required."), frappe.MandatoryError, title=_("Missing Host"))
 
     # ─────────────────────────────────────────────────────────
     # BUSINESS VALIDATIONS
@@ -448,6 +536,45 @@ class VisitorPass(Document):
         if getattr(self, "meal_required", 0):
             self._notify_food_dept()
 
+        # Group visit: let every member of the group know the visit is approved
+        if self.mapping_type == GROUP and self.visitor_group:
+            self._notify_group_members()
+
+        # Hospitality teams are routed only once the pass is approved; the request is
+        # created during this same submit (on_update), before status became Approved.
+        self._route_hospitality_teams()
+
+    def _route_hospitality_teams(self):
+        hospitality_request = frappe.db.get_value("Visitor Pass", self.name, "hospitality_request")
+        if not hospitality_request:
+            return
+        from visitormanagement.visitor_management.hospitality_extensions import route_to_teams
+
+        try:
+            route_to_teams(frappe.get_doc("Hospitality Request", hospitality_request))
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"VMS team routing failed for {self.name}")
+
+    def _notify_group_members(self):
+        emails = [get_employee_email(e) for e in get_group_employees(self.visitor_group)]
+        send_mail(
+            emails,
+            f"Visit Approved: {self.visitor_full_name} on {self.visit_date}",
+            (
+                f"<p>A visit mapped to your group <b>{self.visitor_group}</b> has been approved.</p>"
+                f"<ul>"
+                f"<li><b>Visitor:</b> {frappe.utils.escape_html(self.visitor_full_name or '')}</li>"
+                f"<li><b>Company:</b> {frappe.utils.escape_html(self.company__organisation or '-')}</li>"
+                f"<li><b>Date:</b> {self.visit_date}</li>"
+                f"<li><b>Time:</b> {self.expected_checkin} – {self.expected_checkout}</li>"
+                f"<li><b>Purpose:</b> {frappe.utils.escape_html(self.purpose_of_visit or '')}</li>"
+                f"<li><b>Pass:</b> {self.name}</li>"
+                f"</ul>"
+            ),
+            "Visitor Pass",
+            self.name,
+        )
+
     # ─────────────────────────────────────────────────────────
     # GENERATE BADGE NUMBER (Called by Security Log)
     # ─────────────────────────────────────────────────────────
@@ -762,7 +889,23 @@ def get_existing_visitor_matches(visitor_type=None, id_proof_number=None, mobile
             if len(matches) >= 10:
                 break
 
+    _mask_match_ids(matches)
     return {"best_match": matches[0] if matches else None, "matches": matches}
+
+
+def _mask_match_ids(matches):
+    for row in matches:
+        if not row.get("id_proof_number"):
+            continue
+        pass_doc = frappe.db.get_value(
+            "Visitor Pass",
+            row.name,
+            ["name", "owner", "person_to_visit", "mapping_type", "visitor_group", "status", "id_proof_type"],
+            as_dict=True,
+        )
+        if pass_doc:
+            pass_doc.doctype = "Visitor Pass"
+            row.id_proof_number = mask_for_user(pass_doc, row.id_proof_number)
 
 
 @frappe.whitelist()
@@ -887,7 +1030,9 @@ def get_existing_visitor_pass_details(visitor_pass, visitor_type=None):
     }
 
     fields = common_fields + type_fields.get(doc.visitor_type, [])
-    return {field: doc.get(field) for field in fields}
+    details = {field: doc.get(field) for field in fields}
+    details["id_proof_number"] = mask_for_user(doc)
+    return details
 
 
 @frappe.whitelist()

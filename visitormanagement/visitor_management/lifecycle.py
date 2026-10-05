@@ -168,6 +168,12 @@ def ensure_conference_room_booking(visitor_pass):
 	booking.start_time = start_time
 	booking.end_time = end_time
 	booking.meeting_type = "External"
+	if not booking.get("meeting_purpose"):
+		from visitormanagement.conference_room.doctype.conference_room_booking.conference_room_booking import (
+			purpose_for_visitor_type,
+		)
+
+		booking.meeting_purpose = purpose_for_visitor_type(getattr(visitor_pass, "visitor_type", None))
 	booking.expected_attendees = cint(getattr(visitor_pass, "number_of_people", None)) or 1
 	if not booking.booked_by:
 		booking.booked_by = visitor_pass.person_to_visit

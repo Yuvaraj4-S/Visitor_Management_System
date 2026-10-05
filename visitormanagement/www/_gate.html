@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<title>Security Gate</title>
+		<link rel="manifest" href="/assets/visitormanagement/gate/manifest.json" />
+		<link rel="icon" href="/assets/visitormanagement/gate/icons/icon-192.png" />
+		<link rel="apple-touch-icon" href="/assets/visitormanagement/gate/icons/icon-192.png" />
+		<meta name="theme-color" content="#0f172a" />
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+		<link rel="stylesheet" href="/assets/visitormanagement/gate/gate.css?v={{ asset_version }}" />
+	</head>
+	<body>
+		<div id="app"></div>
+		<script>
+			window.gate_boot = {{ boot | json }};
+			window.csrf_token = window.gate_boot.csrf_token;
+		</script>
+		<script type="module" src="/assets/visitormanagement/gate/gate.js?v={{ asset_version }}"></script>
+	</body>
+</html>

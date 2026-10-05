@@ -18,6 +18,7 @@
     "verification_duration",
     "qr_code_scanned",
     "gate_auto_assigned",
+    "is_auto_checkout",
     "mdceo_notified",
     "vip_meeting_room",
     "vip_protocol_notes",
@@ -95,7 +96,7 @@
       "fieldname": "gate_name",
       "fieldtype": "Select",
       "label": "Gate Name",
-      "options": "Main Gate\nBack Gate\nVIP Entrance\nLoading Dock\nEmergency Exit",
+      "options": "Main Gate\nBack Gate\nVIP Entrance\nLoading Dock\nEmergency Exit\nAuto Checkout",
       "reqd": 1
     },
     {
@@ -141,6 +142,15 @@
       "fieldtype": "Check",
       "label": "Gate Auto Assigned",
       "read_only": 1
+    },
+    {
+      "fieldname": "is_auto_checkout",
+      "fieldtype": "Check",
+      "label": "Is Auto Checkout",
+      "default": "0",
+      "read_only": 1,
+      "no_copy": 1,
+      "description": "Checked out automatically at the end of the day (visitor left without checking out)."
     },
     {
       "fetch_from": "visitor_pass.mdceo_notified",
@@ -441,7 +451,7 @@
   "grid_page_length": 50,
   "index_web_pages_for_search": 1,
   "links": [],
-  "modified": "2026-04-22 13:20:00.000000",
+  "modified": "2026-10-04 19:30:00.000000",
   "modified_by": "Administrator",
   "module": "Visitor Management",
   "name": "Security Log",

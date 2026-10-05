@@ -2,6 +2,1644 @@
  {
   "docstatus": 0,
   "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-03 17:00:03.564493",
+  "name": "Rejected (HR)",
+  "style": "Danger",
+  "workflow_state_name": "Rejected (HR)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-03 17:00:03.564493",
+  "name": "Rejected (Interview)",
+  "style": "Danger",
+  "workflow_state_name": "Rejected (Interview)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:29:49.979410",
+  "name": "Pending Cancellation Approval (Approved Project Setup)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Cancellation Approval (Approved Project Setup)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:30:02.901792",
+  "name": "Pending Cancellation Approval (Approved Project Plan)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Cancellation Approval (Approved Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:30:14.479766",
+  "name": "Pending Cancellation Approval (Approved Initial Release Base)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Cancellation Approval (Approved Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:30:38.616224",
+  "name": "Pending Cancellation Approval (Approved Conditional Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Cancellation Approval (Approved Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:30:52.764046",
+  "name": "Pending Cancellation Approval (Approved Final Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Cancellation Approval (Approved Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-28 18:20:20.783839",
+  "name": "Pending Cancellation Approval (Approved Release Final)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Cancellation Approval (Approved Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.217306",
+  "name": "Approved for Deployment",
+  "style": "",
+  "workflow_state_name": "Approved for Deployment"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.252672",
+  "name": "Sent for CEO Approval",
+  "style": "",
+  "workflow_state_name": "Sent for CEO Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.276196",
+  "name": "Sent CEO Approval",
+  "style": "",
+  "workflow_state_name": "Sent CEO Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.292309",
+  "name": "Approved for Production",
+  "style": "",
+  "workflow_state_name": "Approved for Production"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.309173",
+  "name": "Deployed",
+  "style": "",
+  "workflow_state_name": "Deployed"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.322625",
+  "name": "UAT Testing",
+  "style": "",
+  "workflow_state_name": "UAT Testing"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.335859",
+  "name": "QA Testing",
+  "style": "",
+  "workflow_state_name": "QA Testing"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.349899",
+  "name": "HR Selected",
+  "style": "",
+  "workflow_state_name": "HR Selected"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.363414",
+  "name": "offer sent",
+  "style": "",
+  "workflow_state_name": "offer sent"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.378079",
+  "name": "CEO Approval",
+  "style": "",
+  "workflow_state_name": "CEO Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.393538",
+  "name": "Dept Head Approval",
+  "style": "",
+  "workflow_state_name": "Dept Head Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.406278",
+  "name": "cleared",
+  "style": "",
+  "workflow_state_name": "cleared"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.420201",
+  "name": "Pending Dept Head",
+  "style": "",
+  "workflow_state_name": "Pending Dept Head"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.434356",
+  "name": "Rejected by Department Head",
+  "style": "",
+  "workflow_state_name": "Rejected by Department Head"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-18 11:26:48.771900",
+  "name": "Sent for Approval",
+  "style": "",
+  "workflow_state_name": "Sent for Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-18 11:27:28.961990",
+  "name": "In Development",
+  "style": "",
+  "workflow_state_name": "In Development"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 15:21:48.028225",
+  "name": "Rejected (Engineering Head)",
+  "style": "",
+  "workflow_state_name": "Rejected (Engineering Head)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 15:45:19.194003",
+  "name": "Rejected (Quality Head)",
+  "style": "",
+  "workflow_state_name": "Rejected (Quality Head)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-04 15:46:20.457829",
+  "name": "open",
+  "style": "",
+  "workflow_state_name": "open"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-04-01 09:00:00",
+  "name": "Pending HOD & HR Review",
+  "style": "Warning",
+  "workflow_state_name": "Pending HOD & HR Review"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-04-01 09:00:00",
+  "name": "No Due In Process",
+  "style": "Primary",
+  "workflow_state_name": "No Due In Process"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "ok-sign",
+  "modified": "2026-04-01 09:00:00",
+  "name": "Closed",
+  "style": "Success",
+  "workflow_state_name": "Closed"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-03-03 15:40:57.251495",
+  "name": "Pending Approval by CEO,",
+  "style": "",
+  "workflow_state_name": "Pending Approval by CEO,"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-03-03 15:41:30.503415",
+  "name": "Pending Approval by CEO",
+  "style": "",
+  "workflow_state_name": "Pending Approval by CEO"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-02-16 16:22:52.415226",
+  "name": "Pending Department Head",
+  "style": "",
+  "workflow_state_name": "Pending Department Head"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-02-16 16:25:21.740367",
+  "name": "CEO Send for Correction",
+  "style": "",
+  "workflow_state_name": "CEO Send for Correction"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-02-23 12:22:01.270670",
+  "name": "Confirmed",
+  "style": "Success",
+  "workflow_state_name": "Confirmed"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-02-23 12:22:38.717425",
+  "name": "Rejected (Dept Head)",
+  "style": "Danger",
+  "workflow_state_name": "Rejected (Dept Head)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-02-23 12:23:28.143794",
+  "name": "Rejected (CEO)",
+  "style": "Danger",
+  "workflow_state_name": "Rejected (CEO)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-02-23 12:25:10.399349",
+  "name": "Pending Dept Head Approval",
+  "style": "",
+  "workflow_state_name": "Pending Dept Head Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-03-03 15:40:18.515777",
+  "name": "Send for CEO Approval",
+  "style": "",
+  "workflow_state_name": "Send for CEO Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-03-10 15:14:16.516849",
+  "name": "Correction",
+  "style": "",
+  "workflow_state_name": "Correction"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-03-10 15:01:12.889403",
+  "name": "Hold",
+  "style": "",
+  "workflow_state_name": "Hold"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-04-03 15:43:23.447757",
+  "name": "Dept Head Approved",
+  "style": "",
+  "workflow_state_name": "Dept Head Approved"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 15:10:27.534919",
+  "name": "pending Approval by Maintenance Head",
+  "style": "",
+  "workflow_state_name": "pending Approval by Maintenance Head"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 15:11:15.037538",
+  "name": "Pending approval by Quality Manager",
+  "style": "",
+  "workflow_state_name": "Pending approval by Quality Manager"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 15:14:07.058050",
+  "name": "Pending Engineer Approval",
+  "style": "",
+  "workflow_state_name": "Pending Engineer Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 14:57:36.491263",
+  "name": "Maintenance Head Approved",
+  "style": "",
+  "workflow_state_name": "Maintenance Head Approved"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 14:56:22.149406",
+  "name": "Operations head Approved",
+  "style": "",
+  "workflow_state_name": "Operations head Approved"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 15:13:17.070076",
+  "name": "Pending Engineering Head Approval",
+  "style": "",
+  "workflow_state_name": "Pending Engineering Head Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 16:15:26.022438",
+  "name": "Rejected (Operation Head)",
+  "style": "",
+  "workflow_state_name": "Rejected (Operation Head)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 16:37:33.142570",
+  "name": "Rejected (Maintenance Head)",
+  "style": "",
+  "workflow_state_name": "Rejected (Maintenance Head)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 16:19:55.707124",
+  "name": "Rejected (Operations Head)",
+  "style": "",
+  "workflow_state_name": "Rejected (Operations Head)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-27 12:44:28.983670",
+  "name": "Pending Cancellation Approval (DH Project Setup)",
+  "style": "",
+  "workflow_state_name": "Pending Cancellation Approval (DH Project Setup)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-27 12:45:19.208658",
+  "name": "Pending Cancellation Approval (DH Project Plan)",
+  "style": "",
+  "workflow_state_name": "Pending Cancellation Approval (DH Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:36:57.660790",
+  "name": "Pending CEO Approval (Initial Release Base)",
+  "style": "Warning",
+  "workflow_state_name": "Pending CEO Approval (Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-27 12:45:45.944603",
+  "name": "Pending Cancellation Approval (DH Initial Release Base)",
+  "style": "",
+  "workflow_state_name": "Pending Cancellation Approval (DH Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.287059",
+  "name": "Pending Maintenance Head Approval (Conditional Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Maintenance Head Approval (Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:29:38.970253",
+  "name": "Pending Cancellation Approval (Draft)",
+  "style": "",
+  "workflow_state_name": "Pending Cancellation Approval (Draft)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:29:38.970253",
+  "name": "Pending Termination Approval",
+  "style": "",
+  "workflow_state_name": "Pending Termination Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-27 12:46:08.617952",
+  "name": "Pending Cancellation Approval (DH Initial Release Final)",
+  "style": "",
+  "workflow_state_name": "Pending Cancellation Approval (DH Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-27 12:46:32.592395",
+  "name": "Pending Cancellation Approval (DH Conditional Release)",
+  "style": "",
+  "workflow_state_name": "Pending Cancellation Approval (DH Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-27 12:47:03.929444",
+  "name": "Pending Cancellation Approval (DH Final Release)",
+  "style": "",
+  "workflow_state_name": "Pending Cancellation Approval (DH Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-03-12 10:59:01.286269",
+  "name": "Pending CEO Approval",
+  "style": "Warning",
+  "workflow_state_name": "Pending CEO Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:36:57.657701",
+  "name": "Pending Maintenance Head Approval (Initial Release Base)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Maintenance Head Approval (Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.312610",
+  "name": "Pending Lab Head Approval (Final Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Lab Head Approval (Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:30:25.863923",
+  "name": "Pending Cancellation Approval (Approved Initial Release Final)",
+  "style": "",
+  "workflow_state_name": "Pending Cancellation Approval (Approved Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.120679",
+  "name": "Pending IT Head Approval",
+  "style": "Warning",
+  "workflow_state_name": "Pending IT Head Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 16:34:35.503836",
+  "name": "Pending Maintenance Head Approval",
+  "style": "Warning",
+  "workflow_state_name": "Pending Maintenance Head Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:47:12.862823",
+  "name": "Pending ETP Head Approval (Project Plan)",
+  "style": "Warning",
+  "workflow_state_name": "Pending ETP Head Approval (Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:36:57.436333",
+  "name": "Pending Department Head Approval (Initial Release Base)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Department Head Approval (Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.265912",
+  "name": "Pending Quality Head Approval (Conditional Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Quality Head Approval (Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.290442",
+  "name": "Pending CEO Approval (Conditional Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending CEO Approval (Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.184291",
+  "name": "Pending Finance Head Approval",
+  "style": "Warning",
+  "workflow_state_name": "Pending Finance Head Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:29:49.979410",
+  "name": "Pending Termination Approval (Approved Project Setup)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Termination Approval (Approved Project Setup)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:30:02.901792",
+  "name": "Pending Termination Approval (Approved Project Plan)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Termination Approval (Approved Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:47:12.859425",
+  "name": "Pending Lab Head Approval (Project Plan)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Lab Head Approval (Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.309222",
+  "name": "Pending Finance Head Approval (Final Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Finance Head Approval (Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.168534",
+  "name": "Pending Lab Head Approval",
+  "style": "",
+  "workflow_state_name": "Pending Lab Head Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:30:14.479766",
+  "name": "Pending Termination Approval (Approved Initial Release Base)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Termination Approval (Approved Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.252600",
+  "name": "Approved Initial Release Final",
+  "style": "Success",
+  "workflow_state_name": "Approved Initial Release Final"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.261415",
+  "name": "Pending Department Head Approval (Conditional Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Department Head Approval (Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.325947",
+  "name": "Pending CEO Approval (Final Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending CEO Approval (Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:40:26.670154",
+  "name": "Approved Project Setup",
+  "style": "Success",
+  "workflow_state_name": "Approved Project Setup"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:47:12.847515",
+  "name": "Pending Operations Head Approval (Project Plan)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Operations Head Approval (Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.199458",
+  "name": "Pending Department Head Approval (Initial Release Final)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Department Head Approval (Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.230856",
+  "name": "Pending Lab Head Approval (Initial Release Final)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Lab Head Approval (Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.342799",
+  "name": "Rejected (Final Release)",
+  "style": "Danger",
+  "workflow_state_name": "Rejected (Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.277245",
+  "name": "Pending Lab Head Approval (Conditional Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Lab Head Approval (Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:28:46.086197",
+  "name": "Correction (Initial Release Base)",
+  "style": "Info",
+  "workflow_state_name": "Correction (Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:47:12.879027",
+  "name": "Rejected (Project Plan)",
+  "style": "Danger",
+  "workflow_state_name": "Rejected (Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.236285",
+  "name": "Terminated",
+  "style": "Inverse",
+  "workflow_state_name": "Terminated"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-28 18:09:08.350839",
+  "name": "Pending Cancellation Approval (Project Setup)",
+  "style": "",
+  "workflow_state_name": "Pending Cancellation Approval (Project Setup)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-28 18:09:39.402994",
+  "name": "Pending Cancellation Approval (Project Plan)",
+  "style": "",
+  "workflow_state_name": "Pending Cancellation Approval (Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-28 18:10:14.609781",
+  "name": "Pending Cancellation Approval (Initial Release Base)",
+  "style": "",
+  "workflow_state_name": "Pending Cancellation Approval (Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-28 18:10:38.778386",
+  "name": "Pending Cancellation Approval (Initial Release Final)",
+  "style": "",
+  "workflow_state_name": "Pending Cancellation Approval (Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:30:38.616224",
+  "name": "Pending Termination Approval (Approved Conditional Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Termination Approval (Approved Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:36:57.637485",
+  "name": "Pending Quality Head Approval (Initial Release Base)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Quality Head Approval (Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.221849",
+  "name": "Pending Operations Head Approval (Initial Release Final)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Operations Head Approval (Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.235358",
+  "name": "Pending ETP Head Approval (Initial Release Final)",
+  "style": "Warning",
+  "workflow_state_name": "Pending ETP Head Approval (Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.274004",
+  "name": "Pending Finance Head Approval (Conditional Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Finance Head Approval (Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.322796",
+  "name": "Pending Maintenance Head Approval (Final Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Maintenance Head Approval (Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:36:57.640976",
+  "name": "Pending Operations Head Approval (Initial Release Base)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Operations Head Approval (Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:36:57.651124",
+  "name": "Pending ETP Head Approval (Initial Release Base)",
+  "style": "Warning",
+  "workflow_state_name": "Pending ETP Head Approval (Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:30:52.764046",
+  "name": "Pending Termination Approval (Approved Final Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Termination Approval (Approved Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:47:12.869436",
+  "name": "Pending Maintenance Head Approval (Project Plan)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Maintenance Head Approval (Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:36:57.647772",
+  "name": "Pending Lab Head Approval (Initial Release Base)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Lab Head Approval (Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:36:57.663978",
+  "name": "Approved Initial Release Base",
+  "style": "Success",
+  "workflow_state_name": "Approved Initial Release Base"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.306193",
+  "name": "Pending Operations Head Approval (Final Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Operations Head Approval (Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.150148",
+  "name": "Pending ETP Head Approval",
+  "style": "Warning",
+  "workflow_state_name": "Pending ETP Head Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:28:58.993746",
+  "name": "Correction (Initial Release Final)",
+  "style": "Info",
+  "workflow_state_name": "Correction (Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:47:12.843973",
+  "name": "Pending Quality Head Approval (Project Plan)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Quality Head Approval (Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.339401",
+  "name": "Approved Final Release",
+  "style": "Success",
+  "workflow_state_name": "Approved Final Release"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:47:12.851497",
+  "name": "Pending Finance Head Approval (Project Plan)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Finance Head Approval (Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:28:17.186161",
+  "name": "Correction (Project Setup)",
+  "style": "Info",
+  "workflow_state_name": "Correction (Project Setup)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:47:12.641350",
+  "name": "Pending Department Head Approval (Project Plan)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Department Head Approval (Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.280482",
+  "name": "Pending ETP Head Approval (Conditional Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending ETP Head Approval (Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.293733",
+  "name": "Approved Conditional Release",
+  "style": "Success",
+  "workflow_state_name": "Approved Conditional Release"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:47:12.866230",
+  "name": "Pending IT Head Approval (Project Plan)",
+  "style": "Warning",
+  "workflow_state_name": "Pending IT Head Approval (Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.300162",
+  "name": "Pending Department Head Approval (Final Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Department Head Approval (Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:36:57.644405",
+  "name": "Pending Finance Head Approval (Initial Release Base)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Finance Head Approval (Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:29:11.601120",
+  "name": "Correction (Conditional Release)",
+  "style": "Info",
+  "workflow_state_name": "Correction (Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:47:12.875871",
+  "name": "Approved Project Plan",
+  "style": "Success",
+  "workflow_state_name": "Approved Project Plan"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:29:24.042261",
+  "name": "Correction (Final Release)",
+  "style": "Info",
+  "workflow_state_name": "Correction (Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:36:57.667102",
+  "name": "Rejected (Initial Release Base)",
+  "style": "Danger",
+  "workflow_state_name": "Rejected (Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.297002",
+  "name": "Rejected (Conditional Release)",
+  "style": "Danger",
+  "workflow_state_name": "Rejected (Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-28 18:20:20.783839",
+  "name": "Pending Termination Approval (Approved Release Final)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Termination Approval (Approved Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.240029",
+  "name": "Pending IT Head Approval (Initial Release Final)",
+  "style": "Warning",
+  "workflow_state_name": "Pending IT Head Approval (Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:36:57.654487",
+  "name": "Pending IT Head Approval (Initial Release Base)",
+  "style": "Warning",
+  "workflow_state_name": "Pending IT Head Approval (Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.283724",
+  "name": "Pending IT Head Approval (Conditional Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending IT Head Approval (Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.226371",
+  "name": "Pending Finance Head Approval (Initial Release Final)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Finance Head Approval (Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.319558",
+  "name": "Pending IT Head Approval (Final Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending IT Head Approval (Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:47:12.872776",
+  "name": "Pending CEO Approval (Project Plan)",
+  "style": "Warning",
+  "workflow_state_name": "Pending CEO Approval (Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.217758",
+  "name": "Pending Quality Head Approval (Initial Release Final)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Quality Head Approval (Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.248982",
+  "name": "Pending CEO Approval (Initial Release Final)",
+  "style": "Warning",
+  "workflow_state_name": "Pending CEO Approval (Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.303190",
+  "name": "Pending Quality Head Approval (Final Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Quality Head Approval (Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-26 23:28:32.489060",
+  "name": "Correction (Project Plan)",
+  "style": "Info",
+  "workflow_state_name": "Correction (Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.256843",
+  "name": "Rejected (Initial Release Final)",
+  "style": "Danger",
+  "workflow_state_name": "Rejected (Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.270417",
+  "name": "Pending Operations Head Approval (Conditional Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Operations Head Approval (Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.244509",
+  "name": "Pending Maintenance Head Approval (Initial Release Final)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Maintenance Head Approval (Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 23:56:38.316236",
+  "name": "Pending ETP Head Approval (Final Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending ETP Head Approval (Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 15:15:25.540873",
+  "name": "Pending Operation Head Approval",
+  "style": "",
+  "workflow_state_name": "Pending Operation Head Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 15:43:53.484351",
+  "name": "Pending Quality Head Approval",
+  "style": "Warning",
+  "workflow_state_name": "Pending Quality Head Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 16:17:15.202142",
+  "name": "Pending Operations Head Approval",
+  "style": "Warning",
+  "workflow_state_name": "Pending Operations Head Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-22 22:04:52.200630",
+  "name": "Pending Department Head Approval",
+  "style": "Warning",
+  "workflow_state_name": "Pending Department Head Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-02 00:00:00",
+  "name": "Correction Required",
+  "style": "Warning",
+  "workflow_state_name": "Correction Required"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-02 00:00:00",
+  "name": "Pending Utility Head Approval",
+  "style": "Warning",
+  "workflow_state_name": "Pending Utility Head Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-02 00:00:00",
+  "name": "Pending Supply Chain In-charge Approval",
+  "style": "Warning",
+  "workflow_state_name": "Pending Supply Chain In-charge Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-02 00:00:00",
+  "name": "Pending Utility Head Approval (Project Plan)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Utility Head Approval (Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-02 00:00:00",
+  "name": "Pending Supply Chain In-charge Approval (Project Plan)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Supply Chain In-charge Approval (Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-02 00:00:00",
+  "name": "Pending Utility Head Approval (Initial Release Base)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Utility Head Approval (Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-02 00:00:00",
+  "name": "Pending Utility Head Approval (Initial Release Final)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Utility Head Approval (Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-02 00:00:00",
+  "name": "Pending Supply Chain In-charge Approval (Initial Release Final)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Supply Chain In-charge Approval (Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-02 00:00:00",
+  "name": "Pending Utility Head Approval (Conditional Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Utility Head Approval (Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-02 00:00:00",
+  "name": "Pending Supply Chain In-charge Approval (Conditional Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Supply Chain In-charge Approval (Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-02 00:00:00",
+  "name": "Pending Utility Head Approval (Final Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Utility Head Approval (Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-02 00:00:00",
+  "name": "Pending Supply Chain In-charge Approval (Final Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Supply Chain In-charge Approval (Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-10 10:47:00",
+  "name": "Pending Termination Approval (Approved Initial Release Final)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Termination Approval (Approved Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-19 00:00:00",
+  "name": "Pending Director of Project Approval (Capex)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Director of Project Approval (Capex)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-19 00:00:00",
+  "name": "Pending Finance Approval (Capex)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Finance Approval (Capex)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-19 00:00:00",
+  "name": "Pending CEO Approval (Capex)",
+  "style": "Warning",
+  "workflow_state_name": "Pending CEO Approval (Capex)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-19 00:00:00",
+  "name": "Approved (Capex)",
+  "style": "Success",
+  "workflow_state_name": "Approved (Capex)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-22 15:14:41.820238",
+  "name": "Pending Project Director Approval",
+  "style": "",
+  "workflow_state_name": "Pending Project Director Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-22 15:14:41.825497",
+  "name": "Pending CFO Approval",
+  "style": "Warning",
+  "workflow_state_name": "Pending CFO Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-22 15:14:41.828306",
+  "name": "Pending Capex Committee Approval",
+  "style": "",
+  "workflow_state_name": "Pending Capex Committee Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-22 15:57:43.809477",
+  "name": "Pending Project Director",
+  "style": "Warning",
+  "workflow_state_name": "Pending Project Director"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-22 15:57:44.018163",
+  "name": "Pending Finance",
+  "style": "Warning",
+  "workflow_state_name": "Pending Finance"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-22 16:07:18.737873",
+  "name": "Pending Finance Manager",
+  "style": "Warning",
+  "workflow_state_name": "Pending Finance Manager"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-22 18:58:10.830315",
+  "name": "Pending Finance Manager Approval",
+  "style": "Warning",
+  "workflow_state_name": "Pending Finance Manager Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-23 00:00:00",
+  "name": "Pending Director Approval",
+  "style": "Warning",
+  "workflow_state_name": "Pending Director Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-23 12:00:00",
+  "name": "Pending Equipment Head Approval",
+  "style": "Warning",
+  "workflow_state_name": "Pending Equipment Head Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-23 12:00:00",
+  "name": "Sent back for Correction",
+  "style": "Danger",
+  "workflow_state_name": "Sent back for Correction"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-06-19 14:12:30.300993",
+  "name": "Reject(Project Director)",
+  "style": "",
+  "workflow_state_name": "Reject(Project Director)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-28 12:00:00",
+  "name": "Pending Product Engineering Head Approval (Project Plan)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Product Engineering Head Approval (Project Plan)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-28 12:00:00",
+  "name": "Pending Product Engineering Head Approval (Initial Release Base)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Product Engineering Head Approval (Initial Release Base)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-28 12:00:00",
+  "name": "Pending Product Engineering Head Approval (Initial Release Final)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Product Engineering Head Approval (Initial Release Final)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-28 12:00:00",
+  "name": "Pending Product Engineering Head Approval (Conditional Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Product Engineering Head Approval (Conditional Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-28 12:00:00",
+  "name": "Pending Product Engineering Head Approval (Final Release)",
+  "style": "Warning",
+  "workflow_state_name": "Pending Product Engineering Head Approval (Final Release)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-28 12:00:00",
+  "name": "Pending RFQ Approver 1",
+  "style": "Warning",
+  "workflow_state_name": "Pending RFQ Approver 1"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-28 12:00:00",
+  "name": "Pending RFQ Approver 2",
+  "style": "Warning",
+  "workflow_state_name": "Pending RFQ Approver 2"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-29 10:00:00",
+  "name": "Pending MDM Approver 1",
+  "style": "Warning",
+  "workflow_state_name": "Pending MDM Approver 1"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-29 10:00:00",
+  "name": "Pending MDM Approver 2",
+  "style": "Warning",
+  "workflow_state_name": "Pending MDM Approver 2"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-28 12:19:46.215436",
+  "name": "Pending Finance Approval",
+  "style": "Warning",
+  "workflow_state_name": "Pending Finance Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-08-01 12:00:00",
+  "name": "Waiting Supplier Acknowledgement",
+  "style": "Warning",
+  "workflow_state_name": "Waiting Supplier Acknowledgement"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
   "icon": "question-sign",
   "modified": "2026-02-26 09:53:04.826709",
   "name": "Pending",

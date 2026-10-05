@@ -10,6 +10,7 @@ from frappe.model.document import Document
 from frappe.utils import date_diff, get_datetime, getdate, nowdate
 
 
+from visitormanagement.visitor_management import hospitality_extensions
 from visitormanagement.visitor_management.lifecycle import (
 	populate_hospitality_request_from_pass,
 	sync_hospitality_to_pass,
@@ -100,6 +101,17 @@ class HospitalityRequest(Document):
 		self._validate_seating_capacity()
 		self._validate_hotel_in_visit_window()
 		self._validate_activities_in_visit_window()
+		hospitality_extensions.before_save(self)
+
+	def before_update_after_submit(self):
+		# booking / finance fields stay editable after approval (allow_on_submit)
+		hospitality_extensions.before_save(self)
+
+	def after_insert(self):
+		hospitality_extensions.after_save(self)
+
+	def on_update_after_submit(self):
+		hospitality_extensions.after_save(self)
 
 	# Real-world rule: hospitality preparation should not begin until the visitor
 	# is confirmed. Drafts (and re-applications after rejection) can be created
@@ -276,3 +288,4 @@ class HospitalityRequest(Document):
 		)
 		if status_changed_to_confirmed or assigned_staff_changed:
 			_send_hospitality_assignment_mail(self)
+		hospitality_extensions.after_save(self)

@@ -226,3 +226,66 @@ function view_room_schedule(frm) {
 		},
 	});
 }
+
+// ── Meeting purpose + smart room suggestions (Phase 8) ───────────────────────
+const VMS_CRB = "visitormanagement.conference_room.doctype.conference_room_booking.conference_room_booking";
+const VMS_INTERNAL_PURPOSES = ["Team Meeting", "Training", "Board Meeting"];
+
+frappe.ui.form.on("Conference Room Booking", {
+	refresh(frm) {
+		vms_render_room_suggestions(frm);
+	},
+	meeting_purpose(frm) {
+		if (frm.doc.meeting_purpose && frm.doc.meeting_type !== "Hybrid") {
+			frm.set_value("meeting_type", VMS_INTERNAL_PURPOSES.includes(frm.doc.meeting_purpose) ? "Internal" : "External");
+		}
+		vms_render_room_suggestions(frm);
+	},
+	expected_attendees: vms_render_room_suggestions,
+	booking_date: vms_render_room_suggestions,
+	start_time: vms_render_room_suggestions,
+	end_time: vms_render_room_suggestions,
+});
+
+function vms_render_room_suggestions(frm) {
+	const field = frm.get_field("suggested_room");
+	if (!field || frm.doc.docstatus !== 0) return;
+	const d = frm.doc;
+	if (!(d.meeting_purpose && d.booking_date && d.start_time && d.end_time)) {
+		field.$wrapper.html(`<p class="text-muted small">${__("Pick a meeting purpose, date and time to see suggested rooms.")}</p>`);
+		return;
+	}
+	frappe.call({
+		method: `${VMS_CRB}.get_room_suggestions`,
+		args: {
+			meeting_purpose: d.meeting_purpose,
+			booking_date: d.booking_date,
+			start_time: d.start_time,
+			end_time: d.end_time,
+			attendee_count: d.expected_attendees || 0,
+			exclude_booking: d.__islocal ? "" : d.name,
+		},
+		callback(r) {
+			const res = r.message || {};
+			const esc = (v) => frappe.utils.escape_html(v == null ? "" : String(v));
+			let html = `<p><b>${esc(res.suggestion || "")}</b></p>`;
+			(res.available_rooms || []).forEach((room) => {
+				const best = room.best_fit ? `<span class="indicator-pill green" style="margin-left:6px">${__("Best Fit")}</span>` : "";
+				const chosen = room.name === d.conference_room ? `<span class="text-muted small"> (${__("selected")})</span>` : "";
+				html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border-color)">
+					<span>${esc(room.room_name)} — ${esc(room.capacity)} ${__("seats")} ${esc(room.location || "")} ${best}${chosen}</span>
+					<button class="btn btn-xs btn-default vms-select-room" data-room="${esc(room.name)}">${__("Select")}</button>
+				</div>`;
+			});
+			if ((res.unavailable_rooms || []).length) {
+				html += `<p class="text-muted small" style="margin-top:8px">${__("Not suitable")}: ` +
+					res.unavailable_rooms.map((u) => `${esc(u.room_name)} (${esc(u.reason)})`).join(", ") + "</p>";
+			}
+			field.$wrapper.html(html);
+			field.$wrapper.find(".vms-select-room").on("click", (e) => {
+				e.preventDefault();
+				frm.set_value("conference_room", $(e.currentTarget).attr("data-room"));
+			});
+		},
+	});
+}

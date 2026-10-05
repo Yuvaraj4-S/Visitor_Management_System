@@ -200,6 +200,7 @@ class VisitorInvitation(Document):
 		if not self.invitation_status:
 			self.invitation_status = "Draft"
 
+		self._apply_visit_mapping()
 		self._validate_visit_date()
 		self._validate_email()
 		self._validate_time_range()
@@ -214,6 +215,32 @@ class VisitorInvitation(Document):
 			frappe.throw(_("Invitation Expiry must be a future date and time."))
 
 		self._apply_hospitality_defaults()
+
+	def _apply_visit_mapping(self):
+		"""Group invitations keep host_employee filled with the group lead, so the
+		portal, pass creation and every host-based rule keep working unchanged."""
+		from visitormanagement.visitor_management.utils import GROUP, get_group_employees
+
+		if self.get("mapping_type") != GROUP:
+			self.mapping_type = "Single Person"
+			self.visitor_group = None
+			if not self.host_employee:
+				frappe.throw(_("Host Employee is required."), frappe.MandatoryError)
+			return
+		if not self.visitor_group:
+			frappe.throw(_("Visitor Group is required when Visit Mapping is Group."))
+		members = get_group_employees(self.visitor_group)
+		if not members:
+			frappe.throw(_("Employee Group {0} has no active employees.").format(self.visitor_group))
+		if self.host_employee not in members:
+			self.host_employee = members[0]
+
+	def _group_member_emails(self):
+		from visitormanagement.visitor_management.utils import GROUP, get_employee_email, get_group_employees
+
+		if self.get("mapping_type") != GROUP or not self.visitor_group:
+			return []
+		return sorted({e for e in (get_employee_email(m) for m in get_group_employees(self.visitor_group)) if e})
 
 	def _validate_visit_date(self):
 		if not self.visit_date:
@@ -312,6 +339,7 @@ class VisitorInvitation(Document):
 		]
 		frappe.sendmail(
 			recipients=[self.visitor_email],
+			cc=self._group_member_emails() or None,
 			subject="Visitor Pre-Registration Invitation",
 			message="<br>".join(message),
 			now=True,

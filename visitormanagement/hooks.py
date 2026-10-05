@@ -71,6 +71,12 @@ doctype_js = {"Job Applicant": "public/js/job_applicant.js"}
 # 	"Role": "home_page"
 # }
 
+# Security Gate PWA (/gate) — Vue app built from gate_app/ into public/gate/
+website_route_rules = [
+	{"from_route": "/gate/<path:app_path>", "to_route": "_gate"},
+	{"from_route": "/gate", "to_route": "_gate"},
+]
+
 # Generators
 # ----------
 
@@ -133,10 +139,12 @@ doctype_js = {"Job Applicant": "public/js/job_applicant.js"}
 # }
 permission_query_conditions = {
 	"Visitor Pass": "visitormanagement.permissions.get_visitor_pass_permission_query_conditions",
+	"Gate Entry Request": "visitormanagement.visitor_management.doctype.gate_entry_request.gate_entry_request.get_permission_query_conditions",
 }
 
 has_permission = {
 	"Visitor Pass": "visitormanagement.permissions.has_visitor_pass_permission",
+	"Gate Entry Request": "visitormanagement.visitor_management.doctype.gate_entry_request.gate_entry_request.has_permission",
 }
 
 # DocType Class
@@ -175,7 +183,9 @@ scheduler_events = {
 		]
 	},
 	"hourly": [
-		"visitormanagement.visitor_management.tasks.flag_no_show_passes"
+		"visitormanagement.visitor_management.tasks.flag_no_show_passes",
+		"visitormanagement.visitor_management.doctype.gate_entry_request.gate_entry_request.expire_pending_gate_entries",
+		"visitormanagement.visitor_management.tasks.auto_checkout_end_of_day",
 	]
 }
 
@@ -283,6 +293,7 @@ fixtures = [
                 "Front Office Executive",
                 "Factory Tour Coordinator",
                 "Greeting Staff",
+                "VMS Finance Approver",
             ]]
         ]
     },

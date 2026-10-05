@@ -890,3 +890,35 @@ function add_hospitality_buttons(frm) {
 		}
 	}
 }
+
+// ── Visit mapping (Single Person / Group) and ID masking ──────────────────────
+frappe.ui.form.on("Visitor Pass", {
+	refresh(frm) {
+		vms_toggle_visit_mapping(frm);
+		if (frm.doc.__onload && frm.doc.__onload.id_masked) {
+			frm.set_df_property("id_proof_number", "read_only", 1);
+			frm.set_df_property("id_proof_number", "description", __("Masked for privacy."));
+		}
+	},
+	mapping_type(frm) {
+		vms_toggle_visit_mapping(frm);
+		if (frm.doc.mapping_type !== "Group" && frm.doc.visitor_group) {
+			frm.set_value("visitor_group", "");
+		}
+	},
+	visitor_group(frm) {
+		if (frm.doc.mapping_type !== "Group" || !frm.doc.visitor_group) return;
+		// the group lead becomes the host so host-based rules keep working
+		frappe.db.get_doc("Employee Group", frm.doc.visitor_group).then((group) => {
+			const first = (group.employee_list || [])[0];
+			if (first && first.employee) frm.set_value("person_to_visit", first.employee);
+		});
+	},
+});
+
+function vms_toggle_visit_mapping(frm) {
+	const group = frm.doc.mapping_type === "Group";
+	frm.toggle_display("visitor_group", group);
+	frm.toggle_reqd("visitor_group", group);
+	frm.toggle_reqd("person_to_visit", !group);
+}

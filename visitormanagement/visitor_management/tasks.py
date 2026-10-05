@@ -158,13 +158,16 @@ def flag_no_show_passes():
 			"no_show": 0,
 			"docstatus": ["<", 2],
 		},
-		fields=["name", "visit_date", "expected_checkout"],
+		fields=["name", "visit_date", "expected_checkout", "is_recurring", "recurring_end_date"],
 	)
 
 	flagged = 0
 	for cand in candidates:
 		if not cand.visit_date:
 			continue
+		# A recurring pass is a no-show only if its whole validity window passed unused.
+		if cand.is_recurring and cand.recurring_end_date:
+			cand.visit_date = cand.recurring_end_date
 
 		# Build the deadline: visit_date + expected_checkout (or end of day) + grace.
 		if cand.expected_checkout:
@@ -200,3 +203,48 @@ def flag_no_show_passes():
 		except Exception:
 			frappe.log_error(frappe.get_traceback(), "flag_no_show_passes log_visitor_event")
 		flagged += 1
+
+
+def auto_checkout_end_of_day():
+	"""Hourly: check out visitors still Checked-In after the end-of-day cut-off.
+
+	Runs every hour so a missed run catches up. A pass is checked out when it was
+	checked in on an earlier day, or today once VMS Settings `auto_checkout_time`
+	has passed. Each checkout is a Security Log with `is_auto_checkout = 1`, so it
+	appears in the Missed Checkout report. A recurring pass ends up Checked-Out,
+	which lets it check in again on its next valid day.
+	"""
+	from frappe.utils import get_time, getdate
+
+	settings = frappe.get_cached_doc("VMS Settings")
+	if not frappe.utils.cint(settings.get("auto_checkout_enabled")):
+		return
+
+	now = now_datetime()
+	cutoff_reached = now.time() >= get_time(settings.get("auto_checkout_time") or "23:00:00")
+	for row in frappe.get_all(
+		"Visitor Pass",
+		filters={"status": "Checked-In", "docstatus": 1},
+		fields=["name", "actual_checkin", "visit_date"],
+	):
+		checkin_day = getdate(row.actual_checkin or row.visit_date or now)
+		if checkin_day == now.date() and not cutoff_reached:
+			continue
+		try:
+			log = frappe.get_doc(
+				{
+					"doctype": "Security Log",
+					"visitor_pass": row.name,
+					"event_type": "Check-Out",
+					"gate_name": "Auto Checkout",
+					"is_auto_checkout": 1,
+					"check_out_date_time": now,
+				}
+			)
+			log.flags.ignore_mandatory = True
+			log.flags.ignore_permissions = True
+			log.insert()
+			frappe.db.commit()
+		except Exception:
+			frappe.db.rollback()
+			frappe.log_error(frappe.get_traceback(), f"VMS auto checkout failed for {row.name}")

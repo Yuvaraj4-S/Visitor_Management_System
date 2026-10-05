@@ -41,6 +41,12 @@ def get_visitor_pass_permission_query_conditions(user=None):
 	employee = _employee_for_user(user)
 	if employee:
 		conditions.append(f"`{table}`.`person_to_visit` = {frappe.db.escape(employee)}")
+		# Group scope — member of the Employee Group the visit is mapped to
+		conditions.append(
+			f"(`{table}`.`mapping_type` = 'Group' and exists (select 1 from `tabEmployee Group Table` egt"
+			f" where egt.parent = `{table}`.`visitor_group` and egt.parenttype = 'Employee Group'"
+			f" and egt.employee = {frappe.db.escape(employee)}))"
+		)
 
 	# Approver scope — each role owns their visitor_type end-to-end
 	if "System Manager" in roles:
@@ -74,6 +80,14 @@ def has_visitor_pass_permission(doc, user=None, permission_type=None):
 	employee = _employee_for_user(user)
 	if employee and doc.person_to_visit == employee:
 		return True
+
+	# Group scope — member of the Employee Group the visit is mapped to
+	if employee and doc.get("mapping_type") == "Group" and doc.get("visitor_group"):
+		if frappe.db.exists(
+			"Employee Group Table",
+			{"parent": doc.visitor_group, "parenttype": "Employee Group", "employee": employee},
+		):
+			return True
 
 	roles = set(frappe.get_roles(user))
 

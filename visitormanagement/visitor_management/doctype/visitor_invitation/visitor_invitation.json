@@ -8,7 +8,9 @@
  "field_order": [
   "visitor_type",
   "visitor_email",
+  "mapping_type",
   "host_employee",
+  "visitor_group",
   "visit_date",
   "expected_checkin",
   "expected_checkout",
@@ -47,12 +49,28 @@
    "reqd": 1
   },
   {
+   "fieldname": "mapping_type",
+   "fieldtype": "Select",
+   "label": "Visit Mapping",
+   "options": "Single Person\nGroup",
+   "default": "Single Person"
+  },
+  {
    "fieldname": "host_employee",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Host Employee",
    "options": "Employee",
-   "reqd": 1
+   "mandatory_depends_on": "eval:doc.mapping_type!='Group'"
+  },
+  {
+   "fieldname": "visitor_group",
+   "fieldtype": "Link",
+   "label": "Visitor Group",
+   "options": "Employee Group",
+   "depends_on": "eval:doc.mapping_type=='Group'",
+   "mandatory_depends_on": "eval:doc.mapping_type=='Group'",
+   "description": "Every member is copied on the invitation; the group lead becomes the host."
   },
   {
    "fieldname": "visit_date",
@@ -189,7 +207,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-10 10:42:40.104275",
+ "modified": "2026-10-04 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Invitation",

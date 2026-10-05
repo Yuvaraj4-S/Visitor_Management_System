@@ -134,7 +134,31 @@ def validate_id(id_type, number):
     canonical = _canonical_type(id_type)
     if not canonical:
         return False
+    if not _format_check_enabled(canonical):
+        return bool((number or "").strip())
     return _VALIDATORS[canonical](number)
+
+
+# VMS Settings checkbox per ID type that can switch off its format check.
+_SETTING_FOR_TYPE = {
+    "Aadhaar": "validate_aadhaar_number",
+    "PAN Card": "validate_pan_number",
+}
+
+
+def _format_check_enabled(canonical):
+    """False only when the VMS Settings checkbox for this type is explicitly unticked.
+    Runs as plain Python (no site / no setting saved yet) → check stays on."""
+    fieldname = _SETTING_FOR_TYPE.get(canonical)
+    if not fieldname:
+        return True
+    try:
+        import frappe
+
+        value = frappe.get_cached_doc("VMS Settings").get(fieldname)
+    except Exception:
+        return True
+    return value is None or bool(int(value))
 
 
 def detect_id_type(number):

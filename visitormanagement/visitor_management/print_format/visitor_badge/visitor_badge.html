@@ -1,58 +1,64 @@
-<div class="badge-container">
-    {% set badge_photo = doc.gate_verified_photo or doc.visitor_photo %}
-    <div class="badge-header">
-        <div class="photo-container">
-            {% if badge_photo %}
-            <img src="{{ badge_photo }}" class="visitor-photo">
-            {% else %}
-            <div class="photo-placeholder"></div>
-            {% endif %}
-        </div>
-        <div class="header-right">
-            <div class="visitor-label">VISITOR</div>
-            {% if doc.gate_verified_photo %}
-            <div class="verification-chip">Gate Verified Photo</div>
-            {% endif %}
-            <div class="company-logo">
-                <img src="/assets/visitormanagement/images/logo.png" onerror="this.style.display='none'">
-                <span class="company-name">Visitor Management</span>
-            </div>
-            <div class="location-name">Main Office</div>
-        </div>
-    </div>
+{#- Table-based layout: renders the same in the browser and in the PDF engine
+    (wkhtmltopdf has no flexbox support — with flex the QR code was cut off in PDFs). -#}
+{% set badge_hex = {"Orange": "#fd7e14", "Purple": "#6f42c1", "Green": "#28a745", "Teal": "#20c997",
+    "Gold": "#ffc107", "Blue": "#007bff", "Red": "#dc3545", "Grey": "#6c757d"}.get(doc.badge_colour or "", "#0d6b3e") %}
+{% set badge_photo = doc.gate_verified_photo or doc.visitor_photo %}
+{% set host_name = (frappe.db.get_value("Employee", doc.person_to_visit, "employee_name") if doc.person_to_visit else "") or doc.person_to_visit %}
+<div class="badge-container" style="border: 3px solid {{ badge_hex }};">
+    <div class="badge-band badge-band-top" style="background: {{ badge_hex }};"></div>
+    <div class="badge-band badge-band-bottom" style="background: {{ badge_hex }};"></div>
 
-    <div class="badge-body">
-        <div class="visitor-info">
-            <h1 class="visitor-name">{{ doc.visitor_full_name }}</h1>
-            <div class="info-row">
-                <span class="info-label">From:</span>
-                <span class="info-value">{{ doc.company__organisation or 'N/A' }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Visiting:</span>
-                <span class="info-value">{{ doc.person_to_visit }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Purpose:</span>
-                <span class="info-value">{{ doc.purpose_of_visit }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Date:</span>
-                <span class="info-value">{{ doc.get_formatted("visit_date") }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Validity:</span>
-                <span class="info-value">{{ doc.expected_checkout or 'End of Day' }}</span>
-            </div>
-        </div>
+    <table class="badge-table badge-header">
+        <tr>
+            <td class="photo-cell">
+                <div class="photo-container">
+                    {% if badge_photo %}
+                    <img src="{{ badge_photo }}" class="visitor-photo" style="width: 76px !important; height: 76px !important;">
+                    {% else %}
+                    <div class="photo-placeholder"></div>
+                    {% endif %}
+                </div>
+            </td>
+            <td class="header-right">
+                <div class="visitor-label">VISITOR</div>
+                {% if doc.gate_verified_photo %}
+                <div class="verification-chip">Gate Verified Photo</div>
+                {% endif %}
+                <div class="company-logo">
+                    <img src="/assets/visitormanagement/images/logo.png" style="width: 22px !important; height: 22px !important;" onerror="this.style.display='none'">
+                    <span class="company-name">Visitor Management</span>
+                </div>
+                <div class="location-name">Main Office</div>
+            </td>
+        </tr>
+    </table>
 
-        <div class="badge-qr">
-            {% if doc.qr_code_image %}
-            <img src="{{ doc.qr_code_image }}" class="qr-image">
-            {% endif %}
-            <div class="badge-id">{{ doc.badge_number }}</div>
-        </div>
-    </div>
+    <table class="badge-table badge-body">
+        <tr>
+            <td class="visitor-info">
+                <div class="visitor-name">{{ doc.visitor_full_name }}</div>
+                <div class="info-row"><span class="info-label">From:</span> <span class="info-value">{{ doc.company__organisation or 'N/A' }}</span></div>
+                <div class="info-row"><span class="info-label">Visiting:</span> <span class="info-value">{{ host_name }}</span></div>
+                <div class="info-row"><span class="info-label">Purpose:</span> <span class="info-value">{{ (doc.purpose_of_visit or '')[:60] }}</span></div>
+                <div class="info-row">
+                    {% if doc.is_recurring and doc.recurring_end_date %}
+                    <span class="info-label">Valid:</span>
+                    <span class="info-value">{{ doc.get_formatted("recurring_start_date") or doc.get_formatted("visit_date") }} &ndash; {{ doc.get_formatted("recurring_end_date") }}</span>
+                    {% else %}
+                    <span class="info-label">Date:</span>
+                    <span class="info-value">{{ doc.get_formatted("visit_date") }}</span>
+                    {% endif %}
+                </div>
+                <div class="info-row"><span class="info-label">Valid till:</span> <span class="info-value">{{ doc.get_formatted("expected_checkout") or 'End of Day' }}</span></div>
+            </td>
+            <td class="badge-qr">
+                {% if doc.qr_code_image %}
+                <img src="{{ doc.qr_code_image }}" class="qr-image" style="width: 84px !important; height: 84px !important;">
+                {% endif %}
+                <div class="badge-id">{{ doc.badge_number or '' }}</div>
+            </td>
+        </tr>
+    </table>
 </div>
 
 <style>
@@ -61,121 +67,149 @@
         height: 280px;
         background: #f0f0f0;
         border-radius: 12px;
-        padding: 20px;
-        font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+        padding: 18px 18px 14px 18px;
+        font-family: 'Inter', 'Segoe UI', Roboto, 'DejaVu Sans', sans-serif;
         color: #333;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        display: flex;
-        flex-direction: column;
-        border: 1px solid #ddd;
         position: relative;
         overflow: hidden;
+        box-sizing: border-box;
+    }
+
+    .badge-band {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 10px;
+    }
+
+    .badge-band-top {
+        top: 0;
+    }
+
+    .badge-band-bottom {
+        bottom: 0;
+    }
+
+    .badge-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .badge-table td {
+        padding: 0;
+        border: none;
     }
 
     .badge-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 15px;
+        margin-bottom: 8px;
+    }
+
+    .photo-cell {
+        width: 84px;
+        vertical-align: top;
     }
 
     .photo-container {
-        width: 100px;
-        height: 100px;
+        width: 76px;
+        height: 76px;
         border-radius: 50%;
         overflow: hidden;
         border: 3px solid #fff;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        background: #ccc;
     }
 
-    .visitor-photo {
-        width: 100%;
-        height: 100%;
+    /* image sizes are also set inline with !important: Frappe's print CSS has the more specific
+       "body:last-child .print-format td img { width: 100% !important }", which stretched the logo */
+    .badge-container .visitor-photo {
+        width: 76px !important;
+        height: 76px;
         object-fit: cover;
     }
 
     .photo-placeholder {
-        width: 100%;
-        height: 100%;
+        width: 76px;
+        height: 76px;
         background: #ccc;
     }
 
     .header-right {
         text-align: right;
+        vertical-align: top;
     }
 
     .visitor-label {
-        font-size: 24px;
+        font-size: 22px;
         font-weight: 900;
         text-transform: uppercase;
         color: #000;
         letter-spacing: 2px;
-        margin-bottom: 5px;
-    }
-
-    .company-logo {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        margin-bottom: 5px;
+        margin-bottom: 3px;
     }
 
     .verification-chip {
         display: inline-block;
-        margin-bottom: 6px;
-        padding: 3px 8px;
+        margin-bottom: 4px;
+        padding: 2px 8px;
         border-radius: 999px;
         background: #d9f3e4;
         color: #0d6b3e;
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
 
+    .company-logo {
+        margin-bottom: 3px;
+        white-space: nowrap;
+    }
+
+    /* the logo file is 512x512 — without a size it covered the whole badge */
+    .badge-container .company-logo img {
+        width: 22px !important;
+        height: 22px;
+        vertical-align: middle;
+        margin-right: 5px;
+    }
+
     .company-name {
-        font-size: 16px;
+        font-size: 14px;
         font-weight: 600;
         color: #444;
+        vertical-align: middle;
     }
 
     .location-name {
-        font-size: 18px;
+        font-size: 14px;
         font-weight: 700;
         color: #000;
         background: #fff;
-        padding: 2px 8px;
+        padding: 1px 8px;
         border-radius: 4px;
         display: inline-block;
     }
 
-    .badge-body {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-        flex-grow: 1;
-    }
-
     .visitor-info {
-        max-width: 60%;
+        vertical-align: bottom;
+        padding-right: 8px;
     }
 
     .visitor-name {
-        font-size: 24px;
+        font-size: 20px;
         font-weight: 800;
-        margin: 0 0 10px 0;
+        margin: 0 0 5px 0;
         color: #000;
         line-height: 1.1;
     }
 
     .info-row {
-        margin-bottom: 3px;
-        font-size: 13px;
+        margin-bottom: 2px;
+        font-size: 12px;
+        line-height: 1.3;
     }
 
     .info-label {
         color: #666;
-        margin-right: 5px;
     }
 
     .info-value {
@@ -184,22 +218,24 @@
     }
 
     .badge-qr {
+        width: 96px;
         text-align: center;
+        vertical-align: bottom;
     }
 
-    .qr-image {
-        width: 80px;
-        height: 80px;
+    .badge-container .qr-image {
+        width: 84px !important;
+        height: 84px;
         background: #fff;
-        padding: 5px;
+        padding: 4px;
         border-radius: 4px;
         border: 1px solid #ddd;
     }
 
     .badge-id {
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
-        margin-top: 5px;
+        margin-top: 3px;
         color: #444;
         font-family: monospace;
     }

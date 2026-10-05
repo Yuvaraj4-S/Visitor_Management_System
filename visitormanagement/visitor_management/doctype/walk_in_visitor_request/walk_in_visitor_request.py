@@ -118,6 +118,21 @@ class WalkInVisitorRequest(Document):
             "priority": "High",
         }).insert(ignore_permissions=True)
 
+        # System notification (bell icon)
+        from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
+        enqueue_create_notification(
+            [host_user],
+            {
+                "type": "Alert",
+                "document_type": "Walk In Visitor Request",
+                "document_name": self.name,
+                "subject": _("Walk-in visitor {0} is at the gate and needs your approval").format(
+                    frappe.bold(self.visitor_full_name)
+                ),
+                "from_user": frappe.session.user,
+            },
+        )
+
 
 @frappe.whitelist()
 def approve_request(request_name):

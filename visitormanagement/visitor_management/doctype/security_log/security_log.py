@@ -10,36 +10,7 @@ from visitormanagement.visitor_management.lifecycle import (
     log_visitor_event,
     sync_contact_trace,
 )
-
-
-def mask_id_number(raw):
-    """Mask ID proof number, preserving separators and showing only last 4 characters.
-
-    Aadhaar  5001-5002-5003  →  XXXX-XXXX-5003
-    PAN      AABPR2345T     →  XXXXXX345T
-    Passport P1234567       →  XXXX4567
-    DL       DL-TN-05210099 →  XX-XX-XXXX0099
-    """
-    # Extract only alphanumeric characters and their positions
-    chars = []
-    for i, ch in enumerate(raw):
-        if ch.isalnum():
-            chars.append((i, ch))
-
-    if len(chars) <= 4:
-        return raw
-
-    # Positions of characters to keep visible (last 4 alphanumeric)
-    visible_positions = {pos for pos, _ in chars[-4:]}
-
-    # Rebuild string: mask alphanumeric chars except last 4, keep separators
-    masked = []
-    for i, ch in enumerate(raw):
-        if ch.isalnum():
-            masked.append(ch if i in visible_positions else "X")
-        else:
-            masked.append(ch)  # keep hyphens, spaces, slashes as-is
-    return "".join(masked)
+from visitormanagement.visitor_management.validators import mask_id_number
 
 
 _DEFAULT_GATE_BY_TYPE = {

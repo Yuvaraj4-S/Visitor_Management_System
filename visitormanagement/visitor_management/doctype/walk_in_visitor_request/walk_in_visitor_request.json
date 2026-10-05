@@ -1,0 +1,306 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "WVR-.YYYY.-.#####",
+ "creation": "2026-10-04 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "visitor_details_section",
+  "visitor_type",
+  "visitor_full_name",
+  "mobile_number",
+  "email_id",
+  "company__organisation",
+  "column_break_visitor",
+  "id_proof_type",
+  "id_proof_number",
+  "id_proof_scan",
+  "visitor_photo",
+  "number_of_visitors",
+  "visit_details_section",
+  "person_to_visit",
+  "host_department",
+  "purpose_of_visit",
+  "column_break_visit",
+  "visit_date",
+  "expected_checkin",
+  "expected_checkout",
+  "vehicle_number",
+  "items_section",
+  "items_carried",
+  "status_section",
+  "status",
+  "column_break_status",
+  "rejection_reason",
+  "reference_section",
+  "visitor_pass",
+  "column_break_reference",
+  "approved_by",
+  "approval_date",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "visitor_details_section",
+   "fieldtype": "Section Break",
+   "label": "Visitor Details"
+  },
+  {
+   "fieldname": "visitor_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Visitor Type",
+   "options": "Visitor Type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "visitor_full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Visitor Full Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "mobile_number",
+   "fieldtype": "Phone",
+   "in_list_view": 1,
+   "label": "Mobile Number",
+   "reqd": 1
+  },
+  {
+   "fieldname": "email_id",
+   "fieldtype": "Data",
+   "label": "Email ID",
+   "options": "Email"
+  },
+  {
+   "depends_on": "eval:['Contractor','Supplier','Customer'].includes(doc.visitor_type)",
+   "fieldname": "company__organisation",
+   "fieldtype": "Data",
+   "label": "Company / Organisation"
+  },
+  {
+   "fieldname": "column_break_visitor",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "id_proof_type",
+   "fieldtype": "Select",
+   "label": "ID Proof Type",
+   "options": "Aadhaar\nPAN Card\nPassport\nDriving License",
+   "reqd": 1
+  },
+  {
+   "fieldname": "id_proof_number",
+   "fieldtype": "Data",
+   "label": "ID Proof Number",
+   "reqd": 1
+  },
+  {
+   "fieldname": "id_proof_scan",
+   "fieldtype": "Attach Image",
+   "label": "ID Proof Scan"
+  },
+  {
+   "fieldname": "visitor_photo",
+   "fieldtype": "Attach Image",
+   "label": "Visitor Photo"
+  },
+  {
+   "default": "1",
+   "fieldname": "number_of_visitors",
+   "fieldtype": "Int",
+   "label": "Number of Visitors"
+  },
+  {
+   "fieldname": "visit_details_section",
+   "fieldtype": "Section Break",
+   "label": "Visit Details"
+  },
+  {
+   "fieldname": "person_to_visit",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Person to Visit",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "person_to_visit.department",
+   "fieldname": "host_department",
+   "fieldtype": "Data",
+   "label": "Host Department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "purpose_of_visit",
+   "fieldtype": "Small Text",
+   "label": "Purpose of Visit",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_visit",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Today",
+   "fieldname": "visit_date",
+   "fieldtype": "Date",
+   "label": "Visit Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "expected_checkin",
+   "fieldtype": "Time",
+   "label": "Expected Check-In",
+   "reqd": 1
+  },
+  {
+   "fieldname": "expected_checkout",
+   "fieldtype": "Time",
+   "label": "Expected Check-Out",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vehicle_number",
+   "fieldtype": "Data",
+   "label": "Vehicle Number"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "items_section",
+   "fieldtype": "Section Break",
+   "label": "Items Carried"
+  },
+  {
+   "description": "e.g. laptop, toolkit - list the items the visitor is carrying.",
+   "fieldname": "items_carried",
+   "fieldtype": "Small Text",
+   "label": "Items"
+  },
+  {
+   "fieldname": "status_section",
+   "fieldtype": "Section Break",
+   "label": "Approval"
+  },
+  {
+   "default": "Pending Approval",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending Approval\nApproved\nRejected",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.status == 'Rejected'",
+   "fieldname": "rejection_reason",
+   "fieldtype": "Small Text",
+   "label": "Rejection Reason"
+  },
+  {
+   "fieldname": "reference_section",
+   "fieldtype": "Section Break",
+   "label": "Reference"
+  },
+  {
+   "fieldname": "visitor_pass",
+   "fieldtype": "Link",
+   "label": "Visitor Pass",
+   "options": "Visitor Pass",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_reference",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_date",
+   "fieldtype": "Datetime",
+   "label": "Approval Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Walk In Visitor Request",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-04 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Walk In Visitor Request",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Employee",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "search_fields": "visitor_full_name,mobile_number,person_to_visit",
+ "show_name_in_global_search": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [
+  {
+   "color": "orange",
+   "title": "Pending Approval"
+  },
+  {
+   "color": "green",
+   "title": "Approved"
+  },
+  {
+   "color": "red",
+   "title": "Rejected"
+  }
+ ],
+ "title_field": "visitor_full_name",
+ "track_changes": 1
+}

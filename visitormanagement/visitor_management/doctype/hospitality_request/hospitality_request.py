@@ -276,3 +276,288 @@ class HospitalityRequest(Document):
 		)
 		if status_changed_to_confirmed or assigned_staff_changed:
 			_send_hospitality_assignment_mail(self)
+
+		# Handle service assignment ToDos and booking confirmation emails
+		_handle_service_assignments(self, previous)
+		_handle_booking_confirmations(self, previous)
+
+
+def _resolve_user_from_assignment(field_value, link_type):
+	"""Resolve the User ID from an assigned field value.
+
+	Cab/Hotel fields link to User directly. Buggy/Greeting link to Employee,
+	so we need to look up the employee's user_id.
+	"""
+	if not field_value:
+		return None
+	if link_type == "User":
+		return field_value
+	# link_type == "Employee"
+	return frappe.db.get_value("Employee", field_value, "user_id")
+
+
+def _handle_service_assignments(doc, previous):
+	"""Create ToDo, share document, and send system notification when a service is assigned."""
+	from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
+	from frappe.utils import get_fullname
+
+	_SERVICE_ASSIGNMENTS = [
+		{
+			"required_field": "cab_required",
+			"assigned_field": "cab_assigned_to",
+			"link_type": "User",
+			"label": "Cab Booking",
+		},
+		{
+			"required_field": "hotel_required",
+			"assigned_field": "hotel_assigned_to",
+			"link_type": "User",
+			"label": "Hotel Booking",
+		},
+		{
+			"required_field": "buggy_required",
+			"assigned_field": "buggy_assigned_to",
+			"link_type": "Employee",
+			"label": "Buggy Vehicle",
+		},
+		{
+			"required_field": "greeting_required",
+			"assigned_field": "greeting_assigned_to",
+			"link_type": "Employee",
+			"label": "Greeting Arrangement",
+		},
+	]
+
+	for svc in _SERVICE_ASSIGNMENTS:
+		if not getattr(doc, svc["required_field"], 0):
+			continue
+		assigned_value = getattr(doc, svc["assigned_field"], None)
+		if not assigned_value:
+			continue
+		prev_assigned = getattr(previous, svc["assigned_field"], None) if previous else None
+		if assigned_value == prev_assigned:
+			continue
+
+		assigned_user = _resolve_user_from_assignment(assigned_value, svc["link_type"])
+		if not assigned_user:
+			frappe.log_error(
+				f"No user linked to {svc['link_type']} {assigned_value} — cannot send {svc['label']} notification.",
+				"VMS Service Assignment",
+			)
+			continue
+
+		visitor_name = doc.visitor_name_display or doc.visitor_pass
+		task_description = _("{0} required for visitor {1}. Please complete and update the details.").format(
+			svc["label"], visitor_name
+		)
+
+		# 1. Create ToDo
+		frappe.get_doc({
+			"doctype": "ToDo",
+			"allocated_to": assigned_user,
+			"reference_type": "Hospitality Request",
+			"reference_name": doc.name,
+			"description": task_description,
+			"priority": "High",
+		}).insert(ignore_permissions=True)
+
+		# 2. Share the document with the assigned user (read + write)
+		frappe.share.add(
+			"Hospitality Request",
+			doc.name,
+			user=assigned_user,
+			read=1,
+			write=1,
+			notify=0,  # we send our own notification below
+		)
+
+		# 3. Send system notification (appears in bell icon)
+		assigner_name = get_fullname(frappe.session.user)
+		enqueue_create_notification(
+			[assigned_user],
+			{
+				"type": "Assignment",
+				"document_type": "Hospitality Request",
+				"document_name": doc.name,
+				"subject": _("{0} assigned {1} for visitor {2} to you").format(
+					frappe.bold(assigner_name),
+					frappe.bold(svc["label"]),
+					frappe.bold(visitor_name),
+				),
+				"from_user": frappe.session.user,
+				"email_content": task_description,
+			},
+		)
+
+		# 4. Send email notification to the assigned user
+		_send_service_assignment_email(assigned_user, svc["label"], visitor_name, doc)
+
+
+def _send_service_assignment_email(user_email, service_label, visitor_name, doc):
+	"""Send email to the assigned user about the service assignment."""
+	link = frappe.utils.get_url_to_form("Hospitality Request", doc.name)
+	try:
+		frappe.sendmail(
+			recipients=[user_email],
+			subject=_("{0} Assignment: {1}").format(service_label, visitor_name),
+			message=(
+				f"<p>Dear Colleague,</p>"
+				f"<p>You have been assigned <b>{service_label}</b> for visitor "
+				f"<b>{visitor_name}</b>.</p>"
+				f"<p>Please open the Hospitality Request and complete the required details:</p>"
+				f"<p><a href='{link}'>{doc.name}</a></p>"
+				f"<p>Regards,<br>Visitor Management Team</p>"
+			),
+			now=True,
+		)
+	except Exception as exc:
+		frappe.log_error(
+			f"Service assignment email failed for {doc.name} ({service_label}): {exc}",
+			"VMS Service Assignment Email",
+		)
+
+
+def _handle_booking_confirmations(doc, previous):
+	"""Send confirmation email to visitor when a service is marked as Booked."""
+	_SERVICE_CONFIRMATIONS = [
+		{
+			"required_field": "cab_required",
+			"status_field": "cab_status",
+			"label": "Cab / Transport",
+			"details_fn": _get_cab_confirmation_details,
+		},
+		{
+			"required_field": "hotel_required",
+			"status_field": "hotel_status",
+			"label": "Hotel Booking",
+			"details_fn": _get_hotel_confirmation_details,
+		},
+	]
+
+	for svc in _SERVICE_CONFIRMATIONS:
+		if not getattr(doc, svc["required_field"], 0):
+			continue
+		current_status = getattr(doc, svc["status_field"], None)
+		prev_status = getattr(previous, svc["status_field"], None) if previous else None
+		if current_status != "Booked" or prev_status == "Booked":
+			continue
+
+		# Close the corresponding ToDo
+		assigned_field = svc["status_field"].replace("_status", "_assigned_to")
+		_close_service_todo(doc.name, assigned_field)
+
+		# Send confirmation to visitor (with attachment for hotel voucher)
+		attachments = []
+		if svc["status_field"] == "hotel_status" and doc.hotel_voucher:
+			attachments = _get_file_attachments(doc.hotel_voucher)
+		_send_visitor_booking_confirmation(doc, svc["label"], svc["details_fn"](doc), attachments)
+
+
+def _get_cab_confirmation_details(doc):
+	lines = []
+	if doc.cab_type:
+		lines.append(f"<li><b>Service:</b> {doc.cab_type}</li>")
+	if doc.cab_vehicle_number:
+		lines.append(f"<li><b>Vehicle Number:</b> {doc.cab_vehicle_number}</li>")
+	if doc.driver_name:
+		lines.append(f"<li><b>Driver Name:</b> {doc.driver_name}</li>")
+	if doc.driver_phone:
+		lines.append(f"<li><b>Driver Phone:</b> {doc.driver_phone}</li>")
+	if doc.pickup_location:
+		lines.append(f"<li><b>Pickup Location:</b> {doc.pickup_location}</li>")
+	if doc.pickup_datetime:
+		lines.append(f"<li><b>Pickup Time:</b> {doc.pickup_datetime}</li>")
+	if doc.drop_location:
+		lines.append(f"<li><b>Drop Location:</b> {doc.drop_location}</li>")
+	if doc.drop_datetime:
+		lines.append(f"<li><b>Drop Time:</b> {doc.drop_datetime}</li>")
+	if doc.cab_pickup_instructions:
+		lines.append(f"<li><b>Instructions:</b> {doc.cab_pickup_instructions}</li>")
+	return "<ul>" + "".join(lines) + "</ul>" if lines else ""
+
+
+def _get_hotel_confirmation_details(doc):
+	lines = []
+	if doc.hotel_name:
+		hotel_label = frappe.db.get_value("Supplier", doc.hotel_name, "supplier_name") or doc.hotel_name
+		lines.append(f"<li><b>Hotel:</b> {hotel_label}</li>")
+	if doc.check_in:
+		lines.append(f"<li><b>Check-in:</b> {doc.check_in}</li>")
+	if doc.check_out:
+		lines.append(f"<li><b>Check-out:</b> {doc.check_out}</li>")
+	if doc.nights:
+		lines.append(f"<li><b>Nights:</b> {doc.nights}</li>")
+	if doc.room_type:
+		lines.append(f"<li><b>Room Type:</b> {doc.room_type}</li>")
+	if doc.no_of_rooms:
+		lines.append(f"<li><b>Rooms:</b> {doc.no_of_rooms}</li>")
+	if doc.booking_reference:
+		lines.append(f"<li><b>Booking Reference:</b> {doc.booking_reference}</li>")
+	return "<ul>" + "".join(lines) + "</ul>" if lines else ""
+
+
+def _send_visitor_booking_confirmation(doc, service_label, details_html, attachments=None):
+	"""Send booking confirmation email to the visitor, optionally with attachments."""
+	if not doc.visitor_pass:
+		return
+
+	vp = frappe.db.get_value(
+		"Visitor Pass", doc.visitor_pass,
+		["visitor_full_name", "email_id", "mobile_number"],
+		as_dict=True,
+	)
+	if not vp or not vp.email_id:
+		return
+
+	subject = _("{0} Confirmed for Your Visit").format(service_label)
+	message = (
+		f"<p>Dear {vp.visitor_full_name},</p>"
+		f"<p>Your <b>{service_label}</b> has been confirmed. Here are the details:</p>"
+		f"{details_html}"
+		f"<p>If you have any questions, please contact your host.</p>"
+		f"<p>Regards,<br>Visitor Management Team</p>"
+	)
+
+	try:
+		frappe.sendmail(
+			recipients=[vp.email_id],
+			subject=subject,
+			message=message,
+			attachments=attachments or [],
+			now=True,
+		)
+	except Exception as exc:
+		frappe.log_error(
+			f"Visitor booking confirmation email failed for {doc.name}: {exc}",
+			"VMS Booking Confirmation Email",
+		)
+
+
+def _get_file_attachments(file_url):
+	"""Get attachment dict for frappe.sendmail from a file URL."""
+	if not file_url:
+		return []
+	file_doc = frappe.db.get_value(
+		"File",
+		{"file_url": file_url},
+		["name", "file_name", "file_url", "is_private"],
+		as_dict=True,
+	)
+	if not file_doc:
+		return []
+	return [{"fid": file_doc.name}]
+
+
+def _close_service_todo(request_name, assigned_field):
+	"""Close ToDo entries linked to this hospitality request for a specific service."""
+	todos = frappe.get_all(
+		"ToDo",
+		filters={
+			"reference_type": "Hospitality Request",
+			"reference_name": request_name,
+			"status": "Open",
+		},
+		pluck="name",
+	)
+	for todo_name in todos:
+		frappe.db.set_value("ToDo", todo_name, "status", "Closed")

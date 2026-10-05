@@ -60,6 +60,10 @@ def normalize_visitor_pass(doc):
 	if doc.status != "Checked-In" and getattr(doc, "current_location", None):
 		doc.current_location = None
 
+	# Walk-in visitors don't get hospitality — skip meal plan derivation.
+	if getattr(doc, "request_channel", None) == "Walk-In":
+		return
+
 	preserve_hospitality_choices = bool(
 		getattr(doc, "request_channel", None) == "Portal"
 		and not doc.is_new()
@@ -480,7 +484,7 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 		if not doc.tour_date:
 			doc.tour_date = vp_date or nowdate()
 		if not doc.tour_start_time and getattr(visitor_pass, "expected_checkin", None):
-			doc.tour_start_time = getattr(visitor_pass, "expected_checkin", None)
+			doc.tour_start_time = str(get_time(getattr(visitor_pass, "expected_checkin", None)))
 
 	if cint(doc.buggy_required) and not doc.buggy_datetime:
 		doc.buggy_datetime = vp_checkin

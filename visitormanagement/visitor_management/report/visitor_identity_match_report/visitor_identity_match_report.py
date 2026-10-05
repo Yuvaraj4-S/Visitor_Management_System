@@ -2,6 +2,7 @@
 
 import frappe
 
+from visitormanagement.visitor_management.validators import mask_id_number
 
 VISITOR_TYPES = ("Contractor", "Supplier", "Candidate", "Customer", "VIP")
 
@@ -137,7 +138,7 @@ def add_pair_matches(pairs, rows, basis):
 					"matched_type": matched.visitor_type,
 					"matched_visitor": matched.visitor_full_name,
 					"matched_visit_date": matched.visit_date,
-					"id_proof_number": primary.id_proof_number or matched.id_proof_number,
+					"id_proof_number": mask_id_number(primary.id_proof_number or matched.id_proof_number),
 					"mobile_number": primary.mobile_number or matched.mobile_number,
 					"email_id": primary.email_id or matched.email_id,
 					"primary_status": primary.status,

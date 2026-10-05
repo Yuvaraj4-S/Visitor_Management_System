@@ -13,6 +13,7 @@ from visitormanagement.visitor_management.lifecycle import (
 )
 from visitormanagement.visitor_management.validators import (
     id_proof_error_message,
+    mask_id_number,
     validate_id,
 )
 
@@ -43,11 +44,12 @@ def _get_visitor_type_doc(visitor_type_name):
 
 
 def _get_home_country():
-    """Fetch the configured home country from VMS Settings (cached — this is a
-    small, frequently-read singleton, so `get_cached_doc` avoids a DB
-    round-trip on every Visitor Pass save)."""
-    settings = frappe.get_cached_doc("VMS Settings")
-    return getattr(settings, "home_country", None) or "India"
+    """Return the home country for nationality checks.
+    VMS Settings does not have a home_country field yet, so default to India."""
+    try:
+        return frappe.db.get_single_value("VMS Settings", "home_country") or "India"
+    except Exception:
+        return "India"
 
 
 class VisitorPass(Document):
@@ -294,7 +296,7 @@ class VisitorPass(Document):
                     f"<p><b>A blacklisted visitor attempted entry.</b></p>"
                     f"<ul>"
                     f"<li><b>Visitor:</b> {self.visitor_full_name}</li>"
-                    f"<li><b>ID Proof:</b> {self.id_proof_type} — {self.id_proof_number}</li>"
+                    f"<li><b>ID Proof:</b> {self.id_proof_type} — {mask_id_number(self.id_proof_number)}</li>"
                     f"<li><b>Mobile:</b> {self.mobile_number or '-'}</li>"
                     f"<li><b>Reason on file:</b> {blacklist_doc.reason}</li>"
                     f"<li><b>Attempted host:</b> {self.person_to_visit or '-'}</li>"
@@ -418,6 +420,10 @@ class VisitorPass(Document):
     def on_update(self):
         if self.docstatus == 0 and self.status == "Draft":
             return
+        # Walk-in visitors don't get hospitality — pass is auto-generated
+        # from Walk In Visitor Request, no meal/cab/hotel arrangements.
+        if self.request_channel == "Walk-In":
+            return
         ensure_hospitality_request(self)
 
     # ─────────────────────────────────────────────────────────
@@ -425,16 +431,19 @@ class VisitorPass(Document):
     # ─────────────────────────────────────────────────────────
     def before_submit(self):
         # 0️⃣ REQUIRED DOCUMENTS
-        if not self.visitor_photo:
-            frappe.throw(
-                _("Visitor Photo is required before submitting the pass."),
-                title=_("Missing Visitor Photo"),
-            )
-        if not self.id_proof_scan:
-            frappe.throw(
-                _("ID Proof Scan is required before submitting the pass."),
-                title=_("Missing ID Proof Scan"),
-            )
+        # Walk-in passes (created from Walk In Visitor Request) may not have
+        # photo/scan at creation time — security captures them at the gate.
+        if self.request_channel != "Walk-In":
+            if not self.visitor_photo:
+                frappe.throw(
+                    _("Visitor Photo is required before submitting the pass."),
+                    title=_("Missing Visitor Photo"),
+                )
+            if not self.id_proof_scan:
+                frappe.throw(
+                    _("ID Proof Scan is required before submitting the pass."),
+                    title=_("Missing ID Proof Scan"),
+                )
 
         # 0️⃣.5 OPTIONAL ITEM DECLARATION (enforced via VMS Settings)
         settings = frappe.get_cached_doc("VMS Settings")
@@ -822,6 +831,11 @@ def get_existing_visitor_matches(visitor_type=None, id_proof_number=None, mobile
                 _push([row])
             if len(matches) >= 10:
                 break
+
+    # Mask ID proof numbers before returning to client
+    for m in matches:
+        if m.get("id_proof_number"):
+            m["id_proof_number"] = mask_id_number(m["id_proof_number"])
 
     return {"best_match": matches[0] if matches else None, "matches": matches}
 

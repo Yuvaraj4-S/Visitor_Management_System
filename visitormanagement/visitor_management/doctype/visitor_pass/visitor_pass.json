@@ -187,7 +187,7 @@
    "fieldname": "request_channel",
    "fieldtype": "Select",
    "label": "Request Channel",
-   "options": "Desk\nPortal\nPhone\nEmail"
+   "options": "Desk\nPortal\nPhone\nEmail\nWalk-In"
   },
   {
    "fieldname": "visitor_invitation",

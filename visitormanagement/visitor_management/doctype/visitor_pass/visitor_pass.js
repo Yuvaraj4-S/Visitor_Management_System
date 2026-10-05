@@ -39,6 +39,31 @@ function sync_mobile_country_with_nationality(frm) {
 	}
 }
 
+function mask_id_proof_on_display(frm) {
+	// Mask ID proof number on saved forms so PII isn't exposed on screen.
+	// Skip new (unsaved) forms and already-masked values.
+	if (frm.is_new()) return;
+	const val = frm.doc.id_proof_number;
+	if (!val || val.includes("X")) return;
+	// Build masked value: show only last 4 alphanumeric chars
+	const chars = [];
+	for (let i = 0; i < val.length; i++) {
+		if (/[A-Za-z0-9]/.test(val[i])) chars.push(i);
+	}
+	if (chars.length <= 4) return;
+	const visible = new Set(chars.slice(-4));
+	let masked = "";
+	for (let i = 0; i < val.length; i++) {
+		if (/[A-Za-z0-9]/.test(val[i])) {
+			masked += visible.has(i) ? val[i] : "X";
+		} else {
+			masked += val[i];
+		}
+	}
+	frm.doc.id_proof_number = masked;
+	frm.refresh_field("id_proof_number");
+}
+
 frappe.ui.form.on("Visitor Pass", {
 	refresh(frm) {
 		ensure_customer_crm_defaults(frm);
@@ -46,6 +71,7 @@ frappe.ui.form.on("Visitor Pass", {
 		apply_visitor_pass_ui(frm);
 		add_action_buttons(frm);
 		add_hospitality_buttons(frm);
+		mask_id_proof_on_display(frm);
 	},
 
 	visitor_type(frm) {

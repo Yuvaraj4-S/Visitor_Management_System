@@ -44,7 +44,10 @@
   "drop_location",
   "drop_datetime",
   "cab_col_break",
+  "cab_assigned_to",
+  "cab_status",
   "cab_vendor",
+  "cab_vehicle_number",
   "driver_name",
   "driver_phone",
   "hotel_section",
@@ -56,7 +59,10 @@
   "room_type",
   "no_of_rooms",
   "no_of_guests",
+  "hotel_assigned_to",
+  "hotel_status",
   "booking_reference",
+  "hotel_voucher",
   "hotel_special_requests",
   "hotel_cost",
   "factory_tour_section",
@@ -71,6 +77,7 @@
   "buggy_drop_point",
   "buggy_datetime",
   "buggy_col_break",
+  "buggy_assigned_to",
   "buggy_number",
   "buggy_driver",
   "greeting_section",
@@ -342,26 +349,50 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "cab_assigned_to",
+   "fieldtype": "Link",
+   "label": "Assigned To",
+   "options": "User"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Not Started",
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "cab_status",
+   "fieldtype": "Select",
+   "label": "Booking Status",
+   "options": "Not Started\nIn Progress\nBooked\nCancelled"
+  },
+  {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required",
    "description": "Transport supplier / cab company",
    "fieldname": "cab_vendor",
    "fieldtype": "Link",
-   "hidden": 1,
    "label": "Cab Vendor",
    "options": "Supplier"
   },
   {
+   "allow_on_submit": 1,
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "cab_vehicle_number",
+   "fieldtype": "Data",
+   "label": "Vehicle Number"
+  },
+  {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required",
    "fieldname": "driver_name",
    "fieldtype": "Data",
-   "hidden": 1,
    "label": "Driver Name"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required",
    "fieldname": "driver_phone",
    "fieldtype": "Data",
-   "hidden": 1,
    "label": "Driver Phone",
    "options": "Phone"
   },
@@ -373,11 +404,11 @@
    "label": "Hotel Booking"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "description": "Hotel partner / accommodation supplier",
    "fieldname": "hotel_name",
    "fieldtype": "Link",
-   "hidden": 1,
    "label": "Hotel",
    "options": "Supplier"
   },
@@ -426,11 +457,36 @@
    "label": "No of Guests"
   },
   {
+   "allow_on_submit": 1,
+   "depends_on": "eval:doc.hotel_required",
+   "fieldname": "hotel_assigned_to",
+   "fieldtype": "Link",
+   "label": "Assigned To",
+   "options": "User"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Not Started",
+   "depends_on": "eval:doc.hotel_required",
+   "fieldname": "hotel_status",
+   "fieldtype": "Select",
+   "label": "Booking Status",
+   "options": "Not Started\nIn Progress\nBooked\nCancelled"
+  },
+  {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "booking_reference",
    "fieldtype": "Data",
-   "hidden": 1,
    "label": "Booking Reference"
+  },
+  {
+   "allow_on_submit": 1,
+   "depends_on": "eval:doc.hotel_required",
+   "description": "Upload the hotel booking voucher / confirmation document to send to the visitor.",
+   "fieldname": "hotel_voucher",
+   "fieldtype": "Attach",
+   "label": "Booking Voucher"
   },
   {
    "depends_on": "eval:doc.hotel_required",
@@ -440,11 +496,11 @@
    "label": "Special Requests"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "hotel_cost",
    "fieldtype": "Currency",
-   "hidden": 1,
-   "label": "Hotel Cost"
+   "label": "Booking Cost"
   },
   {
    "collapsible": 1,
@@ -474,10 +530,11 @@
    "label": "Tour End Time"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.factory_tour_required",
    "fieldname": "tour_guide",
    "fieldtype": "Link",
-   "label": "Tour Guide",
+   "label": "Assigned To",
    "options": "Employee"
   },
   {
@@ -521,6 +578,15 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
+   "depends_on": "eval:doc.buggy_required",
+   "fieldname": "buggy_assigned_to",
+   "fieldtype": "Link",
+   "label": "Assigned To",
+   "options": "Employee"
+  },
+  {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_number",
    "fieldtype": "Data",
@@ -528,6 +594,7 @@
    "label": "Buggy Number"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_driver",
    "fieldtype": "Link",
@@ -566,18 +633,18 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.greeting_required",
    "fieldname": "greeting_assigned_to",
    "fieldtype": "Link",
-   "hidden": 1,
    "label": "Assigned To",
    "options": "Employee"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.greeting_required",
    "fieldname": "greeting_cost",
    "fieldtype": "Currency",
-   "hidden": 1,
    "label": "Greeting Cost"
   },
   {
@@ -616,7 +683,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-22 16:00:00.000000",
+ "modified": "2026-10-05 11:42:44.984150",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Hospitality Request",
@@ -668,7 +735,6 @@
    "report": 1,
    "role": "Employee",
    "share": 1,
-   "submit": 0,
    "write": 1
   },
   {

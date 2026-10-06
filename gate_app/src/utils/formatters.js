@@ -11,6 +11,12 @@ export function date(value) {
 	return isNaN(d) ? String(value) : d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
 }
 
+export function minutes(total) {
+	const m = Math.max(0, Math.round(Number(total) || 0));
+	const h = Math.floor(m / 60);
+	return h ? `${h}h ${m % 60}m` : `${m}m`;
+}
+
 export function initials(name) {
 	return (name || "?")
 		.split(" ")

@@ -10,9 +10,14 @@
   "visitor_email",
   "host_employee",
   "visit_date",
+  "multi_day_pass",
+  "pass_valid_until",
   "expected_checkin",
   "expected_checkout",
   "purpose_of_visit",
+  "section_break_visitors",
+  "visitors",
+  "section_break_invitation_status",
   "meal_required",
   "meal_type",
   "assigned_meal_slots",
@@ -21,6 +26,7 @@
   "conference_room",
   "created_by_user",
   "invitation_status",
+  "visitors_summary",
   "invitation_sent_on",
   "invitation_expires_on",
   "link_opened_on",
@@ -40,11 +46,13 @@
    "reqd": 1
   },
   {
+   "description": "Filled automatically from the first row of the Visitors table.",
    "fieldname": "visitor_email",
    "fieldtype": "Data",
+   "hidden": 1,
    "in_list_view": 1,
    "label": "Visitor Email",
-   "reqd": 1
+   "read_only": 1
   },
   {
    "fieldname": "host_employee",
@@ -58,8 +66,22 @@
    "fieldname": "visit_date",
    "fieldtype": "Date",
    "in_list_view": 1,
-   "label": "Visit Date",
+   "label": "Visit Date / Start Date",
    "reqd": 1
+  },
+  {
+   "default": "0",
+   "description": "Tick when the visitor comes on several days — one pass covers every day from the start date to the end date.",
+   "fieldname": "multi_day_pass",
+   "fieldtype": "Check",
+   "label": "Multi-Day Visit"
+  },
+  {
+   "depends_on": "eval:doc.multi_day_pass",
+   "fieldname": "pass_valid_until",
+   "fieldtype": "Date",
+   "label": "Visit End Date",
+   "mandatory_depends_on": "eval:doc.multi_day_pass"
   },
   {
    "fieldname": "expected_checkin",
@@ -77,6 +99,24 @@
    "fieldname": "purpose_of_visit",
    "fieldtype": "Small Text",
    "label": "Purpose Of Visit"
+  },
+  {
+   "fieldname": "section_break_visitors",
+   "fieldtype": "Section Break",
+   "label": "Visitors"
+  },
+  {
+   "description": "Add one row per visitor. Each visitor gets their own invitation link by email and their own Visitor Pass.",
+   "fieldname": "visitors",
+   "fieldtype": "Table",
+   "label": "Visitors",
+   "options": "Visitor Invitation Guest",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_invitation_status",
+   "fieldtype": "Section Break",
+   "label": "Invitation Status"
   },
   {
    "default": "0",
@@ -133,7 +173,14 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Invitation Status",
-   "options": "Draft\nSent\nOpened\nSaved\nSubmitted\nExpired",
+   "options": "Draft\nSent\nOpened\nSaved\nPartially Submitted\nSubmitted\nExpired",
+   "read_only": 1
+  },
+  {
+   "fieldname": "visitors_summary",
+   "fieldtype": "Data",
+   "label": "Visitors Submitted",
+   "no_copy": 1,
    "read_only": 1
   },
   {
@@ -168,13 +215,14 @@
   {
    "fieldname": "portal_submission_url",
    "fieldtype": "Small Text",
+   "hidden": 1,
    "label": "Portal Submission URL",
    "read_only": 1
   },
   {
    "fieldname": "visitor_pass",
    "fieldtype": "Link",
-   "label": "Visitor Pass",
+   "label": "Visitor Pass (first visitor)",
    "options": "Visitor Pass",
    "read_only": 1
   },
@@ -189,7 +237,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-10 10:42:40.104275",
+ "modified": "2026-10-06 12:30:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Invitation",

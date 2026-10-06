@@ -263,16 +263,16 @@
                             </div>
                             <div class="col-md-4">
                                 <label for="expected_checkin" class="form-label">Expected Check-In <span class="text-danger">*</span></label>
-                                <input type="time" class="form-control" id="expected_checkin" name="expected_checkin" value="{{ prefill.expected_checkin or '' }}" {% if invitation_token %}disabled{% endif %} required>
+                                <input type="time" class="form-control" id="expected_checkin" name="expected_checkin" value="{{ frappe.utils.format_time(prefill.expected_checkin, 'HH:mm') if prefill.expected_checkin else '' }}" {% if invitation_token %}disabled{% endif %} required>
                                 {% if invitation_token %}
-                                <input type="hidden" name="expected_checkin" value="{{ prefill.expected_checkin or '' }}">
+                                <input type="hidden" name="expected_checkin" value="{{ frappe.utils.format_time(prefill.expected_checkin, 'HH:mm') if prefill.expected_checkin else '' }}">
                                 {% endif %}
                             </div>
                             <div class="col-md-4">
                                 <label for="expected_checkout" class="form-label">Expected Check-Out <span class="text-danger">*</span></label>
-                                <input type="time" class="form-control" id="expected_checkout" name="expected_checkout" value="{{ prefill.expected_checkout or '' }}" {% if invitation_token %}disabled{% endif %} required>
+                                <input type="time" class="form-control" id="expected_checkout" name="expected_checkout" value="{{ frappe.utils.format_time(prefill.expected_checkout, 'HH:mm') if prefill.expected_checkout else '' }}" {% if invitation_token %}disabled{% endif %} required>
                                 {% if invitation_token %}
-                                <input type="hidden" name="expected_checkout" value="{{ prefill.expected_checkout or '' }}">
+                                <input type="hidden" name="expected_checkout" value="{{ frappe.utils.format_time(prefill.expected_checkout, 'HH:mm') if prefill.expected_checkout else '' }}">
                                 {% endif %}
                             </div>
                             <div class="col-md-6">
@@ -295,8 +295,9 @@
                                 <div class="form-section-title">Identity Documents</div>
                             </div>
                             <div class="col-md-6">
-                                <label for="id_proof_type" class="form-label">ID Proof Type <span class="text-danger">*</span></label>
-                                <select class="form-select" id="id_proof_type" name="id_proof_type" required>
+                                <label for="id_proof_type" class="form-label">ID Proof Type</label>
+                                <select class="form-select" id="id_proof_type" name="id_proof_type">
+                                    <option value="">Select</option>
                                     <option value="Aadhaar">Aadhaar</option>
                                     <option value="PAN">PAN</option>
                                     <option value="Driving License">Driving License</option>
@@ -304,16 +305,16 @@
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label for="id_proof_number" class="form-label">ID Proof Number <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="id_proof_number" name="id_proof_number" placeholder="Enter proof number" required>
+                                <label for="id_proof_number" class="form-label">ID Proof Number</label>
+                                <input type="text" class="form-control" id="id_proof_number" name="id_proof_number" placeholder="Enter proof number">
                             </div>
                             <div class="col-md-6">
-                                <label for="id_proof_scan" class="form-label">ID Proof Scan <span class="text-danger">*</span></label>
-                                <input type="file" class="form-control" id="id_proof_scan" name="id_proof_scan" accept="image/*,.pdf" required>
+                                <label for="id_proof_scan" class="form-label">ID Proof Scan</label>
+                                <input type="file" class="form-control" id="id_proof_scan" name="id_proof_scan" accept="image/*,.pdf">
                             </div>
                             <div class="col-md-6">
-                                <label for="visitor_photo" class="form-label">Visitor Photo <span class="text-danger">*</span></label>
-                                <input type="file" class="form-control" id="visitor_photo" name="visitor_photo" accept="image/*" required>
+                                <label for="visitor_photo" class="form-label">Visitor Photo</label>
+                                <input type="file" class="form-control" id="visitor_photo" name="visitor_photo" accept="image/*">
                             </div>
                             <div class="col-12 d-flex justify-content-end gap-3 flex-wrap">
                                 <button type="button" class="btn btn-save px-4" data-action="save">Save Draft</button>

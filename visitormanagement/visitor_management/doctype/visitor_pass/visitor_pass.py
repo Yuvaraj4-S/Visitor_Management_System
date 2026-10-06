@@ -7,8 +7,15 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime, today, get_url, getdate, get_time, date_diff, cint
 from io import BytesIO
+from visitormanagement.visitor_management.time_utils import (
+    format_time_hhmm,
+    strip_expected_time_seconds,
+    strip_seconds,
+)
+from visitormanagement.visitor_management.multi_day import get_visit_end_date, validate_multi_day_range
 from visitormanagement.visitor_management.lifecycle import (
     ensure_hospitality_request,
+    log_visitor_event,
     normalize_visitor_pass,
 )
 from visitormanagement.visitor_management.validators import (
@@ -16,6 +23,9 @@ from visitormanagement.visitor_management.validators import (
     mask_id_number,
     validate_id,
 )
+
+# Per-visitor hospitality the host sets on Visitor Invitation → Visitors table.
+INVITATION_GUEST_PASS_FIELDS = ("meal_required", "cab_required", "factory_tour_required")
 
 # Approver role → the workflow pending lane it owns. Lanes are derived from each
 # Visitor Type's approver_role (and secondary_approver_role) so custom types work
@@ -66,19 +76,81 @@ class VisitorPass(Document):
         return self.company__organisation
 
     def validate(self):
+        strip_expected_time_seconds(self)
+
         # Nationality is mandatory. It defaults to the configured home country so
         # that any creation path (portal, API, automation, import) that doesn't
         # supply it still saves, instead of failing mandatory validation.
         if not self.custom_nationality:
             self.custom_nationality = _get_home_country()
 
+        self._apply_invitation_visitor_choices()
         normalize_visitor_pass(self)
         self._align_workflow_lane_with_visitor_type()
+        validate_multi_day_range(self)
         self._validate_schedule()
         self._validate_formats()
         self._validate_host_active()
         self._validate_duplicate_pass()
         self._validate_visit_duration()
+
+    # ─────────────────────────────────────────────────────────
+    # VISITOR INVITATION → PASS (per-visitor hospitality)
+    # ─────────────────────────────────────────────────────────
+    def _invitation_visitor_row(self):
+        """This visitor's row in the linked invitation's Visitors table: the row already
+        linked to this pass, else the one with the same email, else the same name."""
+        if not self.visitor_invitation:
+            return None
+        rows = frappe.get_all(
+            "Visitor Invitation Guest",
+            filters={"parent": self.visitor_invitation, "parenttype": "Visitor Invitation"},
+            fields=["name", "visitor_full_name", "visitor_email", "visitor_pass", *INVITATION_GUEST_PASS_FIELDS],
+            order_by="idx asc",
+        )
+        mine = [r for r in rows if self.name and r.visitor_pass == self.name]
+        if mine:
+            return mine[0]
+        free = [r for r in rows if not r.visitor_pass]
+        email = (self.email_id or "").strip().lower()
+        name = (self.visitor_full_name or "").strip().lower()
+        for r in free:
+            if email and (r.visitor_email or "").strip().lower() == email:
+                return r
+        for r in free:
+            if name and (r.visitor_full_name or "").strip().lower() == name:
+                return r
+        return None
+
+    def _apply_invitation_visitor_choices(self):
+        """Meal / Cab / Factory Tour are chosen by the host on the invitation — however the
+        pass is created (visitor's link or desk), it carries that visitor's choices."""
+        row = self._invitation_visitor_row()
+        self.flags.invitation_visitor_row = row.name if row else None
+        if not row:
+            return
+        for fieldname in INVITATION_GUEST_PASS_FIELDS:
+            self.set(fieldname, cint(row.get(fieldname)))
+
+    def _link_invitation_visitor_row(self):
+        row_name = self.flags.get("invitation_visitor_row")
+        if not row_name or frappe.db.get_value("Visitor Invitation Guest", row_name, "visitor_pass") == self.name:
+            return
+        from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation import (
+            refresh_invitation_status,
+        )
+
+        frappe.db.set_value(
+            "Visitor Invitation Guest",
+            row_name,
+            {
+                "visitor_pass": self.name,
+                "invitation_status": "Saved" if self.docstatus == 0 and self.request_channel == "Portal" else "Submitted",
+                "form_submitted_on": now_datetime(),
+            },
+            update_modified=False,
+        )
+        refresh_invitation_status(frappe.get_doc("Visitor Invitation", self.visitor_invitation))
 
     # ─────────────────────────────────────────────────────────
     # BUSINESS VALIDATIONS
@@ -91,8 +163,9 @@ class VisitorPass(Document):
         today_date = getdate(today())
         visit_date = getdate(self.visit_date)
 
-        # Past date blocked — allow only if the pass is already checked-in/out (historical edits OK)
-        if visit_date < today_date and self.status in (None, "", "Draft", "Approved"):
+        # Past date blocked — allow only if the pass is already checked-in/out (historical edits OK).
+        # A multi-day visit stays valid until its end date, so judge it by that.
+        if get_visit_end_date(self) < today_date and self.status in (None, "", "Draft", "Approved"):
             if not (self.docstatus == 1 and self.status in ("Checked-In", "Checked-Out", "Cancelled")):
                 frappe.throw(
                     _("Visit date {0} is in the past. Pick today or a future date.").format(self.visit_date),
@@ -153,14 +226,17 @@ class VisitorPass(Document):
             )
 
     def _validate_duplicate_pass(self):
-        """Same visitor (by ID proof) cannot have multiple active passes on the same date."""
+        """Same visitor (by ID proof) cannot have multiple active passes on the same date.
+        Multi-day passes cover every day of their range, so ranges must not overlap."""
         if not self.id_proof_number or not self.visit_date:
             return
         existing = frappe.db.sql(
             """
             SELECT name FROM `tabVisitor Pass`
             WHERE id_proof_number = %(id)s
-              AND visit_date = %(date)s
+              AND visit_date <= %(end)s
+              AND (CASE WHEN multi_day_pass = 1 AND pass_valid_until IS NOT NULL
+                        THEN pass_valid_until ELSE visit_date END) >= %(start)s
               AND name != %(self_name)s
               AND docstatus < 2
               AND status NOT IN ('Cancelled', 'Rejected')
@@ -168,7 +244,8 @@ class VisitorPass(Document):
             """,
             {
                 "id": self.id_proof_number,
-                "date": self.visit_date,
+                "start": self.visit_date,
+                "end": get_visit_end_date(self),
                 "self_name": self.name or "NEW",
             },
         )
@@ -418,6 +495,7 @@ class VisitorPass(Document):
         return ", ".join(parts) if parts else None
 
     def on_update(self):
+        self._link_invitation_visitor_row()
         if self.docstatus == 0 and self.status == "Draft":
             return
         # Walk-in visitors don't get hospitality — pass is auto-generated
@@ -430,21 +508,6 @@ class VisitorPass(Document):
     # BEFORE SUBMIT
     # ─────────────────────────────────────────────────────────
     def before_submit(self):
-        # 0️⃣ REQUIRED DOCUMENTS
-        # Walk-in passes (created from Walk In Visitor Request) may not have
-        # photo/scan at creation time — security captures them at the gate.
-        if self.request_channel != "Walk-In":
-            if not self.visitor_photo:
-                frappe.throw(
-                    _("Visitor Photo is required before submitting the pass."),
-                    title=_("Missing Visitor Photo"),
-                )
-            if not self.id_proof_scan:
-                frappe.throw(
-                    _("ID Proof Scan is required before submitting the pass."),
-                    title=_("Missing ID Proof Scan"),
-                )
-
         # 0️⃣.5 OPTIONAL ITEM DECLARATION (enforced via VMS Settings)
         settings = frappe.get_cached_doc("VMS Settings")
         if settings.get("require_item_declaration") and not self.visitor_items:
@@ -632,7 +695,7 @@ class VisitorPass(Document):
 
         time_value = ""
         if self.expected_checkin and self.expected_checkout:
-            time_value = f"{self.expected_checkin} &ndash; {self.expected_checkout}"
+            time_value = f"{format_time_hhmm(self.expected_checkin)} &ndash; {format_time_hhmm(self.expected_checkout)}"
 
         td_label = "padding: 8px; border: 1px solid #ddd; width: 30%;"
         td_value = "padding: 8px; border: 1px solid #ddd;"
@@ -975,3 +1038,239 @@ def sync_badge_number(visitor_pass):
     vp.generate_badge_number()
     vp.reload()
     return vp.badge_number
+
+
+# ─────────────────────────────────────────────────────────
+# VISIT TIME EXTENSION (host only → Security notified)
+# ─────────────────────────────────────────────────────────
+EXTENDABLE_STATUSES = ("Approved", "Items Verified", "Checked-In")
+
+
+def _is_pass_host(doc, user=None):
+    """True when ``user`` (default: session user) is the pass's Person to Visit."""
+    if not doc.person_to_visit:
+        return False
+    host_user = frappe.db.get_value("Employee", doc.person_to_visit, "user_id")
+    return bool(host_user) and host_user == (user or frappe.session.user)
+
+
+@frappe.whitelist()
+def can_extend_visit_time(visitor_pass):
+    doc = frappe.get_doc("Visitor Pass", visitor_pass)
+    return doc.docstatus == 1 and doc.status in EXTENDABLE_STATUSES and _is_pass_host(doc)
+
+
+@frappe.whitelist()
+def extend_visit_time(visitor_pass, new_checkout, reason):
+    """Push the pass's Expected Check-Out later. Only the host (Person to Visit) may do
+    this; every extension is kept in Time Extensions and Security is notified."""
+    doc = frappe.get_doc("Visitor Pass", visitor_pass)
+
+    if not _is_pass_host(doc):
+        frappe.throw(
+            _("Only the host ({0}) can extend this visit.").format(doc.person_to_visit or "-"),
+            frappe.PermissionError,
+        )
+    if doc.docstatus != 1 or doc.status not in EXTENDABLE_STATUSES:
+        frappe.throw(
+            _("Only an approved pass that has not checked out can be extended. Current status: {0}").format(
+                doc.status
+            ),
+            title=_("Cannot Extend"),
+        )
+
+    reason = (reason or "").strip()
+    if not reason:
+        frappe.throw(_("Enter the reason for extending the visit."), title=_("Reason Required"))
+    if not new_checkout:
+        frappe.throw(_("Enter the new Expected Check-Out time."), title=_("Time Required"))
+
+    new_checkout = strip_seconds(new_checkout)
+    previous_checkout = doc.expected_checkout
+    if previous_checkout and get_time(new_checkout) <= get_time(previous_checkout):
+        frappe.throw(
+            _("New Check-Out ({0}) must be later than the current Expected Check-Out ({1}).").format(
+                format_time_hhmm(new_checkout), format_time_hhmm(previous_checkout)
+            ),
+            title=_("Invalid Time"),
+        )
+
+    row = doc.append(
+        "time_extensions",
+        {
+            "previous_checkout": previous_checkout,
+            "new_checkout": new_checkout,
+            "reason": reason,
+            "extended_by": frappe.session.user,
+            "extended_on": now_datetime(),
+        },
+    )
+    row.db_insert()
+    doc.db_set("expected_checkout", new_checkout)
+    doc.add_comment(
+        "Info",
+        _("Visit extended: Expected Check-Out {0} → {1}. Reason: {2}").format(
+            format_time_hhmm(previous_checkout, "-"), format_time_hhmm(new_checkout), frappe.utils.escape_html(reason)
+        ),
+    )
+
+    log_visitor_event(
+        doc.name,
+        "Visit Extended",
+        event_status="Recorded",
+        source_doctype="Visit Time Extension",
+        source_name=row.name,
+        details={
+            "previous_checkout": str(previous_checkout or ""),
+            "new_checkout": new_checkout,
+            "reason": reason,
+            "extended_by": frappe.session.user,
+        },
+    )
+    _notify_security_of_extension(doc, previous_checkout, new_checkout, reason)
+
+    return {"expected_checkout": new_checkout}
+
+
+def _notify_security_of_extension(doc, previous_checkout, new_checkout, reason):
+    """Bell notification + email to every enabled Security user."""
+    from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
+
+    security_users = frappe.get_all(
+        "Has Role",
+        filters={"role": "Security", "parenttype": "User"},
+        pluck="parent",
+        distinct=True,
+    )
+    users = frappe.get_all(
+        "User",
+        filters={"name": ["in", security_users or [""]], "enabled": 1, "user_type": "System User"},
+        pluck="name",
+    )
+    users = [u for u in users if u not in ("Administrator", "Guest")]
+    if not users:
+        return
+
+    esc = frappe.utils.escape_html
+    host_name = frappe.db.get_value("Employee", doc.person_to_visit, "employee_name") or doc.person_to_visit
+    subject = _("Visit extended: {0} ({1}) until {2}").format(
+        esc(doc.visitor_full_name or ""), doc.name, format_time_hhmm(new_checkout)
+    )
+    message = (
+        f"<p>The host has extended this visit. Allow the visitor to stay until the new time.</p>"
+        f"<ul>"
+        f"<li><b>Visitor:</b> {esc(doc.visitor_full_name or '-')} ({doc.name})</li>"
+        f"<li><b>Host:</b> {esc(host_name or '-')}</li>"
+        f"<li><b>Expected Check-Out:</b> {format_time_hhmm(previous_checkout, '-')} → "
+        f"<b>{format_time_hhmm(new_checkout)}</b></li>"
+        f"<li><b>Reason:</b> {esc(reason)}</li>"
+        f"</ul>"
+    )
+    enqueue_create_notification(
+        users,
+        {
+            "type": "Alert",
+            "document_type": "Visitor Pass",
+            "document_name": doc.name,
+            "subject": subject,
+            "email_content": message,
+            "from_user": frappe.session.user,
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────
+# GROUP (INVITATION) APPROVAL
+# ─────────────────────────────────────────────────────────
+# Every visitor on a Visitor Invitation gets their own pass. An approver can move
+# all of the group's passes that sit in the same workflow stage in one click — each
+# pass still goes through the normal workflow (roles + conditions are re-checked).
+GROUP_WORKFLOW_ACTIONS = ("Submit", "Approve")
+
+
+def _group_siblings(doc):
+    if not doc.visitor_invitation:
+        return []
+    return frappe.get_all(
+        "Visitor Pass",
+        filters={
+            "visitor_invitation": doc.visitor_invitation,
+            "workflow_state": doc.workflow_state,
+            "docstatus": doc.docstatus,
+        },
+        pluck="name",
+        order_by="creation asc",
+    )
+
+
+def _allowed_group_action(doc, action):
+    from frappe.model.workflow import get_transitions
+
+    try:
+        return any(t.action == action for t in get_transitions(doc))
+    except Exception:
+        return False
+
+
+@frappe.whitelist()
+def get_group_workflow_actions(visitor_pass):
+    """Actions the current user may apply to every pass of this pass's invitation."""
+    doc = frappe.get_doc("Visitor Pass", visitor_pass)
+    siblings = _group_siblings(doc)
+    if len(siblings) < 2:
+        return {"count": len(siblings), "actions": []}
+    actions = [a for a in GROUP_WORKFLOW_ACTIONS if _allowed_group_action(doc, a)]
+    return {"count": len(siblings), "actions": actions}
+
+
+@frappe.whitelist()
+def apply_group_workflow_action(visitor_pass, action):
+    from frappe.model.workflow import apply_workflow
+
+    if action not in GROUP_WORKFLOW_ACTIONS:
+        frappe.throw(_("Action {0} cannot be applied to a group.").format(action))
+
+    doc = frappe.get_doc("Visitor Pass", visitor_pass)
+    done, skipped = [], []
+    for name in _group_siblings(doc):
+        sibling = frappe.get_doc("Visitor Pass", name)
+        if not _allowed_group_action(sibling, action):
+            skipped.append({"name": name, "reason": _("Action not available")})
+            continue
+        # Savepoint per pass so one failure doesn't leave a half-saved pass behind.
+        frappe.db.savepoint("group_workflow")
+        try:
+            apply_workflow(sibling, action)
+            done.append(name)
+        except Exception as e:
+            frappe.db.rollback(save_point="group_workflow")
+            frappe.clear_messages()
+            skipped.append({"name": name, "reason": frappe.utils.strip_html(str(e))[:200]})
+    return {"done": done, "skipped": skipped}
+
+
+@frappe.whitelist()
+def get_invitation_visitors(visitor_invitation, visitor_pass=None):
+    """Shared visit details of an invitation + its visitors who don't have a pass yet,
+    so a pass created in the desk can be filled from the host's invitation."""
+    inv = frappe.get_doc("Visitor Invitation", visitor_invitation)
+    inv.check_permission("read")
+    shared = {
+        f: inv.get(f)
+        for f in (
+            "visitor_type", "host_employee", "visit_date", "multi_day_pass", "pass_valid_until",
+            "expected_checkin", "expected_checkout", "purpose_of_visit",
+        )
+    }
+    visitors = [
+        {
+            "row": r.name,
+            "visitor_full_name": r.visitor_full_name,
+            "visitor_email": r.visitor_email,
+            "visitor_mobile": r.visitor_mobile,
+            **{f: cint(r.get(f)) for f in INVITATION_GUEST_PASS_FIELDS},
+        }
+        for r in inv.visitors
+        if not r.visitor_pass or r.visitor_pass == visitor_pass
+    ]
+    return {"shared": shared, "visitors": visitors}

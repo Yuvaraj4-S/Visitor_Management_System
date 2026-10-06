@@ -21,9 +21,9 @@
 		</tr>
 		<tr>
 			<td style="padding: 6px 10px; border: 1px solid #d9e2ec; background: #f0f4f8;"><strong>Check-in</strong></td>
-			<td style="padding: 6px 10px; border: 1px solid #d9e2ec;">{{ vp.expected_checkin or '-' }}</td>
+			<td style="padding: 6px 10px; border: 1px solid #d9e2ec;">{{ frappe.utils.format_time(vp.expected_checkin, 'HH:mm') if vp.expected_checkin else '-' }}</td>
 			<td style="padding: 6px 10px; border: 1px solid #d9e2ec; background: #f0f4f8;"><strong>Check-out</strong></td>
-			<td style="padding: 6px 10px; border: 1px solid #d9e2ec;">{{ vp.expected_checkout or '-' }}</td>
+			<td style="padding: 6px 10px; border: 1px solid #d9e2ec;">{{ frappe.utils.format_time(vp.expected_checkout, 'HH:mm') if vp.expected_checkout else '-' }}</td>
 		</tr>
 	</table>
 	{% endif %}

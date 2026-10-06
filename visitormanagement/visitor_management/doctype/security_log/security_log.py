@@ -10,6 +10,11 @@ from visitormanagement.visitor_management.lifecycle import (
     log_visitor_event,
     sync_contact_trace,
 )
+from visitormanagement.visitor_management.multi_day import (
+    can_check_in_again,
+    get_visit_end_date,
+    is_multi_day,
+)
 from visitormanagement.visitor_management.validators import mask_id_number
 
 
@@ -162,30 +167,44 @@ class SecurityLog(Document):
         if vp:
             current_status = vp.status
             if self.event_type == 'Check-In':
-                if current_status not in {'Approved', 'Items Verified'}:
+                if not self.check_in_date_time:
+                    self.check_in_date_time = now
+
+                # A multi-day pass comes back to the gate every day: after a check-out it
+                # may check in again while the check-in date is inside its date range.
+                returning_multi_day = can_check_in_again(vp, getdate(self.check_in_date_time))
+
+                if current_status not in {'Approved', 'Items Verified'} and not returning_multi_day:
                     frappe.throw(
                         f"Visitor {self.visitor_name or vp.visitor_full_name} must be approved before check-in. (Current Status: {current_status})"
                     )
                 if current_status == 'Checked-In':
                     frappe.throw(f"Visitor {self.visitor_name} is already Checked-In.")
-                if current_status == 'Checked-Out':
-                    frappe.throw(f"Visitor {self.visitor_name} has already Checked-Out and the pass is now inactive.")
-                
-                if not self.check_in_date_time:
-                    self.check_in_date_time = now
-
-                # Validate check-in is within reasonable window of expected visit
-                if vp.visit_date and self.check_in_date_time:
-                    from frappe.utils import getdate, get_datetime as _get_dt
-                    checkin_date = getdate(self.check_in_date_time)
-                    expected_date = getdate(vp.visit_date)
-                    if checkin_date < expected_date:
+                if current_status == 'Checked-Out' and not returning_multi_day:
+                    if is_multi_day(vp):
                         frappe.throw(
-                            f"Check-in date ({checkin_date}) is before the scheduled visit date ({expected_date}). Cannot check in early."
+                            f"Visitor {self.visitor_name} has Checked-Out and the multi-day pass ended on "
+                            f"{get_visit_end_date(vp)}. The pass is now inactive."
                         )
-                    if checkin_date > expected_date:
+                    frappe.throw(f"Visitor {self.visitor_name} has already Checked-Out and the pass is now inactive.")
+
+                # Check-in must fall on the visit date — or, for a multi-day visit, any day
+                # from the start date to the end date.
+                if vp.visit_date and self.check_in_date_time:
+                    checkin_date = getdate(self.check_in_date_time)
+                    start_date = getdate(vp.visit_date)
+                    end_date = get_visit_end_date(vp)
+                    if checkin_date < start_date:
                         frappe.throw(
-                            f"Check-in date ({checkin_date}) is after the scheduled visit date ({expected_date}). Pass is no longer valid for this date."
+                            f"Check-in date ({checkin_date}) is before the scheduled visit date ({start_date}). Cannot check in early."
+                        )
+                    if checkin_date > end_date:
+                        if is_multi_day(vp):
+                            frappe.throw(
+                                f"Check-in date ({checkin_date}) is after the multi-day visit ended ({end_date}). Pass is no longer valid."
+                            )
+                        frappe.throw(
+                            f"Check-in date ({checkin_date}) is after the scheduled visit date ({start_date}). Pass is no longer valid for this date."
                         )
 
                 if self.verification_started_on and self.check_in_date_time:
@@ -201,11 +220,12 @@ class SecurityLog(Document):
                 if not self.check_out_date_time:
                     self.check_out_date_time = now
 
-                # Check-out must be after check-in
+                # Check-out must be after the latest check-in (multi-day passes have one per day)
                 prior_checkin = frappe.db.get_value(
                     "Security Log",
                     {"visitor_pass": self.visitor_pass, "event_type": "Check-In", "docstatus": ["<", 2]},
                     "check_in_date_time",
+                    order_by="check_in_date_time desc",
                 )
                 if prior_checkin and get_datetime(self.check_out_date_time) <= get_datetime(prior_checkin):
                     frappe.throw(
@@ -228,30 +248,13 @@ class SecurityLog(Document):
                 self.security_officer = emp
 
         if self.event_type == 'Check-In':
+            # Gate photo and the ID / pass-photo match ticks are optional — recorded when available.
             if not self.qr_code_scanned:
                 frappe.throw("Scan the visitor's QR code before saving the check-in.")
-
-            if not self.photo_at_gate:
-                frappe.throw("Capture a live gate photo before saving the visitor check-in.")
-
-            if not self.id_proof_match:
-                frappe.throw("Confirm that the visitor matches the ID proof before saving the visitor check-in.")
-
-            if not self.pass_photo_match:
-                frappe.throw("Confirm that the visitor matches the pass creation photo before saving the visitor check-in.")
 
         if self.event_type == 'Check-Out':
             if not self.qr_code_scanned:
                 frappe.throw("Scan the visitor's QR code before saving the check-out.")
-
-            if not self.photo_at_gate:
-                frappe.throw("Capture a live gate photo before saving the visitor check-out.")
-
-            if not self.id_proof_match:
-                frappe.throw("Confirm that the visitor matches the ID proof before saving the visitor check-out.")
-
-            if not self.pass_photo_match:
-                frappe.throw("Confirm that the visitor matches the pass creation photo before saving the visitor check-out.")
 
         if self.event_type == 'Gate Transfer' and not self.visited_area:
             frappe.throw("Visited Area is required for gate transfer tracking.")
@@ -455,9 +458,14 @@ def get_approved_vip_queue(visit_date=None):
 		"Visitor Pass",
 		filters={
 			"visitor_type": "VIP",
-			"visit_date": target_date,
+			"visit_date": ["<=", target_date],
 			"status": ["in", ["Approved", "Items Verified", "Checked-In"]],
 		},
+		# Scheduled for the day itself, or a multi-day visit still running on that day.
+		or_filters=[
+			["visit_date", "=", target_date],
+			["pass_valid_until", ">=", target_date],
+		],
 		fields=[
 			"name",
 			"visitor_full_name",

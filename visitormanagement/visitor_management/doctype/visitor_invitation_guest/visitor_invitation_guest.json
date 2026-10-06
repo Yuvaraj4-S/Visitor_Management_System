@@ -1,0 +1,149 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-10-06 12:30:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "visitor_full_name",
+  "visitor_email",
+  "visitor_mobile",
+  "meal_required",
+  "cab_required",
+  "factory_tour_required",
+  "column_break_status",
+  "invitation_status",
+  "visitor_pass",
+  "portal_submission_url",
+  "invitation_token",
+  "invitation_sent_on",
+  "link_opened_on",
+  "form_submitted_on"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "visitor_full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Visitor Name",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "visitor_email",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Email",
+   "options": "Email",
+   "reqd": 1
+  },
+  {
+   "fieldname": "visitor_mobile",
+   "fieldtype": "Data",
+   "label": "Mobile",
+   "options": "Phone"
+  },
+  {
+   "columns": 1,
+   "default": "0",
+   "fieldname": "meal_required",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Meal"
+  },
+  {
+   "columns": 1,
+   "default": "0",
+   "fieldname": "cab_required",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Cab"
+  },
+  {
+   "columns": 1,
+   "default": "0",
+   "fieldname": "factory_tour_required",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Factory Tour"
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 1,
+   "default": "Draft",
+   "fieldname": "invitation_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Link Status",
+   "no_copy": 1,
+   "options": "Draft\nSent\nOpened\nSaved\nSubmitted\nExpired",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "visitor_pass",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Visitor Pass",
+   "no_copy": 1,
+   "options": "Visitor Pass",
+   "read_only": 1
+  },
+  {
+   "fieldname": "portal_submission_url",
+   "fieldtype": "Small Text",
+   "label": "Invitation Link",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "invitation_token",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Invitation Token",
+   "no_copy": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "invitation_sent_on",
+   "fieldtype": "Datetime",
+   "label": "Sent On",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "link_opened_on",
+   "fieldtype": "Datetime",
+   "label": "Link Opened On",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "form_submitted_on",
+   "fieldtype": "Datetime",
+   "label": "Form Submitted On",
+   "no_copy": 1,
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-06 12:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Visitor Invitation Guest",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

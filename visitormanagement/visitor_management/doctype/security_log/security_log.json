@@ -361,11 +361,10 @@
       "options": "Security notes"
     },
     {
-      "description": "Capture a live photo of the visitor at the gate. Required for Check-In and Check-Out.",
+      "description": "Capture a live photo of the visitor at the gate.",
       "fieldname": "photo_at_gate",
       "fieldtype": "Attach Image",
-      "label": "Photo at Gate",
-      "mandatory_depends_on": "eval:doc.event_type in ['Check-In', 'Check-Out']"
+      "label": "Photo at Gate"
     },
     {
       "fieldname": "capture_photo",
@@ -381,16 +380,14 @@
       "description": "Tick after confirming the visitor matches the ID proof shown.",
       "fieldname": "id_proof_match",
       "fieldtype": "Check",
-      "label": "Matches ID Proof",
-      "mandatory_depends_on": "eval:doc.event_type in ['Check-In', 'Check-Out']"
+      "label": "Matches ID Proof"
     },
     {
       "default": "0",
       "description": "Tick after confirming the visitor matches the photo on the approved pass.",
       "fieldname": "pass_photo_match",
       "fieldtype": "Check",
-      "label": "Matches Pass Photo",
-      "mandatory_depends_on": "eval:doc.event_type in ['Check-In', 'Check-Out']"
+      "label": "Matches Pass Photo"
     },
     {
       "fieldname": "exception_reason",
@@ -441,7 +438,7 @@
   "grid_page_length": 50,
   "index_web_pages_for_search": 1,
   "links": [],
-  "modified": "2026-04-22 13:20:00.000000",
+  "modified": "2026-10-06 12:30:00.000000",
   "modified_by": "Administrator",
   "module": "Visitor Management",
   "name": "Security Log",

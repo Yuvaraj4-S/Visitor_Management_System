@@ -13,10 +13,14 @@
 				{{ visitor.visitor_type }} · {{ visitor.company__organisation || "—" }} · {{ visitor.host_name }}
 			</p>
 			<p class="text-xs text-slate-400">
-				<template v-if="visitor.status === 'Checked-In'">In since {{ time(visitor.actual_checkin) }}</template>
+				<template v-if="visitor.status === 'Checked-In'">In since {{ time(visitor.actual_checkin) }} · till {{ time(visitor.expected_checkout) }}</template>
 				<template v-else-if="visitor.status === 'Checked-Out' && visitor.actual_checkout">Left {{ time(visitor.actual_checkout) }}</template>
 				<template v-else>Expected {{ time(visitor.expected_checkin) }}–{{ time(visitor.expected_checkout) }}</template>
 				<span v-if="visitor.request_channel === 'Walk-In'" class="ml-1 rounded bg-indigo-100 px-1 text-indigo-700">walk-in</span>
+			</p>
+			<p v-if="visitor.overdue_minutes != null" class="text-xs font-semibold text-rose-600">
+				<template v-if="visitor.time_over_state === 'Inside'">Still inside · {{ minutes(visitor.overdue_minutes) }} past {{ time(visitor.expected_checkout) }}</template>
+				<template v-else>Left {{ minutes(visitor.overdue_minutes) }} late (due {{ time(visitor.expected_checkout) }})</template>
 			</p>
 		</div>
 		<StatusBadge :status="visitor.status" />
@@ -25,7 +29,7 @@
 
 <script setup>
 import StatusBadge from "./StatusBadge.vue";
-import { initials, time } from "../utils/formatters";
+import { initials, minutes, time } from "../utils/formatters";
 defineProps({ visitor: { type: Object, required: true } });
 defineEmits(["open"]);
 </script>

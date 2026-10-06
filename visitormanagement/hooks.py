@@ -31,7 +31,7 @@ required_apps = ["erpnext", "hrms"]
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/visitormanagement/css/visitormanagement.css"
-# app_include_js = "/assets/visitormanagement/js/visitormanagement.js"
+app_include_js = ["/assets/visitormanagement/js/vms_time_without_seconds.js"]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/visitormanagement/css/visitormanagement.css"
@@ -177,7 +177,8 @@ doc_events = {
 scheduler_events = {
 	"cron": {
 		"0 7 * * *": [
-			"visitormanagement.visitor_management.tasks.send_daily_hospitality_digest"
+			"visitormanagement.visitor_management.tasks.send_daily_hospitality_digest",
+			"visitormanagement.visitor_management.tasks.send_host_daily_visitor_reminder",
 		]
 	},
 	"hourly": [

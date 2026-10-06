@@ -20,7 +20,10 @@
 			<div><dt class="label">ID Proof</dt><dd>{{ visitor.id_proof_type }} · {{ visitor.id_proof_number }}</dd></div>
 			<div>
 				<dt class="label">Validity</dt>
-				<dd>{{ date(visitor.visit_date) }} · {{ time(visitor.expected_checkin) }}–{{ time(visitor.expected_checkout) }}</dd>
+				<dd>
+					{{ date(visitor.visit_date) }}<template v-if="visitor.multi_day_pass && visitor.pass_valid_until"> – {{ date(visitor.pass_valid_until) }} (daily)</template>
+					· {{ time(visitor.expected_checkin) }}–{{ time(visitor.expected_checkout) }}
+				</dd>
 			</div>
 			<div class="col-span-2"><dt class="label">Purpose</dt><dd>{{ visitor.purpose_of_visit }}</dd></div>
 			<div v-if="visitor.items_carried" class="col-span-2">

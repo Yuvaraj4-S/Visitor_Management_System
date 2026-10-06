@@ -1,8 +1,8 @@
 <template>
 	<div class="space-y-4">
 		<div class="grid grid-cols-2 gap-3">
-			<div v-for="s in stats" :key="s.label" class="card" @click="s.to && $router.push(s.to)">
-				<p class="text-3xl font-bold">{{ s.value }}</p>
+			<div v-for="s in stats" :key="s.label" class="card" :class="s.alert ? 'ring-2 ring-rose-400' : ''" @click="s.to && $router.push(s.to)">
+				<p class="text-3xl font-bold" :class="s.alert ? 'text-rose-600' : ''">{{ s.value }}</p>
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ s.label }}</p>
 			</div>
 		</div>
@@ -49,6 +49,12 @@ const stats = computed(() => [
 	{ label: "Inside now", value: d.value.stats.inside ?? "–", to: "/visitors?tab=inside" },
 	{ label: "Pending requests", value: d.value.stats.pending_requests ?? "–", to: "/requests" },
 	{ label: "VIP today", value: d.value.stats.vip_today ?? "–" },
+	{
+		label: "Time over (inside)",
+		value: d.value.stats.time_over_inside ?? "–",
+		to: "/visitors?tab=time_over",
+		alert: (d.value.stats.time_over_inside || 0) > 0,
+	},
 ]);
 
 function open(v) {

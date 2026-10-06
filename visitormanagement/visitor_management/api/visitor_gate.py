@@ -1,6 +1,8 @@
 import frappe
 from frappe import _
 
+from visitormanagement.visitor_management.multi_day import can_check_in_again, date_range_label, is_valid_on
+
 
 def _assert_gate_permission():
     """Only staff allowed to create Security Logs (Security / System Manager)
@@ -31,7 +33,7 @@ def visitor_checkin(docname):
 
     doc = frappe.get_doc("Visitor Pass", docname)
 
-    if doc.status not in ("Approved", "Items Verified"):
+    if doc.status not in ("Approved", "Items Verified") and not can_check_in_again(doc):
         frappe.throw(
             _("Pass must be 'Approved' or 'Items Verified' to Check-In. Current status: {0}").format(doc.status)
         )
@@ -134,22 +136,23 @@ def scan_qr_checkin(qr_data):
     # Fetch status + visit_date for early validation
     vp_info = frappe.db.get_value(
         "Visitor Pass", doc_name,
-        ["status", "visit_date", "id_proof_number", "visitor_full_name", "id_proof_type"],
+        ["status", "visit_date", "multi_day_pass", "pass_valid_until", "id_proof_number", "visitor_full_name", "id_proof_type"],
         as_dict=True,
     )
     doc_status = vp_info.status
 
-    # Visit date must match today (or checkout allowed for already Checked-In)
-    from frappe.utils import getdate, today as _today
+    # Today must be the visit date — or inside a multi-day visit's date range
+    # (checkout is always allowed for an already Checked-In visitor).
     if vp_info.visit_date and doc_status != "Checked-In":
-        if getdate(vp_info.visit_date) != getdate(_today()):
+        if not is_valid_on(vp_info):
             frappe.throw(
                 _("Visitor Pass {0} is for {1}, not today. QR code not valid for this date.").format(
-                    doc_name, vp_info.visit_date
+                    doc_name, date_range_label(vp_info)
                 )
             )
 
-    if doc_status in ("Approved", "Items Verified"):
+    # A multi-day pass returns to the gate each day after a check-out.
+    if doc_status in ("Approved", "Items Verified") or can_check_in_again(vp_info):
         # Re-check blacklist only at entry — a Checked-In blacklisted visitor must still
         # be allowed to check out. Match by ID number first, fall back to name + ID type.
         from visitormanagement.visitor_management.doctype.visitor_blacklist.visitor_blacklist import VisitorBlacklist

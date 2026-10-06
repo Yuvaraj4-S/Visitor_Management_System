@@ -10,9 +10,15 @@ ALWAYS_LOCKED_FIELDS = {
 	"visitor_type",
 	"email_id",
 	"visit_date",
+	"multi_day_pass",
+	"pass_valid_until",
 	"expected_checkin",
 	"expected_checkout",
 	"person_to_visit",
+	# Hospitality is arranged by the host per visitor — shown, not editable.
+	"meal_required",
+	"cab_required",
+	"factory_tour_required",
 }
 
 CONDITIONALLY_LOCKED_FIELDS = {
@@ -56,7 +62,7 @@ def _format_visit_time(value):
 	if not value:
 		return "-"
 	try:
-		return format_time(value)
+		return format_time(value, "HH:mm")
 	except Exception:
 		return str(value)
 

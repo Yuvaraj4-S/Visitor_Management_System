@@ -71,6 +71,8 @@ frappe.ui.form.on("Visitor Pass", {
 		apply_visitor_pass_ui(frm);
 		add_action_buttons(frm);
 		add_hospitality_buttons(frm);
+		add_extend_visit_button(frm);
+		add_group_workflow_buttons(frm);
 		mask_id_proof_on_display(frm);
 	},
 
@@ -245,7 +247,15 @@ frappe.ui.form.on("Visitor Pass", {
 		apply_visitor_pass_ui(frm);
 	},
 
+	visitor_invitation(frm) {
+		fill_from_invitation(frm);
+		apply_visitor_pass_ui(frm);
+	},
+
 	multi_day_pass(frm) {
+		if (!frm.doc.multi_day_pass && frm.doc.pass_valid_until) {
+			frm.set_value("pass_valid_until", null);
+		}
 		apply_visitor_pass_ui(frm);
 	},
 
@@ -423,7 +433,7 @@ function apply_visitor_pass_field_rules(frm) {
 	const is_existing = ['Supplier','Customer','Contractor','Candidate'].includes(frm.doc.visitor_type) && frm.doc.entry_type === "Existing";
 	const is_follow_up = frm.doc.visitor_type === "Customer" && frm.doc.meeting_outcome === "Follow-Up Needed";
 	const needs_interpreter = frm.doc.visitor_type === "VIP" && !!frm.doc.interpreter_required;
-	const is_multi_day_contractor = frm.doc.visitor_type === "Contractor" && !!frm.doc.multi_day_pass;
+	const is_multi_day = !!frm.doc.multi_day_pass;
 	const hospitality_requested =
 		!!frm.doc.meal_required || !!frm.doc.refreshments_required || !!frm.doc.conference_room;
 	const hospitality_recorded = hospitality_requested || !!frm.doc.hospitality_request;
@@ -449,6 +459,19 @@ function apply_visitor_pass_field_rules(frm) {
 		"hospitality_request",
 	].forEach((fieldname) => frm.set_df_property(fieldname, "read_only", 1));
 
+	// Visitor Invitation: can be picked while the pass is a draft; once linked, the
+	// host's per-visitor Meal / Cab / Factory Tour come from the invitation (read-only).
+	frm.set_df_property("visitor_invitation", "read_only", frm.doc.docstatus !== 0 ? 1 : 0);
+	const from_invitation = !!frm.doc.visitor_invitation;
+	INVITATION_HOSPITALITY_FIELDS.forEach((fieldname) => {
+		frm.set_df_property(fieldname, "read_only", from_invitation ? 1 : 0);
+		frm.set_df_property(
+			fieldname,
+			"description",
+			from_invitation ? __("Set by the host on Visitor Invitation {0}", [frm.doc.visitor_invitation]) : ""
+		);
+	});
+
 	frm.set_df_property("items_verification_status", "hidden", 1);
 	frm.toggle_display("existing_visitor_pass", is_existing);
 	frm.toggle_reqd("existing_visitor_pass", is_existing);
@@ -468,8 +491,8 @@ function apply_visitor_pass_field_rules(frm) {
 	frm.toggle_display("interpreter_language", needs_interpreter);
 	frm.toggle_reqd("interpreter_language", needs_interpreter);
 
-	frm.toggle_display("pass_valid_until", is_multi_day_contractor);
-	frm.toggle_reqd("pass_valid_until", is_multi_day_contractor);
+	frm.toggle_display("pass_valid_until", is_multi_day);
+	frm.toggle_reqd("pass_valid_until", is_multi_day);
 
 	// Hospitality field visibility is now DocType-driven:
 	//   - assigned_meal_slots, hospitality_type, food_dept_staff_assigned,
@@ -640,8 +663,13 @@ function render_approver_context_card(frm) {
 
 	const visit_window = [
 		esc(frm.doc.visit_date || ""),
-		esc(frm.doc.expected_checkin || ""),
-		frm.doc.expected_checkout ? "→ " + esc(frm.doc.expected_checkout) : "",
+		frm.doc.multi_day_pass && frm.doc.pass_valid_until
+			? __("to {0} (daily)", [esc(frm.doc.pass_valid_until)])
+			: "",
+		esc(visitormanagement.utils.format_time_without_seconds(frm.doc.expected_checkin)),
+		frm.doc.expected_checkout
+			? "→ " + esc(visitormanagement.utils.format_time_without_seconds(frm.doc.expected_checkout))
+			: "",
 	].filter(Boolean).join(" ");
 
 	const html = `
@@ -980,4 +1008,190 @@ function add_hospitality_buttons(frm) {
 			);
 		}
 	}
+}
+
+// Only the host (Person to Visit) may push the Expected Check-Out later.
+// The server re-checks this and notifies Security on every extension.
+const VISIT_EXTENDABLE_STATUSES = ["Approved", "Items Verified", "Checked-In"];
+
+function add_extend_visit_button(frm) {
+	if (frm.doc.docstatus !== 1 || !VISIT_EXTENDABLE_STATUSES.includes(frm.doc.status)) return;
+
+	frappe.call({
+		method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.can_extend_visit_time",
+		args: { visitor_pass: frm.doc.name },
+		callback: ({ message }) => {
+			if (!message) return;
+			frm.add_custom_button(__("Extend Visit Time"), () => open_extend_visit_dialog(frm));
+		},
+	});
+}
+
+function open_extend_visit_dialog(frm) {
+	const current = visitormanagement.utils.format_time_without_seconds(frm.doc.expected_checkout) || "-";
+	const dialog = new frappe.ui.Dialog({
+		title: __("Extend Visit Time"),
+		fields: [
+			{
+				fieldtype: "HTML",
+				options: `<p class="text-muted">${__("Current Expected Check-Out: {0}", [`<b>${current}</b>`])}</p>`,
+			},
+			{
+				fieldname: "new_checkout",
+				fieldtype: "Time",
+				label: __("New Expected Check-Out"),
+				reqd: 1,
+				hide_seconds: 1,
+			},
+			{
+				fieldname: "reason",
+				fieldtype: "Small Text",
+				label: __("Reason"),
+				reqd: 1,
+			},
+		],
+		primary_action_label: __("Extend"),
+		primary_action(values) {
+			frappe.call({
+				method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.extend_visit_time",
+				args: {
+					visitor_pass: frm.doc.name,
+					new_checkout: values.new_checkout,
+					reason: values.reason,
+				},
+				freeze: true,
+				freeze_message: __("Extending visit..."),
+				callback: ({ message }) => {
+					if (!message) return;
+					dialog.hide();
+					frappe.show_alert({
+						message: __("Visit extended until {0}. Security has been notified.", [
+							visitormanagement.utils.format_time_without_seconds(message.expected_checkout),
+						]),
+						indicator: "green",
+					});
+					frm.reload_doc();
+				},
+			});
+		},
+	});
+	dialog.show();
+}
+
+// Group visit: every visitor of a Visitor Invitation has their own pass. Let the
+// approver move all passes of the invitation that sit in this same stage at once.
+function add_group_workflow_buttons(frm) {
+	if (frm.is_new() || !frm.doc.visitor_invitation) return;
+
+	frappe.call({
+		method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.get_group_workflow_actions",
+		args: { visitor_pass: frm.doc.name },
+		callback: ({ message }) => {
+			if (!message || !(message.actions || []).length) return;
+			message.actions.forEach((action) => {
+				const label = __("{0} All ({1} visitors)", [__(action), message.count]);
+				frm.add_custom_button(label, () => confirm_group_action(frm, action, message.count), __("Group"));
+			});
+		},
+	});
+}
+
+function confirm_group_action(frm, action, count) {
+	frappe.confirm(
+		__("{0} all {1} visitor passes from invitation {2} that are in {3}?", [
+			__(action),
+			count,
+			frm.doc.visitor_invitation,
+			frm.doc.workflow_state || __("Draft"),
+		]),
+		() => {
+			frappe.call({
+				method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.apply_group_workflow_action",
+				args: { visitor_pass: frm.doc.name, action },
+				freeze: true,
+				freeze_message: __("Updating visitor passes..."),
+				callback: ({ message }) => {
+					if (!message) return;
+					const esc = frappe.utils.escape_html;
+					let html = __("{0} passes updated.", [message.done.length]);
+					if (message.skipped.length) {
+						html +=
+							"<br><br>" +
+							__("Skipped:") +
+							"<ul>" +
+							message.skipped.map((s) => `<li>${esc(s.name)}: ${esc(s.reason)}</li>`).join("") +
+							"</ul>";
+					}
+					frappe.msgprint({ title: __("Group {0}", [__(action)]), message: html, indicator: message.skipped.length ? "orange" : "green" });
+					frm.reload_doc();
+				},
+			});
+		}
+	);
+}
+
+const INVITATION_HOSPITALITY_FIELDS = ["meal_required", "cab_required", "factory_tour_required"];
+
+// Pass created in the desk for an invited visitor: copy the invitation's visit
+// details and that visitor's details + hospitality (host's choice).
+function fill_from_invitation(frm) {
+	if (!frm.doc.visitor_invitation || frm.doc.docstatus !== 0) return;
+
+	frappe.call({
+		method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.get_invitation_visitors",
+		args: { visitor_invitation: frm.doc.visitor_invitation, visitor_pass: frm.is_new() ? null : frm.doc.name },
+		callback: ({ message }) => {
+			if (!message) return;
+			const shared = message.shared || {};
+			const apply = async (visitor) => {
+				const values = {
+					visitor_type: shared.visitor_type,
+					person_to_visit: shared.host_employee,
+					visit_date: shared.visit_date,
+					multi_day_pass: shared.multi_day_pass,
+					pass_valid_until: shared.pass_valid_until,
+					expected_checkin: shared.expected_checkin,
+					expected_checkout: shared.expected_checkout,
+					purpose_of_visit: shared.purpose_of_visit,
+				};
+				if (visitor) {
+					Object.assign(values, {
+						visitor_full_name: visitor.visitor_full_name,
+						email_id: visitor.visitor_email,
+						meal_required: visitor.meal_required,
+						cab_required: visitor.cab_required,
+						factory_tour_required: visitor.factory_tour_required,
+					});
+					if (visitor.visitor_mobile && !frm.doc.mobile_number) values.mobile_number = visitor.visitor_mobile;
+				}
+				for (const [fieldname, value] of Object.entries(values)) {
+					if (value !== undefined && value !== null && value !== "") await frm.set_value(fieldname, value);
+				}
+			};
+
+			const visitors = message.visitors || [];
+			if (!visitors.length) {
+				frappe.msgprint(__("Every visitor on {0} already has a Visitor Pass.", [frm.doc.visitor_invitation]));
+				apply(null);
+				return;
+			}
+			const email = (frm.doc.email_id || "").toLowerCase();
+			const already = visitors.find((v) => (v.visitor_email || "").toLowerCase() === email);
+			if (already || visitors.length === 1) {
+				apply(already || visitors[0]);
+				return;
+			}
+			frappe.prompt(
+				{
+					fieldname: "row",
+					fieldtype: "Select",
+					label: __("Which visitor is this pass for?"),
+					reqd: 1,
+					options: visitors.map((v) => ({ label: `${v.visitor_full_name} <${v.visitor_email}>`, value: v.row })),
+				},
+				({ row }) => apply(visitors.find((v) => v.row === row)),
+				__("Select Visitor")
+			);
+		},
+	});
 }

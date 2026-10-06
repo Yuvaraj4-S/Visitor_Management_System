@@ -11,7 +11,7 @@
 					Scan the visitor's QR code to check them out (gate policy).
 					<router-link to="/scan" class="mt-2 block font-semibold underline">Open scanner</router-link>
 				</div>
-				<CameraCapture v-model="photo" label="Exit photo" required />
+				<CameraCapture v-model="photo" label="Exit photo (optional)" />
 				<PhotoCompare :visitor="visitor" :live-photo="photo" />
 				<div class="card space-y-3">
 					<label class="flex items-center gap-3 text-sm"><input v-model="idMatch" type="checkbox" class="h-5 w-5 accent-slate-900" />Visitor matches the ID proof</label>
@@ -46,7 +46,8 @@ const photo = ref("");
 const idMatch = ref(false);
 const photoMatch = ref(false);
 const scanned = computed(() => route.query.scanned === "1");
-const canConfirm = computed(() => scanned.value && photo.value && idMatch.value && photoMatch.value);
+// Exit photo and the match ticks are optional — only the QR scan is required.
+const canConfirm = computed(() => scanned.value);
 
 onMounted(async () => {
 	try {

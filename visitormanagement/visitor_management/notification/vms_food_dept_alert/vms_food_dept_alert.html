@@ -9,7 +9,7 @@
 <tr><td style="padding: 8px; border: 1px solid #ddd;"><b>Meal Type</b></td><td style="padding: 8px; border: 1px solid #ddd;"><b>{{ doc.meal_type }}</b></td></tr>
 <tr style="background: #f4f5f7;"><td style="padding: 8px; border: 1px solid #ddd;"><b>Number of People</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.number_of_people or 1 }}</td></tr>
 <tr><td style="padding: 8px; border: 1px solid #ddd;"><b>Dietary Preference</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.special_diet or 'None' }}</td></tr>
-<tr style="background: #f4f5f7;"><td style="padding: 8px; border: 1px solid #ddd;"><b>Service Time</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.service_time or doc.expected_checkin }}</td></tr>
+<tr style="background: #f4f5f7;"><td style="padding: 8px; border: 1px solid #ddd;"><b>Service Time</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.service_time or frappe.utils.format_time(doc.expected_checkin, 'HH:mm') }}</td></tr>
 <tr><td style="padding: 8px; border: 1px solid #ddd;"><b>Location / Room</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.conference_room or doc.rest_area or 'TBD' }}</td></tr>
 <tr style="background: #f4f5f7;"><td style="padding: 8px; border: 1px solid #ddd;"><b>Host</b></td><td style="padding: 8px; border: 1px solid #ddd;">{{ doc.person_to_visit }}</td></tr>
 </table>

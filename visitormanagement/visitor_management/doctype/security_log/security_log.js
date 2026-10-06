@@ -120,15 +120,8 @@ frappe.ui.form.on("Security Log", {
 		}
 
 		if (frm.doc.event_type === "Check-In") {
+			// Gate photo / identity ticks are optional; the badge falls back to the pass photo.
 			const checks = [
-				{
-					ok: Boolean(frm.doc.photo_at_gate),
-					label: __("Capture the live gate photo"),
-				},
-				{
-					ok: Boolean(frm.doc.id_proof_match) && Boolean(frm.doc.pass_photo_match),
-					label: __("Confirm both identity matches (ID proof + pass photo)"),
-				},
 				{
 					ok: !(frm.is_new() || frm.is_dirty()),
 					label: __("Save the check-in (so the gate photo is locked into the badge)"),
@@ -287,6 +280,9 @@ frappe.ui.form.on("Security Log", {
 				"mdceo_notified",
 				"conference_room",
 				"protocol_notes",
+				"visit_date",
+				"multi_day_pass",
+				"pass_valid_until",
 			],
 			(r) => {
 				if (!r) {
@@ -326,7 +322,16 @@ frappe.ui.form.on("Security Log", {
 
 				if (frm.is_new()) {
 					let event_type = "";
+					// A multi-day pass returns to the gate each day after a check-out.
+					const today = frappe.datetime.get_today();
+					const multi_day_active =
+						r.multi_day_pass &&
+						r.pass_valid_until &&
+						r.visit_date <= today &&
+						today <= r.pass_valid_until;
 					if (["Items Verified", "Approved"].includes(r.status)) {
+						event_type = "Check-In";
+					} else if (r.status === "Checked-Out" && multi_day_active) {
 						event_type = "Check-In";
 					} else if (r.status === "Checked-In") {
 						event_type = "Check-Out";
@@ -717,9 +722,6 @@ function apply_security_log_ui(frm) {
 	frm.toggle_display(["id_proof_match", "pass_photo_match", "verification_notes"], is_check_in || is_check_out);
 	frm.toggle_display("exception_reason", show_exception_reason);
 	frm.toggle_display(["section_break_items", "all_items_confirmed"], show_items && has_pass);
-	frm.toggle_reqd("photo_at_gate", is_check_in || is_check_out);
-	frm.toggle_reqd("id_proof_match", is_check_in || is_check_out);
-	frm.toggle_reqd("pass_photo_match", is_check_in || is_check_out);
 	frm.toggle_reqd("exception_reason", false);
 	frm.toggle_display(["mdceo_notified", "vip_meeting_room", "vip_protocol_notes"], has_pass && is_vip);
 
@@ -987,7 +989,7 @@ function render_vip_queue_preview(dialog, vip_queue) {
 			<div style="font-weight: 700; color: #102a43; margin-bottom: 10px;">${esc(selected.visitor_full_name)}</div>
 			<div style="font-size: 12px; color: #334e68; line-height: 1.6;">
 				<div><strong>${__("Stage")}:</strong> ${esc(selected.workflow_state || selected.status || "-")}</div>
-				<div><strong>${__("Visit Window")}:</strong> ${esc(selected.visit_date || "-")} | ${esc(selected.expected_checkin || "-")} - ${esc(selected.expected_checkout || "-")}</div>
+				<div><strong>${__("Visit Window")}:</strong> ${esc(selected.visit_date || "-")} | ${esc(visitormanagement.utils.format_time_without_seconds(selected.expected_checkin) || "-")} - ${esc(visitormanagement.utils.format_time_without_seconds(selected.expected_checkout) || "-")}</div>
 				<div><strong>${__("Host")}:</strong> ${esc(selected.person_to_visit || "-")}</div>
 				<div><strong>${__("Purpose")}:</strong> ${esc(selected.purpose_of_visit || "-")}</div>
 				<div><strong>${__("Meeting Room")}:</strong> ${esc(selected.conference_room || "-")}</div>

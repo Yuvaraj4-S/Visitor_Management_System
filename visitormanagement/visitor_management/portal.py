@@ -4,7 +4,7 @@ import json
 import os
 
 import frappe
-from frappe.utils import now_datetime
+from frappe.utils import cint, now_datetime
 
 # Guests may only upload genuine images / PDFs for ID proof and photo. We trust
 # neither the file extension nor the client-sent MIME type alone — the decoded
@@ -30,7 +30,9 @@ def _validate_upload(filename, content):
 		)
 
 from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation import (
+	get_guest_row,
 	get_valid_invitation_by_token,
+	update_guest_row,
 )
 from visitormanagement.visitor_management.validators import (
 	id_proof_error_message,
@@ -254,6 +256,15 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 			return invitation.get(field)
 		return data.get(field)
 
+	# Per-visitor choices (meal / cab / factory tour) live on the visitor's own row
+	# of the invitation's Visitors table.
+	guest = get_guest_row(invitation)
+
+	def _meal_plan(field):
+		if guest is not None and not cint(guest.meal_required):
+			return None
+		return _from_invitation(field)
+
 	return {
 		"entry_type": "New",
 		"visitor_full_name": (
@@ -266,7 +277,7 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 			or (invitation.get("visitor_mobile") if invitation else None),
 			data.get("mobile_country_code"),
 		),
-		"email_id": invitation.visitor_email if invitation else data.get("email_id"),
+		"email_id": (guest.visitor_email if guest else invitation.visitor_email) if invitation else data.get("email_id"),
 		"company__organisation": data.get("company__organisation"),
 		"visit_date": invitation.visit_date if invitation else data.get("visit_date"),
 		"expected_checkin": _normalize_time(str(invitation.expected_checkin) if invitation else data.get("expected_checkin")),
@@ -280,8 +291,9 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"contractor_link": data.get("contractor_link"),
 		"work_order_ref": data.get("work_order_ref"),
 		"tools_list": data.get("tools_list"),
-		"multi_day_pass": data.get("multi_day_pass"),
-		"pass_valid_until": data.get("pass_valid_until"),
+		# Multi-day dates are set by the host on the invitation, not by the visitor.
+		"multi_day_pass": invitation.multi_day_pass if invitation else data.get("multi_day_pass"),
+		"pass_valid_until": invitation.pass_valid_until if invitation else data.get("pass_valid_until"),
 		"job_applicant_link": data.get("job_applicant_link"),
 		"position_applied": data.get("position_applied"),
 		"candidate_interview_type": data.get("candidate_interview_type"),
@@ -303,10 +315,12 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		# Host-set hospitality + venue intent — copied from the invitation so the
 		# Visitor Pass reflects the full plan even though the guest can't edit
 		# these on the portal form.
-		"meal_required": _from_invitation("meal_required"),
-		"meal_type": _from_invitation("meal_type"),
-		"assigned_meal_slots": _from_invitation("assigned_meal_slots"),
-		"hospitality_type": _from_invitation("hospitality_type"),
+		"meal_required": cint(guest.meal_required) if guest else _from_invitation("meal_required"),
+		"meal_type": _meal_plan("meal_type"),
+		"assigned_meal_slots": _meal_plan("assigned_meal_slots"),
+		"hospitality_type": _meal_plan("hospitality_type"),
+		"cab_required": cint(guest.cab_required) if guest else data.get("cab_required"),
+		"factory_tour_required": cint(guest.factory_tour_required) if guest else data.get("factory_tour_required"),
 		"refreshments_required": _from_invitation("refreshments_required"),
 		"conference_room": _from_invitation("conference_room"),
 		"special_diet": data.get("special_diet"),
@@ -339,10 +353,11 @@ def submit_pre_registration(payload=None):
 
 	require_full_submission = submission_action == "submit" or not invitation
 
+	guest = get_guest_row(invitation)
 	invitation_field_values = {}
 	if invitation:
 		invitation_field_values = {
-			"email_id": invitation.visitor_email,
+			"email_id": guest.visitor_email if guest else invitation.visitor_email,
 			"visit_date": invitation.visit_date,
 			"expected_checkin": invitation.expected_checkin,
 			"expected_checkout": invitation.expected_checkout,
@@ -361,8 +376,6 @@ def submit_pre_registration(payload=None):
 		"person_to_visit",
 		"purpose_of_visit",
 		"visitor_type",
-		"id_proof_type",
-		"id_proof_number",
 	]
 
 	for fieldname in required_fields:
@@ -370,12 +383,6 @@ def submit_pre_registration(payload=None):
 		form_value = data.get(fieldname) or (data.get("visitor_name") if fieldname == "visitor_full_name" else None)
 		if require_full_submission and not (field_value or form_value):
 			frappe.throw(f"{frappe.unscrub(fieldname).title()} is required.")
-
-	if require_full_submission and not data.get("id_proof_scan"):
-		frappe.throw("ID Proof Scan is required.")
-
-	if require_full_submission and not data.get("visitor_photo"):
-		frappe.throw("Visitor Photo is required.")
 
 	if require_full_submission:
 		canonical_type = _normalize_id_proof_type(data.get("id_proof_type"))
@@ -401,8 +408,9 @@ def submit_pre_registration(payload=None):
 		frappe.throw("Person to Visit must be a valid Employee (Employee ID or exact Employee Name).")
 
 	existing_doc = None
-	if invitation and invitation.visitor_pass and frappe.db.exists("Visitor Pass", invitation.visitor_pass):
-		existing_doc = frappe.get_doc("Visitor Pass", invitation.visitor_pass)
+	guest_pass = guest.visitor_pass if guest else (invitation.visitor_pass if invitation else None)
+	if guest_pass and frappe.db.exists("Visitor Pass", guest_pass):
+		existing_doc = frappe.get_doc("Visitor Pass", guest_pass)
 		# A guest may only re-edit their pass while it is still an unsubmitted
 		# Draft (the Save-Draft → come-back-and-Submit flow). Once staff have
 		# advanced it into any approval lane / Approved / Checked-In, the portal
@@ -415,7 +423,7 @@ def submit_pre_registration(payload=None):
 			)
 
 	# Store any newly-uploaded files (validated + private) up front so their URLs
-	# are available for the mandatory id_proof_scan / visitor_photo fields at
+	# are available for the id_proof_scan / visitor_photo fields at
 	# insert time. They are linked to the pass right after it is saved.
 	id_proof_url, id_proof_file = _store_file(id_proof_filename, id_proof_content)
 	id_proof_url = id_proof_url or (existing_doc.id_proof_scan if existing_doc else None)
@@ -453,18 +461,19 @@ def submit_pre_registration(payload=None):
 	_attach_file_to_pass(id_proof_file, visitor_pass.name, "id_proof_scan")
 	_attach_file_to_pass(visitor_photo_file, visitor_pass.name, "visitor_photo")
 
-	if invitation:
-		invitation_updates = {
+	if invitation and guest:
+		guest_updates = {
 			"visitor_pass": visitor_pass.name,
 			"invitation_status": "Saved" if submission_action == "save" else "Submitted",
 		}
-		if not invitation.link_opened_on:
-			invitation_updates["link_opened_on"] = now_datetime()
+		if not guest.link_opened_on:
+			guest_updates["link_opened_on"] = now_datetime()
+		if submission_action == "submit":
+			guest_updates["form_submitted_on"] = now_datetime()
+		# Updates this visitor's row and recomputes the invitation's group status.
+		update_guest_row(invitation, guest, guest_updates)
 		if submission_action == "save":
-			invitation_updates["form_saved_on"] = now_datetime()
-		else:
-			invitation_updates["form_submitted_on"] = now_datetime()
-		invitation.db_set(invitation_updates, update_modified=False)
+			invitation.db_set("form_saved_on", now_datetime(), update_modified=False)
 
 	saved_values = frappe.db.get_value(
 		"Visitor Pass",

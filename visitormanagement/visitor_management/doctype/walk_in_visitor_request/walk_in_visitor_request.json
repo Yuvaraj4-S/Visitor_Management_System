@@ -27,6 +27,8 @@
   "expected_checkin",
   "expected_checkout",
   "vehicle_number",
+  "section_break_additional_visitors",
+  "additional_visitors",
   "items_section",
   "items_carried",
   "status_section",
@@ -88,14 +90,12 @@
    "fieldname": "id_proof_type",
    "fieldtype": "Select",
    "label": "ID Proof Type",
-   "options": "Aadhaar\nPAN Card\nPassport\nDriving License",
-   "reqd": 1
+   "options": "Aadhaar\nPAN Card\nPassport\nDriving License"
   },
   {
    "fieldname": "id_proof_number",
    "fieldtype": "Data",
-   "label": "ID Proof Number",
-   "reqd": 1
+   "label": "ID Proof Number"
   },
   {
    "fieldname": "id_proof_scan",
@@ -109,6 +109,7 @@
   },
   {
    "default": "1",
+   "description": "Total people, including the visitors listed in Additional Visitors (each of them gets their own pass).",
    "fieldname": "number_of_visitors",
    "fieldtype": "Int",
    "label": "Number of Visitors"
@@ -166,6 +167,18 @@
    "fieldname": "vehicle_number",
    "fieldtype": "Data",
    "label": "Vehicle Number"
+  },
+  {
+   "fieldname": "section_break_additional_visitors",
+   "fieldtype": "Section Break",
+   "label": "Additional Visitors"
+  },
+  {
+   "description": "Other people in the group. One host approval creates a separate Visitor Pass for each of them.",
+   "fieldname": "additional_visitors",
+   "fieldtype": "Table",
+   "label": "Additional Visitors",
+   "options": "Walk In Additional Visitor"
   },
   {
    "collapsible": 1,
@@ -245,7 +258,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-04 10:00:00.000000",
+ "modified": "2026-10-06 12:30:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Walk In Visitor Request",

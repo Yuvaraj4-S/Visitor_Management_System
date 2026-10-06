@@ -34,7 +34,7 @@
             <div class="vb-row"><span class="vb-k">Host</span><span class="vb-v">{{ host_name or "&mdash;" }}</span></div>
             <div class="vb-row"><span class="vb-k">Purpose</span><span class="vb-v">{{ doc.purpose_of_visit or "&mdash;" }}</span></div>
             <div class="vb-row"><span class="vb-k">Date</span><span class="vb-v">{{ doc.get_formatted("visit_date") }}</span></div>
-            <div class="vb-row"><span class="vb-k">Valid&nbsp;till</span><span class="vb-v">{{ doc.get_formatted("expected_checkout") or "End of Day" }}</span></div>
+            <div class="vb-row"><span class="vb-k">Valid&nbsp;till</span><span class="vb-v">{{ frappe.utils.format_time(doc.expected_checkout, 'HH:mm') if doc.expected_checkout else "End of Day" }}</span></div>
         </div>
 
         {% if doc.badge_number %}

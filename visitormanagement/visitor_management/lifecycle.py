@@ -371,6 +371,10 @@ def apply_hospitality_meal_plan(doc, preserve_existing=False):
 	# Respect user's manual selection — only auto-set if currently unchecked.
 	user_wants_meal = cint(getattr(doc, "meal_required", 0))
 	effective_meal_required = user_wants_meal or meal_plan["meal_required"]
+	# A pass from a Visitor Invitation carries the host's per-visitor Meal choice
+	# (Visitors table) — never switch the meal on just because the time overlaps a slot.
+	if getattr(doc, "doctype", None) == "Visitor Pass" and getattr(doc, "visitor_invitation", None):
+		effective_meal_required = user_wants_meal
 	doc.meal_required = effective_meal_required
 	# Keep meal_plan-derived values in sync for downstream logic
 	meal_plan["meal_required"] = effective_meal_required

@@ -1,7 +1,7 @@
 // Security Gate PWA service worker (scope /gate).
 // Caches the app shell so the gate screen still opens on a flaky connection.
 // API calls are never cached: gate decisions must always use live data.
-const CACHE = "vms-gate-v1";
+const CACHE = "vms-gate-v2"; // bump to force every device to drop the old app shell
 const SHELL = ["/gate", "/assets/visitormanagement/gate/gate.js", "/assets/visitormanagement/gate/gate.css", "/assets/visitormanagement/gate/manifest.json"];
 
 self.addEventListener("install", (event) => {

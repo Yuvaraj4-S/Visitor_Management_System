@@ -4,9 +4,15 @@ const ALWAYS_LOCKED_FIELDS = [
 	"visitor_type",
 	"email_id",
 	"visit_date",
+	"multi_day_pass",
+	"pass_valid_until",
 	"expected_checkin",
 	"expected_checkout",
 	"person_to_visit",
+	// Hospitality is arranged by the host per visitor — shown, not editable.
+	"meal_required",
+	"cab_required",
+	"factory_tour_required",
 ];
 const CONDITIONALLY_LOCKED_FIELDS = [
 	"purpose_of_visit",
@@ -508,20 +514,30 @@ function enableDirectAccessMode() {
 	setSubmitDisabled(false);
 }
 
+const TIME_FIELDS_WITHOUT_SECONDS = ["expected_checkin", "expected_checkout"];
+
+function formatTimeWithoutSeconds(value) {
+	const parsed = moment(String(value), ["HH:mm:ss", "H:mm:ss", "HH:mm", "H:mm"], true);
+	return parsed.isValid() ? parsed.format("HH:mm") : String(value);
+}
+
 function syncVisibleLockedField(fieldname, value) {
 	const $control = $(`.frappe-control[data-fieldname="${fieldname}"]`);
 	if (!$control.length) {
 		return;
 	}
 
+	const isCheck = frappe.web_form?.fields_dict?.[fieldname]?.df?.fieldtype === "Check";
 	const displayValue =
 		value === null || value === undefined || value === ""
 			? "-"
-			: typeof value === "boolean"
-				? value
+			: typeof value === "boolean" || isCheck
+				? Number(value)
 					? __("Yes")
 					: __("No")
-				: String(value);
+				: TIME_FIELDS_WITHOUT_SECONDS.includes(fieldname)
+					? formatTimeWithoutSeconds(value)
+					: String(value);
 	const $wrapper = $control.find(".control-input-wrapper");
 	$control.find(".control-input").hide();
 	let $display = $wrapper.find(".vm-locked-display");

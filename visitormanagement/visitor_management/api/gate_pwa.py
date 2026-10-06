@@ -13,9 +13,11 @@ import os
 
 import frappe
 from frappe import _
-from frappe.utils import add_to_date, cint, flt, getdate, now_datetime, today
+from frappe.utils import add_to_date, cint, flt, get_datetime, getdate, now_datetime, today
 
 from visitormanagement.visitor_management.api.visitor_gate import _assert_gate_permission
+from visitormanagement.visitor_management.multi_day import can_check_in_again, date_range_label, is_valid_on
+from visitormanagement.visitor_management.time_utils import strip_seconds
 from visitormanagement.visitor_management.validators import mask_id_number
 
 WALK_IN_REQUEST = "Walk In Visitor Request"
@@ -23,6 +25,7 @@ PASS_FIELDS = [
 	"name", "visitor_full_name", "visitor_type", "company__organisation", "mobile_number", "person_to_visit",
 	"purpose_of_visit", "visit_date", "expected_checkin", "expected_checkout", "status", "badge_number",
 	"badge_colour", "visitor_photo", "actual_checkin", "actual_checkout", "request_channel",
+	"multi_day_pass", "pass_valid_until",
 ]
 BADGE_HEX = {"Orange": "#fd7e14", "Purple": "#6f42c1", "Green": "#28a745", "Teal": "#20c997",
 			 "Gold": "#ffc107", "Blue": "#007bff", "Red": "#dc3545", "Grey": "#6c757d"}
@@ -46,6 +49,54 @@ def _decorate(rows):
 # ─────────────────────────────────────────────────────────
 # Dashboard / lists
 # ─────────────────────────────────────────────────────────
+def _multi_day_expected_today(day, exclude=()):
+	"""Multi-day passes due at the gate today: inside their date range and either not yet
+	checked in, or checked out on an earlier day (they return each day)."""
+	rows = frappe.get_all(
+		"Visitor Pass",
+		filters={
+			"docstatus": 1,
+			"multi_day_pass": 1,
+			"status": ["in", ["Approved", "Items Verified", "Checked-Out"]],
+			"visit_date": ["<=", day],
+			"pass_valid_until": [">=", day],
+		},
+		fields=PASS_FIELDS,
+	)
+	return [
+		r for r in rows
+		if r.name not in exclude
+		and not (r.status == "Checked-Out" and r.actual_checkout and getdate(r.actual_checkout) >= day)
+	]
+
+
+def _end_time_on(day_value, expected_checkout):
+	"""Datetime of the pass's Expected Check-Out on the day of ``day_value``."""
+	if not day_value or not expected_checkout:
+		return None
+	return get_datetime(f"{getdate(day_value)} {expected_checkout}")
+
+
+def _time_over_rows(inside, left, now):
+	"""Visitors past their end time: still inside after Expected Check-Out (judged on the
+	day they checked in), or checked out today later than it."""
+	rows = []
+	for r in inside:
+		deadline = _end_time_on(r.actual_checkin or now, r.expected_checkout)
+		if deadline and now > deadline:
+			rows.append(frappe._dict(r, time_over_state="Inside", overdue_minutes=int((now - deadline).total_seconds() // 60)))
+	for r in left:
+		deadline = _end_time_on(r.actual_checkout, r.expected_checkout)
+		checked_out = get_datetime(r.actual_checkout) if r.actual_checkout else None
+		if deadline and checked_out and checked_out > deadline:
+			rows.append(
+				frappe._dict(r, time_over_state="Left", overdue_minutes=int((checked_out - deadline).total_seconds() // 60))
+			)
+	# Still-inside first (needs action), then the longest overstay.
+	rows.sort(key=lambda r: (r.time_over_state != "Inside", -r.overdue_minutes))
+	return rows
+
+
 @frappe.whitelist()
 def get_gate_dashboard():
 	_assert_gate_permission()
@@ -56,6 +107,8 @@ def get_gate_dashboard():
 		fields=PASS_FIELDS,
 		order_by="expected_checkin asc",
 	)
+	expected += _multi_day_expected_today(day, exclude={r.name for r in expected})
+	expected.sort(key=lambda r: str(r.expected_checkin or ""))
 	inside = frappe.get_all("Visitor Pass", filters={"docstatus": 1, "status": "Checked-In"}, fields=PASS_FIELDS,
 							order_by="actual_checkin desc")
 	left = frappe.get_all(
@@ -66,6 +119,8 @@ def get_gate_dashboard():
 		order_by="actual_checkout desc",
 	)
 	pending = frappe.db.count(WALK_IN_REQUEST, {"status": "Pending Approval"})
+	inside, left = _decorate(inside), _decorate(left)
+	time_over = _time_over_rows(inside, left, now_datetime())
 	return {
 		"stats": {
 			"expected": len(expected),
@@ -73,10 +128,12 @@ def get_gate_dashboard():
 			"left": len(left),
 			"pending_requests": pending,
 			"vip_today": sum(1 for r in expected + inside if r.visitor_type == "VIP"),
+			"time_over_inside": sum(1 for r in time_over if r.time_over_state == "Inside"),
 		},
 		"expected": _decorate(expected),
-		"inside": _decorate(inside),
-		"left": _decorate(left),
+		"inside": inside,
+		"left": left,
+		"time_over": time_over,
 		"badge_legend": [
 			{"visitor_type": t.name, "colour": t.badge_colour, "hex": BADGE_HEX.get(t.badge_colour or "", "#64748b")}
 			for t in _visitor_types()
@@ -155,9 +212,9 @@ def _next_action(doc):
 		return None, _("Pass is not approved yet ({0}).").format(doc.workflow_state or doc.status)
 	if doc.status == "Checked-In":
 		return "checkout", None
-	if doc.status in ("Approved", "Items Verified"):
-		if getdate(doc.visit_date) != getdate(today()):
-			return None, _("Pass is for {0}, not today.").format(doc.visit_date)
+	if doc.status in ("Approved", "Items Verified") or can_check_in_again(doc):
+		if not is_valid_on(doc):
+			return None, _("Pass is for {0}, not today.").format(date_range_label(doc))
 		return "checkin", None
 	return None, _("Pass is {0}.").format(doc.status)
 
@@ -276,6 +333,36 @@ def _items_text(items):
 	return "\n".join(lines)
 
 
+def _additional_visitor_rows(rows):
+	"""Other people in a walk-in group: name required, everything else optional."""
+	out, files = [], []
+	for row in rows:
+		name = (row.get("visitor_full_name") or "").strip()
+		if not name:
+			frappe.throw(_("Each additional visitor needs a name."))
+		photo = _save_request_image(row.get("visitor_photo_data"), "visitor")
+		id_scan = _save_request_image(row.get("id_proof_scan_data"), "idproof")
+		files += [f for f in (photo, id_scan) if f]
+		out.append(
+			{
+				"visitor_full_name": name,
+				"mobile_number": (row.get("mobile_number") or "").strip(),
+				"email_id": (row.get("email_id") or "").strip(),
+				"company__organisation": (row.get("company__organisation") or "").strip(),
+				"vehicle_number": (row.get("vehicle_number") or "").strip(),
+				"items_carried": _items_text(row.get("items")),
+				"id_proof_type": row.get("id_proof_type") or "",
+				"id_proof_number": (row.get("id_proof_number") or "").strip(),
+				# Per-person times; empty falls back to the request's on the pass.
+				"expected_checkin": strip_seconds(row.get("expected_checkin")) or None,
+				"expected_checkout": strip_seconds(row.get("expected_checkout")) or None,
+				"visitor_photo": photo.file_url if photo else None,
+				"id_proof_scan": id_scan.file_url if id_scan else None,
+			}
+		)
+	return out, files
+
+
 @frappe.whitelist()
 def create_walk_in_request(data):
 	"""Create a Walk In Visitor Request from the PWA form. Its after_insert emails the host
@@ -284,30 +371,36 @@ def create_walk_in_request(data):
 	data = frappe._dict(json.loads(data) if isinstance(data, str) else data)
 	photo = _save_request_image(data.pop("visitor_photo_data", None), "visitor")
 	id_scan = _save_request_image(data.pop("id_proof_scan_data", None), "idproof")
+	extra_rows, extra_files = _additional_visitor_rows(data.pop("additional_visitors", None) or [])
 	allowed = {
 		"visitor_type", "visitor_full_name", "mobile_number", "email_id", "company__organisation",
 		"id_proof_type", "id_proof_number", "number_of_visitors", "person_to_visit", "purpose_of_visit",
 		"vehicle_number",
 	}
 	values = {k: v for k, v in data.items() if k in allowed}
+	# Guard enters date + times; older app builds sent only an expected duration.
 	checkin = now_datetime()
 	checkout = add_to_date(checkin, hours=flt(data.get("expected_duration")) or 2)
 	if checkout.date() != checkin.date():
 		checkout = checkin.replace(hour=23, minute=59, second=0, microsecond=0)
+	visit_date = data.get("visit_date") or today()
+	expected_checkin = strip_seconds(data.get("expected_checkin")) or checkin.strftime("%H:%M:00")
+	expected_checkout = strip_seconds(data.get("expected_checkout")) or checkout.strftime("%H:%M:00")
 	doc = frappe.get_doc(
 		{
 			"doctype": WALK_IN_REQUEST,
 			**values,
-			"visit_date": today(),
-			"expected_checkin": checkin.strftime("%H:%M:%S"),
-			"expected_checkout": checkout.strftime("%H:%M:%S"),
+			"visit_date": visit_date,
+			"expected_checkin": expected_checkin,
+			"expected_checkout": expected_checkout,
 			"items_carried": _items_text(data.get("items")),
 			"visitor_photo": photo.file_url if photo else None,
 			"id_proof_scan": id_scan.file_url if id_scan else None,
+			"additional_visitors": extra_rows,
 		}
 	)
 	doc.insert()
-	for f in (photo, id_scan):
+	for f in (photo, id_scan, *extra_files):
 		if f:
 			f.db_set({"attached_to_doctype": WALK_IN_REQUEST, "attached_to_name": doc.name})
 	return {"name": doc.name, "status": doc.status}
@@ -321,13 +414,27 @@ def get_walk_in_requests(days=1):
 		WALK_IN_REQUEST,
 		filters={"creation": [">=", f"{since} 00:00:00"]},
 		fields=["name", "visitor_full_name", "visitor_type", "status", "person_to_visit", "visitor_pass",
-				"rejection_reason", "creation"],
+				"rejection_reason", "creation", "visit_date", "expected_checkin", "expected_checkout"],
 		order_by="creation desc",
 		limit=100,
 	)
 	names = _host_names(rows)
+	extras = {}
+	if rows:
+		for x in frappe.get_all(
+			"Walk In Additional Visitor",
+			filters={"parenttype": WALK_IN_REQUEST, "parent": ["in", [r.name for r in rows]]},
+			fields=["parent", "visitor_full_name", "visitor_pass", "expected_checkin", "expected_checkout"],
+			order_by="idx asc",
+		):
+			extras.setdefault(x.parent, []).append(x)
 	for r in rows:
 		r.host_name = names.get(r.person_to_visit) or r.person_to_visit
+		r.additional_visitors = extras.get(r.name, [])
+		# Empty per-person times mean "same as the request".
+		for x in r.additional_visitors:
+			x.expected_checkin = x.expected_checkin or r.expected_checkin
+			x.expected_checkout = x.expected_checkout or r.expected_checkout
 	return rows
 
 

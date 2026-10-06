@@ -34,9 +34,13 @@
   "host_department",
   "column_break_visit_plan",
   "visit_date",
+  "multi_day_pass",
+  "pass_valid_until",
   "expected_checkin",
   "expected_checkout",
   "vehicle_number",
+  "section_break_time_extensions",
+  "time_extensions",
   "visit_type_details_tab",
   "section_break_customer",
   "crm_reference_type",
@@ -53,8 +57,6 @@
   "work_order_ref",
   "column_break_contractor",
   "tools_list",
-  "multi_day_pass",
-  "pass_valid_until",
   "section_break_candidate",
   "job_applicant_link",
   "position_applied",
@@ -192,7 +194,6 @@
   {
    "fieldname": "visitor_invitation",
    "fieldtype": "Link",
-   "hidden": 1,
    "label": "Visitor Invitation",
    "options": "Visitor Invitation",
    "read_only": 1
@@ -234,8 +235,7 @@
    "description": "The company the visitor represents (not our facility).",
    "fieldname": "company__organisation",
    "fieldtype": "Data",
-   "label": "Company / Organisation",
-   "mandatory_depends_on": "eval:doc.visitor_type == 'Contractor' || doc.visitor_type == 'Supplier' || doc.visitor_type == 'Customer'"
+   "label": "Company / Organisation"
   },
   {
    "fieldname": "column_break_identity_details",
@@ -245,26 +245,22 @@
    "fieldname": "id_proof_type",
    "fieldtype": "Select",
    "label": "ID Proof Type",
-   "options": "Aadhaar\nPAN Card\nPassport\nDriving License",
-   "reqd": 1
+   "options": "Aadhaar\nPAN Card\nPassport\nDriving License"
   },
   {
    "fieldname": "id_proof_number",
    "fieldtype": "Data",
-   "label": "ID Proof Number",
-   "reqd": 1
+   "label": "ID Proof Number"
   },
   {
    "fieldname": "id_proof_scan",
    "fieldtype": "Attach Image",
-   "label": "ID Proof Scan",
-   "reqd": 1
+   "label": "ID Proof Scan"
   },
   {
    "fieldname": "visitor_photo",
    "fieldtype": "Attach Image",
-   "label": "Visitor Photo",
-   "reqd": 1
+   "label": "Visitor Photo"
   },
   {
    "fieldname": "visit_plan_tab",
@@ -304,7 +300,7 @@
    "default": "Today",
    "fieldname": "visit_date",
    "fieldtype": "Date",
-   "label": "Visit Date",
+   "label": "Visit Date / Start Date",
    "reqd": 1
   },
   {
@@ -323,6 +319,21 @@
    "fieldname": "vehicle_number",
    "fieldtype": "Data",
    "label": "Vehicle Number"
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:(doc.time_extensions || []).length",
+   "fieldname": "section_break_time_extensions",
+   "fieldtype": "Section Break",
+   "label": "Visit Time Extensions"
+  },
+  {
+   "description": "Added by the host with the Extend Visit Time button. Security is notified on every extension.",
+   "fieldname": "time_extensions",
+   "fieldtype": "Table",
+   "label": "Time Extensions",
+   "options": "Visit Time Extension",
+   "read_only": 1
   },
   {
    "fieldname": "visit_type_details_tab",
@@ -429,16 +440,17 @@
   },
   {
    "default": "0",
-   "depends_on": "eval:doc.visitor_type == 'Contractor'",
+   "description": "One pass covers every day from the visit date to the end date. The visitor checks in and out at the gate each day.",
    "fieldname": "multi_day_pass",
    "fieldtype": "Check",
-   "label": "Multi-Day Pass"
+   "label": "Multi-Day Visit"
   },
   {
-   "depends_on": "eval:doc.visitor_type == 'Contractor'",
+   "depends_on": "eval:doc.multi_day_pass",
    "fieldname": "pass_valid_until",
    "fieldtype": "Date",
-   "label": "Pass Valid Until"
+   "label": "Visit End Date",
+   "mandatory_depends_on": "eval:doc.multi_day_pass"
   },
   {
    "collapsible": 1,
@@ -914,7 +926,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-15 11:35:42.440403",
+ "modified": "2026-10-06 12:30:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Pass",

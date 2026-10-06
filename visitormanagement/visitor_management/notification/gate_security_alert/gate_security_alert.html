@@ -5,7 +5,7 @@ Company : {{ doc.company or 'N/A' }}<br>
 Type    : {{ doc.visitor_type }}<br>
 Meets   : {{ doc.person_to_visit }} | Dept: {{ doc.host_department }}<br>
 Purpose : {{ doc.purpose_of_visit }}<br>
-Date    : {{ doc.visit_date }} | Arrival: {{ doc.expected_checkin }}<br>
+Date    : {{ doc.visit_date }} | Arrival: {{ frappe.utils.format_time(doc.expected_checkin, 'HH:mm') }}<br>
 ID Type : {{ doc.id_proof_type }}<br><br>
 
 <b>Items Declared by Visitor:</b><br>

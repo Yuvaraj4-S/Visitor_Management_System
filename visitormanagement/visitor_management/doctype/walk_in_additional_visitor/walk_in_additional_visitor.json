@@ -1,0 +1,127 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-10-06 12:30:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "visitor_full_name",
+  "mobile_number",
+  "email_id",
+  "company__organisation",
+  "id_proof_type",
+  "id_proof_number",
+  "expected_checkin",
+  "expected_checkout",
+  "vehicle_number",
+  "items_carried",
+  "id_proof_scan",
+  "visitor_photo",
+  "visitor_pass"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "visitor_full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Visitor Name",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "mobile_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Mobile",
+   "options": "Phone"
+  },
+  {
+   "description": "Leave empty to use the lead visitor's email.",
+   "fieldname": "email_id",
+   "fieldtype": "Data",
+   "label": "Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "company__organisation",
+   "fieldtype": "Data",
+   "label": "Company / Organisation"
+  },
+  {
+   "fieldname": "id_proof_type",
+   "fieldtype": "Select",
+   "label": "ID Proof Type",
+   "options": "\nAadhaar\nPAN Card\nPassport\nDriving License"
+  },
+  {
+   "columns": 2,
+   "fieldname": "id_proof_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "ID Proof Number"
+  },
+  {
+   "columns": 1,
+   "description": "Leave empty to use the request's Expected Check-In.",
+   "fieldname": "expected_checkin",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Expected Check-In"
+  },
+  {
+   "columns": 1,
+   "description": "Leave empty to use the request's Expected Check-Out.",
+   "fieldname": "expected_checkout",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Expected Check-Out"
+  },
+  {
+   "fieldname": "vehicle_number",
+   "fieldtype": "Data",
+   "label": "Vehicle Number"
+  },
+  {
+   "description": "Items this visitor is carrying — goes on their own pass.",
+   "fieldname": "items_carried",
+   "fieldtype": "Small Text",
+   "label": "Items Carried"
+  },
+  {
+   "fieldname": "id_proof_scan",
+   "fieldtype": "Attach Image",
+   "label": "ID Proof Scan"
+  },
+  {
+   "fieldname": "visitor_photo",
+   "fieldtype": "Attach Image",
+   "label": "Visitor Photo"
+  },
+  {
+   "columns": 2,
+   "fieldname": "visitor_pass",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Visitor Pass",
+   "no_copy": 1,
+   "options": "Visitor Pass",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-06 12:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Walk In Additional Visitor",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -1,15 +1,5 @@
 // For license information, please see license.txt
 
-function getInvitationLink(frm) {
-	if (frm.doc.invitation_token) {
-		return frappe.urllib.get_full_url(
-			`/visitor-pre-registration-form/new?token=${encodeURIComponent(frm.doc.invitation_token)}`
-		);
-	}
-
-	return frm.doc.portal_submission_url;
-}
-
 frappe.ui.form.on("Visitor Invitation", {
 
 	onload(frm) {
@@ -46,22 +36,39 @@ frappe.ui.form.on("Visitor Invitation", {
 		}
 	},
 
+	pass_valid_until(frm) {
+		// A multi-day visitor may register any time until the visit's last day.
+		if (frm.doc.multi_day_pass && frm.doc.pass_valid_until) {
+			frm.set_value("invitation_expires_on", `${frm.doc.pass_valid_until} 23:59:59`);
+		}
+	},
+
+	multi_day_pass(frm) {
+		if (!frm.doc.multi_day_pass) {
+			frm.set_value("pass_valid_until", null);
+		}
+	},
+
 	refresh(frm) {
 		if (frm.is_new()) {
 			return;
 		}
 
-		// --- Send Invitation button ---
-		if (frm.doc.visitor_email && !["Submitted", "Expired"].includes(frm.doc.invitation_status)) {
+		// --- Send Invitation button (one email + link per visitor row) ---
+		const pending_rows = (frm.doc.visitors || []).filter(
+			(r) => !["Submitted", "Expired"].includes(r.invitation_status)
+		);
+		if (pending_rows.length && frm.doc.invitation_status !== "Expired") {
 			const btnLabel = frm.doc.invitation_status === "Draft"
 				? __("Send Invitation")
 				: __("Resend Invitation");
 
 			frm.add_custom_button(btnLabel, () => {
 				const action = frm.doc.invitation_status === "Draft" ? "send" : "resend";
+				const names = pending_rows.map((r) => frappe.utils.escape_html(r.visitor_email)).join(", ");
 				const confirmMsg = action === "resend"
-					? __("Invitation was already sent on {0}. Send again?", [frm.doc.invitation_sent_on])
-					: __("Send invitation email to {0}?", [frm.doc.visitor_email]);
+					? __("Invitation was already sent on {0}. Send again to visitors who have not submitted ({1})?", [frm.doc.invitation_sent_on, names])
+					: __("Send an invitation email to each visitor ({0})?", [names]);
 
 				frappe.confirm(confirmMsg, () => {
 					frappe.call({
@@ -72,7 +79,7 @@ frappe.ui.form.on("Visitor Invitation", {
 						callback: ({ message }) => {
 							if (!message) return;
 							frappe.show_alert({
-								message: __("Invitation sent to {0}", [frm.doc.visitor_email]),
+								message: __("Invitation sent to {0} visitor(s)", [message.length]),
 								indicator: "green",
 							});
 							frm.reload_doc();
@@ -82,12 +89,25 @@ frappe.ui.form.on("Visitor Invitation", {
 			}, __("Actions"));
 		}
 
-		// --- Open Link button ---
-		if (frm.doc.portal_submission_url || frm.doc.invitation_token) {
+		// --- Copy a visitor's link ---
+		const linked_rows = (frm.doc.visitors || []).filter((r) => r.portal_submission_url);
+		if (linked_rows.length) {
 			frm.add_custom_button(__("Copy Invitation Link"), () => {
-				const link = getInvitationLink(frm);
-				frappe.utils.copy_to_clipboard(link);
-				frappe.show_alert({ message: __("Link copied to clipboard"), indicator: "green" });
+				if (linked_rows.length === 1) {
+					copyLink(linked_rows[0].portal_submission_url);
+					return;
+				}
+				frappe.prompt(
+					{
+						fieldname: "row",
+						fieldtype: "Select",
+						label: __("Visitor"),
+						reqd: 1,
+						options: linked_rows.map((r) => ({ label: `${r.visitor_full_name} <${r.visitor_email}>`, value: r.name })),
+					},
+					({ row }) => copyLink(linked_rows.find((r) => r.name === row).portal_submission_url),
+					__("Copy Invitation Link")
+				);
 			}, __("Actions"));
 		}
 
@@ -95,6 +115,11 @@ frappe.ui.form.on("Visitor Invitation", {
 		showStatusBanner(frm);
 	},
 });
+
+function copyLink(link) {
+	frappe.utils.copy_to_clipboard(link);
+	frappe.show_alert({ message: __("Link copied to clipboard"), indicator: "green" });
+}
 
 function showStatusBanner(frm) {
 	const status = frm.doc.invitation_status;
@@ -121,8 +146,8 @@ function showStatusBanner(frm) {
 				background: #d1ecf1; border: 1px solid #17a2b8; color: #0c5460;
 			">
 				<strong>${__("Sent")}</strong> &mdash;
-				${__("Invitation emailed to <b>{0}</b> on {1}. Waiting for visitor to open the link.", [
-					frappe.utils.escape_html(frm.doc.visitor_email || ""),
+				${__("Invitation emailed to <b>{0}</b> visitor(s) on {1}. Waiting for visitors to open their links.", [
+					(frm.doc.visitors || []).length,
 					frappe.utils.escape_html(frappe.datetime.str_to_user(frm.doc.invitation_sent_on) || ""),
 				])}
 			</div>
@@ -136,6 +161,18 @@ function showStatusBanner(frm) {
 				<strong>${__("Link Opened")}</strong> &mdash;
 				${__("Visitor opened the link on {0}. Waiting for form submission.", [
 					frappe.datetime.str_to_user(frm.doc.link_opened_on),
+				])}
+			</div>
+		`;
+	} else if (status === "Partially Submitted") {
+		html = `
+			<div class="vm-invite-banner" style="
+				margin: 12px 0; padding: 14px 18px; border-radius: 8px;
+				background: #fff8e1; border: 1px solid #ffb300; color: #7a5200;
+			">
+				<strong>${__("Partially Submitted")}</strong> &mdash;
+				${__("{0}. Check the Visitors table for each visitor's status and pass.", [
+					frappe.utils.escape_html(frm.doc.visitors_summary || ""),
 				])}
 			</div>
 		`;

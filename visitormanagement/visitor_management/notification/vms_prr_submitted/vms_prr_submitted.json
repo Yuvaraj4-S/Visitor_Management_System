@@ -13,9 +13,9 @@
  "event": "Value Change",
  "idx": 0,
  "is_standard": 0,
- "message": "<div style=\"font-family:inherit;font-size:13px;line-height:1.45;\"><p style=\"margin:0 0 6px;\"><b>Visitor pass <a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\" style=\"color:#2563eb;text-decoration:none;\">{{ doc.name }}</a></b> needs your approval ({{ doc.workflow_state or doc.status }}).</p><p style=\"margin:0 0 8px;\"><b>Visitor:</b> {{ doc.visitor_name }} &middot; <b>Type:</b> {{ doc.visitor_type }}<br><b>Company:</b> {{ doc.company__organisation or \"N/A\" }}<br><b>Visit:</b> {{ doc.visit_date }}, {{ doc.expected_checkin }}&ndash;{{ doc.expected_checkout }}<br><b>Host:</b> {{ doc.host_name or doc.person_to_visit }} &middot; <b>Purpose:</b> {{ doc.purpose_of_visit }}</p><p style=\"margin:0;\"><a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\" style=\"display:inline-block;background:#2563eb;color:#ffffff;padding:5px 11px;text-decoration:none;border-radius:4px;font-size:12px;font-weight:600;\">Review Request &rarr;</a></p></div>",
+ "message": "<div style=\"font-family:inherit;font-size:13px;line-height:1.45;\"><p style=\"margin:0 0 6px;\"><b>Visitor pass <a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\" style=\"color:#2563eb;text-decoration:none;\">{{ (doc.name) | e }}</a></b> needs your approval ({{ (doc.workflow_state or doc.status) | e }}).</p><p style=\"margin:0 0 8px;\"><b>Visitor:</b> {{ (doc.visitor_name) | e }} &middot; <b>Type:</b> {{ (doc.visitor_type) | e }}<br><b>Company:</b> {{ (doc.company__organisation or \"N/A\") | e }}<br><b>Visit:</b> {{ (doc.visit_date) | e }}, {{ (doc.expected_checkin) | e }}&ndash;{{ (doc.expected_checkout) | e }}<br><b>Host:</b> {{ (doc.host_name or doc.person_to_visit) | e }} &middot; <b>Purpose:</b> {{ (doc.purpose_of_visit) | e }}</p><p style=\"margin:0;\"><a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\" style=\"display:inline-block;background:#2563eb;color:#ffffff;padding:5px 11px;text-decoration:none;border-radius:4px;font-size:12px;font-weight:600;\">Review Request &rarr;</a></p></div>",
  "message_type": "HTML",
- "modified": "2026-09-07 16:25:43.414740",
+ "modified": "2026-10-06 04:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS PRR Submitted",
@@ -42,7 +42,7 @@
    "receiver_by_role": "CEO"
   }
  ],
- "send_system_notification": 1,
+ "send_system_notification": 0,
  "send_to_all_assignees": 0,
  "subject": "Approval required: {{ doc.visitor_name | truncate(34, True) }}",
  "value_changed": "workflow_state"

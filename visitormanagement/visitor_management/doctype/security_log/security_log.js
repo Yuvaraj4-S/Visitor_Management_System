@@ -7,11 +7,19 @@ frappe.ui.form.on("Security Log", {
 		frm.add_fetch("visitor_pass", "visitor_photo", "visitor_photo");
 		frm.add_fetch("visitor_pass", "id_proof_scan", "id_proof_scan");
 
+		// Employee pickers search through this app's query: no role needs a
+		// permission on the HRMS/ERPNext DocType (see link_queries.py).
+		const employee_query = "visitormanagement.visitor_management.link_queries.search";
 		frm.set_query("security_officer", () => {
-			if (is_security_admin()) return { filters: { status: "Active" } };
+			if (is_security_admin())
+				return { query: employee_query, filters: { status: "Active" } };
 			// Security staff may only log on their own behalf.
-			return { filters: { user_id: frappe.session.user, status: "Active" } };
+			return {
+				query: employee_query,
+				filters: { user_id: frappe.session.user, status: "Active" },
+			};
 		});
+		frm.set_query("person_to_visit", () => ({ query: employee_query }));
 
 		// A deactivated gate has no business being offered at the gate — the
 		// server also rejects one on save (security_log.py before_save), since
@@ -23,11 +31,11 @@ frappe.ui.form.on("Security Log", {
 
 	onload(frm) {
 		if (frm.is_new() && !frm.doc.security_officer) {
-			frappe.db
-				.get_value("Employee", { user_id: frappe.session.user, status: "Active" }, "name")
-				.then((r) => {
-					const emp = r && r.message && r.message.name;
-					if (emp) frm.set_value("security_officer", emp);
+			// Not frappe.db.get_value("Employee", ...): that needs READ on Employee.
+			frappe
+				.xcall("visitormanagement.visitor_management.link_details.get_own_employee")
+				.then((emp) => {
+					if (emp && !frm.doc.security_officer) frm.set_value("security_officer", emp);
 				});
 		}
 		if (!is_security_admin()) {
@@ -70,16 +78,12 @@ frappe.ui.form.on("Security Log", {
 		if (!frm.doc.verification_started_on) {
 			frm.set_value("verification_started_on", frappe.datetime.now_datetime());
 		}
-		if (!frm.doc.visited_area && frm.doc.gate_name) {
-			frm.set_value("visited_area", frm.doc.gate_name);
-		}
+		sync_event_fields(frm);
 		apply_security_log_ui(frm);
 	},
 
 	gate_name(frm) {
-		if (!frm.doc.visited_area) {
-			frm.set_value("visited_area", frm.doc.gate_name);
-		}
+		sync_event_fields(frm);
 		apply_security_log_ui(frm);
 	},
 
@@ -316,7 +320,8 @@ frappe.ui.form.on("Security Log", {
 				"visitor_type",
 				"visitor_type_layout",
 				"status",
-				"id_proof_number",
+				// Already masked (last four); the full number never needs to reach the form.
+				"id_proof_masked",
 				"mdceo_notified",
 				"conference_room",
 				"protocol_notes",
@@ -339,24 +344,14 @@ frappe.ui.form.on("Security Log", {
 				if (r.id_proof_scan) frm.set_value("id_proof_scan", r.id_proof_scan);
 				frm.set_value("visitor_name", r.visitor_full_name);
 
-				if (r.badge_number) {
-					frm.set_value("badge_number", r.badge_number);
-				} else if (r.visitor_type_layout !== "VIP") {
-					frappe.call({
-						method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.sync_badge_number",
-						args: { visitor_pass: frm.doc.visitor_pass },
-						callback: (res) => {
-							if (res.message) {
-								frm.set_value("badge_number", res.message);
-							}
-						},
-					});
-				} else {
-					frm.set_value("badge_number", "");
-				}
+				// A pass with no badge yet gets one when the check-in is saved, and it
+				// shows here after that save. Picking a pass must not issue it: that
+				// minted a badge and moved the pass to "Items Verified" for a gate
+				// event nobody had recorded — or ever did, if the form was closed.
+				frm.set_value("badge_number", r.badge_number || "");
 
-				if (r.id_proof_number) {
-					frm.set_value("id_proof_number", build_masked_id(r.id_proof_number));
+				if (r.id_proof_masked) {
+					frm.set_value("id_proof_number", r.id_proof_masked);
 				}
 
 				if (r.id_proof_type && !frm.doc.id_proof_type_verified) {
@@ -410,15 +405,6 @@ frappe.ui.form.on("Security Log", {
 					}
 
 					frm.set_value("event_type", event_type);
-					if (!frm.doc.visited_area && frm.doc.gate_name) {
-						frm.set_value("visited_area", frm.doc.gate_name);
-					}
-
-					if (event_type === "Check-In" && !frm.doc.check_in_date_time) {
-						frm.set_value("check_in_date_time", frappe.datetime.now_datetime());
-					} else if (event_type === "Check-Out" && !frm.doc.check_out_date_time) {
-						frm.set_value("check_out_date_time", frappe.datetime.now_datetime());
-					}
 
 					if (!frm.doc.gate_name) {
 						const gate_rules = {
@@ -430,6 +416,8 @@ frappe.ui.form.on("Security Log", {
 						};
 						frm.set_value("gate_name", gate_rules[r.visitor_type] || "Main Gate");
 					}
+					// Also when the event was already the right one and no handler ran.
+					sync_event_fields(frm);
 				}
 
 				if (frm.__scanned) {
@@ -648,10 +636,13 @@ frappe.ui.form.on("Security Item Verify", {
 
 					const file = new File([blob], file_name, { type: "image/png" });
 
+					// Against the Security Log, as the gate photo is — and as Frappe's
+					// own attach control does for a row. Nobody has write on the child
+					// DocType, so an upload naming the row was refused (403) every time.
 					upload_captured_image({
 						file,
-						doctype: cdt,
-						docname: cdn,
+						doctype: frm.doctype,
+						docname: frm.doc.name,
 						fieldname: "item_image",
 					})
 						.then((file_doc) => {
@@ -753,6 +744,30 @@ function upload_captured_image({ file, doctype, docname, fieldname }) {
 
 		xhr.onerror = () => reject(xhr.responseText);
 		xhr.send(form_data);
+	});
+}
+
+// On an unsaved log, keep the fields that follow from the event and the gate in
+// step with them. The hidden Visited Area is the gate of the event: it was filled
+// once, from the first gate chosen, so a Gate Transfer kept the visitor at the old
+// gate. The check-in / check-out time is stamped when a pass is picked: changing
+// the event afterwards left that time on a record it does not describe. The
+// server applies the same two rules on save (security_log.py).
+function sync_event_fields(frm) {
+	if (!frm.is_new()) return;
+
+	const gate = frm.doc.gate_name || "";
+	if ((frm.doc.visited_area || "") !== gate) {
+		frm.set_value("visited_area", gate);
+	}
+
+	const times = { "Check-In": "check_in_date_time", "Check-Out": "check_out_date_time" };
+	Object.entries(times).forEach(([event_type, fieldname]) => {
+		if (frm.doc.event_type === event_type) {
+			if (!frm.doc[fieldname]) frm.set_value(fieldname, frappe.datetime.now_datetime());
+		} else if (frm.doc[fieldname]) {
+			frm.set_value(fieldname, null);
+		}
 	});
 }
 

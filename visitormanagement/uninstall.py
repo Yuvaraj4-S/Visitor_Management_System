@@ -9,9 +9,6 @@ stayed behind:
   - the Job Applicant interview fields (customisations carry no module);
   - the three workflows and two untagged notifications, pointing at DocTypes
     that no longer exist;
-  - permission rows granted on HRMS/ERPNext DocTypes (Employee, Supplier, Job
-    Applicant, Maintenance Visit) — which also froze those DocTypes' permissions
-    as custom, so later HRMS/ERPNext permission updates stopped applying;
   - the roles it created;
   - visitors' ID scans, photos and visa copies: the File rows and the bytes on
     disk, orphaned once their passes were dropped — personal documents with no
@@ -31,7 +28,6 @@ import frappe
 from visitormanagement.setup import (
 	_CREATED_MARKER,
 	_PORTAL_UPLOADS_SELF_ENABLED_MARKER,
-	_core_link_grants,
 	_shared_records,
 )
 
@@ -68,7 +64,6 @@ def before_uninstall():
 	_revert_portal_uploads_setting()
 	_remove_customisations()
 	_remove_workflows_and_alerts(app_doctypes)
-	_restore_core_permissions()
 	_remove_referencing_rows(app_doctypes)
 	_remove_created_shared_records(app_doctypes)
 	_remove_scheduled_jobs()
@@ -155,42 +150,6 @@ def _remove_workflows_and_alerts(app_doctypes):
 			# ignore_on_trash, as Frappe's own module cleanup does: Notification.on_trash
 			# refuses to delete a standard one, and would touch the app's files.
 			frappe.delete_doc("Notification", name, ignore_permissions=True, force=True, ignore_on_trash=True)
-
-
-def _restore_core_permissions():
-	"""Take back this app's rows on HRMS/ERPNext DocTypes, and un-freeze them.
-
-	Granting a role on a DocType copies its standard permissions into Custom
-	DocPerm, and from then on only the custom rows count. Once this app's own
-	rows are gone, if what is left is exactly the standard set, the custom rows
-	are dropped too so the DocType follows its owning app's permissions again. If
-	the site customised them further, they are left as the site made them.
-	"""
-	from frappe.permissions import rights
-
-	for doctype, roles in _core_link_grants().items():
-		if not frappe.db.exists("DocType", doctype):
-			continue
-		standard = frappe.get_all("DocPerm", filters={"parent": doctype}, fields=["*"])
-		standard_roles = {row.role for row in standard}
-		for role in roles - standard_roles:
-			for name in frappe.get_all(
-				"Custom DocPerm", filters={"parent": doctype, "role": role}, pluck="name"
-			):
-				frappe.delete_doc("Custom DocPerm", name, ignore_permissions=True, force=True)
-				print(f"  removed {role} permission on {doctype}")
-
-		def shape(rows):
-			return sorted(
-				(row.role, row.permlevel or 0, row.if_owner or 0, tuple(row.get(p) or 0 for p in rights))
-				for row in rows
-			)
-
-		custom = frappe.get_all("Custom DocPerm", filters={"parent": doctype}, fields=["*"])
-		if custom and shape(custom) == shape(standard):
-			frappe.db.delete("Custom DocPerm", {"parent": doctype})
-			print(f"  {doctype} permissions follow its own app again")
-		frappe.clear_cache(doctype=doctype)
 
 
 def _remove_referencing_rows(app_doctypes):

@@ -12,9 +12,9 @@
  "event": "Value Change",
  "idx": 0,
  "is_standard": 0,
- "message": "<div style=\"font-family:inherit;font-size:13px;line-height:1.45;\"><p style=\"margin:0 0 6px;\"><b>Conference room booking <a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\" style=\"color:#2563eb;text-decoration:none;\">{{ doc.name }}</a></b> needs your approval.</p><p style=\"margin:0 0 8px;\"><b>Meeting:</b> {{ doc.meeting_title }}<br><b>Room:</b> {{ doc.conference_room }} &middot; <b>Booked by:</b> {{ frappe.db.get_value(\"Employee\", doc.booked_by, \"employee_name\") or doc.booked_by }}<br><b>When:</b> {{ doc.booking_date }}, {{ doc.start_time or \"-\" }}&ndash;{{ doc.end_time or \"-\" }}</p><p style=\"margin:0;\"><a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\" style=\"display:inline-block;background:#2563eb;color:#ffffff;padding:5px 11px;text-decoration:none;border-radius:4px;font-size:12px;font-weight:600;\">Review Booking &rarr;</a></p></div>",
+ "message": "<div style=\"font-family:inherit;font-size:13px;line-height:1.45;\"><p style=\"margin:0 0 6px;\"><b>Conference room booking <a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\" style=\"color:#2563eb;text-decoration:none;\">{{ (doc.name) | e }}</a></b> needs your approval.</p><p style=\"margin:0 0 8px;\"><b>Meeting:</b> {{ (doc.meeting_title) | e }}<br><b>Room:</b> {{ (doc.conference_room) | e }} &middot; <b>Booked by:</b> {{ (frappe.db.get_value(\"Employee\", doc.booked_by, \"employee_name\") or doc.booked_by) | e }}<br><b>When:</b> {{ (doc.booking_date) | e }}, {{ (doc.start_time or \"-\") | e }}&ndash;{{ (doc.end_time or \"-\") | e }}</p><p style=\"margin:0;\"><a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\" style=\"display:inline-block;background:#2563eb;color:#ffffff;padding:5px 11px;text-decoration:none;border-radius:4px;font-size:12px;font-weight:600;\">Review Booking &rarr;</a></p></div>",
  "message_type": "HTML",
- "modified": "2026-09-07 16:25:43.414740",
+ "modified": "2026-10-06 04:00:00.000000",
  "modified_by": "Administrator",
  "module": "Conference Room",
  "name": "CRB Pending Approval",
@@ -24,7 +24,7 @@
    "receiver_by_role": "Facility Manager"
   }
  ],
- "send_system_notification": 1,
+ "send_system_notification": 0,
  "send_to_all_assignees": 0,
  "subject": "Booking approval needed: {{ doc.meeting_title | truncate(34, True) }}",
  "value_changed": "workflow_state"

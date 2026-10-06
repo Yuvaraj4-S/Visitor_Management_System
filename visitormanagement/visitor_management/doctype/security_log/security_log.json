@@ -1,6 +1,5 @@
 {
  "actions": [],
- "allow_rename": 1,
  "autoname": "SL-.YYYY.-.#####",
  "creation": "2026-02-28 17:28:20.094022",
  "doctype": "DocType",
@@ -444,7 +443,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-08 13:41:30.148830",
+ "modified": "2026-10-06 04:10:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Security Log",

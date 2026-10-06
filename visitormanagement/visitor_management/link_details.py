@@ -7,18 +7,19 @@ name, phone and email. Both the desk's `fetch_from` and the form's own prefill
 read those through Frappe's `get_value` / `get`, which need full READ on the
 master.
 
-So setup used to grant READ on Employee, Supplier, Job Applicant and Maintenance
-Visit to every role that raises or handles a pass. Read on Employee is the whole
-HR record — bank account, salary, PAN, date of birth, health details — and read
-on Job Applicant is every candidate's CV. Those roles only ever needed to pick a
+This app grants nothing on those DocTypes (see link_queries.py): read on Employee
+is the whole HR record — bank account, salary, PAN, date of birth — and read on
+Job Applicant is every candidate's CV, while these roles only ever need to pick a
 record and copy three fields from it.
 
-This endpoint returns exactly those fields, to anyone allowed to pick the record
-(SELECT, which READ implies), and setup now grants SELECT only.
+This endpoint returns exactly those fields, to anyone the link picker would
+offer the record to (link_queries.authorize + is_visible).
 """
 
 import frappe
 from frappe import _
+
+from visitormanagement.visitor_management.link_queries import authorize, is_visible
 
 # doctype -> the fields a pass may copy from it. Nothing else is ever returned.
 LINK_DETAIL_FIELDS = {
@@ -29,14 +30,15 @@ LINK_DETAIL_FIELDS = {
 
 
 @frappe.whitelist()
-def get_link_details(doctype: str, name: str) -> dict:
+def get_link_details(doctype: str, name: str, reference_doctype: str | None = None) -> dict:
 	fields = LINK_DETAIL_FIELDS.get(doctype)
 	if not fields:
 		frappe.throw(_("Details cannot be looked up for {0}.").format(doctype), frappe.PermissionError)
 	if not name or not isinstance(name, str):
 		return {}
-	if not frappe.has_permission(doctype, "select"):
-		frappe.throw(_("You cannot select {0} records.").format(_(doctype)), frappe.PermissionError)
+	authorize(doctype, reference_doctype)
+	if not is_visible(doctype, name):
+		return {}
 	return frappe.db.get_value(doctype, name, list(fields), as_dict=True) or {}
 
 

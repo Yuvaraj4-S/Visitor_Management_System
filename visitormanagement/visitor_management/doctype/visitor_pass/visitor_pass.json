@@ -28,7 +28,9 @@
   "company__organisation",
   "column_break_identity_details",
   "id_proof_type",
+  "id_proof_masked",
   "id_proof_number",
+  "id_proof_source",
   "id_proof_scan",
   "visitor_photo",
   "visit_plan_tab",
@@ -204,6 +206,7 @@
    "fieldtype": "Select",
    "hidden": 1,
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Status",
    "no_copy": 1,
    "options": "Draft\nPending Approval\nRejected\nApproved\nItems Verified\nChecked-In\nChecked-Out\nCancelled",
@@ -296,11 +299,29 @@
    "reqd": 1
   },
   {
-   "fieldname": "id_proof_number",
+   "description": "Type the visitor's full ID number. Once saved, only the last four characters are shown; the full number is kept securely and only Security and System Manager can see it.",
+   "fieldname": "id_proof_masked",
    "fieldtype": "Data",
    "label": "ID Proof Number",
-   "reqd": 1,
+   "reqd": 1
+  },
+  {
+   "description": "The full ID number. Only Security and System Manager can see it.",
+   "fieldname": "id_proof_number",
+   "fieldtype": "Data",
+   "label": "ID Proof Number (Full)",
+   "mask": 1,
+   "permlevel": 1,
+   "read_only": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "id_proof_source",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "ID Proof Copied From",
+   "no_copy": 1,
+   "options": "Visitor Pass"
   },
   {
    "description": "Required before the pass is sent for approval",
@@ -1036,7 +1057,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-25 18:00:00.000000",
+ "modified": "2026-10-06 04:10:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Pass",
@@ -1149,6 +1170,19 @@
    "report": 1,
    "role": "Facility Manager",
    "share": 1
+  },
+  {
+   "mask": 1,
+   "permlevel": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "mask": 1,
+   "permlevel": 1,
+   "read": 1,
+   "role": "Security"
   }
  ],
  "row_format": "Dynamic",

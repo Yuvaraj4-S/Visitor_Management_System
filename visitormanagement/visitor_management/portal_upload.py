@@ -74,6 +74,7 @@ def guard_guest_upload(doc, method=None):
 			frappe.PermissionError,
 		)
 	_enforce_rate_limit()
+	_refuse_without_invitation()
 	_reject_foreign_attachment_target(doc)
 
 	extension = os.path.splitext(doc.file_name or "")[1].lower()
@@ -162,10 +163,36 @@ def upload_key_matches(file_url, key):
 	return bool(expected) and hmac.compare_digest(expected, _hash_upload_key(key))
 
 
-# The only fields on the only doctype this portal ever asks a visitor to attach
-# something to. Everything else is somebody else's record.
-PORTAL_ATTACH_DOCTYPE = "Visitor Pass"
-PORTAL_ATTACH_FIELDS = ("id_proof_scan", "visitor_photo")
+# The portal page sends its invitation token with every upload, in this form
+# field, the same way it sends the upload key.
+INVITATION_TOKEN_FIELD = "vms_invitation_token"
+
+
+def _refuse_without_invitation():
+	"""Accept the portal's uploads only from an invited visitor, unless walk-ins are allowed.
+
+	The submission refuses a visitor without an invitation (portal.submit_pre_registration),
+	but the ID scan and photo are uploaded before it, each on its own request. Left open,
+	a stranger could still store identity documents on the server through the form, so
+	the same rule is applied here: a valid invitation token, or the VMS Settings box
+	"Allow Pre-Registration Without Invitation".
+	"""
+	from visitormanagement.visitor_management import settings as vms_settings
+
+	if vms_settings.pre_registration_without_invitation_allowed():
+		return
+
+	from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation import (
+		get_valid_invitation_by_token,
+	)
+
+	token = frappe.form_dict.get(INVITATION_TOKEN_FIELD)
+	if isinstance(token, str) and get_valid_invitation_by_token(token):
+		return
+
+	from visitormanagement.visitor_management.portal import invitation_required_message
+
+	frappe.throw(invitation_required_message(), frappe.PermissionError, title=_("Invitation Required"))
 
 
 def _reject_foreign_attachment_target(doc):
@@ -193,17 +220,18 @@ def _reject_foreign_attachment_target(doc):
 	doctype/docname when it has a `frm` (frappe/public/js/frappe/form/controls/
 	attach.js) and a web form has none, so a visitor's ID scan and photo arrive
 	unattached and are linked afterwards by `_attach_file_to_pass` — which writes
-	through `db.set_value` and never reaches this hook. Whitelisting the target
-	therefore costs the legitimate flow nothing.
+	through `db.set_value` and never reaches this hook. So a guest upload must
+	arrive with no target at all.
+
+	Allowing `Visitor Pass` as a target used to look harmless, but the check
+	looked at the doctype and field, never the record: an anonymous caller could
+	name any existing pass (`VP-YYYY-#####` is sequential) and overwrite another
+	visitor's ID scan or photo, even on a submitted pass.
 	"""
-	target_doctype = (doc.attached_to_doctype or "").strip()
-	target_field = (doc.attached_to_field or "").strip()
-
-	# Unattached is the normal case: the pass does not exist yet.
-	if not target_doctype and not (doc.attached_to_name or "").strip():
-		return
-
-	if target_doctype == PORTAL_ATTACH_DOCTYPE and (not target_field or target_field in PORTAL_ATTACH_FIELDS):
+	if not any(
+		(doc.get(field) or "").strip()
+		for field in ("attached_to_doctype", "attached_to_name", "attached_to_field")
+	):
 		return
 
 	frappe.throw(

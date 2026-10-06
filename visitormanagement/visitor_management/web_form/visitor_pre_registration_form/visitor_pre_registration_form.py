@@ -1,10 +1,12 @@
 import frappe
+from frappe import _
 from frappe.utils import escape_html, format_date, format_time
 
 from visitormanagement.visitor_management import settings as vms_settings
 from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation import (
 	get_web_form_context,
 )
+from visitormanagement.visitor_management.portal import invitation_required_message
 
 ALWAYS_LOCKED_FIELDS = {
 	"visitor_type",
@@ -39,6 +41,29 @@ TYPE_SECTION_LABELS = {
 	"Candidate": "Candidate Details",
 	"VIP": "VIP Details",
 }
+
+# The pick-lists this anonymous page carries, and which records go in them.
+#
+# Frappe turns every Link field of a web form into a pick-list built on the
+# server and written into the page — for a form that needs no login, that is
+# every record of the linked DocType, to anyone on the internet
+# (frappe/website/doctype/web_form/web_form.py get_link_options). A filter set
+# from the form's script cannot change it: the list is already in the HTML.
+# So the lists are decided here: fieldname -> (DocType, filters). A linked field
+# that is named neither here nor in PORTAL_PUBLIC_LISTS gets no list at all
+# (see _restrict_link_options).
+PORTAL_PICK_LISTS = {
+	"visitor_type": ("Visitor Type", {"is_active": 1}),
+	"id_proof_type": ("ID Proof Type", {"is_active": 1}),
+}
+
+# Link fields whose whole list is public reference data, left as Frappe built it.
+PORTAL_PUBLIC_LISTS = {"custom_nationality"}
+
+# Visitor Pass makes Company / Organisation mandatory for these layouts
+# (visitor_pass.json, company__organisation.mandatory_depends_on). The portal
+# asks for the same, or the host receives a pass they cannot save.
+COMPANY_REQUIRED_LAYOUTS = ("Contractor", "Supplier", "Customer")
 
 
 def _safe(value):
@@ -81,15 +106,84 @@ def _locked_card(label, value):
 	"""
 
 
+def _js(value):
+	"""A value as a JavaScript literal that is safe inside an inline <script>.
+
+	JSON alone is not: a "</script>" inside any string (a purpose of visit, a
+	Visitor Type name) would end the script block and be read as markup.
+	"""
+	return frappe.as_json(value).replace("<", "\\u003c")
+
+
 def _boot_script(invitation_context, values):
 	return f"""
 		<script>
-			window.vmInvitationValid = {frappe.as_json(bool(invitation_context.get("valid")))};
-			window.vmInvitationValues = {frappe.as_json(values or {})};
-			window.vmInvitationName = {frappe.as_json(invitation_context.get("invitation"))};
-			window.vmInvitationMessage = {frappe.as_json(invitation_context.get("message"))};
+			window.vmInvitationValid = {_js(bool(invitation_context.get("valid")))};
+			window.vmInvitationValues = {_js(values or {})};
+			window.vmInvitationName = {_js(invitation_context.get("invitation"))};
+			window.vmInvitationMessage = {_js(invitation_context.get("message"))};
 		</script>
 	"""
+
+
+def _config_script(walk_in_allowed):
+	"""What the form's script needs to know on every visit, invited or not."""
+	company_required_types = frappe.get_all(
+		"Visitor Type",
+		filters={"is_active": 1, "detail_layout": ("in", COMPANY_REQUIRED_LAYOUTS)},
+		pluck="name",
+	)
+	return (
+		"<script>"
+		f"window.vmCompanyRequiredTypes = {_js(company_required_types)};"
+		f"window.vmWalkInAllowed = {_js(bool(walk_in_allowed))};"
+		"</script>"
+	)
+
+
+def _invitation_required_panel():
+	"""Shown instead of the form to a visitor without an invitation link while walk-ins are off.
+
+	The form itself is hidden by the page's own stylesheet rule, written here so it
+	holds before any script runs. The server refuses such a submission and its
+	uploads anyway (portal._refuse_without_invitation, portal_upload._refuse_without_invitation).
+	"""
+	return f"""
+		<style>.web-form {{ display: none !important; }}</style>
+		<div class="vm-status-panel vm-status-info" role="status">
+			<div>
+				<div class="vm-status-title">{escape_html(_("Invitation Required"))}</div>
+				<div class="vm-status-message">{escape_html(invitation_required_message())}</div>
+			</div>
+		</div>
+	"""
+
+
+def _restrict_link_options(context):
+	"""Replace the pick-lists Frappe built with the ones this page may show.
+
+	By the time this runs Frappe has already converted each Link field to an
+	Autocomplete holding every record of its DocType. Visitor Type and ID Proof
+	Type are rebuilt from the active records only, so a type an administrator
+	switched off is no longer offered to visitors. Any other list that was not
+	deliberately allowed is dropped and the field becomes a plain text box —
+	"Person to Visit" used to put the ID of every Employee into this page.
+	"""
+	if not getattr(context, "web_form_doc", None):
+		return
+
+	for field in context.web_form_doc.web_form_fields:
+		if field.fieldtype != "Autocomplete" or field.fieldname in PORTAL_PUBLIC_LISTS:
+			continue
+
+		source = PORTAL_PICK_LISTS.get(field.fieldname)
+		if not source:
+			field.fieldtype = "Data"
+			field.options = None
+			continue
+
+		doctype, filters = source
+		field.options = "\n".join(frappe.get_all(doctype, filters=filters, pluck="name", order_by="name asc"))
 
 
 # Visitor Type.badge_colour is a named swatch; map it to a hex the portal can use.
@@ -187,11 +281,17 @@ def _brand_footer():
 def get_context(context):
 	context.no_cache = 1
 	_apply_home_country(context)
+	_restrict_link_options(context)
 
-	theme = _theme_block() + _brand_header()
+	walk_in_allowed = vms_settings.pre_registration_without_invitation_allowed()
+	theme = _theme_block() + _config_script(walk_in_allowed) + _brand_header()
 	trailing = _brand_footer()
 
 	token = (frappe.form_dict.get("token") or "").strip()
+	if not token and not walk_in_allowed:
+		context.introduction_text = theme + _invitation_required_panel() + trailing
+		return
+
 	if not token:
 		_hide_internal_fields(context)
 		# Keep whatever introduction the web form record carries, themed.

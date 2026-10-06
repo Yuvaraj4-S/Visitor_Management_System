@@ -6,21 +6,34 @@
 {%- set host_name = frappe.db.get_value("Employee", doc.person_to_visit, "employee_name") or doc.person_to_visit -%}
 {%- set company = frappe.db.get_single_value("Global Defaults", "default_company") or "Visitor Management" -%}
 {%- set badge_photo = doc.gate_verified_photo or doc.visitor_photo -%}
+{#- A badge is a pass to walk in. It is printed only for a pass that is approved
+    now: submitted, and in the workflow's Approved state. A draft, a pass still
+    waiting for an approver, a rejected or a cancelled one printed the same
+    badge as an approved pass; they get a plain notice instead, with nothing on
+    it that could be worn. -#}
+{%- set pass_state = doc.workflow_state or doc.status or "Draft" -%}
+{%- set badge_valid = doc.docstatus == 1 and doc.workflow_state == "Approved" -%}
 
+{% if not badge_valid %}
+<div class="vb-invalid">
+    <div class="vb-invalid-title">{{ _("NOT VALID") }} &mdash; {{ (_(pass_state)) | e }}</div>
+    <p>{{ (_("Visitor Pass {0} is not approved. No badge can be issued for it.").format(doc.name)) | e }}</p>
+</div>
+{% else %}
 <div class="vb-card" style="--accent: {{ accent }};">
     <div class="vb-accent"></div>
 
     <div class="vb-header">
         <div class="vb-photo">
             {% if badge_photo %}
-                <img src="{{ badge_photo }}" alt="visitor photo">
+                <img src="{{ (badge_photo) | e }}" alt="visitor photo">
             {% else %}
                 <div class="vb-photo-empty"></div>
             {% endif %}
         </div>
         <div class="vb-header-right">
             <div class="vb-label">VISITOR</div>
-            <div class="vb-type-chip">{{ doc.visitor_type or "Guest" }}</div>
+            <div class="vb-type-chip">{{ (doc.visitor_type or "Guest") | e }}</div>
             {% if doc.gate_verified_photo %}
                 <div class="vb-verified">&#10003; Gate Verified</div>
             {% endif %}
@@ -29,28 +42,44 @@
 
     <div class="vb-body">
         <div class="vb-info">
-            <h1 class="vb-name">{{ doc.visitor_full_name }}</h1>
-            <div class="vb-row"><span class="vb-k">From</span><span class="vb-v">{{ doc.company__organisation or "&mdash;" }}</span></div>
-            <div class="vb-row"><span class="vb-k">Host</span><span class="vb-v">{{ host_name or "&mdash;" }}</span></div>
-            <div class="vb-row"><span class="vb-k">Purpose</span><span class="vb-v">{{ doc.purpose_of_visit or "&mdash;" }}</span></div>
-            <div class="vb-row"><span class="vb-k">Date</span><span class="vb-v">{{ doc.get_formatted("visit_date") }}</span></div>
-            <div class="vb-row"><span class="vb-k">Valid&nbsp;till</span><span class="vb-v">{{ doc.get_formatted("expected_checkout") or "End of Day" }}</span></div>
+            <h1 class="vb-name">{{ (doc.visitor_full_name) | e }}</h1>
+            <div class="vb-row"><span class="vb-k">From</span><span class="vb-v">{{ (doc.company__organisation) | e if doc.company__organisation else "&mdash;" }}</span></div>
+            <div class="vb-row"><span class="vb-k">Host</span><span class="vb-v">{{ (host_name) | e if host_name else "&mdash;" }}</span></div>
+            <div class="vb-row"><span class="vb-k">Purpose</span><span class="vb-v">{{ (doc.purpose_of_visit) | e if doc.purpose_of_visit else "&mdash;" }}</span></div>
+            <div class="vb-row"><span class="vb-k">Date</span><span class="vb-v">{{ (doc.get_formatted("visit_date")) | e }}</span></div>
+            <div class="vb-row"><span class="vb-k">Valid&nbsp;till</span><span class="vb-v">{{ (doc.get_formatted("expected_checkout") or "End of Day") | e }}</span></div>
         </div>
 
         {% if doc.badge_number %}
         <div class="vb-badge">
             {% if doc.qr_code_image %}
-                <img src="{{ doc.qr_code_image }}" class="vb-qr" alt="QR">
+                <img src="{{ (doc.qr_code_image) | e }}" class="vb-qr" alt="QR">
             {% endif %}
-            <div class="vb-id">{{ doc.badge_number }}</div>
+            <div class="vb-id">{{ (doc.badge_number) | e }}</div>
         </div>
         {% endif %}
     </div>
 
-    <div class="vb-footer">{{ company }}</div>
+    <div class="vb-footer">{{ (company) | e }}</div>
 </div>
+{% endif %}
 
 <style>
+    .vb-invalid {
+        width: 460px;
+        box-sizing: border-box;
+        padding: 24px 20px;
+        border: 2px dashed #dc2626;
+        border-radius: 14px;
+        font-family: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        color: #0f172a;
+        text-align: center;
+    }
+    .vb-invalid-title {
+        font-size: 20px; font-weight: 800; letter-spacing: 1px;
+        color: #dc2626; margin-bottom: 8px;
+    }
+    .vb-invalid p { font-size: 13px; margin: 0; }
     .vb-card {
         width: 460px;
         min-height: 290px;

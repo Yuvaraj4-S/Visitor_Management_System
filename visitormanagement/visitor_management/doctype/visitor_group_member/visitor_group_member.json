@@ -9,6 +9,7 @@
   "visitor_name",
   "mobile_number",
   "id_proof_type",
+  "id_proof_masked",
   "id_proof_number",
   "checked_in",
   "badge_number",
@@ -40,10 +41,20 @@
   },
   {
    "columns": 2,
-   "fieldname": "id_proof_number",
+   "description": "Type the visitor's full ID number. Once saved, only the last four characters are shown; the full number is kept securely and only Security and System Manager can see it.",
+   "fieldname": "id_proof_masked",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "ID Proof Number"
+  },
+  {
+   "description": "The full ID number. Only Security and System Manager can see it.",
+   "fieldname": "id_proof_number",
+   "fieldtype": "Data",
+   "label": "ID Proof Number (Full)",
+   "mask": 1,
+   "permlevel": 1,
+   "read_only": 1
   },
   {
    "columns": 1,
@@ -69,7 +80,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-09-07 17:00:00.000000",
+ "modified": "2026-10-06 04:10:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Group Member",

@@ -1,11 +1,28 @@
+from datetime import timedelta
+
 import frappe
 from frappe import _
 from frappe.model.workflow import apply_workflow
 from frappe.rate_limiter import rate_limit
-from frappe.utils import cint, flt, get_datetime, get_time, getdate, now_datetime, nowdate
+from frappe.utils import (
+	cint,
+	escape_html,
+	flt,
+	get_datetime,
+	get_link_to_form,
+	get_time,
+	getdate,
+	now_datetime,
+	nowdate,
+)
 
 from visitormanagement.visitor_management import settings as vms_settings
 
+# The Hospitality Request owns its fulfilment status; the pass only mirrors it
+# (as `food_status`). There is deliberately no map in the other direction: the
+# request used to be re-derived from that mirror on every pass save, so a status
+# the pass had once been told ("Cancelled", when the pass was rejected) came back
+# to the request for good.
 VISITOR_PASS_FOOD_STATUS_FROM_REQUEST = {
 	"Pending": "Pending",
 	"Confirmed": "Ordered",
@@ -13,13 +30,10 @@ VISITOR_PASS_FOOD_STATUS_FROM_REQUEST = {
 	"Completed": "Completed",
 	"Cancelled": "Cancelled",
 }
-HOSPITALITY_REQUEST_STATUS_FROM_PASS = {
-	"Pending": "Pending",
-	"Ordered": "Confirmed",
-	"Served": "Served",
-	"Completed": "Completed",
-	"Cancelled": "Cancelled",
-}
+# Pass statuses from which the visit is going ahead (approved, or already at the gate).
+PASS_CONFIRMED_STATUSES = ("Approved", "Items Verified", "Checked-In", "Checked-Out")
+# Pass statuses in which the visit is off, so nothing is prepared or held for it.
+PASS_CALLED_OFF_STATUSES = ("Rejected", "Cancelled")
 ARRANGEMENT_REQUIRED_FIELDS = (
 	"cab_required",
 	"hotel_required",
@@ -144,9 +158,19 @@ def should_mark_no_show(doc):
 
 
 def ensure_hospitality_request(visitor_pass):
+	"""Bring the pass's Hospitality Request and room booking in line with the pass."""
 	if not visitor_pass.name:
 		return None
 
+	request_name = _sync_hospitality_request(visitor_pass)
+	# The room follows the pass whether or not anything else was asked for: a
+	# room the host has since removed, or a pass that was rejected, must stop
+	# holding its slot.
+	ensure_conference_room_booking(visitor_pass)
+	return request_name
+
+
+def _sync_hospitality_request(visitor_pass):
 	requires_service = any(
 		[
 			cint(getattr(visitor_pass, "meal_required", 0)),
@@ -161,6 +185,13 @@ def ensure_hospitality_request(visitor_pass):
 	if not requires_service and not visitor_pass.hospitality_request:
 		return None
 
+	# A request the Hospitality Manager cancelled is finished: it is never
+	# written to again, and the pass must not keep linking to it (Frappe refuses
+	# to save a document that links to a cancelled one).
+	request_name = visitor_pass.hospitality_request
+	if request_name and cint(frappe.db.get_value("Hospitality Request", request_name, "docstatus")) == 2:
+		request_name = None
+
 	# Read-then-insert is a time-of-check/time-of-use race. Two saves arriving
 	# together — a portal submission alongside a desk edit, or a double-clicked
 	# workflow action — both find nothing here and both insert, leaving one pass
@@ -172,17 +203,22 @@ def ensure_hospitality_request(visitor_pass):
 	#
 	# The index on `visitor_pass` is what keeps the lock narrow — without it
 	# InnoDB escalates to locking the whole table on every save.
-	request_name = visitor_pass.hospitality_request
 	if not request_name:
 		locked = frappe.db.sql(
 			"""
-			SELECT name FROM `tabHospitality Request`
+			SELECT name, docstatus FROM `tabHospitality Request`
 			WHERE visitor_pass = %s
+			ORDER BY docstatus ASC, creation DESC
 			LIMIT 1
 			FOR UPDATE
 			""",
 			visitor_pass.name,
 		)
+		if locked and cint(locked[0][1]) == 2:
+			# Every request this pass had was cancelled by the Hospitality Manager.
+			# Raising a fresh one here would put back what they called off; Amend
+			# on the cancelled request is how it returns.
+			return None
 		request_name = locked[0][0] if locked else None
 	is_new_request = not request_name
 	if request_name:
@@ -191,12 +227,27 @@ def ensure_hospitality_request(visitor_pass):
 		doc = frappe.new_doc("Hospitality Request")
 		doc.visitor_pass = visitor_pass.name
 
-	populate_hospitality_request_from_pass(doc, visitor_pass=visitor_pass, sync_management_fields=True)
+	populate_hospitality_request_from_pass(doc, visitor_pass=visitor_pass)
 
-	if doc.is_new():
-		doc.insert(ignore_permissions=True)
-	else:
-		doc.save(ignore_permissions=True)
+	# This save runs inside the pass's own save, so whatever the request refuses
+	# reaches the person saving the PASS. Its messages name a field ("Buggy pickup
+	# ... is outside the visit window") but not the document it is on, which
+	# reads as an error about the pass. Say where it comes from.
+	messages_before = list(frappe.message_log)
+	try:
+		if doc.is_new():
+			doc.insert(ignore_permissions=True)
+		else:
+			doc.save(ignore_permissions=True)
+	except frappe.ValidationError as exc:
+		frappe.local.message_log = messages_before
+		frappe.throw(
+			_("Hospitality Request {0} could not be brought in line with this pass: {1}").format(
+				frappe.bold(doc.name) if doc.is_new() else get_link_to_form("Hospitality Request", doc.name),
+				str(exc),
+			),
+			title=_("Hospitality Request Needs Attention"),
+		)
 
 	# Once the parent Visitor Pass is Approved (or beyond), move this request out
 	# of Draft and into the Hospitality Manager's queue. Done as its own step,
@@ -211,23 +262,27 @@ def ensure_hospitality_request(visitor_pass):
 	# not even hold the "Employee" role the Submit transition requires. That is a
 	# legitimate way for this to fail (not a bug in this function), so it is
 	# caught and logged rather than allowed to undo the Visitor Pass approval that
-	# triggered it. `status` above already reflects the real-world outcome
-	# regardless of whether this transition succeeds; a request left behind here
+	# triggered it — and the approver is told, because a request left behind here
 	# still needs a human to Submit it from the Hospitality Request itself.
 	current_wf = getattr(doc, "workflow_state", None) or "Draft"
 	vp_status = getattr(visitor_pass, "status", None)
-	if (
-		requires_service
-		and current_wf == "Draft"
-		and vp_status in ("Approved", "Items Verified", "Checked-In", "Checked-Out")
-	):
+	if requires_service and current_wf == "Draft" and vp_status in PASS_CONFIRMED_STATUSES:
+		messages_before = list(frappe.message_log)
 		try:
 			apply_workflow(doc, "Submit")
 		except Exception as exc:
+			frappe.local.message_log = messages_before
 			frappe.log_error(
-				f"Hospitality Request {doc.name} auto-promotion to Pending Approval failed "
-				f"for Visitor Pass {visitor_pass.name}: {exc}",
-				"VMS Hospitality Auto-Promote",
+				title=f"Hospitality Request {doc.name} was not sent for approval",
+				message=f"Visitor Pass {visitor_pass.name}: {exc}\n\n{frappe.get_traceback(with_context=True)}",
+			)
+			frappe.msgprint(
+				_(
+					"Hospitality Request {0} could not be sent to the Hospitality Manager "
+					"automatically: {1}<br>Open it and use Actions > Submit."
+				).format(get_link_to_form("Hospitality Request", doc.name), str(exc)),
+				title=_("Hospitality Request Not Sent"),
+				indicator="orange",
 			)
 
 	if visitor_pass.hospitality_request != doc.name:
@@ -249,10 +304,6 @@ def ensure_hospitality_request(visitor_pass):
 		except Exception:
 			# Background contexts (workflow_action) sometimes lack a request — ignore.
 			pass
-
-	# Auto-create a Conference Room Booking if a room is selected on the pass.
-	if getattr(visitor_pass, "conference_room", None):
-		ensure_conference_room_booking(visitor_pass)
 
 	return doc.name
 
@@ -300,113 +351,199 @@ def call_off_pass_arrangements(visitor_pass):
 			)
 		),
 	]:
-		doc = frappe.get_doc(doctype, name)
-		if doc.docstatus == 1:
-			doc.workflow_state = "Cancelled"
-			doc.flags.ignore_permissions = True
-			doc.cancel()
-		else:
-			values = {"workflow_state": "Rejected"}
-			values["status"] = "Cancelled" if doctype == "Hospitality Request" else "Rejected"
-			doc.db_set(values)
+		_call_off(frappe.get_doc(doctype, name))
+
+
+def _call_off(doc):
+	"""Call off one Hospitality Request or Conference Room Booking (see above)."""
+	if doc.docstatus == 1:
+		doc.workflow_state = "Cancelled"
+		doc.flags.ignore_permissions = True
+		doc.cancel()
+	elif doc.docstatus == 0 and doc.get("workflow_state") != "Rejected":
+		values = {"workflow_state": "Rejected"}
+		values["status"] = "Cancelled" if doc.doctype == "Hospitality Request" else "Rejected"
+		doc.db_set(values)
+
+
+def assert_submitted_through_approval(doc):
+	"""A submit is only legitimate as the tail of the workflow's approving transition.
+
+	For Hospitality Request and Conference Room Booking, `Approved` is the only
+	`doc_status = 1` state of the workflow. Frappe checks a workflow transition
+	only when the state field changes, and afterwards force-sets the state that
+	matches the new docstatus (`set_workflow_state_on_action`). So a bare
+	`frappe.client.submit` — or the list's bulk Submit, or a save carrying
+	docstatus 1 — on a Draft lands on `Approved` with no transition ever
+	evaluated: no approver role, no self-approval rule, nothing. Anyone holding
+	`submit` on the DocType could approve their own request.
+
+	What the workflow would have checked is checked here instead, against the
+	state the document is stored in: it must be one an approving transition
+	starts from, the user must hold a role that transition allows, and may not
+	be approving their own document unless the transition permits it.
+
+	Call from `before_submit`.
+	"""
+	workflow_name = doc.meta.get_workflow()
+	if not workflow_name:
+		return
+	workflow = frappe.get_cached_doc("Workflow", workflow_name)
+	approved_states = {state.state for state in workflow.states if cint(state.doc_status) == 1}
+	stored_state = frappe.db.get_value(doc.doctype, doc.name, workflow.workflow_state_field)
+	approvals = [
+		transition
+		for transition in workflow.transitions
+		if transition.state == stored_state and transition.next_state in approved_states
+	]
+	if not approvals:
+		frappe.throw(
+			_(
+				"This {0} is in <b>{1}</b> and has not been through approval. "
+				"Use the workflow Actions button — it cannot be submitted directly."
+			).format(_(doc.doctype), _(stored_state or "Draft")),
+			title=_("Approval Required"),
+		)
+
+	user = frappe.session.user
+	if user == "Administrator" or doc.flags.ignore_permissions:
+		return
+
+	roles = set(frappe.get_roles(user))
+	allowed = [transition for transition in approvals if transition.allowed in roles]
+	if not allowed:
+		frappe.throw(
+			_("Only {0} can approve this {1}.").format(
+				", ".join(sorted({_(transition.allowed) for transition in approvals})), _(doc.doctype)
+			),
+			frappe.PermissionError,
+			title=_("Not Permitted"),
+		)
+	if doc.owner == user and not any(cint(transition.allow_self_approval) for transition in allowed):
+		frappe.throw(
+			_("You raised this {0}, so it has to be approved by someone else.").format(_(doc.doctype)),
+			frappe.PermissionError,
+			title=_("Self Approval Not Allowed"),
+		)
+
+
+ROOM_BOOKING_SAVEPOINT = "vms_pass_room_booking"
 
 
 def ensure_conference_room_booking(visitor_pass):
-	"""Create or update a Conference Room Booking for this Visitor Pass."""
-	if not getattr(visitor_pass, "conference_room", None):
-		return None
+	"""Keep the pass's Conference Room Booking in step with the pass.
 
-	existing = frappe.db.get_value(
+	The booking is the pass's own, raised and moved by the system as the pass
+	moves, so none of it depends on what the person saving the pass may do to a
+	booking:
+
+	- a pass that is going ahead books its room for the real visit window;
+	- once the pass is Approved the booking goes to the Facility Manager;
+	- a Rejected pass, or one whose room was removed, releases the slot;
+	- a pass that is submitted again asks for the room again, and the slot is
+	  checked again.
+
+	Whether the slot can be had is decided by the booking's own validation and
+	nowhere else. Nothing is adjusted to make it fit: a visit outside the room's
+	hours used to be moved to the opening time, which booked the room for hours
+	the visitor was not there and left them without one when they were.
+	"""
+	booking_name = frappe.db.get_value(
 		"Conference Room Booking",
 		{"visitor_pass": visitor_pass.name, "docstatus": ["<", 2]},
 		"name",
+		order_by="creation desc",
 	)
-	if existing:
-		booking = frappe.get_doc("Conference Room Booking", existing)
+	pass_status = getattr(visitor_pass, "status", None)
+	room = getattr(visitor_pass, "conference_room", None)
+
+	if not room or pass_status in PASS_CALLED_OFF_STATUSES:
+		# Nothing to hold. A booking on an earlier day is history and stays.
+		if booking_name:
+			booking = frappe.get_doc("Conference Room Booking", booking_name)
+			if getdate(booking.booking_date) >= getdate(nowdate()):
+				_call_off(booking)
+		return None
+
+	if booking_name:
+		booking = frappe.get_doc("Conference Room Booking", booking_name)
 	else:
 		booking = frappe.new_doc("Conference Room Booking")
 		booking.visitor_pass = visitor_pass.name
 
-	# Clamp times to room operating hours if needed
-	start_time, end_time = _clamp_to_room_hours(
-		visitor_pass.conference_room,
-		visitor_pass.expected_checkin,
-		visitor_pass.expected_checkout,
-	)
+	# Before approval only this module rejects the booking (because the pass was
+	# rejected), so a pass that is back is asking again. After approval a
+	# rejection is the Facility Manager's answer, and it stands until the pass
+	# asks for a different room.
+	was_rejected = booking.get("workflow_state") == "Rejected"
+	if was_rejected and visitor_pass.docstatus == 1 and booking.conference_room == room:
+		return None
 
-	booking.conference_room = visitor_pass.conference_room
-	booking.meeting_title = f"Visitor Meeting — {visitor_pass.visitor_full_name or visitor_pass.name}"
-	booking.booking_date = visitor_pass.visit_date
-	booking.start_time = start_time
-	booking.end_time = end_time
-	booking.meeting_type = "External"
-	booking.expected_attendees = cint(getattr(visitor_pass, "number_of_people", None)) or 1
-	if not booking.booked_by:
-		booking.booked_by = visitor_pass.person_to_visit
-
-	# A room clash must not look like a failed approval. Conference Room
-	# Booking's own validate_overlap calls frappe.throw, which queues its raw
-	# "Room Already Booked / Please choose a different time slot" message for the
-	# client BEFORE raising — and the `except` below swallows the exception, so
-	# the pass really does advance. The approver was left staring at a blocking-
-	# looking error on a transition that had in fact succeeded, with no way to
-	# tell which. Reported from the field on a pass that had already moved to
-	# Pending CEO while showing this dialog.
+	# A room that cannot be had must not look like a failed save or approval:
+	# the booking's validation calls frappe.throw, which queues its message for
+	# the client before raising, and the pass does go through. So the queue is
+	# snapshotted and, on failure, restored — and the person is told what
+	# actually happened, in the booking's own words.
 	#
-	# Snapshot the queue, and on failure restore it and say what actually
-	# happened: the visit is approved, the room is not booked, pick another.
+	# The savepoint makes a refusal leave nothing behind: no half-written
+	# booking, no reopened one, no number taken from the series.
 	messages_before = list(frappe.message_log)
+	frappe.db.savepoint(ROOM_BOOKING_SAVEPOINT)
 	try:
+		if was_rejected:
+			booking.db_set({"workflow_state": "Draft", "status": "Draft"})
+
+		booking.conference_room = room
+		booking.meeting_title = _("Visitor Meeting — {0}").format(
+			visitor_pass.visitor_full_name or visitor_pass.name
+		)
+		booking.booking_date = visitor_pass.visit_date
+		booking.start_time = visitor_pass.expected_checkin
+		booking.end_time = visitor_pass.expected_checkout
+		booking.meeting_type = "External"
+		booking.expected_attendees = cint(getattr(visitor_pass, "number_of_people", None)) or 1
+		if not booking.booked_by:
+			booking.booked_by = visitor_pass.person_to_visit
+
 		if booking.is_new():
 			booking.insert(ignore_permissions=True)
 		else:
 			booking.save(ignore_permissions=True)
 
-		# Move the CRB into the Facility Manager's queue as soon as the parent VP
-		# is confirmed. Without this, auto-created CRBs sit in Draft forever and
-		# the FM never sees an Approve/Reject button. Use save() (not db_set) so
-		# the Notification 'CRB Pending Approval' fires and the FM gets emailed.
-		vp_status = getattr(visitor_pass, "status", None)
-		current_wf = getattr(booking, "workflow_state", None) or "Draft"
-		if current_wf == "Draft" and vp_status in ("Approved", "Items Verified", "Checked-In", "Checked-Out"):
-			booking.workflow_state = "Pending Approval"
-			booking.save(ignore_permissions=True)
+		if (booking.get("workflow_state") or "Draft") == "Draft" and pass_status in PASS_CONFIRMED_STATUSES:
+			_send_booking_for_approval(booking)
 
+		frappe.db.release_savepoint(ROOM_BOOKING_SAVEPOINT)
 		return booking.name
 	except Exception as exc:
-		frappe.log_error(f"CRB auto-create failed for {visitor_pass.name}: {exc}", "VMS CRB Auto-Create")
+		frappe.db.rollback(save_point=ROOM_BOOKING_SAVEPOINT)
 		frappe.local.message_log = messages_before
-
-		from visitormanagement.conference_room.doctype.conference_room_booking.conference_room_booking import (
-			find_conflicting_booking,
+		frappe.log_error(
+			title=f"Room not reserved for Visitor Pass {visitor_pass.name}",
+			message=frappe.get_traceback(with_context=True),
 		)
 
-		clash = find_conflicting_booking(
-			visitor_pass.conference_room,
-			visitor_pass.visit_date,
-			start_time,
-			end_time,
-		)
 		# Say what is actually true of THIS pass. The old wording opened with
 		# "The visit is approved", but this runs from on_update on every save of a
-		# pass that is not a Draft — so a host saving a Pending pass, or an
-		# approver rejecting one, was told their visit was approved while the
-		# status badge in front of them said otherwise. Reported from a walkthrough.
-		state = getattr(visitor_pass, "workflow_state", None) or getattr(visitor_pass, "status", None)
+		# pass that is not a Draft — so a host saving a Pending pass was told their
+		# visit was approved while the status badge in front of them said otherwise.
 		lead = (
 			_("The visit is approved, but")
-			if state in ("Approved", "Items Verified", "Checked-In", "Checked-Out")
+			if pass_status in PASS_CONFIRMED_STATUSES
 			else _("This pass is saved, but")
 		)
-
-		if clash:
+		if isinstance(exc, frappe.ValidationError) and str(exc):
+			# The booking's own reason: "QA-ROOM-B is available until 18:00:00",
+			# "Maximum booking duration ...", "Time conflict with ...". It used to
+			# be replaced by a clash lookup that did not exclude the pass's own
+			# booking, so the approver was told the room was taken by the very
+			# booking that had just been saved for this pass.
 			frappe.msgprint(
 				_(
-					"{0} <b>{1}</b> could not be reserved — it is already booked "
-					"from {2} to {3}.<br>"
-					"Pick a different room on this pass, or book one from Conference "
-					"Room Booking. Nothing else about this pass is affected."
-				).format(lead, visitor_pass.conference_room, clash[0].start_time, clash[0].end_time),
+					"{0} <b>{1}</b> is not reserved: {2}<br>"
+					"Change the room or the visit time on this pass, or book a room from "
+					"Conference Room Booking. Nothing else about this pass is affected."
+				).format(lead, escape_html(room), str(exc)),
 				title=_("Room Not Reserved"),
 				indicator="orange",
 			)
@@ -415,98 +552,101 @@ def ensure_conference_room_booking(visitor_pass):
 				_(
 					"{0} <b>{1}</b> could not be reserved. An administrator can see "
 					"why in the Error Log; book the room manually in the meantime."
-				).format(lead, visitor_pass.conference_room),
+				).format(lead, escape_html(room)),
 				title=_("Room Not Reserved"),
 				indicator="orange",
 			)
 		return None
 
 
-def _clamp_to_room_hours(room_name, start, end):
-	"""Clamp visitor time window to the room's operating hours.
-	Returns (start_time, end_time) strings usable for CRB booking.
-	Falls back to 09:00:00-17:00:00 if room has no hours defined."""
-	from datetime import datetime, timedelta
+def _send_booking_for_approval(booking):
+	"""Put the pass's room booking in the Facility Manager's queue.
 
-	from frappe.utils import get_time
+	This is the system's step, taken because the pass was approved — it is not
+	the pass approver "submitting" somebody else's booking. Saving the new state
+	as the approver sent it through Frappe's workflow check, which first asks
+	whether that user may READ the booking; an approver who is neither its owner
+	nor its organiser may not, the PermissionError was swallowed, and the
+	booking sat in Draft where no Facility Manager ever saw it.
 
-	default_start, default_end = "09:00:00", "17:00:00"
-	room = (
-		frappe.db.get_value(
-			"Conference Room",
-			room_name,
-			["available_from", "available_to", "max_booking_hours"],
-			as_dict=True,
+	The booking has just been saved and validated, so only the state is written.
+	A direct write runs no on_change, and that is what the "CRB Pending
+	Approval" alert listens to — so it is run by hand with a before-image to
+	diff against (the same shape as security_log.py's `_advance_pass`). An alert
+	that fails is logged; the booking is in the queue either way.
+	"""
+	before = frappe.get_doc("Conference Room Booking", booking.name)
+	values = {"workflow_state": "Pending Approval", "status": "Pending Approval"}
+	frappe.db.set_value("Conference Room Booking", booking.name, values)
+	booking.update(values)
+
+	after = frappe.get_doc("Conference Room Booking", booking.name)
+	after._doc_before_save = before
+	after.add_comment("Workflow", _("Pending Approval"))
+
+	messages_before = list(frappe.message_log)
+	try:
+		after.run_notifications("on_change")
+	except Exception:
+		frappe.log_error(
+			title=f"Room booking {booking.name} approval alert failed",
+			message=frappe.get_traceback(with_context=True),
 		)
-		or {}
-	)
-	room_open = room.get("available_from") or default_start
-	room_close = room.get("available_to") or default_end
-	max_hours = int(room.get("max_booking_hours") or 0)
-
-	def _as_str(t):
-		if not t:
-			return None
-		try:
-			return str(get_time(t))
-		except Exception:
-			return str(t)
-
-	room_open_s = _as_str(room_open)
-	room_close_s = _as_str(room_close)
-	start_s = _as_str(start) or room_open_s
-	end_s = _as_str(end) or room_close_s
-
-	# Clamp start within [room_open, room_close]
-	if start_s < room_open_s or start_s >= room_close_s:
-		start_s = room_open_s
-	# Clamp end within (start, room_close]
-	if end_s <= start_s or end_s > room_close_s:
-		end_s = room_close_s
-
-	# Enforce max booking duration
-	if max_hours > 0:
-		base = datetime(2000, 1, 1)
-		start_dt = datetime.combine(base.date(), get_time(start_s))
-		end_dt = datetime.combine(base.date(), get_time(end_s))
-		if (end_dt - start_dt) > timedelta(hours=max_hours):
-			end_dt = start_dt + timedelta(hours=max_hours)
-			# keep within room_close
-			close_dt = datetime.combine(base.date(), get_time(room_close_s))
-			if end_dt > close_dt:
-				end_dt = close_dt
-			end_s = str(end_dt.time())
-
-	return start_s, end_s
+	finally:
+		frappe.local.message_log = messages_before
+	after.notify_update()
 
 
-def sync_hospitality_to_pass(request_doc):
+def sync_hospitality_to_pass(request_doc, status_only=False):
+	"""Mirror the request onto its pass.
+
+	`status_only` is for the saves that run no validation — cancelling, and a
+	Hospitality Manager updating an approved request. There the request's copies
+	of the pass's own fields (meal, room, arrangement flags) were not refreshed
+	from the pass first, so writing them back would undo anything changed on the
+	pass since. Only what the request owns is sent: its status and its staff.
+	"""
 	if not request_doc.visitor_pass:
 		return
 
 	pass_updates = {
-		"hospitality_request": request_doc.name,
 		"food_status": VISITOR_PASS_FOOD_STATUS_FROM_REQUEST.get(request_doc.status, "Pending"),
 		"food_dept_staff_assigned": request_doc.assigned_staff,
-		"conference_room": request_doc.conference_room,
-		"service_time": request_doc.service_time,
-		"cab_required": cint(getattr(request_doc, "cab_required", 0)),
-		"hotel_required": cint(getattr(request_doc, "hotel_required", 0)),
-		"factory_tour_required": cint(getattr(request_doc, "factory_tour_required", 0)),
-		"buggy_required": cint(getattr(request_doc, "buggy_required", 0)),
-		"greeting_required": cint(getattr(request_doc, "greeting_required", 0)),
 		"hospitality_overall_status": _compute_overall_hospitality_status(request_doc),
 	}
-	if hasattr(request_doc, "meal_required"):
-		pass_updates["meal_required"] = cint(request_doc.meal_required)
-	if hasattr(request_doc, "meal_type"):
-		pass_updates["meal_type"] = request_doc.meal_type
-	if hasattr(request_doc, "assigned_meal_slots"):
-		pass_updates["assigned_meal_slots"] = request_doc.assigned_meal_slots
-	if hasattr(request_doc, "hospitality_type"):
-		pass_updates["hospitality_type"] = request_doc.hospitality_type
-	if hasattr(request_doc, "special_diet"):
-		pass_updates["special_diet"] = request_doc.special_diet
+	if request_doc.docstatus < 2:
+		pass_updates["hospitality_request"] = request_doc.name
+	elif (
+		frappe.db.get_value("Visitor Pass", request_doc.visitor_pass, "hospitality_request")
+		== request_doc.name
+	):
+		# A cancelled request is no longer the pass's request, and Frappe will not
+		# save a document that links to a cancelled one — the pass could not be
+		# updated at all while it pointed here.
+		pass_updates["hospitality_request"] = None
+
+	if not status_only:
+		pass_updates.update(
+			{
+				"conference_room": request_doc.conference_room,
+				"service_time": request_doc.service_time,
+				"cab_required": cint(getattr(request_doc, "cab_required", 0)),
+				"hotel_required": cint(getattr(request_doc, "hotel_required", 0)),
+				"factory_tour_required": cint(getattr(request_doc, "factory_tour_required", 0)),
+				"buggy_required": cint(getattr(request_doc, "buggy_required", 0)),
+				"greeting_required": cint(getattr(request_doc, "greeting_required", 0)),
+			}
+		)
+		if hasattr(request_doc, "meal_required"):
+			pass_updates["meal_required"] = cint(request_doc.meal_required)
+		if hasattr(request_doc, "meal_type"):
+			pass_updates["meal_type"] = request_doc.meal_type
+		if hasattr(request_doc, "assigned_meal_slots"):
+			pass_updates["assigned_meal_slots"] = request_doc.assigned_meal_slots
+		if hasattr(request_doc, "hospitality_type"):
+			pass_updates["hospitality_type"] = request_doc.hospitality_type
+		if hasattr(request_doc, "special_diet"):
+			pass_updates["special_diet"] = request_doc.special_diet
 
 	frappe.db.set_value(
 		"Visitor Pass",
@@ -659,12 +799,24 @@ def apply_hospitality_meal_plan(doc, preserve_existing=False, honor_manual_meal_
 	return meal_plan
 
 
-def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_management_fields=False):
+def populate_hospitality_request_from_pass(doc, visitor_pass=None):
+	"""Copy onto the request what the Visitor Pass decides.
+
+	The pass owns the visit window, the meal decision and which arrangements
+	were asked for. The request owns how they are delivered — its times and
+	places, its fulfilment status, its staff and its notes — and none of that is
+	written here, except the times, which start as defaults taken from the visit
+	window and follow it when the visit is moved (`_follow_visit_window`).
+	"""
 	visitor_pass = visitor_pass or (
 		frappe.get_doc("Visitor Pass", doc.visitor_pass) if getattr(doc, "visitor_pass", None) else None
 	)
 	if not visitor_pass:
 		return doc
+
+	# The window the request's times were last set for, read before it is
+	# overwritten below.
+	previous_window = _window_from_request(doc)
 
 	meal_plan = derive_hospitality_meal_plan(visitor_pass)
 	# The Visitor Pass's Meal Required is the decision — carried across as is,
@@ -712,68 +864,183 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 	# already committed — so a promotion that the approving user isn't entitled to
 	# (e.g. they lack the "Employee" role the Hospitality Request workflow's
 	# Submit transition requires) is caught and logged there instead of blowing up
-	# here and rolling back the Visitor Pass approval that triggered it. The
-	# outcome of a rejected/approved parent is recorded on `status` below instead
-	# — this document's own field, which needs no workflow transition.
+	# here and rolling back the Visitor Pass approval that triggered it.
+	#
+	# Nor does it touch `status`, `assigned_staff` or `notes`. Those are the
+	# request's own (the Hospitality Manager's) and used to be overwritten from
+	# the pass's hidden mirror fields on every pass save: the status went back to
+	# whatever the pass had last been told, so a request called off because its
+	# pass was rejected stayed "Cancelled" after the pass was approved. The
+	# request's controller keeps `status` in step with its own workflow and with
+	# the state of the pass (HospitalityRequest._sync_status_with_workflow).
 
-	if sync_management_fields:
-		doc.assigned_staff = getattr(visitor_pass, "food_dept_staff_assigned", None)
-		doc.status = HOSPITALITY_REQUEST_STATUS_FROM_PASS.get(
-			getattr(visitor_pass, "food_status", None), "Pending"
-		)
-		if getattr(visitor_pass, "status", None) in ("Rejected", "Cancelled"):
-			doc.status = "Cancelled"
-		doc.notes = "\n".join(
-			note
-			for note in [
-				getattr(visitor_pass, "hospitality_notes", None),
-				getattr(visitor_pass, "refreshment_notes", None),
-			]
-			if note
-		)
 	# Mirror arrangement request flags from Visitor Pass (host-entered intent)
 	for flag in ARRANGEMENT_REQUIRED_FIELDS:
 		if hasattr(visitor_pass, flag):
 			setattr(doc, flag, cint(getattr(visitor_pass, flag, 0)))
 
-	# Auto-fetch dates/times from Visitor Pass (only when HR fields empty)
-	vp_date = getattr(visitor_pass, "visit_date", None)
-	vp_checkin = _combine_visit_datetime(vp_date, getattr(visitor_pass, "expected_checkin", None))
-	vp_checkout = _combine_visit_datetime(vp_date, getattr(visitor_pass, "expected_checkout", None))
-	vp_valid_until = getattr(visitor_pass, "pass_valid_until", None)
+	if cint(doc.cab_required) and not doc.cab_type:
+		doc.cab_type = "Both"
 	vp_people = getattr(visitor_pass, "number_of_people", None)
+	if cint(doc.hotel_required) and not doc.no_of_guests and vp_people:
+		doc.no_of_guests = vp_people
 
-	if cint(doc.cab_required):
-		if not doc.cab_type:
-			doc.cab_type = "Both"
-		if doc.cab_type in ("Pickup", "Both") and not doc.pickup_datetime and vp_checkin:
-			doc.pickup_datetime = vp_checkin
-		if doc.cab_type in ("Drop", "Both") and not doc.drop_datetime and vp_checkout:
-			doc.drop_datetime = vp_checkout
-
-	if cint(doc.hotel_required):
-		if not doc.check_in and vp_date:
-			doc.check_in = vp_date
-		if not doc.check_out:
-			doc.check_out = vp_valid_until or vp_date
-		if not doc.no_of_guests and vp_people:
-			doc.no_of_guests = vp_people
-
-	if cint(doc.factory_tour_required):
-		if not doc.tour_date:
-			doc.tour_date = vp_date or nowdate()
-		if not doc.tour_start_time and getattr(visitor_pass, "expected_checkin", None):
-			doc.tour_start_time = getattr(visitor_pass, "expected_checkin", None)
-
-	if cint(doc.buggy_required) and not doc.buggy_datetime:
-		doc.buggy_datetime = vp_checkin
-
-	if cint(doc.greeting_required) and not doc.greeting_delivery_time and vp_checkin:
-		from frappe.utils import add_to_date
-
-		doc.greeting_delivery_time = add_to_date(vp_checkin, minutes=-30)
+	_follow_visit_window(doc, visitor_pass, previous_window)
 
 	return doc
+
+
+def _window_from_request(doc):
+	"""The visit window as the request last recorded it, or None."""
+	start = getattr(doc, "visit_start_time", None)
+	end = getattr(doc, "visit_end_time", None)
+	if not (start and end):
+		return None
+	start, end = get_datetime(start), get_datetime(end)
+	# The request does not record the pass's Valid Until, so a multi-day pass's
+	# last day is unknown here; the visit day stands in for it.
+	return frappe._dict(start=start, end=end, first_day=start.date(), last_day=start.date())
+
+
+def _window_from_pass(visitor_pass):
+	"""The visit window the pass asks for now, or None while it has no times."""
+	visit_date = getattr(visitor_pass, "visit_date", None)
+	start = _combine_visit_datetime(visit_date, getattr(visitor_pass, "expected_checkin", None))
+	end = _combine_visit_datetime(visit_date, getattr(visitor_pass, "expected_checkout", None))
+	if not (start and end):
+		return None
+	if end < start:
+		end = start
+	first_day = getdate(visit_date)
+	last_day = getdate(getattr(visitor_pass, "pass_valid_until", None) or visit_date)
+	return frappe._dict(start=start, end=end, first_day=first_day, last_day=max(first_day, last_day))
+
+
+def _default_times(window):
+	"""The time each service starts out with for a given visit window."""
+	return {
+		"pickup_datetime": window.start,
+		"drop_datetime": window.end,
+		"check_in": window.first_day,
+		"check_out": window.last_day,
+		"tour_start_time": window.start.strftime("%H:%M:%S"),
+		"buggy_datetime": window.start,
+		# A greeting is ready before the visitor walks in.
+		"greeting_delivery_time": window.start - timedelta(minutes=30),
+	}
+
+
+def _fits_window(fieldname, value, window):
+	"""Whether a time still belongs to the visit.
+
+	The same limits HospitalityRequest validates (tour, buggy and greeting inside
+	the visit; hotel within a day of it). A cab has no validated limit, so it is
+	held to the visit's days, give or take one — a pickup the evening before is
+	plausible, one on last month's date is the old visit.
+	"""
+	if fieldname in ("pickup_datetime", "drop_datetime", "check_in", "check_out"):
+		day = timedelta(days=1)
+		return window.first_day - day <= getdate(value) <= window.last_day + day
+	if fieldname in ("tour_start_time", "tour_end_time"):
+		return window.start.time() <= get_time(value) <= window.end.time()
+	if fieldname == "buggy_datetime":
+		return window.start <= get_datetime(value) <= window.end
+	if fieldname == "greeting_delivery_time":
+		buffer = timedelta(minutes=30)
+		return window.start - buffer <= get_datetime(value) <= window.end + buffer
+	return True
+
+
+def _same_moment(fieldname, value, other):
+	if fieldname in ("check_in", "check_out"):
+		return getdate(value) == getdate(other)
+	if fieldname in ("tour_start_time", "tour_end_time"):
+		return get_time(value) == get_time(other)
+	return get_datetime(value) == get_datetime(other)
+
+
+def _follow_visit_window(doc, visitor_pass, previous_window):
+	"""Set the request's service times from the visit window, and move them with it.
+
+	Each service's time starts as a default taken from the visit (cab pickup at
+	check-in, greeting half an hour before it, ...) and can then be set by a
+	person. These were only ever filled in while empty, so when a visit was
+	rescheduled the request kept the old day's tour, buggy and greeting — and
+	since the request is saved inside the pass's save, its own "outside the
+	visit window" check then refused the PASS.
+
+	When the visit window has changed since the request last recorded it:
+	- a time that still holds the old default follows to the new default;
+	- a time a person set stays if it still belongs to the new visit;
+	- a time a person set that no longer does is reset to the new default, and
+	  the person saving is told which ones, so they can be set again.
+	A window that has not changed leaves everything a person typed alone — their
+	own entries are for the request's validation to judge, not to be replaced.
+	"""
+	window = _window_from_pass(visitor_pass)
+	if not window:
+		return
+
+	services = []
+	if cint(doc.cab_required):
+		if doc.cab_type in ("Pickup", "Both"):
+			services.append("pickup_datetime")
+		if doc.cab_type in ("Drop", "Both"):
+			services.append("drop_datetime")
+	if cint(doc.hotel_required):
+		services += ["check_in", "check_out"]
+	if cint(doc.factory_tour_required):
+		# Tour Date is read-only on the form ("Auto-set from Visitor Pass visit
+		# date"), so it is always the visit date, not only while empty.
+		doc.tour_date = window.first_day
+		services += ["tour_start_time", "tour_end_time"]
+	if cint(doc.buggy_required):
+		services.append("buggy_datetime")
+	if cint(doc.greeting_required):
+		services.append("greeting_delivery_time")
+
+	defaults = _default_times(window)
+	moved = bool(
+		previous_window and (previous_window.start != window.start or previous_window.end != window.end)
+	)
+	old_defaults = _default_times(previous_window) if moved else {}
+	reset = []
+
+	for fieldname in services:
+		value = doc.get(fieldname)
+		# Tour End Time has no default: it is the one time only a person sets.
+		default = defaults.get(fieldname)
+		if not value:
+			if default is not None:
+				doc.set(fieldname, default)
+			continue
+		if not moved:
+			continue
+		old_default = old_defaults.get(fieldname)
+		if old_default is not None and _same_moment(fieldname, value, old_default):
+			doc.set(fieldname, default)
+		elif not _fits_window(fieldname, value, window):
+			doc.set(fieldname, default)
+			reset.append(fieldname)
+
+	if moved and cint(doc.factory_tour_required) and doc.tour_start_time and doc.tour_end_time:
+		# A reset start can land on or after an end that was kept.
+		if get_time(doc.tour_end_time) <= get_time(doc.tour_start_time):
+			doc.tour_end_time = None
+			if "tour_end_time" not in reset:
+				reset.append("tour_end_time")
+
+	if reset:
+		labels = ", ".join(frappe.bold(_(doc.meta.get_label(fieldname))) for fieldname in reset)
+		frappe.msgprint(
+			_(
+				"The visit was moved, and these times on Hospitality Request {0} no longer "
+				"fitted it: {1}. They were reset to the new visit time — open the request to "
+				"set them again."
+			).format(doc.name or _("(new)"), labels),
+			title=_("Hospitality Times Reset"),
+			indicator="orange",
+		)
 
 
 def _compute_overall_hospitality_status(request_doc):

@@ -29,7 +29,6 @@
   "meal_type",
   "col_break_meal",
   "service_time",
-  "assigned_staff",
   "conference_room",
   "assigned_meal_slots",
   "hospitality_type",
@@ -82,7 +81,9 @@
   "greeting_cost",
   "section_break_status",
   "status",
+  "assigned_staff",
   "workflow_state",
+  "col_break_status",
   "notes",
   "amended_from"
  ],
@@ -95,6 +96,7 @@
    "options": "Visitor Pass",
    "reqd": 1,
    "search_index": 1,
+   "set_only_once": 1,
    "description": "The visitor this request belongs to."
   },
   {
@@ -241,15 +243,19 @@
   },
   {
    "default": "0",
+   "description": "Decided on the Visitor Pass. Change it there and it is updated here.",
    "fieldname": "meal_required",
    "fieldtype": "Check",
-   "label": "Meal Required"
+   "label": "Meal Required",
+   "read_only": 1
   },
   {
+   "description": "Decided on the Visitor Pass. Change it there and it is updated here.",
    "fieldname": "meal_type",
    "fieldtype": "Select",
    "label": "Meal Type",
-   "options": "Breakfast\nLunch\nDinner\nBreakfast + Lunch\nLunch + Dinner\nBreakfast + Dinner\nSnacks\nAll Day"
+   "options": "Breakfast\nLunch\nDinner\nBreakfast + Lunch\nLunch + Dinner\nBreakfast + Dinner\nSnacks\nAll Day",
+   "read_only": 1
   },
   {
    "fieldname": "col_break_meal",
@@ -287,14 +293,6 @@
    "fieldtype": "Datetime",
    "hidden": 1,
    "label": "Service Time"
-  },
-  {
-   "fieldname": "assigned_staff",
-   "fieldtype": "Link",
-   "hidden": 1,
-   "label": "Assigned Staff",
-   "options": "Employee",
-   "ignore_user_permissions": 1
   },
   {
    "collapsible": 1,
@@ -346,6 +344,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required",
    "description": "No automation fills this field — the Hospitality Manager records it once a vendor is booked. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "cab_vendor",
@@ -354,12 +353,14 @@
    "options": "Supplier"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required",
    "fieldname": "driver_name",
    "fieldtype": "Data",
    "label": "Driver Name"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required",
    "fieldname": "driver_phone",
    "fieldtype": "Data",
@@ -374,6 +375,7 @@
    "label": "Hotel Booking"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "description": "No automation fills this field — the Hospitality Manager records the hotel once booked. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "hotel_name",
@@ -426,6 +428,7 @@
    "label": "No of Guests"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "booking_reference",
    "fieldtype": "Data",
@@ -439,6 +442,7 @@
    "label": "Special Requests"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "description": "No automation fills this field — the Hospitality Manager records actual cost once booked. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "hotel_cost",
@@ -473,6 +477,7 @@
    "label": "Tour End Time"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.factory_tour_required",
    "fieldname": "tour_guide",
    "fieldtype": "Link",
@@ -521,6 +526,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.buggy_required",
    "description": "Was hidden with no automation to fill it, which silently disabled hospitality_request.py's _validate_buggy_conflict double-booking check — that check only runs when buggy_number is set, and a hidden field is never set from the UI.",
    "fieldname": "buggy_number",
@@ -528,6 +534,7 @@
    "label": "Buggy Number"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_driver",
    "fieldtype": "Link",
@@ -566,6 +573,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.greeting_required",
    "description": "No automation fills this field — the Hospitality Manager assigns the staff member arranging the greeting. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "greeting_assigned_to",
@@ -575,6 +583,7 @@
    "ignore_user_permissions": 1
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.greeting_required",
    "description": "No automation fills this field — the Hospitality Manager records actual cost once arranged. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "greeting_cost",
@@ -584,17 +593,26 @@
   {
    "fieldname": "section_break_status",
    "fieldtype": "Section Break",
-   "hidden": 1,
    "label": "Status & Notes"
   },
   {
+   "allow_on_submit": 1,
    "default": "Pending",
+   "description": "Set by the Hospitality Manager once the request is approved: Pending, Confirmed, Served, Completed.",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Pending\nConfirmed\nServed\nCompleted\nCancelled",
-   "allow_on_submit": 1
+   "options": "Pending\nConfirmed\nServed\nCompleted\nCancelled"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "The staff member who delivers this request. They see it in their own list and are emailed when it is confirmed.",
+   "fieldname": "assigned_staff",
+   "fieldtype": "Link",
+   "ignore_user_permissions": 1,
+   "label": "Assigned Staff",
+   "options": "Employee"
   },
   {
    "fieldname": "workflow_state",
@@ -605,9 +623,14 @@
    "read_only": 1
   },
   {
+   "fieldname": "col_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Notes by the hospitality team. What the host asked for is under Hospitality Notes on the Visitor Pass.",
    "fieldname": "notes",
    "fieldtype": "Text Editor",
-   "hidden": 1,
    "label": "Notes"
   },
   {
@@ -625,7 +648,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-05 12:00:00.000000",
+ "modified": "2026-10-06 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Hospitality Request",
@@ -666,7 +689,6 @@
    "report": 1,
    "role": "Host Employee",
    "share": 1,
-   "submit": 1,
    "write": 1
   },
   {

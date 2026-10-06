@@ -19,6 +19,10 @@ frappe.query_reports["Active Visitors"] = {
 			label: __("Host"),
 			fieldtype: "Link",
 			options: "Employee",
+			// App query: no role needs a permission on Employee (see link_queries.py).
+			get_query: () => ({
+				query: "visitormanagement.visitor_management.link_queries.search",
+			}),
 		},
 	],
 	formatter(value, row, column, data, default_formatter) {

@@ -5,7 +5,14 @@ import re
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import get_datetime, getdate, now_datetime, time_diff_in_seconds
+from frappe.utils import (
+	add_to_date,
+	escape_html,
+	get_datetime,
+	getdate,
+	now_datetime,
+	time_diff_in_seconds,
+)
 
 from visitormanagement.visitor_management import settings as vms_settings
 from visitormanagement.visitor_management.lifecycle import (
@@ -13,38 +20,13 @@ from visitormanagement.visitor_management.lifecycle import (
 	sync_contact_trace,
 )
 from visitormanagement.visitor_management.mail import esc, send_after_commit
-from visitormanagement.visitor_management.uploads import adopt_stray_uploads, attach_existing_file
+from visitormanagement.visitor_management.uploads import (
+	adopt_stray_uploads,
+	attach_existing_file,
+	copy_file_row,
+)
+from visitormanagement.visitor_management.validators import mask_id_number
 from visitormanagement.visitor_management.workflow_builder import APPROVED_STATES
-
-
-def mask_id_number(raw):
-	"""Mask ID proof number, preserving separators and showing only last 4 characters.
-
-	Aadhaar  5001-5002-5003  →  XXXX-XXXX-5003
-	PAN      AABPR2345T     →  XXXXXX345T
-	Passport P1234567       →  XXXX4567
-	DL       DL-TN-05210099 →  XX-XX-XXXX0099
-	"""
-	# Extract only alphanumeric characters and their positions
-	chars = []
-	for i, ch in enumerate(raw):
-		if ch.isalnum():
-			chars.append((i, ch))
-
-	if len(chars) <= 4:
-		return raw
-
-	# Positions of characters to keep visible (last 4 alphanumeric)
-	visible_positions = {pos for pos, _ in chars[-4:]}
-
-	# Rebuild string: mask alphanumeric chars except last 4, keep separators
-	masked = []
-	for i, ch in enumerate(raw):
-		if ch.isalnum():
-			masked.append(ch if i in visible_positions else "X")
-		else:
-			masked.append(ch)  # keep hyphens, spaces, slashes as-is
-	return "".join(masked)
 
 
 def _get_default_gate(visitor_type_name):
@@ -144,6 +126,112 @@ def _send_host_checkin_email(visitor_pass, security_log, messages_before=None):
 		frappe.local.message_log = list(messages_before or [])
 
 
+def gate_blacklist_matches(visitor_pass):
+	"""Everyone arriving on this pass who is on the active blacklist.
+
+	The lead visitor and each accompanying visitor, as (label, blacklist entry
+	name, group member row or None). Group members are screened when the pass
+	leaves Draft, but a blacklisting can come after approval — the gate re-checked
+	the lead visitor only, so a barred person listed on somebody else's group
+	walked in with no block and no warning.
+	"""
+	from visitormanagement.visitor_management.doctype.visitor_blacklist.visitor_blacklist import (
+		VisitorBlacklist,
+	)
+
+	matches = []
+	for label, person, member in _people_on_pass(visitor_pass):
+		entry = VisitorBlacklist.find_active_match(
+			id_proof_number=person.id_proof_number,
+			visitor_name=person.visitor_name,
+			id_proof_type=person.id_proof_type,
+			mobile_number=person.mobile_number,
+		)
+		if entry:
+			matches.append((label, entry, member))
+	return matches
+
+
+def _people_on_pass(visitor_pass):
+	"""(label, details, group member row or None) for the lead visitor and each member."""
+	lead = frappe._dict(
+		visitor_name=visitor_pass.visitor_full_name,
+		id_proof_number=visitor_pass.id_proof_number,
+		id_proof_type=visitor_pass.id_proof_type,
+		mobile_number=visitor_pass.mobile_number,
+	)
+	people = [(visitor_pass.visitor_full_name, lead, None)]
+	for row in visitor_pass.get("group_members") or []:
+		label = _("{0} (accompanying visitor, row {1})").format(row.visitor_name, row.idx)
+		people.append((label, row, row))
+	return people
+
+
+def record_blacklist_alert(visitor_pass, blacklist, label, outcome, gate_name=None, member_row=None):
+	"""Record a blacklist match at the gate as an "Alert" Security Log, and tell security.
+
+	A refused visitor used to leave nothing behind: the refusal is a
+	frappe.throw, which rolls back whatever was written before it, and no code
+	created an "Alert" log at all — so the two alert cards, which count them,
+	could never show a hit and the Security Alert Roles never heard.
+
+	Called directly when entry is allowed, and as a background job (pushed
+	before the throw, outside the request's transaction) when it is refused.
+	Repeated tries for the same person within ten minutes are one alert.
+	"""
+	vp = frappe.get_doc("Visitor Pass", visitor_pass)
+	entry = frappe.get_doc("Visitor Blacklist", blacklist)
+	reason = _("Blacklist match ({0}): {1}. Reason on file: {2}. {3}").format(
+		entry.name, label, entry.reason or _("Not specified"), outcome
+	)
+	if frappe.db.exists(
+		"Security Log",
+		{
+			"visitor_pass": vp.name,
+			"event_type": "Alert",
+			"exception_reason": reason,
+			"creation": (">", add_to_date(now_datetime(), minutes=-10)),
+		},
+	):
+		return
+
+	frappe.get_doc(
+		{
+			"doctype": "Security Log",
+			"visitor_pass": vp.name,
+			"event_type": "Alert",
+			"gate_name": gate_name or _get_default_gate(vp.visitor_type),
+			"exception_reason": reason,
+		}
+	).insert(ignore_permissions=True)
+
+	member = next((row for row in vp.get("group_members") or [] if row.name == member_row), None)
+	vp._alert_blacklist_match(entry, member=member, outcome=f"{outcome} Pass {vp.name}.")
+
+
+def refuse_blacklisted_entry(visitor_pass, blacklist, label, gate_name=None, member_row=None):
+	"""Queue the Alert for a refusal that is about to be thrown.
+
+	The job goes to the queue now (enqueue_after_commit=False): the throw rolls
+	this request back, and anything left for its commit would go with it.
+	"""
+	try:
+		frappe.enqueue(
+			"visitormanagement.visitor_management.doctype.security_log.security_log.record_blacklist_alert",
+			queue="short",
+			enqueue_after_commit=False,
+			visitor_pass=visitor_pass,
+			blacklist=blacklist,
+			label=label,
+			outcome=_("Entry was refused at the gate."),
+			gate_name=gate_name,
+			member_row=member_row,
+		)
+	except Exception:
+		# The queue being down must not turn a refusal into an admission.
+		frappe.log_error(title="VMS: could not queue the blacklist alert")
+
+
 class SecurityLog(Document):
 	def before_save(self):
 		# Once a Security Log is recorded, it is an immutable gate-event audit record.
@@ -159,87 +247,35 @@ class SecurityLog(Document):
 				title=_("Record Locked"),
 			)
 
+		# Everything that decides whether a gate event may happen, and everything
+		# it sets in motion, belongs to the save that records it. A later save is
+		# a System Manager correcting a field on a record of something that has
+		# already happened: it stores the correction and nothing else. Re-running
+		# the checks refused the correction outright ("already Checked-In"), and
+		# replaying the event re-opened the visitor's contact trace.
+		is_new = self.is_new()
+
 		# Fetch Visitor Pass once
 		vp = None
 		if self.visitor_pass:
 			vp = frappe.get_doc("Visitor Pass", self.visitor_pass)
 
+		if is_new:
+			self._set_security_officer()
+			self._keep_only_this_events_time()
+
 		# 0. Re-check blacklist at gate — blacklisting could have happened AFTER pass approval.
 		# Only block Check-In; let Check-Out proceed so a blacklisted visitor who is already
 		# inside can still leave (the goal is to keep them out, not trap them in).
-		if vp and self.event_type == "Check-In":
-			from visitormanagement.visitor_management.doctype.visitor_blacklist.visitor_blacklist import (
-				VisitorBlacklist,
-			)
-
-			blacklist_name = VisitorBlacklist.find_active_match(
-				id_proof_number=vp.id_proof_number,
-				visitor_name=vp.visitor_full_name,
-				id_proof_type=vp.id_proof_type,
-				mobile_number=vp.mobile_number,
-			)
-			if blacklist_name:
-				bl = frappe.get_doc("Visitor Blacklist", blacklist_name)
-				detail = (
-					f"Visitor: {vp.visitor_full_name}\n"
-					f"Reason: {bl.reason or 'Not specified'}\n"
-					f"Blocked by: {bl.blocked_by or 'System'}\n\n"
-					f"ID matches an active blacklist entry."
-				)
-				# VMS Settings decides whether a match stops entry, merely warns,
-				# or is only recorded. This setting used to be ignored — the gate
-				# always blocked regardless of what the admin chose.
-				action = vms_settings.blacklist_action()
-				if action == "Block Entry":
-					frappe.throw(
-						msg=detail + "\n" + _("Refuse entry and notify supervisor."),
-						title=_("Access Denied at Gate — Blacklisted Visitor"),
-					)
-				elif action == "Alert Only":
-					frappe.msgprint(
-						msg=detail + "\nEntry is allowed but flagged — notify supervisor.",
-						title="Blacklist Warning",
-						indicator="orange",
-					)
-				frappe.log_error(detail, f"VMS Blacklist match at gate: {vp.name}")
-			else:
-				# A single weak identifier — name alone or mobile alone — is not
-				# enough to bar someone (thousands share a name; mobile numbers get
-				# reassigned), so find_active_match deliberately does not return it.
-				# But it must not vanish either: an entry blacklisted by name only
-				# would otherwise never fire anywhere, and the security team that
-				# created it would believe that person is barred. The gate is where
-				# they physically turn up, so surface it here as a non-blocking
-				# prompt and let the officer verify the ID and decide.
-				# Same warning the host sees at pass creation
-				# (visitor_pass.py::_warn_weak_blacklist_match) — kept in step so a
-				# guard and a host are never told two different things.
-				weak = VisitorBlacklist.find_weak_match(
-					visitor_name=vp.visitor_full_name,
-					mobile_number=vp.mobile_number,
-				)
-				if weak:
-					bl = frappe.get_doc("Visitor Blacklist", weak["name"])
-					frappe.msgprint(
-						msg=(
-							f"This visitor's {weak['matched_on']} matches an active blacklist "
-							f"entry ({bl.name}, reason: {bl.reason or 'Not specified'}), but not "
-							"strongly enough to block automatically.\n"
-							"Verify their ID against the blacklist entry before allowing entry."
-						),
-						title="Possible Blacklist Match — Verify ID",
-						indicator="orange",
-					)
-					frappe.log_error(
-						f"Weak blacklist match at gate on {weak['matched_on']}: {vp.name} vs {bl.name}",
-						"VMS Blacklist weak match at gate",
-					)
+		if is_new and vp and self.event_type == "Check-In":
+			self._screen_blacklist(vp)
 
 		# 1. Auto-fetch visitor info and ID details
 		if vp:
 			# Some Visitor Types mint the badge at the gate rather than on approval.
 			if (
-				not vp.badge_number
+				is_new
+				and not vp.badge_number
 				and self.event_type == "Check-In"
 				and frappe.db.get_value("Visitor Type", vp.visitor_type, "issue_badge_at_gate")
 			):
@@ -279,12 +315,18 @@ class SecurityLog(Document):
 				title=_("Inactive Gate"),
 			)
 
+		# The area a visitor is recorded in is the gate of the event. The field is
+		# hidden and the form filled it once, from the first gate chosen — so a Gate
+		# Transfer to another gate kept the visitor at the old one.
+		if is_new and self.gate_name and (self.event_type == "Gate Transfer" or not self.visited_area):
+			self.visited_area = self.gate_name
+
 		# 3. Auto-stamp datetime and validate status sequence
 		now = now_datetime()
 		if not self.verification_started_on:
 			self.verification_started_on = now
 
-		if vp:
+		if vp and is_new:
 			current_status = vp.status
 			if self.event_type == "Check-In":
 				# Order matters. "Checked-In" and "Checked-Out" are both outside
@@ -444,16 +486,10 @@ class SecurityLog(Document):
 					f"Visitor {self.visitor_name} must be 'Checked-In' before a gate transfer can be logged."
 				)
 
-		# 4. Auto-set security officer
-		if not self.security_officer:
-			emp = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
-			if emp:
-				self.security_officer = emp
-
 		# Gate verification requirements are configurable — VMS Settings decides
 		# which of these the officer must complete. Previously all four were
 		# unconditional and the three matching settings were ignored entirely.
-		if self.event_type in ("Check-In", "Check-Out"):
+		if is_new and self.event_type in ("Check-In", "Check-Out"):
 			movement = "check-in" if self.event_type == "Check-In" else "check-out"
 
 			if vms_settings.flag("qr_scan_required_at_gate") and not self.qr_code_scanned:
@@ -477,9 +513,6 @@ class SecurityLog(Document):
 							"Confirm that the visitor matches the pass creation photo before saving the visitor {0}."
 						).format(_(movement))
 					)
-
-		if self.event_type == "Gate Transfer" and not self.visited_area:
-			frappe.throw(_("Visited Area is required for gate transfer tracking."))
 
 		if self.is_new() and self.event_type == "Check-In" and vp and not self.items_verification:
 			# Try to fetch from visitor_items if it exists
@@ -521,8 +554,118 @@ class SecurityLog(Document):
 		# Deliberately last: the rows above are built during this same save, so
 		# a check placed with the other gate validations would inspect an empty
 		# table and pass every time.
-		if self.event_type in ("Check-In", "Check-Out"):
+		if is_new and self.event_type in ("Check-In", "Check-Out"):
 			self._assert_items_verified("check-in" if self.event_type == "Check-In" else "check-out", vp)
+
+	# --------------------------------------------------
+
+	def _set_security_officer(self):
+		"""A gate event is recorded under the name of the officer who records it.
+
+		The form locks this field, but that is the form: an insert through the
+		API with another Employee in it was stored as sent, so one guard could
+		log an event as another. Only a System Manager may name someone else.
+		"""
+		own = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
+		if self.security_officer and self.security_officer != own:
+			if "System Manager" in frappe.get_roles():
+				return
+		self.security_officer = own
+
+	def _keep_only_this_events_time(self):
+		"""Drop a check-in or check-out time that belongs to another kind of event.
+
+		The form stamps one when a pass is picked. Switching the event afterwards —
+		to a Gate Transfer, say — left that time on a record it does not describe.
+		"""
+		if self.event_type != "Check-In":
+			self.check_in_date_time = None
+		if self.event_type != "Check-Out":
+			self.check_out_date_time = None
+
+	def _screen_blacklist(self, vp):
+		"""Check the lead visitor and everyone arriving with them against the blacklist."""
+		from visitormanagement.visitor_management.doctype.visitor_blacklist.visitor_blacklist import (
+			VisitorBlacklist,
+		)
+
+		# VMS Settings decides whether a match stops entry, merely warns, or is
+		# only recorded. This setting used to be ignored — the gate always blocked
+		# regardless of what the admin chose.
+		action = vms_settings.blacklist_action()
+		matched = set()
+		for label, blacklist_name, member in gate_blacklist_matches(vp):
+			matched.add(member.name if member else None)
+			bl = frappe.get_doc("Visitor Blacklist", blacklist_name)
+			# nosemgrep: frappe-translation-python-splitting - the backslashes are \n line breaks, the string is not split
+			detail = _(
+				"Visitor: {0}\nReason: {1}\nBlocked by: {2}\n\nID matches an active blacklist entry."
+			).format(
+				escape_html(label),
+				escape_html(bl.reason or _("Not specified")),
+				escape_html(bl.blocked_by or _("System")),
+			)
+			member_row = member.name if member else None
+			if action == "Block Entry":
+				refuse_blacklisted_entry(vp.name, bl.name, label, self.gate_name, member_row)
+				frappe.throw(
+					msg=detail + "\n" + _("Refuse entry and notify supervisor."),
+					title=_("Access Denied at Gate — Blacklisted Visitor"),
+				)
+			if action == "Alert Only":
+				frappe.msgprint(
+					msg=detail + "\n" + _("Entry is allowed but flagged — notify supervisor."),
+					title=_("Blacklist Warning"),
+					indicator="orange",
+				)
+			record_blacklist_alert(
+				vp.name,
+				bl.name,
+				label,
+				_("Entry was allowed (VMS Settings: {0}).").format(_(action)),
+				gate_name=self.gate_name,
+				member_row=member_row,
+			)
+			frappe.log_error(detail, f"VMS Blacklist match at gate: {vp.name}")
+
+		# A single weak identifier — name alone or mobile alone — is not enough to
+		# bar someone (thousands share a name; mobile numbers get reassigned), so
+		# find_active_match deliberately does not return it. But it must not vanish
+		# either: an entry blacklisted by name only would otherwise never fire
+		# anywhere, and the security team that created it would believe that person
+		# is barred. The gate is where they physically turn up, so surface it here
+		# as a non-blocking prompt and let the officer verify the ID and decide.
+		# Same warning the host sees at pass creation
+		# (visitor_pass.py::_warn_weak_blacklist_match) — kept in step so a guard
+		# and a host are never told two different things.
+		for label, person, member in _people_on_pass(vp):
+			if (member.name if member else None) in matched:
+				continue
+			weak = VisitorBlacklist.find_weak_match(
+				visitor_name=person.visitor_name,
+				mobile_number=person.mobile_number,
+			)
+			if not weak:
+				continue
+			bl = frappe.get_doc("Visitor Blacklist", weak["name"])
+			frappe.msgprint(
+				msg=_(
+					"{0}: their {1} matches an active blacklist entry ({2}, reason: {3}), but not "
+					"strongly enough to block automatically.<br>"
+					"Verify their ID against the blacklist entry before allowing entry."
+				).format(
+					escape_html(label),
+					_(weak["matched_on"]),
+					bl.name,
+					escape_html(bl.reason or _("Not specified")),
+				),
+				title=_("Possible Blacklist Match — Verify ID"),
+				indicator="orange",
+			)
+			frappe.log_error(
+				f"Weak blacklist match at gate on {weak['matched_on']}: {vp.name} ({label}) vs {bl.name}",
+				"VMS Blacklist weak match at gate",
+			)
 
 	# --------------------------------------------------
 
@@ -533,6 +676,12 @@ class SecurityLog(Document):
 		if self.event_type == "Check-In":
 			self._sync_gate_verification()
 			self._sync_item_verification()
+			# The badge is minted by the lines above when this check-in is the
+			# first thing to need one; this log is the record of it being issued.
+			if not self.badge_number:
+				badge_number = frappe.db.get_value("Visitor Pass", self.visitor_pass, "badge_number")
+				if badge_number:
+					self.db_set("badge_number", badge_number, update_modified=False)
 			# Also update the Pass status to Checked-In
 			self._advance_pass(self._checkin_times())
 			self._notify_host_arrival()
@@ -552,30 +701,68 @@ class SecurityLog(Document):
 
 	def on_update(self):
 		adopt_stray_uploads(self)
-		if self.event_type == "Check-In" and self.visitor_pass:
-			# `photo_at_gate` used to fall back to the visitor's own
-			# pre-registration photo whenever the officer had not captured one.
-			# That photo was then stamped onto the pass as `gate_verified_photo`
-			# with a time and an officer's name, so the record asserted a gate
-			# verification that never happened — and the "does the visitor match
-			# their pass photo?" check compared an image against itself, which it
-			# can never fail. A gate photo now exists only if somebody took one;
-			# the badge already falls back to the pass photo for display, and its
-			# "gate verified" marker is keyed on this field, so it now means what
-			# it says.
-			self._sync_gate_verification()
-			self._sync_item_verification()
-
-		if self.visitor_pass:
-			self._record_lifecycle_event()
-			sync_contact_trace(self.visitor_pass, self)
+		self._attach_pass_files()
+		# The gate event itself — the pass's status, the visitor event, the contact
+		# trace — is recorded once, by after_insert. It used to be replayed here as
+		# well: on the insert that closed the contact trace just opened and
+		# re-activated it with its time-out still set, and on a later correction it
+		# re-opened a finished trace and moved the visitor back to the old gate.
+		if self.flags.in_insert and self.event_type == "Check-In":
+			# The gate photo's File row has only now been moved onto this log.
+			self._share_gate_photo_with_pass()
 
 	# --------------------------------------------------
 
+	def _attach_pass_files(self):
+		"""Give this log its own File rows for the pass's photo and ID scan.
+
+		before_save copies both URLs from the pass, and Frappe's attach hook then
+		inserts a File row for each. That insert re-checks access against ONE
+		existing row for the URL (File.validate_private_file_access, limit=1) —
+		for a returning visitor or a second gate event, a record this officer
+		cannot read. Core swallows the refusal but its message stays queued as an
+		error, and the desk then shows only "You do not have permission to access
+		this file", dropping the blacklist and late check-out warnings queued by
+		the same save.
+
+		The officer can read the pass and so already sees both files; the rows are
+		copied from the pass's own (uploads.copy_file_row), and the hook, which
+		runs after on_update, finds them attached.
+		"""
+		if not self.visitor_pass or not frappe.has_permission("Visitor Pass", "read", self.visitor_pass):
+			return
+		for fieldname in ("visitor_photo", "id_proof_scan"):
+			url = self.get(fieldname)
+			if not url or not url.startswith("/private/"):
+				continue
+			original = frappe.db.get_value(
+				"File",
+				{
+					"file_url": url,
+					"attached_to_doctype": "Visitor Pass",
+					"attached_to_name": self.visitor_pass,
+				},
+				"name",
+			)
+			if original:
+				copy_file_row(original, self, fieldname)
+
 	def _sync_gate_verification(self):
+		# `photo_at_gate` used to fall back to the visitor's own pre-registration
+		# photo whenever the officer had not captured one. That photo was then
+		# stamped onto the pass as `gate_verified_photo` with a time and an
+		# officer's name, so the record asserted a gate verification that never
+		# happened — and the "does the visitor match their pass photo?" check
+		# compared an image against itself, which it can never fail. A gate photo
+		# now exists only if somebody took one; the badge already falls back to the
+		# pass photo for display, and its "gate verified" marker is keyed on this
+		# field, so it now means what it says.
 		if not self.visitor_pass or not self.photo_at_gate:
 			return
 
+		frappe.db.set_value("Visitor Pass", self.visitor_pass, self._gate_verification_values())
+
+	def _gate_verification_values(self):
 		values = {
 			"gate_verified_photo": self.photo_at_gate,
 			"gate_verified_on": self.check_in_date_time or now_datetime(),
@@ -588,8 +775,12 @@ class SecurityLog(Document):
 		if visitor_type and frappe.db.get_value("Visitor Type", visitor_type, "issue_badge_at_gate"):
 			# Types photographed at the gate have no pre-approval photo to keep.
 			values["visitor_photo"] = self.photo_at_gate
+		return values
 
-		frappe.db.set_value("Visitor Pass", self.visitor_pass, values)
+	def _share_gate_photo_with_pass(self):
+		if not self.visitor_pass or not self.photo_at_gate:
+			return
+		values = self._gate_verification_values()
 
 		# The photo is a private file attached to this log. Copying its URL onto
 		# the pass is not enough for the pass's own readers (host, approvers) to

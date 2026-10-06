@@ -21,9 +21,11 @@ Shape of the generated workflow
     Pending <role>    ──Reject───▶ Rejected
     Rejected          ──Reapply──▶ Draft
 
-Conditions are evaluated against the *live* Visitor Type row, so re-pointing a
-type at a different approver takes effect immediately for in-flight passes
-without another rebuild.
+Conditions are evaluated against the *live* Visitor Type row. A Visitor Type
+refuses to be re-pointed at a different approver, or switched off, while passes
+of it are awaiting approval (VisitorType._refuse_stranding_pending_passes), and
+a type switched off regardless keeps its lanes until those passes are decided
+(`_visitor_type_rows`) — otherwise they could be neither approved nor rejected.
 """
 
 import frappe
@@ -78,12 +80,36 @@ def lane_for_role(role: str) -> str:
 
 
 def _visitor_type_rows():
-	"""Active Visitor Types that carry a primary approver, newest naming first."""
-	return frappe.get_all(
+	"""The Visitor Types whose approval lanes must exist, in name order.
+
+	Every active type, and any inactive type that still has passes waiting in a
+	pending lane. Dropping such a type removed its "Pending <role>" state and all
+	its transitions, so its pending passes sat in a state the workflow no longer
+	knew: nobody could approve, reject or withdraw them. Deactivating a type is
+	about new passes; the ones already in flight are still owed a decision.
+	"""
+	rows = frappe.get_all(
 		"Visitor Type",
-		filters={"is_active": 1},
-		fields=["name", "approver_role", "secondary_approver_role"],
+		fields=["name", "is_active", "approver_role", "secondary_approver_role"],
 		order_by="name asc",
+	)
+	inactive = [row.name for row in rows if not row.is_active]
+	in_flight = set(types_with_pending_passes(inactive)) if inactive else set()
+	return [row for row in rows if row.is_active or row.name in in_flight]
+
+
+def types_with_pending_passes(visitor_types):
+	"""Which of `visitor_types` have a pass in a pending approval lane."""
+	return frappe.get_all(
+		DOCTYPE,
+		filters={
+			"visitor_type": ("in", list(visitor_types)),
+			"docstatus": 0,
+			STATE_FIELD: ("like", lane_for_role("%")),
+		},
+		distinct=True,
+		pluck="visitor_type",
+		order_by=None,
 	)
 
 
@@ -182,6 +208,23 @@ def _is_final_approver(role):
 	)
 
 
+# Frappe's `allow_self_approval = 0` only compares the approver with the document
+# OWNER (frappe/model/workflow.py:has_approval_access). The person with a stake
+# in a visit is its host, and a pass is routinely raised by somebody else —
+# reception, or the visitor through the portal — so an approver hosting the visit
+# could approve it himself. A transition condition is evaluated on the server for
+# every action and also hides the button, so the rule lives there.
+_NOT_THE_HOST = (
+	"(not doc.person_to_visit"
+	' or frappe.db.get_value("Employee", doc.person_to_visit, "user_id") != frappe.session.user)'
+)
+
+
+def _by_someone_other_than_the_host(condition):
+	"""`condition`, and the user approving is not the host of this visit."""
+	return f"({condition}) and {_NOT_THE_HOST}"
+
+
 # ─────────────────────────────────────────────────────────
 # Builder
 # ─────────────────────────────────────────────────────────
@@ -231,7 +274,11 @@ def build_workflow(commit=False):
 	states = [{"state": DRAFT, "doc_status": "0", "allow_edit": REQUESTOR_ROLE}]
 	for role in roles:
 		states.append({"state": lane_for_role(role), "doc_status": "0", "allow_edit": role})
-	states.append({"state": APPROVED, "doc_status": "1", "allow_edit": "System Manager"})
+	# The gate moves an approved pass on (Items Verified, Checked-In, Checked-Out)
+	# in `status` while the workflow state stays "Approved"; lists show `status`.
+	states.append(
+		{"state": APPROVED, "doc_status": "1", "allow_edit": "System Manager", "avoid_status_override": 1}
+	)
 	states.append({"state": REJECTED, "doc_status": "0", "allow_edit": REQUESTOR_ROLE})
 	states.append({"state": CANCELLED, "doc_status": "2", "allow_edit": "System Manager"})
 
@@ -265,10 +312,11 @@ def build_workflow(commit=False):
 				"action": ACTION_APPROVE,
 				"next_state": lane_for_role(secondary),
 				"allowed": primary,
-				"condition": _has_secondary(primary, secondary),
+				"condition": _by_someone_other_than_the_host(_has_secondary(primary, secondary)),
 				# An approver must not also be the requester who raised this pass —
-				# see frappe/model/workflow.py:has_approval_access. Submit/Reject/
-				# Reapply stay self-approvable: those are the requester's own moves.
+				# see frappe/model/workflow.py:has_approval_access — nor its host
+				# (the condition above). Submit/Reject/Reapply stay self-approvable:
+				# those are the requester's own moves.
 				"allow_self_approval": 0,
 			}
 		)
@@ -281,7 +329,7 @@ def build_workflow(commit=False):
 				"action": ACTION_APPROVE,
 				"next_state": APPROVED,
 				"allowed": role,
-				"condition": _is_final_approver(role),
+				"condition": _by_someone_other_than_the_host(_is_final_approver(role)),
 				"allow_self_approval": 0,
 			}
 		)

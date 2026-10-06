@@ -1,25 +1,84 @@
 // For license information, please see license.txt
 
-function getInvitationLink(frm) {
-	if (frm.doc.invitation_token) {
-		return frappe.urllib.get_full_url(
-			`/visitor-pre-registration-form/new?token=${encodeURIComponent(
-				frm.doc.invitation_token
-			)}`
-		);
-	}
+// Roles that may raise an invitation with somebody else as the host. The rule
+// itself is enforced on save (visitor_invitation.py HOST_ON_BEHALF_ROLES); this
+// copy only decides what the host picker offers.
+const HOST_ON_BEHALF_ROLES = ["System Manager", "Front Office Executive"];
 
-	return frm.doc.portal_submission_url;
+// What the server said this user may do with this invitation (set in the
+// controller's onload). The link is a bearer credential, so the browser never
+// decides this from role permissions.
+function invitationAccess(frm) {
+	return frm.doc.__onload || {};
+}
+
+// The link actions always run on the saved invitation, by name: nothing typed
+// into the form and not yet saved can reach the server through them.
+function callInvitationMethod(frm, method, options = {}) {
+	return frappe.call({
+		method: "run_doc_method",
+		args: { dt: frm.doctype, dn: frm.docname, method },
+		...options,
+	});
+}
+
+function refuseIfUnsaved(frm) {
+	if (!frm.is_dirty()) {
+		return false;
+	}
+	frappe.msgprint({
+		title: __("Unsaved Changes"),
+		indicator: "orange",
+		message: __("Save your changes first, then try again."),
+	});
+	return true;
+}
+
+// Show the link with a Copy button. Copying happens on that button's own click
+// (browsers only allow a copy from a user's click), and the form is reloaded
+// once the dialog is gone — reloading under it would tear it down.
+function showInvitationLink(frm, { title, indicator, intro, link, advice, detail }) {
+	const safeLink = frappe.utils.escape_html(link);
+	const dialog = new frappe.ui.Dialog({
+		title,
+		indicator,
+		fields: [{ fieldtype: "HTML", fieldname: "body" }],
+		primary_action_label: __("Copy Link"),
+		primary_action() {
+			frappe.utils.copy_to_clipboard(link);
+			dialog.hide();
+		},
+		on_hide: () => frm.reload_doc(),
+	});
+	dialog.fields_dict.body.$wrapper.html(`
+		<p>${intro}</p>
+		<p><b>${__("Link:")}</b><br>
+			<a class="vm-invite-link" href="${safeLink}" target="_blank" rel="noopener"
+				style="word-break: break-all;">${safeLink}</a></p>
+		${advice ? `<p>${advice}</p>` : ""}
+		${detail ? `<p class="text-muted small">${frappe.utils.escape_html(detail)}</p>` : ""}
+	`);
+	dialog.show();
 }
 
 frappe.ui.form.on("Visitor Invitation", {
 	onload(frm) {
-		// Restrict Host Employee picker to the currently logged-in user's Employee
-		frm.set_query("host_employee", () => ({
-			filters: {
-				user_id: frappe.session.user,
-				status: "Active",
-			},
+		// A host invites their own visitors, so the picker offers them only their
+		// own Employee record. Reception and administrators invite on behalf of
+		// anyone. Searched through this app's query: no role needs a permission on
+		// the HRMS/ERPNext DocType (see link_queries.py).
+		frm.set_query("host_employee", () => {
+			const filters = { status: "Active" };
+			if (!frappe.user.has_role(HOST_ON_BEHALF_ROLES)) {
+				filters.user_id = frappe.session.user;
+			}
+			return {
+				query: "visitormanagement.visitor_management.link_queries.search",
+				filters,
+			};
+		});
+		frm.set_query("reference_job_applicant", () => ({
+			query: "visitormanagement.visitor_management.link_queries.search",
 		}));
 
 		// On new forms, auto-fill Host Employee with the logged-in user's Employee
@@ -51,31 +110,33 @@ frappe.ui.form.on("Visitor Invitation", {
 			return;
 		}
 
+		const access = invitationAccess(frm);
+		const status = frm.doc.invitation_status;
+		const finished = ["Submitted", "Cancelled"].includes(status);
+
 		// --- Send Invitation button ---
-		if (
-			frm.doc.visitor_email &&
-			!["Submitted", "Expired"].includes(frm.doc.invitation_status)
-		) {
-			const btnLabel =
-				frm.doc.invitation_status === "Draft"
-					? __("Send Invitation")
-					: __("Resend Invitation");
+		// Only for someone who may change this invitation, and never for one whose
+		// link is finished with: used, cancelled, or past its expiry.
+		if (access.can_manage && frm.doc.visitor_email && !finished && !access.is_expired) {
+			const btnLabel = status === "Draft" ? __("Send Invitation") : __("Resend Invitation");
 
 			frm.add_custom_button(
 				btnLabel,
 				() => {
+					if (refuseIfUnsaved(frm)) return;
+
 					const action = frm.doc.invitation_status === "Draft" ? "send" : "resend";
 					const confirmMsg =
 						action === "resend"
 							? __("Invitation was already sent on {0}. Send again?", [
-									frm.doc.invitation_sent_on,
+									frappe.datetime.str_to_user(frm.doc.invitation_sent_on),
 							  ])
-							: __("Send invitation email to {0}?", [frm.doc.visitor_email]);
+							: __("Send invitation email to {0}?", [
+									frappe.utils.escape_html(frm.doc.visitor_email),
+							  ]);
 
 					frappe.confirm(confirmMsg, () => {
-						frappe.call({
-							method: "send_invitation",
-							doc: frm.doc,
+						callInvitationMethod(frm, "send_invitation", {
 							freeze: true,
 							freeze_message: __("Sending visitor invitation..."),
 							callback: ({ message }) => {
@@ -95,27 +156,17 @@ frappe.ui.form.on("Visitor Invitation", {
 								// The link is always minted, so a site without outgoing
 								// email can still get the visitor registered — show it
 								// and let the host pass it on by hand.
-								frappe.msgprint({
+								showInvitationLink(frm, {
 									title: __("Email Not Sent"),
 									indicator: "orange",
-									message: __(
-										"The invitation link was created, but the email could not be delivered.<br><br><b>Link:</b><br><a href='{0}' target='_blank'>{0}</a><br><br>Share it with the visitor directly, or configure an outgoing Email Account and resend.<br><br><span class='text-muted small'>{1}</span>",
-										[
-											message.link,
-											frappe.utils.escape_html(message.error || ""),
-										]
+									intro: __(
+										"The invitation link was created, but the email could not be delivered."
 									),
-									primary_action_label: __("Copy Link"),
-									primary_action() {
-										frappe.utils.copy_to_clipboard(message.link);
-										this.hide();
-										// only now — reloading while the dialog is up
-										// re-renders the form and tears it down
-										frm.reload_doc();
-									},
-									// reaching the visitor is what matters; the doc is
-									// refreshed either way once the dialog is gone
-									secondary_action: () => frm.reload_doc(),
+									link: message.link,
+									advice: __(
+										"Share it with the visitor directly, or configure an outgoing Email Account and resend."
+									),
+									detail: message.error,
 								});
 							},
 						});
@@ -125,17 +176,61 @@ frappe.ui.form.on("Visitor Invitation", {
 			);
 		}
 
-		// --- Open Link button ---
-		if (frm.doc.portal_submission_url || frm.doc.invitation_token) {
+		// --- Copy Link button ---
+		// The link is not on the document: it is fetched, on request, by someone
+		// the server allows to hand it out.
+		if (access.has_link) {
 			frm.add_custom_button(
 				__("Copy Invitation Link"),
 				() => {
-					const link = getInvitationLink(frm);
-					frappe.utils.copy_to_clipboard(link);
-					frappe.show_alert({
-						message: __("Link copied to clipboard"),
-						indicator: "green",
+					callInvitationMethod(frm, "get_invitation_link", {
+						callback: ({ message }) => {
+							if (!message) {
+								frappe.msgprint(
+									__("This invitation no longer has a working link.")
+								);
+								frm.reload_doc();
+								return;
+							}
+							showInvitationLink(frm, {
+								title: __("Invitation Link"),
+								indicator: "blue",
+								intro: __(
+									"Whoever opens this link can register as the visitor. Send it only to {0}.",
+									[frappe.utils.escape_html(frm.doc.visitor_email || "")]
+								),
+								link: message,
+							});
+						},
 					});
+				},
+				__("Actions")
+			);
+		}
+
+		// --- Cancel Invitation button ---
+		if (access.can_manage && !finished) {
+			frm.add_custom_button(
+				__("Cancel Invitation"),
+				() => {
+					frappe.confirm(
+						__(
+							"Cancel this invitation? The link sent to {0} stops working immediately and cannot be restored.",
+							[frappe.utils.escape_html(frm.doc.visitor_email || "")]
+						),
+						() => {
+							callInvitationMethod(frm, "cancel_invitation", {
+								freeze: true,
+								callback: () => {
+									frappe.show_alert({
+										message: __("Invitation cancelled"),
+										indicator: "orange",
+									});
+									frm.reload_doc();
+								},
+							});
+						}
+					);
 				},
 				__("Actions")
 			);
@@ -146,90 +241,72 @@ frappe.ui.form.on("Visitor Invitation", {
 	},
 });
 
+// The status line above the form. Shown through the form's own intro message
+// (frm.set_intro), which the form clears on every refresh and themes itself.
+// It was previously attached next to an element the desk only creates while a
+// message is showing, so it never appeared.
 function showStatusBanner(frm) {
-	const status = frm.doc.invitation_status;
+	// Past its expiry is expired, whatever the stored status still says: that
+	// only turns "Expired" once somebody opens the dead link.
+	const status = invitationAccess(frm).is_expired ? "Expired" : frm.doc.invitation_status;
 
-	// Remove old banner
-	$(frm.fields_dict.visitor_type.wrapper)
-		.closest(".form-page")
-		.find(".vm-invite-banner")
-		.remove();
-
-	let html = "";
+	let title = "";
+	let text = "";
+	let color = "blue";
 
 	if (status === "Draft") {
-		html = `
-			<div class="vm-invite-banner" style="
-				margin: 12px 0; padding: 14px 18px; border-radius: 8px;
-				background: #fff3cd; border: 1px solid #ffc107; color: #856404;
-			">
-				<strong>${__("Not Sent")}</strong> &mdash;
-				${__("Save the form and click <b>Send Invitation</b> to email the visitor.")}
-			</div>
-		`;
+		title = __("Not Sent");
+		text = __("Save the form and click <b>Send Invitation</b> to email the visitor.");
+		color = "yellow";
 	} else if (status === "Sent") {
-		html = `
-			<div class="vm-invite-banner" style="
-				margin: 12px 0; padding: 14px 18px; border-radius: 8px;
-				background: #d1ecf1; border: 1px solid #17a2b8; color: #0c5460;
-			">
-				<strong>${__("Sent")}</strong> &mdash;
-				${__("Invitation emailed to <b>{0}</b> on {1}. Waiting for visitor to open the link.", [
-					frappe.utils.escape_html(frm.doc.visitor_email || ""),
-					frappe.utils.escape_html(
-						frappe.datetime.str_to_user(frm.doc.invitation_sent_on) || ""
-					),
-				])}
-			</div>
-		`;
+		title = __("Sent");
+		text = __(
+			"Invitation emailed to <b>{0}</b> on {1}. Waiting for visitor to open the link.",
+			[
+				frappe.utils.escape_html(frm.doc.visitor_email || ""),
+				frappe.utils.escape_html(
+					frappe.datetime.str_to_user(frm.doc.invitation_sent_on) || ""
+				),
+			]
+		);
 	} else if (status === "Opened") {
-		html = `
-			<div class="vm-invite-banner" style="
-				margin: 12px 0; padding: 14px 18px; border-radius: 8px;
-				background: #e8f5e9; border: 1px solid #4caf50; color: #2e7d32;
-			">
-				<strong>${__("Link Opened")}</strong> &mdash;
-				${__("Visitor opened the link on {0}. Waiting for form submission.", [
-					frappe.datetime.str_to_user(frm.doc.link_opened_on),
-				])}
-			</div>
-		`;
+		title = __("Link Opened");
+		text = __("Visitor opened the link on {0}. Waiting for form submission.", [
+			frappe.datetime.str_to_user(frm.doc.link_opened_on),
+		]);
+		color = "green";
 	} else if (status === "Saved" || status === "Submitted") {
-		const vpLink = frm.doc.visitor_pass
-			? ` <a href="/app/visitor-pass/${frm.doc.visitor_pass}">${frm.doc.visitor_pass}</a>`
-			: "";
-		html = `
-			<div class="vm-invite-banner" style="
-				margin: 12px 0; padding: 14px 18px; border-radius: 8px;
-				background: #e8f5e9; border: 1px solid #28a745; color: #155724;
-			">
-				<strong>${__("Form {0}", [status])}</strong> &mdash;
-				${__("Visitor completed the pre-registration form on {0}.", [
-					frappe.datetime.str_to_user(
-						frm.doc.form_submitted_on || frm.doc.form_saved_on
-					),
-				])}
-				${vpLink ? " " + __("Visitor Pass:") + " " + vpLink : ""}
-			</div>
-		`;
+		title = __("Form {0}", [__(status)]);
+		text = __("Visitor completed the pre-registration form on {0}.", [
+			frappe.datetime.str_to_user(frm.doc.form_submitted_on || frm.doc.form_saved_on),
+		]);
+		if (frm.doc.visitor_pass) {
+			const pass = frappe.utils.get_form_link("Visitor Pass", frm.doc.visitor_pass, true);
+			text += ` ${__("Visitor Pass:")} ${pass}`;
+		}
+		color = "green";
 	} else if (status === "Expired") {
-		html = `
-			<div class="vm-invite-banner" style="
-				margin: 12px 0; padding: 14px 18px; border-radius: 8px;
-				background: #f8d7da; border: 1px solid #dc3545; color: #721c24;
-			">
-				<strong>${__("Expired")}</strong> &mdash;
-				${__("This invitation expired on {0}. The visitor can no longer use this link.", [
-					frappe.datetime.str_to_user(frm.doc.invitation_expires_on),
-				])}
-			</div>
-		`;
+		title = __("Expired");
+		text =
+			__("This invitation expired on {0}. The visitor can no longer use this link.", [
+				frappe.datetime.str_to_user(frm.doc.invitation_expires_on),
+			]) +
+			" " +
+			__("To use it again, set a later <b>Invitation Expires On</b> and save.");
+		color = "red";
+	} else if (status === "Cancelled") {
+		title = __("Cancelled");
+		text =
+			__("This invitation was cancelled. Its link no longer works.") +
+			" " +
+			__("Raise a new invitation if the visit is still on.");
+		color = "orange";
 	}
 
-	if (html) {
-		$(frm.fields_dict.visitor_type.wrapper)
-			.closest(".form-page")
-			.find(".form-message")
-			.after(html);
-	}
+	frm.set_intro(
+		title
+			? `<span class="vm-invite-banner"><strong>${title}</strong> &mdash; ${text}</span>`
+			: "",
+		color
+	);
 }

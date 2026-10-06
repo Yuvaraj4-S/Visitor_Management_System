@@ -18,6 +18,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, getdate, today, urlencode
 
+from visitormanagement.visitor_management import settings as vms_settings
 from visitormanagement.visitor_management.workflow_builder import APPROVED_STATES
 
 ENTRY_STATUSES = ("Approved", "Items Verified")
@@ -237,16 +238,7 @@ def scan_qr_checkin(qr_data: str):
 	vp_info = frappe.db.get_value(
 		"Visitor Pass",
 		doc_name,
-		[
-			"status",
-			"visit_date",
-			"multi_day_pass",
-			"pass_valid_until",
-			"id_proof_number",
-			"visitor_full_name",
-			"id_proof_type",
-			"mobile_number",
-		],
+		["status", "visit_date", "multi_day_pass", "pass_valid_until"],
 		as_dict=True,
 	)
 	doc_status = vp_info.status
@@ -265,22 +257,28 @@ def scan_qr_checkin(qr_data: str):
 	# above has already refused one that is not).
 	if doc_status in ENTRY_STATUSES or doc_status == "Checked-Out":
 		# Re-check blacklist only at entry — a Checked-In blacklisted visitor must still
-		# be allowed to check out. Match by ID number first, fall back to name + ID type.
-		from visitormanagement.visitor_management.doctype.visitor_blacklist.visitor_blacklist import (
-			VisitorBlacklist,
+		# be allowed to check out. The same screening as the Security Log's own
+		# check-in: the lead visitor and everyone arriving with them, acted on as
+		# VMS Settings says. Where a match does not stop entry, the Security Log
+		# the officer goes on to save warns and records it.
+		from visitormanagement.visitor_management.doctype.security_log.security_log import (
+			gate_blacklist_matches,
+			refuse_blacklisted_entry,
 		)
 
-		blocked = VisitorBlacklist.find_active_match(
-			id_proof_number=vp_info.id_proof_number,
-			visitor_name=vp_info.visitor_full_name,
-			id_proof_type=vp_info.id_proof_type,
-			mobile_number=vp_info.mobile_number,
-		)
-		if blocked:
-			frappe.throw(
-				_("ACCESS DENIED: Visitor Pass {0} matches an active blacklist entry.").format(doc_name),
-				title=_("Blacklisted"),
-			)
+		if vms_settings.blacklist_action() == "Block Entry":
+			matches = gate_blacklist_matches(frappe.get_doc("Visitor Pass", doc_name))
+			if matches:
+				label, blacklist, member = matches[0]
+				# The refusal rolls this request back, so the Alert record and the
+				# mail to the Security Alert Roles are queued outside it first.
+				refuse_blacklisted_entry(
+					doc_name, blacklist, label, member_row=member.name if member else None
+				)
+				frappe.throw(
+					_("ACCESS DENIED: Visitor Pass {0} matches an active blacklist entry.").format(doc_name),
+					title=_("Blacklisted"),
+				)
 		return visitor_checkin(doc_name)
 
 	if doc_status == "Checked-In":

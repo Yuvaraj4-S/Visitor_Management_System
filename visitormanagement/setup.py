@@ -21,7 +21,7 @@ with fields now declared on the DocType itself.
 """
 
 import frappe
-from frappe.permissions import add_permission, update_permission_property
+from frappe.permissions import add_permission, setup_custom_perms, update_permission_property
 
 from visitormanagement.visitor_management.email_theme import repaint_email_html
 
@@ -42,24 +42,11 @@ ROLES = [
 	"CEO",
 ]
 
-# Roles that pick an Employee in a VMS link field (host, guard, tour guide, driver).
-# SELECT only: READ is the whole HR record — bank account, salary, PAN, date of
-# birth, health — and these roles need a name in a dropdown. The few host fields a
-# pass copies come from visitor_management/link_details.py instead.
-EMPLOYEE_READERS = [
-	"Security",
-	"Hospitality Manager",
-	"Host Employee",
-	"Facility Manager",
-	"HOD",
-	"HR Manager",
-	"Sales Manager",
-	"CEO",
-]
-
-# Roles that fill the cab-vendor / hotel-name Links on Hospitality Request and so
-# need to be able to SELECT an existing Supplier. SELECT only — see _ensure_permissions.
-SUPPLIER_READERS = ["Hospitality Manager", "Hospitality User", "Facility Manager"]
+# No permission is ever granted on a DocType another app owns (Employee, Supplier,
+# Job Applicant, Maintenance Visit, Page, ...). One Custom DocPerm row makes Frappe
+# ignore that DocType's shipped permissions, so the owning app's later permission
+# changes would stop applying on the site. VMS link fields to those masters search
+# through visitor_management/link_queries.py instead.
 
 # Link widgets on Conference Room Booking / Hospitality Request show the
 # visitor's title, so these roles need read on Visitor Pass.
@@ -106,27 +93,6 @@ HOSPITALITY_DIGEST_READERS = [
 	"Greeting Staff",
 	"Hospitality User",
 ]
-
-# Layout-specific link fields on Visitor Pass point at masters owned by other
-# apps, and none of the roles that actually raise a pass could select from them:
-# `contractor_link`/`supplier_link` -> Supplier, `work_order_ref` ->
-# Maintenance Visit, `job_applicant_link` -> Job Applicant. The dropdown threw
-# "Insufficient Permission", so linking a pass to an existing record was dead on
-# the Contractor, Supplier and Candidate layouts.
-#
-# `select` rather than `read` on purpose: it makes the doctype pickable in a
-# link field without granting the list. add_permission copies the existing
-# standard permissions into Custom DocPerm first, so the owning app's own roles
-# keep their access.
-# System Manager is included deliberately: it is the configured approver_role for
-# the Supplier and Contractor visitor types, so it opens those passes routinely —
-# and it held no read on Supplier or Maintenance Visit either, because those are
-# gated to Purchase/Accounts/Stock and Maintenance roles respectively.
-LINK_TARGET_PICKERS = {
-	"Supplier": ["Host Employee", "Front Office Executive", "System Manager"],
-	"Maintenance Visit": ["Host Employee", "Front Office Executive", "System Manager"],
-	"Job Applicant": ["Host Employee", "Front Office Executive", "System Manager"],
-}
 
 VISITOR_TYPES = [
 	{
@@ -265,6 +231,28 @@ POLICY_DEFAULTS = {
 # one through the Desk keeps it enabled; see `_configure_notifications`.
 DISABLED_NOTIFICATIONS = ["VMS Host Alert", "VMS Food Dept Alert", "VMS Approval Email"]
 
+# Each of these alerts is two Notification records: the mail, and an in-app twin
+# with channel "System Notification" for the bell. One record with
+# `send_system_notification` ticked cannot do both jobs: Frappe sends the mail
+# first and creates the bell entry afterwards inside the same try block
+# (Notification.send_notification_by_channel), so on a site with no outgoing mail
+# account - every fresh install - the mail failure also skipped the bell and
+# nobody was told anything. The twin has the same event, condition and
+# recipients, and does not depend on mail at all.
+IN_APP_TWINS = {
+	"VMS Portal Submission": "VMS Portal Submission In-App",
+	"VMS PRR Submitted": "VMS PRR Submitted In-App",
+	"VMS Hospitality Request New": "VMS Hospitality Request New In-App",
+	"VMS No-Show Alert": "VMS No-Show Alert In-App",
+	"VMS Pass Rejected": "VMS Pass Rejected In-App",
+	"VMS Pass Expiring Soon": "VMS Pass Expiring Soon In-App",
+	"CRB Pending Approval": "CRB Pending Approval In-App",
+	"CRB Service Alert": "CRB Service Alert In-App",
+}
+
+# The approval alert's recipients follow the Visitor Types, on both records.
+APPROVAL_ALERT = "VMS PRR Submitted"
+
 # Records that setup has already had its one say about
 # `allow_guests_to_upload_files`, so a later migrate cannot override an
 # administrator who deliberately turned it off. Stored as a Frappe default
@@ -298,9 +286,21 @@ _BLACKLIST_BACKFILL_MARKER = "vms_blacklist_backfill_done"
 # gets disabled at most once. See `_configure_notifications`.
 _NOTIFICATION_DISABLED_MARKER = "vms_notification_disabled_once:{name}"
 
+# Same pattern again, one per mail/in-app pair in IN_APP_TWINS. See
+# `_hand_bell_to_in_app_twins`.
+_IN_APP_TWIN_MARKER = "vms_in_app_twin_once:{name}"
+
 # Same pattern again, keyed per (doctype, role, ptype): each specific
 # privilege is asserted at most once. See `_grant`.
 _GRANT_MARKER = "vms_grant_once:{doctype}:{role}:{ptype}"
+
+# One-time repair of the rows an earlier `_grant` emptied. See
+# `_restore_rights_wiped_by_grant`.
+_GRANT_REPAIR_MARKER = "vms_grant_wipe_repaired"
+
+# Which seeded fields of a seeded Visitor Type have had their one say, as a JSON
+# list per type. See `_seed_visitor_types`.
+_VISITOR_TYPE_SEEDED_MARKER = "vms_visitor_type_seeded:{name}"
 
 # Doctypes whose timelines carry alerts this app sends. Used to scope the
 # repaint of already-sent messages so no other app's mail is touched.
@@ -336,19 +336,11 @@ SUPERSEDED_CUSTOM_FIELDS = [
 	("Conference Room Booking", "workflow_state"),
 ]
 
-# Custom Fields dropped outright rather than promoted: unused, no data.
+# Custom Fields dropped outright rather than promoted: unused, no data. Only ever
+# this app's own DocTypes — a field on another app's DocType with one of these
+# names could be the site's own.
 OBSOLETE_CUSTOM_FIELDS = [
 	("Visitor Pass", "custom_description_"),
-	# Renamed to the `custom_` prefix Frappe reserves for fields an app adds to a
-	# DocType it does not own — without it, an `interview_mode` shipped by HRMS
-	# one day would collide with ours. Renamed while the columns were empty.
-	("Job Applicant", "interview_checkin_time"),
-	("Job Applicant", "interview_checkout_time"),
-	("Job Applicant", "interview_host"),
-	("Job Applicant", "interview_mode"),
-	("Job Applicant", "interview_visit_date"),
-	("Job Applicant", "vms_column_break"),
-	("Job Applicant", "vms_section_break"),
 ]
 
 # Fields converted to Link. A leftover `options` Property Setter holding the old
@@ -498,6 +490,7 @@ def setup_visitor_management():
 	"""Create/refresh everything the app needs to actually work."""
 	_ensure_roles()
 	_ensure_permissions()
+	_allow_full_id_numbers()
 	_add_performance_indexes()
 	_seed_gates()
 	_seed_visitor_types()
@@ -506,7 +499,6 @@ def setup_visitor_management():
 	_drop_stale_property_setters()
 	_clear_stale_layout_fields()
 	_rewrite_event_log_details()
-	_narrow_core_link_grants()
 	_allow_portal_uploads()
 	_configure_notifications()
 	_repaint_notification_history()
@@ -517,6 +509,7 @@ def setup_visitor_management():
 	_repair_cancelled_status()
 	_make_gate_photos_private()
 	_restore_status_knocked_back_by_badge()
+	_unflag_multi_day_passes_still_valid()
 	_activate_blacklist_entries()
 	_migrate_item_category_vocabulary()
 	_harden_invitation_token_collation()
@@ -565,18 +558,21 @@ def _grant(doctype, role, ptype="read"):
 	`_revoke`, below, is deliberately NOT changed: it is a security floor that
 	must keep closing a privilege on every migrate, not a one-time grant.
 	"""
+	_assert_own_doctype(doctype)
 	if not frappe.db.exists("Role", role):
 		return
 	marker = _GRANT_MARKER.format(doctype=doctype, role=role, ptype=ptype)
 	if frappe.db.get_default(marker):
 		return
-	if ptype == "select" and frappe.db.get_value(
-		"Custom DocPerm", {"parent": doctype, "role": role, "permlevel": 0}, "read"
-	):
-		# READ already includes picking: nothing to add to a row the owning app
-		# (or the site) manages.
-		frappe.db.set_default(marker, "1")
-		return
+	# Copy the DocType's shipped rows into Custom DocPerm BEFORE asking whether the
+	# role has a row. `add_permission` makes that copy itself and then returns
+	# without inserting anything when the copy already brought a row for the role.
+	# Asking first therefore mistook a shipped row for a new one, and the clean-up
+	# below zeroed every right the DocType ships for that role: the first grant on
+	# a fresh site, `cancel` on Hospitality Request, left the Hospitality Manager
+	# with cancel and amend only - no read, write or submit - so the approver could
+	# not open, let alone approve, a single request.
+	setup_custom_perms(doctype)
 	created = False
 	if not frappe.db.exists("Custom DocPerm", {"parent": doctype, "role": role, "permlevel": 0}):
 		# With no ptype, add_permission creates the row with READ — so every
@@ -598,57 +594,84 @@ def _grant(doctype, role, ptype="read"):
 	frappe.db.set_default(marker, "1")
 
 
-_CORE_GRANTS_NARROWED_MARKER = "vms_core_link_grants_narrowed"
+def _restore_rights_wiped_by_grant():
+	"""Give back the shipped rights `_grant` took from a role, once per site.
 
+	Until `_grant` copied the shipped rows first (see the comment in it), its first
+	call on a DocType emptied the shipped row of the role it was granting to and
+	left only the granted right. Every later grant to that role added one more
+	right to the emptied row. So a damaged row holds exactly the rights `_grant`
+	recorded a marker for, and nothing else, although the DocType ships more for
+	that role. Hospitality Manager on Hospitality Request (cancel + amend, the
+	approver unable to read the request) is the case that broke a flow; Facility
+	Manager on Visitor Pass (read only) is the same damage.
 
-def _core_link_grants():
-	"""{core doctype: roles this app grants on it} — only ever to pick a record."""
-	grants = {"Employee": set(EMPLOYEE_READERS), "Supplier": set(SUPPLIER_READERS)}
-	for doctype, roles in LINK_TARGET_PICKERS.items():
-		grants.setdefault(doctype, set()).update(roles)
-	return grants
-
-
-def _narrow_core_link_grants():
-	"""Take back the READ (and EXPORT) earlier versions granted on core records.
-
-	`_grant` gave full READ where SELECT was meant — on Employee to eight roles,
-	and on Supplier, Job Applicant and Maintenance Visit to hosts and reception —
-	and before that EXPORT too. So a guard could open or download every
-	employee's bank account, salary, PAN and date of birth, and a host every
-	candidate's CV. These roles pick a record in a link field and nothing more.
-
-	Only rows this app created are touched: a role the owning app (HRMS, ERPNext)
-	grants itself has a standard DocPerm row, and that row's rights are theirs.
-	Once per site, like every grant here — after that the Role Permission
-	Manager owns these rows.
+	Only a row with exactly that signature is touched, it only gets back what the
+	DocType itself ships for the role, and the repair runs once: after it, the
+	Role Permission Manager owns the row like any other.
 	"""
-	if frappe.db.get_default(_CORE_GRANTS_NARROWED_MARKER):
+	if frappe.db.get_default(_GRANT_REPAIR_MARKER):
 		return
+
 	from frappe.permissions import rights
 
-	for doctype, roles in _core_link_grants().items():
-		if not frappe.db.exists("DocType", doctype):
+	prefix = _GRANT_MARKER.split("{", 1)[0]
+	granted = {}
+	for key in frappe.get_all(
+		"DefaultValue", filters={"parent": "__default", "defkey": ("like", prefix + "%")}, pluck="defkey"
+	):
+		parts = key[len(prefix) :].split(":") if key.startswith(prefix) else []
+		if len(parts) == 3 and parts[2] in rights:
+			granted.setdefault((parts[0], parts[1]), set()).add(parts[2])
+
+	own_modules = frappe.get_module_list("visitormanagement")
+	for (doctype, role), ptypes in sorted(granted.items()):
+		if frappe.db.get_value("DocType", doctype, "module") not in own_modules:
 			continue
-		standard_roles = set(frappe.get_all("DocPerm", filters={"parent": doctype}, pluck="role"))
-		for role in sorted(roles - standard_roles):
-			row = frappe.db.get_value(
-				"Custom DocPerm",
-				{"parent": doctype, "role": role, "permlevel": 0, "if_owner": 0},
-				["name", *rights],
-				as_dict=True,
-			)
-			wanted = {ptype: int(ptype == "select") for ptype in rights}
-			if not row or all((row.get(p) or 0) == v for p, v in wanted.items()):
-				continue
-			frappe.db.set_value("Custom DocPerm", row.name, wanted)
-			print(f"  narrowed {role} on {doctype} to select only")
-	frappe.clear_cache()
-	frappe.db.set_default(_CORE_GRANTS_NARROWED_MARKER, "1")
+		filters = {"parent": doctype, "role": role, "permlevel": 0, "if_owner": 0}
+		row = frappe.db.get_value("Custom DocPerm", filters, ["name", *rights], as_dict=True)
+		shipped = frappe.db.get_value("DocPerm", filters, list(rights), as_dict=True)
+		if not row or not shipped:
+			continue
+		held = {p for p in rights if row.get(p)}
+		lost = {p for p in rights if shipped.get(p)} - held
+		if held != ptypes or not lost:
+			continue
+		frappe.db.set_value("Custom DocPerm", row.name, {p: 1 for p in sorted(lost)})
+		frappe.clear_cache(doctype=doctype)
+		print(f"  restored {', '.join(sorted(lost))} on {doctype} for {role} (one-time repair)")
+
+	frappe.db.set_default(_GRANT_REPAIR_MARKER, "1")
+
+
+def _allow_full_id_numbers():
+	"""Let Security and System Manager see a visitor's full ID number.
+
+	visitor_pass.json ships their level-1 rules, but a site whose Visitor Pass
+	permissions already live in Custom DocPerm (any site setup has run on —
+	`_grant` puts them there) never reads the shipped rows again. See
+	visitor_management/id_numbers.py.
+	"""
+	from visitormanagement.visitor_management.id_numbers import grant_full_id_level
+
+	grant_full_id_level()
+
+
+def _assert_own_doctype(doctype):
+	"""Permissions are only ever written onto this app's own DocTypes.
+
+	A Custom DocPerm row on another app's DocType replaces that DocType's shipped
+	permissions on the site, so the owning app's later changes stop applying.
+	"""
+	if frappe.db.get_value("DocType", doctype, "module") not in frappe.get_module_list("visitormanagement"):
+		raise ValueError(
+			f"visitormanagement must not change permissions on {doctype}: it owns no such DocType"
+		)
 
 
 def _revoke(doctype, role, ptypes):
 	"""Take a privilege away from a role, if it was ever granted."""
+	_assert_own_doctype(doctype)
 	if not frappe.db.exists("Custom DocPerm", {"parent": doctype, "role": role, "permlevel": 0}):
 		return
 	for ptype in ptypes:
@@ -658,21 +681,22 @@ def _revoke(doctype, role, ptypes):
 
 
 def _ensure_permissions():
-	for role in EMPLOYEE_READERS:
-		_grant("Employee", role, "select")
-	# Hospitality Request's `cab_vendor` and `hotel_name` are Links to Supplier,
-	# and the Hospitality Manager who fills that screen had no permission on
-	# Supplier at all. The field accepted the typed value on screen and the save
-	# reported success, but the server stripped both Links and stored NULL — so a
-	# coordinator could never actually record which vendor was supplying the cab
-	# or which hotel was booked, and nothing told them it had failed. Read only:
-	# they need to pick an existing supplier, never to create, edit or export the
-	# customer's supplier master.
-	for role in SUPPLIER_READERS:
-		_grant("Supplier", role, "select")
+	# Nothing here touches Employee, Supplier, Job Applicant or Maintenance Visit:
+	# VMS link fields pick those through visitor_management/link_queries.py.
+	# First, so a site damaged by the old `_grant` is repaired from the markers it
+	# left, before this run adds any.
+	_restore_rights_wiped_by_grant()
 	for role in HOSPITALITY_CANCELLERS:
 		_grant("Hospitality Request", role, "cancel")
 		_grant("Hospitality Request", role, "amend")
+	# `submit` on Hospitality Request belongs to the approver. The workflow gives a
+	# host one transition, Draft to Pending Approval, and that target is a
+	# `doc_status = 0` state saved with `doc.save()` - no submit right involved.
+	# Holding it let a host set docstatus 1 directly and land the request on
+	# Approved with the Hospitality Manager never asked, the same bypass
+	# `_align_visitor_pass_submit` closes on Visitor Pass. After the grants above,
+	# which are what put the DocType's rows into Custom DocPerm on a fresh site.
+	_revoke("Hospitality Request", "Host Employee", ("submit",))
 	# _grant_visitor_pass_cancel() is deliberately NOT called here. It reads the
 	# approver roles off the Visitor Type masters, and `_seed_visitor_types()` has
 	# not run yet at this point in `setup_visitor_management()` — so on a FRESH
@@ -683,14 +707,10 @@ def _ensure_permissions():
 	# says this app is trying to avoid. It now runs after `_build_workflow()`,
 	# beside the other two approver-wiring steps that already wait for the same
 	# masters.
-	for doctype, roles in LINK_TARGET_PICKERS.items():
-		for role in roles:
-			_grant(doctype, role, "select")
 	for role in VISITOR_PASS_READERS:
 		_grant("Visitor Pass", role)
 	for role in HOSPITALITY_DIGEST_READERS:
 		_grant("Hospitality Request", role)
-	_restore_core_page_permissions()
 
 	# Visitor Type decides which role approves which visitor — it is access
 	# control expressed as data. Earlier versions granted Employee write/create,
@@ -795,6 +815,32 @@ def _restore_status_knocked_back_by_badge():
 		if status:
 			frappe.db.set_value("Visitor Pass", row.name, "status", status, update_modified=False)
 			print(f"  restored {row.name} to {status} (a badge had reset it to Items Verified)")
+
+
+def _unflag_multi_day_passes_still_valid():
+	"""Take "No Show" off multi-day passes whose last valid day is still ahead.
+
+	The no-show job used to measure every pass from `visit_date`, so a multi-day
+	pass was flagged on the evening of its first day and shown as "No Show" at
+	the gate for the rest of its validity (tasks.flag_no_show_passes now measures
+	from `pass_valid_until`). A pass that cannot be a no-show yet is put back; if
+	the visitor never comes, the job flags it again when it really is one — and
+	that time the host is told. Idempotent: the fixed job never flags a pass
+	whose last valid day is in the future, so a second run finds nothing.
+	"""
+	frappe.db.sql(
+		"""
+		UPDATE `tabVisitor Pass`
+		SET no_show = 0,
+		    current_location = CASE WHEN current_location = 'No Show' THEN NULL ELSE current_location END
+		WHERE no_show = 1 AND multi_day_pass = 1 AND docstatus < 2
+		  AND status IN ('Approved', 'Items Verified')
+		  AND pass_valid_until > %s
+		""",
+		(frappe.utils.nowdate(),),
+	)
+	if frappe.db._cursor.rowcount > 0:
+		print(f"  cleared a premature No Show on {frappe.db._cursor.rowcount} multi-day pass(es)")
 
 
 def _make_gate_photos_private():
@@ -902,30 +948,6 @@ def _repair_pending_status_drift():
 		print(f"  realigned status on {len(drifted)} pass(es) still awaiting approval")
 
 
-def _restore_core_page_permissions():
-	"""Undo the damage an earlier `_grant("Page", "Employee")` did.
-
-	Frappe uses Custom DocPerm *instead of* the DocType's own permissions the
-	moment a single row exists, not in addition to them. Granting Employee read
-	on the core `Page` doctype therefore replaced Page's entire permission set
-	with that one row: System Manager silently lost write/create/delete on
-	Pages, and every Employee gained read plus export of Page source.
-
-	An app must never call `add_permission` on a DocType it does not own.
-	`reset_perms` drops the Custom DocPerm rows so core's shipped permissions —
-	which already give the desk the read access this was reaching for — take
-	over again.
-	"""
-	if not frappe.db.exists("Custom DocPerm", {"parent": "Page"}):
-		return
-
-	from frappe.permissions import reset_perms
-
-	reset_perms("Page")
-	frappe.clear_cache(doctype="Page")
-	print("  restored core Page permissions (removed this app's stray Custom DocPerm)")
-
-
 def _align_visitor_pass_submit():
 	"""`submit` on Visitor Pass belongs to approvers only.
 
@@ -963,36 +985,39 @@ def _sync_approval_notification_recipients():
 	no Facility Manager was ever told.
 
 	Rebuilt from the same source the lanes come from, so the two cannot drift.
+	The mail and its in-app twin (IN_APP_TWINS) get the same rows: an approver who
+	is mailed and not shown the request in the bell, or the reverse, is the drift
+	this function exists to prevent.
 	"""
-	name = "VMS PRR Submitted"
-	if not frappe.db.exists("Notification", name):
-		return
-
 	from visitormanagement.visitor_management.workflow_builder import approver_roles, lane_for_role
 
 	roles = [r for r in approver_roles() if frappe.db.exists("Role", r)]
 	if not roles:
 		return
 
-	doc = frappe.get_doc("Notification", name)
 	wanted = {(r, f"doc.workflow_state == {lane_for_role(r)!r}") for r in roles}
-	current = {(r.receiver_by_role, (r.condition or "").strip()) for r in doc.recipients}
-	if wanted == current:
-		return
+	for name in (APPROVAL_ALERT, IN_APP_TWINS[APPROVAL_ALERT]):
+		if not frappe.db.exists("Notification", name):
+			continue
 
-	doc.set("recipients", [])
-	for role in roles:
-		doc.append(
-			"recipients",
-			{
-				"receiver_by_role": role,
-				"condition": f"doc.workflow_state == {lane_for_role(role)!r}",
-			},
-		)
-	doc.save(ignore_permissions=True)
-	added = sorted(r for r, _ in wanted - current)
-	if added:
-		print(f"  approval alert now also reaches: {', '.join(added)}")
+		doc = frappe.get_doc("Notification", name)
+		current = {(r.receiver_by_role, (r.condition or "").strip()) for r in doc.recipients}
+		if wanted == current:
+			continue
+
+		doc.set("recipients", [])
+		for role in roles:
+			doc.append(
+				"recipients",
+				{
+					"receiver_by_role": role,
+					"condition": f"doc.workflow_state == {lane_for_role(role)!r}",
+				},
+			)
+		doc.save(ignore_permissions=True)
+		added = sorted(r for r, _ in wanted - current)
+		if added:
+			print(f"  {name} now also reaches: {', '.join(added)}")
 
 
 def _seed_gates():
@@ -1004,24 +1029,54 @@ def _seed_gates():
 
 
 def _seed_visitor_types():
+	"""Create the seeded Visitor Types; never put back what an administrator took out.
+
+	The seeded values are defaults for a type being created. This used to fill
+	every seeded field that read as blank on every migrate, and "blank" cannot
+	tell "never set" from "cleared on purpose": a secondary approver an
+	administrator removed, an executive-notification or badge-at-gate box they
+	unticked, a default gate they emptied - all came back with the next deploy,
+	the VIP type's second approval stage included.
+
+	Each seeded field now has its say once per type and site, recorded in a
+	marker. A type created here is seeded in full. A type that already exists
+	with no marker was filled by every migrate before this one, so whatever is
+	blank on it today was blanked by someone and is left alone. Only a field a
+	later app version adds to VISITOR_TYPES is still filled, once, when blank.
+	"""
+	import json
+
 	for spec in VISITOR_TYPES:
 		name = spec["visitor_type_name"]
+		marker = _VISITOR_TYPE_SEEDED_MARKER.format(name=name)
+		seeded_fields = sorted(f for f in spec if f != "visitor_type_name")
+
 		if not frappe.db.exists("Visitor Type", name):
 			frappe.get_doc({"doctype": "Visitor Type", "is_active": 1, "requires_badge": 1, **spec}).insert(
 				ignore_permissions=True
 			)
+			frappe.db.set_default(marker, json.dumps(seeded_fields))
 			print(f"  created Visitor Type {name}")
 			continue
-		# Fill only what is still blank so admin edits survive.
-		updates = {
-			f: v
-			for f, v in spec.items()
-			if f != "visitor_type_name" and not frappe.db.get_value("Visitor Type", name, f)
-		}
+
+		# NULL is a row saved before the column existed, never an administrator's
+		# choice: unticking stores 0.
 		if frappe.db.get_value("Visitor Type", name, "requires_badge") is None:
-			updates["requires_badge"] = 1
+			frappe.db.set_value("Visitor Type", name, "requires_badge", 1, update_modified=False)
+
+		recorded = frappe.db.get_default(marker)
+		if recorded is None:
+			frappe.db.set_default(marker, json.dumps(seeded_fields))
+			continue
+
+		done = set(json.loads(recorded))
+		new_fields = [f for f in seeded_fields if f not in done]
+		if not new_fields:
+			continue
+		updates = {f: spec[f] for f in new_fields if not frappe.db.get_value("Visitor Type", name, f)}
 		if updates:
 			frappe.db.set_value("Visitor Type", name, updates, update_modified=False)
+		frappe.db.set_default(marker, json.dumps(sorted(done | set(new_fields))))
 
 
 def _seed_id_proof_types():
@@ -1238,7 +1293,43 @@ def _configure_notifications():
 			print(f"  disabled duplicate Notification {name} (one-time)")
 		frappe.db.set_default(marker, "1")
 
+	_hand_bell_to_in_app_twins()
 	_repair_notification_conditions()
+
+
+def _hand_bell_to_in_app_twins():
+	"""Make each mail alert stop creating the bell entry its in-app twin now creates.
+
+	The shipped JSON already has `send_system_notification` off on the mail
+	records, but Frappe only re-imports a Notification whose file is newer than
+	the site's copy - and the approval alert is re-saved by
+	`_sync_approval_notification_recipients`, so its site copy can be the newer
+	one. Left ticked beside the twin, a site with working mail would show every
+	alert twice in the bell.
+
+	The twin also takes over the mail record's on/off state at that moment: an
+	alert an administrator had switched off must not start ringing because a new
+	record arrived enabled. Both are done once per pair (IN_APP_TWINS); after
+	that the two records are the site's to configure. A pair whose twin is not on
+	the site yet is retried on the next migrate.
+	"""
+	for mail_name, twin_name in IN_APP_TWINS.items():
+		marker = _IN_APP_TWIN_MARKER.format(name=mail_name)
+		if frappe.db.get_default(marker):
+			continue
+		mail = frappe.db.get_value(
+			"Notification", mail_name, ["enabled", "channel", "send_system_notification"], as_dict=True
+		)
+		if not mail or not frappe.db.exists("Notification", twin_name):
+			continue
+		if mail.channel == "Email" and mail.send_system_notification:
+			frappe.db.set_value(
+				"Notification", mail_name, "send_system_notification", 0, update_modified=False
+			)
+		if not mail.enabled:
+			frappe.db.set_value("Notification", twin_name, "enabled", 0, update_modified=False)
+			print(f"  {twin_name} starts disabled, like {mail_name}")
+		frappe.db.set_default(marker, "1")
 
 
 def _repaint_notification_history():

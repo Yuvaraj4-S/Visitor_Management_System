@@ -42,6 +42,7 @@ from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_inv
 )
 from visitormanagement.visitor_management.validators import (
 	id_proof_error_message,
+	is_masked_id,
 	validate_id,
 )
 
@@ -78,6 +79,30 @@ def _enforce_submission_rate_limit():
 		_max_submissions_per_hour(),
 		_("Too many pre-registrations from this connection. Please wait a while and try again."),
 	)
+
+
+def invitation_required_message():
+	"""What a visitor without an invitation link is told while walk-ins are off.
+
+	One wording for the page, the submission and the uploads, so a visitor who
+	meets the refusal in any of them reads the same instruction.
+	"""
+	return _(
+		"Pre-registration is by invitation only. Please ask the person you are visiting for an "
+		"invitation link."
+	)
+
+
+def _refuse_without_invitation(invitation):
+	"""Turn away a submission that holds no valid invitation, unless walk-ins are allowed.
+
+	Called before anything in the submission is read beyond its token: the host
+	is not looked up, no file is adopted or stored and no pass is built, so a
+	caller without an invitation learns nothing about who works here.
+	"""
+	if invitation or vms_settings.pre_registration_without_invitation_allowed():
+		return
+	frappe.throw(invitation_required_message(), frappe.PermissionError, title=_("Invitation Required"))
 
 
 def _looks_like_file_url(payload):
@@ -591,6 +616,10 @@ def _build_visitor_pass_values(
 		"custom_visa_copy": visa_url,
 		"id_proof_type": _normalize_id_proof_type(data.get("id_proof_type")),
 		"id_proof_number": data.get("id_proof_number"),
+		# Also through "ID Proof Number": on a saved draft Frappe restores the masked
+		# id_proof_number from the database for a Guest before validate, so a
+		# corrected number only takes effect from here (id_numbers.take_typed_id).
+		"id_proof_masked": None if is_masked_id(data.get("id_proof_number")) else data.get("id_proof_number"),
 		"id_proof_scan": id_proof_url,
 		"visitor_photo": visitor_photo_url,
 		# Host-set hospitality + venue intent — copied from the invitation so the
@@ -646,6 +675,9 @@ def submit_pre_registration(payload: str | dict | None = None):
 	invitation = get_valid_invitation_by_token(data.get("invitation_token"))
 	if data.get("invitation_token") and not invitation:
 		frappe.throw(_("The invitation link is invalid, expired, or already used."))
+	# Without an invitation the visitor names the host and the visit themselves.
+	# That is only open when VMS Settings allows walk-in pre-registration.
+	_refuse_without_invitation(invitation)
 
 	submission_action = (data.get("submission_action") or "submit").strip().lower()
 	if submission_action not in {"save", "submit"}:
@@ -729,7 +761,10 @@ def submit_pre_registration(payload: str | dict | None = None):
 	if require_full_submission:
 		canonical_type = _normalize_id_proof_type(data.get("id_proof_type"))
 		id_number = (data.get("id_proof_number") or "").strip()
-		if canonical_type and id_number and not validate_id(canonical_type, id_number):
+		# A masked value sent back for a saved draft means "keep the one on file"
+		# (Visitor Pass.validate keeps it), not a new number to check.
+		unchanged = bool(existing_doc) and is_masked_id(id_number)
+		if canonical_type and id_number and not unchanged and not validate_id(canonical_type, id_number):
 			frappe.throw(
 				id_proof_error_message(canonical_type),
 				title=_("Invalid ID Proof"),

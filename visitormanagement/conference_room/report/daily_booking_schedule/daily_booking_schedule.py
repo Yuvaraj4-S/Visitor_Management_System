@@ -2,6 +2,7 @@
 
 import frappe
 from frappe import _
+from frappe.utils import escape_html
 
 
 def execute(filters=None):
@@ -86,13 +87,21 @@ def execute(filters=None):
 		conditions += " AND crb.conference_room = %(conference_room)s"
 		values["conference_room"] = filters["conference_room"]
 
+	# Raw SQL bypasses permission_query_conditions, so the booking scope is
+	# re-applied here — the same rule as the calendar (get_booking_events): every
+	# booking stays on the schedule so its slot reads as taken, but only the
+	# booking's owner, its booked_by employee or a room overseer sees what the
+	# meeting is and who is in it. Everyone else sees "Busy".
 	data = frappe.db.sql(
 		"""
 		SELECT
 			crb.name, crb.conference_room, crb.meeting_title,
 			crb.start_time, crb.end_time, crb.duration_hours,
 			crb.meeting_type, crb.expected_attendees,
-			crb.booked_by, emp.employee_name AS booked_by_name, crb.status
+			crb.booked_by, emp.employee_name AS booked_by_name, crb.status,
+			("""
+		+ _booking_scope("crb")
+		+ """) AS is_visible
 		FROM `tabConference Room Booking` crb
 		LEFT JOIN `tabEmployee` emp ON emp.name = crb.booked_by
 		"""
@@ -103,4 +112,31 @@ def execute(filters=None):
 		values,
 		as_dict=True,
 	)
+	for row in data:
+		if not row.pop("is_visible"):
+			row.update(
+				name=None,
+				meeting_title=_("Busy"),
+				meeting_type=None,
+				expected_attendees=None,
+				booked_by=None,
+				booked_by_name=None,
+			)
+		# The report grid renders a Data cell as HTML. Frappe strips scripts when
+		# a record is saved but keeps plain markup, so a title typed as
+		# "<b>Board</b><img src=x>" was drawn as bold text and an image. What a
+		# person typed is shown as text.
+		for fieldname in ("meeting_title", "booked_by_name"):
+			if row.get(fieldname):
+				row[fieldname] = escape_html(row[fieldname])
 	return columns, data
+
+
+def _booking_scope(alias):
+	"""SQL condition: is this booking row the caller's to see in full? ("1" for overseers)."""
+	from visitormanagement.permissions import get_conference_room_booking_permission_query_conditions
+
+	condition = get_conference_room_booking_permission_query_conditions()
+	if not condition:
+		return "1"
+	return condition.replace("`tabConference Room Booking`", f"`{alias}`")

@@ -30,6 +30,7 @@
   "no_show_grace_hours",
   "default_country_code",
   "fever_threshold_c",
+  "allow_pre_registration_without_invitation",
   "max_portal_submissions_per_hour",
   "guest_upload_other_routes",
   "section_meals",
@@ -204,6 +205,13 @@
    "label": "Fever Threshold (°C)"
   },
   {
+   "default": "0",
+   "description": "Leave OFF (the default) so that only visitors who hold an invitation link can use the public pre-registration form; without one the form shows a message and the server refuses the submission and its uploads. Tick to let anyone who has the form's address register a visit to any employee without an invitation.",
+   "fieldname": "allow_pre_registration_without_invitation",
+   "fieldtype": "Check",
+   "label": "Allow Pre-Registration Without Invitation"
+  },
+  {
    "default": "20",
    "description": "Guest pre-registration submissions allowed per identity, per hour, before the public portal rate-limits further attempts. 0 is read as unset (falls back to the default), not as no limit.",
    "fieldname": "max_portal_submissions_per_hour",
@@ -317,7 +325,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-25 18:00:00.000000",
+ "modified": "2026-10-06 14:05:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS Settings",

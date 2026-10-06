@@ -26,6 +26,11 @@ DEFAULT_COUNTRY_CODE = "91"
 DEFAULT_HOME_COUNTRY = "India"
 DEFAULT_FEVER_THRESHOLD_C = 37.5
 DEFAULT_MAX_PORTAL_SUBMISSIONS_PER_HOUR = 20
+# The most the setting can mean. `portal.submit_pre_registration` carries a fixed
+# `@rate_limit(limit=20)` that no setting can raise (a decorator argument is read
+# at import, before there is a site to read a setting from), so a larger number
+# in VMS Settings would promise a limit the portal does not apply.
+MAX_PORTAL_SUBMISSIONS_PER_HOUR_CEILING = 20
 
 
 def _settings():
@@ -52,14 +57,47 @@ def _float(fieldname, fallback):
 	return value if value else fallback
 
 
+# The documents a derived meal is written to. Both carry `meal_type` as a Select.
+MEAL_TYPE_DOCTYPES = ("Visitor Pass", "Hospitality Request")
+
+
+def meal_type_options():
+	"""The meal names a meal window may carry: the Meal Type options both documents accept.
+
+	A window's label is not only a caption. When a visit overlaps exactly one
+	window, `lifecycle.derive_hospitality_meal_plan` writes that label into
+	`meal_type` on the Visitor Pass and on its Hospitality Request, and Frappe
+	refuses to save a Select holding a value outside its options. So the list of
+	valid labels is those options, read from the fields themselves rather than
+	repeated here, where it would drift the day an option is added.
+
+	Empty when the DocTypes are not there to ask (early install).
+	"""
+	try:
+		per_doctype = []
+		for doctype in MEAL_TYPE_DOCTYPES:
+			field = frappe.get_meta(doctype).get_field("meal_type")
+			per_doctype.append([o.strip() for o in (field.options or "").split("\n") if o.strip()])
+	except Exception:
+		return []
+	first, *others = per_doctype
+	return [option for option in first if all(option in other for other in others)]
+
+
 def meal_windows():
-	"""[(label, start, end)] — configured windows, else the built-in three."""
+	"""[(label, start, end)] — configured windows, else the built-in three.
+
+	A row whose label is not a Meal Type option is skipped. VMS Settings refuses
+	to save one, but a row saved before that check existed (or written past it)
+	must not go on making every pass that overlaps it unsaveable.
+	"""
 	doc = _settings()
 	rows = list(getattr(doc, "meal_windows", None) or []) if doc else []
+	allowed = meal_type_options()
 	windows = [
 		(r.meal_label, str(r.start_time), str(r.end_time))
 		for r in rows
-		if r.meal_label and r.start_time and r.end_time
+		if r.meal_label and r.start_time and r.end_time and (not allowed or r.meal_label in allowed)
 	]
 	return windows or list(DEFAULT_MEAL_WINDOWS)
 
@@ -99,8 +137,29 @@ def max_portal_submissions_per_hour():
 	Used to be the literal 20 written independently in two places in portal.py
 	(a module constant and an `@rate_limit` decorator argument), which could
 	drift from each other. Both now read this one setting.
+
+	Always between 1 and the ceiling. VMS Settings refuses anything else, but a
+	negative number saved before that check existed would be a ceiling every
+	count exceeds: the limiter refused the first pre-registration of the hour,
+	and every one after it.
 	"""
-	return _int("max_portal_submissions_per_hour", DEFAULT_MAX_PORTAL_SUBMISSIONS_PER_HOUR)
+	value = _int("max_portal_submissions_per_hour", DEFAULT_MAX_PORTAL_SUBMISSIONS_PER_HOUR)
+	if value < 1:
+		return DEFAULT_MAX_PORTAL_SUBMISSIONS_PER_HOUR
+	return min(value, MAX_PORTAL_SUBMISSIONS_PER_HOUR_CEILING)
+
+
+def pre_registration_without_invitation_allowed():
+	"""May a visitor use the public pre-registration form without an invitation link?
+
+	Off unless an administrator ticks "Allow Pre-Registration Without Invitation".
+	The open form let anyone on the internet put a draft pass, with an ID scan and
+	a photo, in front of any employee they could name. A site that wants walk-in
+	pre-registration switches it on and gets exactly that behaviour back.
+
+	A site that has not yet migrated the field reads it as off, the safe side.
+	"""
+	return bool(flag("allow_pre_registration_without_invitation"))
 
 
 def guest_upload_other_routes():

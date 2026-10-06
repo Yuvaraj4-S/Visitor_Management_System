@@ -1,7 +1,12 @@
 # For license information, please see license.txt
 
+import datetime
+
 import frappe
 from frappe import _
+from frappe.utils import getdate
+
+from visitormanagement.visitor_management.id_numbers import shown_id
 
 # Default and hard-cap window for the mandatory date filter (see _enforce_date_range).
 # Measured before this fix: a filterless run pulled all 502,200 Visitor Pass rows
@@ -140,27 +145,41 @@ def get_data(filters):
 		match_scope = "Same Type" if row["primary_type"] == row["matched_type"] else "Different Type"
 		if not match_scope_allowed(filters.get("match_scope"), match_scope):
 			continue
+		# "Primary Visitor Type" is a filter on the primary side of a pair, applied
+		# here, after pairing. It used to be a WHERE clause on the passes themselves,
+		# which left only passes of that one type to pair with each other - so every
+		# cross-type match, the kind this report exists to surface, disappeared the
+		# moment the filter was set.
+		if not matched_type_allowed(filters.get("visitor_type"), row["primary_type"]):
+			continue
 		if not matched_type_allowed(filters.get("matched_visitor_type"), row["matched_type"]):
 			continue
 		row["match_scope"] = match_scope
 		row["match_basis"] = ", ".join(sorted(row["match_basis"]))
 		data.append(row)
 
-	data.sort(
-		key=lambda row: (
-			0 if row["match_scope"] == "Different Type" else 1,
-			row["primary_visit_date"] or "",
-			row["primary_pass"],
-			row["matched_pass"],
-		),
-		reverse=True,
-	)
+	# Cross-type matches first, then the most recent primary visit first. Three
+	# stable sorts, least significant key first: one reversed tuple sort put
+	# "Same Type" on top (its flag being the larger number) and compared a date
+	# with "" whenever a pass had no visit date.
+	data.sort(key=lambda row: (row["primary_pass"], row["matched_pass"]), reverse=True)
+	data.sort(key=lambda row: _sortable_date(row["primary_visit_date"]), reverse=True)
+	data.sort(key=lambda row: row["match_scope"] != "Different Type")
 	return data, skipped_groups
 
 
+def _sortable_date(value):
+	"""A date for ordering; a pass with no visit date sorts as the oldest."""
+	return getdate(value) if value else datetime.date.min
+
+
 def get_records(filters):
+	visitor_types = _visitor_types()
+	if not visitor_types:
+		return []
+
 	conditions = ["vp.visitor_type in %(visitor_types)s"]
-	values = {"visitor_types": _visitor_types()}
+	values = {"visitor_types": visitor_types}
 
 	# from_date/to_date are guaranteed present by _enforce_date_range before this
 	# runs, but the checks stay conditional (rather than assuming the keys exist)
@@ -173,10 +192,9 @@ def get_records(filters):
 		conditions.append("vp.visit_date <= %(to_date)s")
 		values["to_date"] = filters["to_date"]
 
-	if filters.get("visitor_type"):
-		conditions.append("vp.visitor_type = %(visitor_type)s")
-		values["visitor_type"] = filters["visitor_type"]
-
+	# No `visitor_type` condition here: both sides of a pair have to be fetched
+	# before the pair can be judged. get_data() applies that filter to the primary
+	# side once the pairs exist.
 	scope = _visitor_pass_scope("vp")
 	if scope:
 		conditions.append(scope)
@@ -221,7 +239,8 @@ def add_pair_matches(pairs, rows, basis):
 					"matched_type": matched.visitor_type,
 					"matched_visitor": matched.visitor_full_name,
 					"matched_visit_date": matched.visit_date,
-					"id_proof_number": primary.id_proof_number or matched.id_proof_number,
+					# Matched on the real number above; only the last four are shown.
+					"id_proof_number": shown_id(primary.id_proof_number or matched.id_proof_number),
 					"mobile_number": primary.mobile_number or matched.mobile_number,
 					"email_id": primary.email_id or matched.email_id,
 					"primary_status": primary.status,
@@ -234,11 +253,11 @@ def add_pair_matches(pairs, rows, basis):
 
 def sort_pair(left, right):
 	left_key = (
-		left.visit_date or "",
+		_sortable_date(left.visit_date),
 		left.name,
 	)
 	right_key = (
-		right.visit_date or "",
+		_sortable_date(right.visit_date),
 		right.name,
 	)
 	return (left, right) if left_key >= right_key else (right, left)

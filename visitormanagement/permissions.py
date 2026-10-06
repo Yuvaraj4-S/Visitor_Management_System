@@ -303,22 +303,31 @@ def has_hospitality_request_permission(doc, user=None, ptype=None, debug=False):
 		):
 			return True
 
-	# If you are allowed to see the visit, you are allowed to see what was
-	# arranged for it. This is not a convenience: `ensure_hospitality_request`
-	# creates the request inside the approving user's own request, and Frappe's
-	# `validate_workflow` calls `get_transitions`, which needs read on the new
-	# document. Without this an approver who is not also the host — a CEO signing
-	# off a VIP visit, say — got a PermissionError and the approval itself failed.
-	# Visitor Pass is already row-scoped to owner/host/approver/Security, so this
-	# inherits that boundary rather than widening past it.
+	# The people a visit belongs to may see what was arranged for it: whoever
+	# raised the pass, and the approvers of its Visitor Type. The approvers are not
+	# a convenience: `ensure_hospitality_request` creates the request inside the
+	# approving user's own request, and Frappe's `validate_workflow` calls
+	# `get_transitions`, which needs read on the new document. Without them an
+	# approver who is not also the host — a CEO signing off a VIP visit, say — got
+	# a PermissionError and the approval itself failed. (The host is covered above.)
+	#
+	# This used to ask "can this user read the Visitor Pass?", which is a wider
+	# question: Security reads every approved pass and Facility Manager reads all
+	# of them, each for a reason that has nothing to do with hospitality, and both
+	# inherited read on the request — dietary allergies, accessibility needs, the
+	# driver's phone number and the hotel booking — which the list view rightly
+	# never showed them. Read on the pass is not the test; a stake in the visit is.
 	if ptype in _READ_LIKE_PTYPES and doc.get("visitor_pass"):
-		# `has_permission` raises DoesNotExistError rather than returning False for
-		# a missing document, so an orphaned request — one whose pass was deleted —
-		# would throw out of a permission check and take the whole list view with
-		# it. A permission question about a record that is not there is "no".
-		if not frappe.db.exists("Visitor Pass", doc.visitor_pass):
+		# An orphaned request — one whose pass was deleted — has nobody left to
+		# inherit from. A permission question about a record that is not there is "no".
+		visitor_pass = frappe.db.get_value(
+			"Visitor Pass", doc.visitor_pass, ["owner", "visitor_type"], as_dict=True
+		)
+		if not visitor_pass:
 			return False
-		return bool(frappe.has_permission("Visitor Pass", "read", doc=doc.visitor_pass, user=user))
+		if visitor_pass.owner == user:
+			return True
+		return bool(visitor_pass.visitor_type and visitor_pass.visitor_type in _approver_visitor_types(roles))
 
 	return False
 

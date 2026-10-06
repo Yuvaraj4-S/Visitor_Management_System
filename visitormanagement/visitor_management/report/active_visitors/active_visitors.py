@@ -2,6 +2,7 @@
 
 import frappe
 from frappe import _
+from frappe.utils import get_datetime, now_datetime
 
 # Indicator colours come from Visitor Type.badge_colour so a custom type is
 # coloured by its own configuration instead of falling back to grey.
@@ -43,13 +44,13 @@ def get_columns():
 		{"label": _("Visitor"), "fieldname": "visitor_name", "fieldtype": "Data", "width": 180},
 		{"label": _("Type"), "fieldname": "visitor_type", "fieldtype": "Data", "width": 100},
 		{"label": _("Company"), "fieldname": "company", "fieldtype": "Data", "width": 170},
-		{
-			"label": _("Host"),
-			"fieldname": "person_to_visit",
-			"fieldtype": "Link",
-			"options": "Employee",
-			"width": 140,
-		},
+		# The host's name as text, not a Link to Employee. Frappe drops every report
+		# row whose Link value falls outside the user's User Permissions
+		# (frappe/desk/query_report.py:get_filtered_data), after the summary is
+		# computed: a guard restricted to his own Employee record - ERPNext's default
+		# for an employee login - saw "Currently Inside 6" above an empty table. Who
+		# may see a row is decided by `_visitor_pass_scope`, not by who the host is.
+		{"label": _("Host"), "fieldname": "host_name", "fieldtype": "Data", "width": 160},
 		{"label": _("Gate"), "fieldname": "gate_name", "fieldtype": "Data", "width": 110},
 		{"label": _("Checked-In"), "fieldname": "checkin_time", "fieldtype": "Datetime", "width": 160},
 		{"label": _("Time Inside"), "fieldname": "duration_label", "fieldtype": "Data", "width": 110},
@@ -86,6 +87,10 @@ def get_data(filters):
 
 	where = " AND ".join(conditions)
 
+	# One row per visitor: the pass joined to its LATEST Check-In only. Joining
+	# every Check-In log listed a visitor once per entry, so someone who stepped
+	# out and came back was counted twice in "Currently Inside" while the number
+	# card and Gate Wise Count - which both use the latest check-in - counted one.
 	rows = frappe.db.sql(
 		"""
         SELECT
@@ -94,15 +99,20 @@ def get_data(filters):
             vp.visitor_full_name AS visitor_name,
             vp.visitor_type,
             vp.company__organisation AS company,
-            vp.person_to_visit,
+            vp.host_name,
             vp.item_verification_status,
             vp.expected_checkout,
             sl.gate_name,
-            sl.check_in_date_time AS checkin_time,
-            TIMESTAMPDIFF(MINUTE, sl.check_in_date_time, NOW()) AS duration_minutes
+            sl.check_in_date_time AS checkin_time
         FROM `tabVisitor Pass` vp
         LEFT JOIN `tabSecurity Log` sl
-            ON sl.visitor_pass = vp.name AND sl.event_type = 'Check-In'
+            ON sl.name = (
+                SELECT latest.name
+                FROM `tabSecurity Log` latest
+                WHERE latest.visitor_pass = vp.name AND latest.event_type = 'Check-In'
+                ORDER BY latest.check_in_date_time DESC, latest.creation DESC
+                LIMIT 1
+            )
         WHERE """
 		+ where
 		+ """
@@ -112,13 +122,25 @@ def get_data(filters):
 		as_dict=True,
 	)
 
+	# Measured against the site's clock in Python. `check_in_date_time` is stored
+	# in site time, while SQL NOW() is the database server's clock: on a server in
+	# another time zone "Time Inside" was off by the offset, and showed "-" for
+	# everyone whenever the offset made it negative.
+	now = now_datetime()
 	for r in rows:
-		r["duration_label"] = format_duration(r.get("duration_minutes"))
+		r["duration_minutes"] = _minutes_between(r.get("checkin_time"), now)
+		r["duration_label"] = format_duration(r["duration_minutes"])
 	return rows
 
 
+def _minutes_between(start, end):
+	if not start:
+		return None
+	return int((end - get_datetime(start)).total_seconds() // 60)
+
+
 def format_duration(minutes):
-	if not minutes or minutes < 0:
+	if minutes is None or minutes < 0:
 		return "-"
 	hours = minutes // 60
 	mins = minutes % 60

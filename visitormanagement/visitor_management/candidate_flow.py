@@ -1,12 +1,29 @@
 import frappe
 from frappe import _
-from frappe.utils import add_days, getdate, today
+from frappe.utils import add_days, get_link_to_form, getdate, today
+
+from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation import (
+	values_differ,
+)
 
 # Visitor Type is a customer-nameable master (see security_log.get_approved_vip_queue,
 # which resolves "VIP" the same way): a site is free to rename or deactivate the
 # "Candidate" record, so this module must never key off that literal name. It keys
 # off the fixed Detail Layout Select option instead.
 CANDIDATE_DETAIL_LAYOUT = "Candidate"
+
+# What HR schedules on the Job Applicant, and where each lands. The same pairs
+# hold for the invitation and for the Visitor Pass the candidate registers.
+INVITATION_SCHEDULE_FIELDS = {
+	"custom_interview_host": "host_employee",
+	"custom_interview_visit_date": "visit_date",
+	"custom_interview_checkin_time": "expected_checkin",
+	"custom_interview_checkout_time": "expected_checkout",
+}
+PASS_SCHEDULE_FIELDS = {**INVITATION_SCHEDULE_FIELDS, "custom_interview_host": "person_to_visit"}
+
+# Invitations HR's reschedule can no longer be applied to.
+CLOSED_STATUSES = ("Submitted", "Cancelled")
 
 
 def maybe_create_invitation(doc, method=None):
@@ -28,7 +45,11 @@ def _maybe_create_invitation(doc, method=None):
 	if (doc.get("custom_interview_mode") or "Online") != "Offline":
 		return
 
-	if frappe.db.exists("Visitor Invitation", {"reference_job_applicant": doc.name}):
+	existing = frappe.db.get_value(
+		"Visitor Invitation", {"reference_job_applicant": doc.name}, "name", order_by="creation desc"
+	)
+	if existing:
+		_follow_reschedule(doc, frappe.get_doc("Visitor Invitation", existing))
 		return
 
 	if not doc.email_id:
@@ -71,18 +92,141 @@ def _maybe_create_invitation(doc, method=None):
 	)
 	inv.insert(ignore_permissions=True)
 
+	if _send(inv):
+		frappe.msgprint(
+			_("Visitor Invitation {0} created and sent to {1}.").format(
+				frappe.bold(inv.name), frappe.bold(doc.email_id)
+			),
+			alert=True,
+			indicator="green",
+		)
+	else:
+		frappe.msgprint(
+			_(
+				"Visitor Invitation {0} was created, but the email to {1} could not be sent. "
+				"Open the invitation and use Copy Invitation Link to send the link yourself."
+			).format(get_link_to_form("Visitor Invitation", inv.name), frappe.bold(doc.email_id)),
+			title=_("Invitation Not Sent"),
+			indicator="orange",
+		)
+
+
+def _send(inv):
+	"""Mail the invitation; True when the mail went out.
+
+	Called as the HR user saving the applicant, who needs no rights of their own
+	on the invitation: this is the flow's send, not a desk action.
+	"""
 	try:
-		inv.send_invitation()
+		return bool(inv.issue_link_and_send().get("delivered"))
 	except Exception:
 		frappe.log_error(frappe.get_traceback(), "Candidate Flow: send_invitation failed")
+		return False
 
-	frappe.msgprint(
-		_("Visitor Invitation {0} created and sent to {1}.").format(
-			frappe.bold(inv.name), frappe.bold(doc.email_id)
-		),
-		alert=True,
-		indicator="green",
-	)
+
+def _schedule_changes(doc, target, fields):
+	"""The applicant's interview schedule where it differs from `target`.
+
+	Only what HR actually filled in counts: a blank date or time on the applicant
+	was defaulted when the invitation was raised and is not a reschedule.
+	"""
+	return {
+		fieldname: doc.get(source)
+		for source, fieldname in fields.items()
+		if doc.get(source) and values_differ(target.get(fieldname), doc.get(source))
+	}
+
+
+def _follow_reschedule(doc, inv):
+	"""Carry a rescheduled interview over to the invitation already raised.
+
+	This used to stop at "an invitation exists", so HR moved the interview on the
+	Job Applicant and the candidate's invitation — and the pass made from it, and
+	the gate's expectation — kept the old date, with nobody told.
+	"""
+	if inv.invitation_status in CLOSED_STATUSES:
+		_warn_schedule_not_applied(doc, inv)
+		return
+
+	changes = _schedule_changes(doc, inv, INVITATION_SCHEDULE_FIELDS)
+	if not changes:
+		return
+
+	inv.update(changes)
+	try:
+		inv.save(ignore_permissions=True)
+	except frappe.ValidationError as exc:
+		# Replace the bare validation message with one that says what it is about.
+		frappe.clear_messages()
+		frappe.msgprint(
+			_(
+				"Visitor Invitation {0} could not be moved to the new interview schedule: {1} "
+				"Please correct the invitation yourself."
+			).format(get_link_to_form("Visitor Invitation", inv.name), str(exc)),
+			title=_("Invitation Not Updated"),
+			indicator="orange",
+		)
+		return
+
+	invitation = get_link_to_form("Visitor Invitation", inv.name)
+	if _send(inv):
+		frappe.msgprint(
+			_(
+				"Visitor Invitation {0} now follows the new interview schedule, and the "
+				"candidate has been sent the updated invitation at {1}."
+			).format(invitation, frappe.bold(inv.visitor_email)),
+			alert=True,
+			indicator="green",
+		)
+	else:
+		frappe.msgprint(
+			_(
+				"Visitor Invitation {0} now follows the new interview schedule, but the email to "
+				"{1} could not be sent. Please tell the candidate about the change."
+			).format(invitation, frappe.bold(inv.visitor_email)),
+			title=_("Candidate Not Notified"),
+			indicator="orange",
+		)
+
+
+def _warn_schedule_not_applied(doc, inv):
+	"""Tell HR when a reschedule cannot reach an invitation that is finished with."""
+	invitation = get_link_to_form("Visitor Invitation", inv.name)
+
+	if inv.invitation_status == "Cancelled":
+		if _schedule_changes(doc, inv, INVITATION_SCHEDULE_FIELDS):
+			frappe.msgprint(
+				_(
+					"Visitor Invitation {0} was cancelled, so the interview schedule was not "
+					"applied to it. Raise a new Visitor Invitation for the candidate if the "
+					"interview is going ahead."
+				).format(invitation),
+				title=_("Invitation Not Updated"),
+				indicator="orange",
+			)
+		return
+
+	# Submitted: the candidate has registered, and the visit now lives on the
+	# Visitor Pass. That pass belongs to the host and its approval lane, so it is
+	# not rewritten from here — say what has to be changed, until it has been.
+	pass_name = inv.visitor_pass if frappe.db.exists("Visitor Pass", inv.visitor_pass or "") else None
+	target = frappe.get_doc("Visitor Pass", pass_name) if pass_name else inv
+	fields = PASS_SCHEDULE_FIELDS if pass_name else INVITATION_SCHEDULE_FIELDS
+	if not _schedule_changes(doc, target, fields):
+		return
+
+	if pass_name:
+		message = _(
+			"The candidate has already registered with Visitor Invitation {0}, so the new "
+			"interview schedule was not applied. Ask the host to change the visit date and "
+			"times on Visitor Pass {1}."
+		).format(invitation, get_link_to_form("Visitor Pass", pass_name))
+	else:
+		message = _(
+			"The candidate has already registered with Visitor Invitation {0}, so the new "
+			"interview schedule was not applied. Ask the host to change the visitor's pass."
+		).format(invitation)
+	frappe.msgprint(message, title=_("Visitor Pass Not Updated"), indicator="orange")
 
 
 def _resolve_candidate_visitor_type():

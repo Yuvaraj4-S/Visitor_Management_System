@@ -19,6 +19,45 @@
 // Returns only the fields a pass copies from a picked Employee / Job Applicant /
 // Supplier, to anyone allowed to pick one — so no role needs full READ on them.
 const LINK_DETAILS_METHOD = "visitormanagement.visitor_management.link_details.get_link_details";
+// Pickers for masters other apps own: searched through this app's own query so
+// no role needs a permission on the ERPNext/HRMS DocType (see link_queries.py).
+const LINK_QUERY = "visitormanagement.visitor_management.link_queries.search";
+const CORE_LINK_FIELDS = [
+	"person_to_visit",
+	"sales_executive",
+	"food_dept_staff_assigned",
+	"gate_verified_by",
+	"contractor_link",
+	"supplier_link",
+	"work_order_ref",
+	"job_applicant_link",
+];
+
+// A Customer pass can point at the CRM record the visit came from. Those DocTypes
+// are ERPNext's and this app grants nothing on them, so the two CRM fields are
+// offered only to someone who can read at least one — a host who cannot was
+// shown a picker that answered every keystroke with "403 Forbidden".
+const CRM_REFERENCE_TYPES = ["Lead", "Opportunity", "Customer"];
+
+function readable_crm_types() {
+	return CRM_REFERENCE_TYPES.filter((doctype) => frappe.model.can_read(doctype));
+}
+
+// "ID Proof Number" (id_proof_masked) holds what the person typed — or, once saved,
+// only the masked form (XXXXXX234F; see validators.mask_id_number). Returns the
+// typed full number, or "" while the field still shows the masked form.
+function typed_id_number(frm) {
+	const value = (frm.doc.id_proof_masked || "").trim();
+	const positions = [...value]
+		.map((ch, i) => (/[A-Za-z0-9]/.test(ch) ? i : -1))
+		.filter((i) => i >= 0);
+	const visible = new Set(positions.slice(-4));
+	const masked = [...value]
+		.map((ch, i) => (/[A-Za-z0-9]/.test(ch) && !visible.has(i) ? "X" : ch))
+		.join("");
+	const is_masked = positions.length > 4 && value.includes("X") && masked === value;
+	return is_masked ? "" : value;
+}
 
 function fill_if_blank(frm, fieldname, value) {
 	if (!value) {
@@ -135,6 +174,14 @@ const VISIT_ONLY_FIELDS = [
 ];
 
 frappe.ui.form.on("Visitor Pass", {
+	setup(frm) {
+		CORE_LINK_FIELDS.forEach((fieldname) => {
+			frm.set_query(fieldname, () => ({ query: LINK_QUERY }));
+		});
+		// A retired type has no approval lane; the server refuses it too.
+		frm.set_query("visitor_type", () => ({ filters: { is_active: 1 } }));
+	},
+
 	onload(frm) {
 		if (frm.is_new() && frm.doc.amended_from) {
 			VISIT_ONLY_FIELDS.forEach((fieldname) => {
@@ -145,7 +192,20 @@ frappe.ui.form.on("Visitor Pass", {
 	},
 
 	refresh(frm) {
-		ensure_customer_crm_defaults(frm);
+		// The full ID number reaches this browser only for Security / System Manager;
+		// everyone else would just see XXXXXXXX, so show them "ID Proof Number" alone.
+		const masked = (frappe.get_meta("Visitor Pass").masked_fields || []).includes(
+			"id_proof_number"
+		);
+		frm.toggle_display("id_proof_number", !masked);
+		// A saved pass is shown as it is stored: opening it must not change it.
+		// The CRM default used to be applied on every refresh, so a Customer pass
+		// raised by a host who cannot read Leads (no CRM Reference Type) turned
+		// "Not Saved" the moment a Sales Manager opened it — the approval state
+		// and the Approve / Reject menu gave way to a Save button.
+		if (frm.is_new()) {
+			ensure_customer_crm_defaults(frm);
+		}
 		setup_supplier_pass_query(frm);
 		apply_visitor_pass_ui(frm);
 		add_action_buttons(frm);
@@ -156,6 +216,13 @@ frappe.ui.form.on("Visitor Pass", {
 	visitor_type(frm) {
 		ensure_customer_crm_defaults(frm);
 		setup_supplier_pass_query(frm);
+		apply_visitor_pass_ui(frm);
+	},
+
+	// Fetched from the Visitor Type. It is what the CRM default and the field rules
+	// key off, and it can arrive after the visitor_type event has already run.
+	visitor_type_layout(frm) {
+		ensure_customer_crm_defaults(frm);
 		apply_visitor_pass_ui(frm);
 	},
 
@@ -187,7 +254,11 @@ frappe.ui.form.on("Visitor Pass", {
 		if (frm.doc.supplier_link) {
 			frappe.call({
 				method: LINK_DETAILS_METHOD,
-				args: { doctype: "Supplier", name: frm.doc.supplier_link },
+				args: {
+					doctype: "Supplier",
+					name: frm.doc.supplier_link,
+					reference_doctype: frm.doctype,
+				},
 				callback: function (r) {
 					if (r.message) {
 						fill_if_blank(frm, "visitor_full_name", r.message.supplier_name);
@@ -204,7 +275,11 @@ frappe.ui.form.on("Visitor Pass", {
 		if (frm.doc.contractor_link) {
 			frappe.call({
 				method: LINK_DETAILS_METHOD,
-				args: { doctype: "Supplier", name: frm.doc.contractor_link },
+				args: {
+					doctype: "Supplier",
+					name: frm.doc.contractor_link,
+					reference_doctype: frm.doctype,
+				},
 				callback: function (r) {
 					if (r.message) {
 						fill_if_blank(frm, "visitor_full_name", r.message.supplier_name);
@@ -221,7 +296,11 @@ frappe.ui.form.on("Visitor Pass", {
 		if (frm.doc.job_applicant_link) {
 			frappe.call({
 				method: LINK_DETAILS_METHOD,
-				args: { doctype: "Job Applicant", name: frm.doc.job_applicant_link },
+				args: {
+					doctype: "Job Applicant",
+					name: frm.doc.job_applicant_link,
+					reference_doctype: frm.doctype,
+				},
 				callback: function (r) {
 					if (r.message) {
 						fill_if_blank(frm, "visitor_full_name", r.message.applicant_name);
@@ -245,7 +324,11 @@ frappe.ui.form.on("Visitor Pass", {
 		}
 		frappe.call({
 			method: LINK_DETAILS_METHOD,
-			args: { doctype: "Employee", name: frm.doc.person_to_visit },
+			args: {
+				doctype: "Employee",
+				name: frm.doc.person_to_visit,
+				reference_doctype: frm.doctype,
+			},
 			callback: function (r) {
 				const d = r.message || {};
 				frm.set_value({
@@ -262,8 +345,9 @@ frappe.ui.form.on("Visitor Pass", {
 		lookup_existing_visitor_match(frm, "mobile_number");
 	},
 
-	id_proof_number(frm) {
-		lookup_existing_visitor_match(frm, "id_proof_number");
+	id_proof_masked(frm) {
+		// People type the full number here; once saved it shows only the last four.
+		lookup_existing_visitor_match(frm, "id_proof_masked");
 	},
 
 	supplier_visit_mode(frm) {
@@ -279,6 +363,7 @@ frappe.ui.form.on("Visitor Pass", {
 			frm.set_value("company__organisation", "");
 			frm.set_value("id_proof_type", "");
 			frm.set_value("id_proof_number", "");
+			frm.set_value("id_proof_masked", "");
 			// Clear type-specific links for whichever layout this type uses
 			const layout = frm.doc.visitor_type_layout || "";
 			if (layout === "Supplier") {
@@ -294,6 +379,7 @@ frappe.ui.form.on("Visitor Pass", {
 			}
 		}
 
+		ensure_customer_crm_defaults(frm);
 		apply_visitor_pass_ui(frm);
 	},
 
@@ -361,30 +447,37 @@ frappe.ui.form.on("Visitor Pass", {
 });
 
 function preview_normalised_mobile(frm) {
-	// On save the server normalises the phone to "+<isd>-XXXXXXXXXX". Show the
-	// reception staff what they actually typed *will become*, so they catch
-	// typos before submitting (a wrong number = approvals never land).
+	// Show reception what the number they typed will be saved as — or that it
+	// will be refused — while they can still correct it (a wrong number means
+	// security cannot reach the visitor). The answer comes from the server's own
+	// rule: this hint used to rebuild the number itself and said "Format looks
+	// good" for anything it did not rewrite, "12345" included.
 	const raw = (frm.doc.mobile_number || "").trim();
-	if (!raw) {
-		frm.set_df_property("mobile_number", "description", "");
-		frm.refresh_field("mobile_number");
-		return;
-	}
-	const digits = raw.replace(/\D/g, "");
-	// The ISD prefix the server will apply comes from VMS Settings, so preview
-	// it from there rather than assuming +91.
-	frappe.db.get_single_value("VMS Settings", "default_country_code").then((isd) => {
-		const code = String(isd || "91").replace(/\D/g, "") || "91";
-		let normalised = raw;
-		if (digits.length >= 10) {
-			normalised = `+${code}-${digits.slice(-10)}`;
-		}
-		const description =
-			normalised !== raw
-				? __("Will be saved as: <b>{0}</b>", [normalised])
-				: __("✓ Format looks good");
+	const set_hint = (description) => {
 		frm.set_df_property("mobile_number", "description", description);
 		frm.refresh_field("mobile_number");
+	};
+	if (!raw) {
+		set_hint("");
+		return;
+	}
+	frappe.call({
+		method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.check_mobile_number",
+		args: { mobile_number: raw },
+		silent: true,
+		error: () => set_hint(""),
+		callback: ({ message }) => {
+			// Typed on since the question was asked.
+			if (!message || (frm.doc.mobile_number || "").trim() !== raw) return;
+			const esc = frappe.utils.escape_html;
+			if (!message.valid) {
+				set_hint(`<span class="text-danger">${esc(message.message || "")}</span>`);
+			} else if (message.saved_as !== raw) {
+				set_hint(__("Will be saved as: <b>{0}</b>", [esc(message.saved_as)]));
+			} else {
+				set_hint(__("✓ Valid mobile number"));
+			}
+		},
 	});
 }
 
@@ -392,6 +485,7 @@ function apply_visitor_pass_ui(frm) {
 	apply_visitor_pass_field_rules(frm);
 	set_visitor_pass_intro(frm);
 	if (frm.dashboard) frm.dashboard.clear_headline();
+	show_blacklist_warning(frm);
 	apply_badge_visibility(frm);
 
 	// Force Phone widget to re-render if mobile_number exists but display is blank.
@@ -404,6 +498,25 @@ function apply_visitor_pass_ui(frm) {
 			}
 		}, 400);
 	}
+}
+
+// A draft whose visitor is on the active blacklist says so for as long as it is
+// open. The server works the match out on every load and after every save
+// (VisitorPass.onload). The warning used to be a dialog queued by the save alone,
+// and the first save of a new pass — when the form moves to the saved record and
+// Frappe closes open dialogs on the way — showed nothing.
+function show_blacklist_warning(frm) {
+	const match = frm.doc.__onload && frm.doc.__onload.blacklist_match;
+	if (!match || !frm.dashboard || frm.doc.docstatus !== 0) return;
+	const esc = frappe.utils.escape_html;
+	frm.dashboard.set_headline_alert(
+		__(
+			"<b>Blacklisted visitor — do not proceed.</b> {0} is on the active blacklist (reason: {1}). This pass can be kept as a draft but cannot be sent for approval. Stop collecting their documents.",
+			[esc(match.visitor_name || ""), esc(match.reason || __("Not specified"))]
+		),
+		"red",
+		true
+	);
 }
 
 // Hide badge_number / badge_colour when VMS Settings → enable_badge is off.
@@ -442,13 +555,20 @@ function apply_badge_visibility(frm) {
 		});
 }
 
+// Keeps the two CRM fields in step with the kind of pass: a default CRM Reference
+// Type for a new customer, nothing for anyone else. It changes the pass, so it
+// runs when the pass is being prepared — a new form, or the user changing the
+// Visitor Type or Entry Type — and never because a saved pass was opened. The
+// server clears the two fields on save as well (_clear_fields_from_other_layouts).
 function ensure_customer_crm_defaults(frm) {
 	if (
 		frm.doc.visitor_type_layout === "Customer" &&
 		frm.doc.entry_type === "New" &&
 		!frm.doc.crm_reference_type
 	) {
-		frm.set_value("crm_reference_type", "Lead");
+		// The first kind of CRM record this user can pick from, if any.
+		const [first_type] = readable_crm_types();
+		if (first_type) frm.set_value("crm_reference_type", first_type);
 		return;
 	}
 
@@ -471,59 +591,37 @@ function fetch_customer_crm_details(frm) {
 		return;
 	}
 
-	let doctype = frm.doc.crm_reference_type;
-	if (doctype === "Customer") {
-		doctype = "Customer";
-	}
-
+	// The server returns the five values a pass takes from the record and nothing
+	// else, with the record's owner already resolved to an Employee. This used to
+	// read the whole record with frappe.client.get, overwrite whatever had been
+	// typed, and put the owner — a User — into Sales Executive, which links to
+	// Employee: the pass then could not be saved at all.
+	const reference_name = frm.doc.crm_lead_opportunity;
 	frappe.call({
-		method: "frappe.client.get",
-		args: { doctype: doctype, name: frm.doc.crm_lead_opportunity },
+		method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.get_crm_reference_details",
+		args: { reference_type: frm.doc.crm_reference_type, reference_name },
 		callback: ({ message }) => {
-			if (!message) {
+			// Nothing to copy, or another record picked while this one was loading.
+			if (!message || frm.doc.crm_lead_opportunity !== reference_name) {
 				return;
 			}
 
-			let visitor_full_name = "";
-			let mobile_number = "";
-			let email_id = "";
-			let company__organisation = "";
-			let sales_executive = "";
+			// A convenience for blank fields, never an authority over what a
+			// person has typed (see fill_if_blank).
+			[
+				"visitor_full_name",
+				"mobile_number",
+				"email_id",
+				"company__organisation",
+				"sales_executive",
+			].forEach((fieldname) => fill_if_blank(frm, fieldname, message[fieldname]));
 
-			if (frm.doc.crm_reference_type === "Lead") {
-				visitor_full_name = message.lead_name || "";
-				mobile_number = message.mobile_no || "";
-				email_id = message.email_id || "";
-				company__organisation = message.company_name || "";
-				sales_executive = message.lead_owner || "";
-			} else if (frm.doc.crm_reference_type === "Opportunity") {
-				visitor_full_name = message.contact_display || message.customer_name || "";
-				mobile_number = message.contact_mobile || "";
-				email_id = message.contact_email || "";
-				company__organisation = message.customer_name || "";
-				sales_executive = message.opportunity_owner || "";
-			} else if (frm.doc.crm_reference_type === "Customer") {
-				visitor_full_name = message.customer_name || "";
-				mobile_number = message.mobile_no || "";
-				email_id = message.email_id || "";
-				company__organisation = message.customer_name || "";
-				// Sales executive might need to be fetched differently
-			}
-
-			frm.set_value({
-				visitor_full_name: visitor_full_name,
-				mobile_number: mobile_number,
-				email_id: email_id,
-				company__organisation: company__organisation,
-				sales_executive: sales_executive,
-			});
-
-			if (message.owner_user && !message.sales_executive) {
+			if (message.owner_without_employee && !frm.doc.sales_executive) {
 				frappe.show_alert(
 					{
 						message: __(
 							"CRM owner {0} has no linked Employee, so Sales Executive was not auto-filled.",
-							[message.owner_user]
+							[frappe.utils.escape_html(message.owner_without_employee)]
 						),
 						indicator: "orange",
 					},
@@ -576,14 +674,19 @@ function apply_visitor_pass_field_rules(frm) {
 	frm.toggle_display("existing_visitor_pass", is_existing);
 	frm.toggle_reqd("existing_visitor_pass", is_existing);
 	frm.toggle_display("supplier_link", layout === "Supplier" && frm.doc.entry_type === "New");
-	frm.toggle_display(
-		"crm_reference_type",
-		layout === "Customer" && frm.doc.entry_type === "New"
+	// Only the kinds of CRM record this user can read are offered (plus the kind
+	// already on the pass, so a saved value still shows as what it is).
+	const crm_types = readable_crm_types();
+	const show_crm = layout === "Customer" && frm.doc.entry_type === "New" && crm_types.length > 0;
+	const crm_options = CRM_REFERENCE_TYPES.filter(
+		(doctype) => crm_types.includes(doctype) || doctype === frm.doc.crm_reference_type
 	);
-	frm.toggle_display(
-		"crm_lead_opportunity",
-		layout === "Customer" && frm.doc.entry_type === "New"
-	);
+	// A blank first option: a pass can be saved with no CRM reference (every pass
+	// raised by someone who cannot read CRM records is), and without it the field
+	// showed "Lead" for such a pass while the pass itself held nothing.
+	frm.set_df_property("crm_reference_type", "options", ["", ...crm_options].join("\n"));
+	frm.toggle_display("crm_reference_type", show_crm);
+	frm.toggle_display("crm_lead_opportunity", show_crm);
 	frm.toggle_display("contractor_link", layout === "Contractor" && frm.doc.entry_type === "New");
 	frm.toggle_display("work_order_ref", layout === "Contractor" && frm.doc.entry_type === "New");
 	frm.toggle_display(
@@ -655,13 +758,20 @@ function refresh_hospitality_plan(frm) {
 		return;
 	}
 
+	// The desk's own preview. The portal's guest endpoint is limited to 60 calls
+	// an hour per IP address, which a front desk behind one office address used
+	// up — and its refusal opened a dialog that swallowed Ctrl+S. This is only a
+	// preview (the server works the plan out again on save), so a failure of any
+	// kind is never put in front of the user.
 	frappe.call({
-		method: "visitormanagement.visitor_management.lifecycle.get_hospitality_meal_plan",
+		method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.get_meal_plan_preview",
 		args: {
 			visit_date: frm.doc.visit_date,
 			expected_checkin: frm.doc.expected_checkin,
 			expected_checkout: frm.doc.expected_checkout,
 		},
+		silent: true,
+		error: () => {},
 		callback: ({ message }) => {
 			if (!message) {
 				return;
@@ -989,6 +1099,9 @@ window.select_submission = function (submission_name, frm_name) {
 					frm.set_value("person_to_visit", data.person_to_visit);
 					frm.set_value("id_proof_type", data.id_proof_type);
 					frm.set_value("id_proof_number", data.id_proof_number);
+					frm.set_value("id_proof_masked", data.id_proof_masked);
+					// Masked (last four only): the server copies the real number from here.
+					frm.set_value("id_proof_source", data.name);
 					frm.set_value("id_proof_scan", data.id_proof_scan);
 					frm.set_value("visitor_photo", data.visitor_photo);
 					frm.set_value("request_channel", "Portal");
@@ -1038,6 +1151,7 @@ function apply_existing_pass_data(frm, data) {
 		"company__organisation",
 		"id_proof_type",
 		"id_proof_number",
+		"id_proof_masked",
 		"id_proof_scan",
 		"visitor_photo",
 		"purpose_of_visit",
@@ -1077,6 +1191,9 @@ function apply_existing_pass_data(frm, data) {
 			updates[fieldname] = data[fieldname];
 		}
 	});
+	// The ID number arrives masked (last four only); the server copies the real one
+	// from this source pass on save (id_numbers.py).
+	updates.id_proof_source = data.name || "";
 	frm.set_value(updates);
 }
 
@@ -1087,7 +1204,8 @@ function lookup_existing_visitor_match(frm, trigger_field) {
 	) {
 		return;
 	}
-	if (!frm.doc.mobile_number && !frm.doc.id_proof_number) {
+	const typed_id = typed_id_number(frm);
+	if (!frm.doc.mobile_number && !typed_id) {
 		return;
 	}
 
@@ -1095,7 +1213,7 @@ function lookup_existing_visitor_match(frm, trigger_field) {
 		method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.get_existing_visitor_matches",
 		args: {
 			visitor_type: frm.doc.visitor_type,
-			id_proof_number: frm.doc.id_proof_number,
+			id_proof_number: typed_id,
 			mobile_number: frm.doc.mobile_number,
 			exclude_name: frm.doc.name,
 		},
@@ -1105,7 +1223,7 @@ function lookup_existing_visitor_match(frm, trigger_field) {
 			}
 
 			const best = message.best_match;
-			const signature = `${best.name}:${trigger_field}:${frm.doc.id_proof_number || ""}:${
+			const signature = `${best.name}:${trigger_field}:${typed_id}:${
 				frm.doc.mobile_number || ""
 			}`;
 			if (frm.__last_existing_prompt_signature === signature) {

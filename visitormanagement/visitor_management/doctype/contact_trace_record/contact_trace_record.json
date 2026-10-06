@@ -1,6 +1,5 @@
 {
  "actions": [],
- "allow_rename": 1,
  "autoname": "CTR-.YYYY.-.#####",
  "creation": "2026-04-05 00:00:00.000000",
  "doctype": "DocType",
@@ -99,7 +98,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-06 10:45:17.634553",
+ "modified": "2026-10-06 04:10:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Contact Trace Record",

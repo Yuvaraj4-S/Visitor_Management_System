@@ -2,7 +2,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, today
+from frappe.utils import add_days, get_datetime, today
 
 MAX_ROWS = 5000
 
@@ -50,13 +50,12 @@ def get_columns():
 		{"label": _("Visitor"), "fieldname": "visitor_name", "fieldtype": "Data", "width": 180},
 		{"label": _("Type"), "fieldname": "visitor_type", "fieldtype": "Data", "width": 100},
 		{"label": _("Company"), "fieldname": "company", "fieldtype": "Data", "width": 160},
-		{
-			"label": _("Host"),
-			"fieldname": "person_to_visit",
-			"fieldtype": "Link",
-			"options": "Employee",
-			"width": 140,
-		},
+		# The host's name as text, not a Link to Employee: Frappe drops every report
+		# row whose Link value falls outside the user's User Permissions
+		# (frappe/desk/query_report.py:get_filtered_data), which emptied this log for
+		# a guard restricted to his own Employee record while the totals above it
+		# still counted the visits. `_visitor_pass_scope` decides who sees a row.
+		{"label": _("Host"), "fieldname": "host_name", "fieldtype": "Data", "width": 160},
 		{"label": _("Purpose"), "fieldname": "purpose_of_visit", "fieldtype": "Small Text", "width": 220},
 		{"label": _("Checked-In"), "fieldname": "checkin", "fieldtype": "Datetime", "width": 155},
 		{"label": _("Checked-Out"), "fieldname": "checkout", "fieldtype": "Datetime", "width": 155},
@@ -96,7 +95,7 @@ def get_data(filters):
 
 	where = "WHERE " + " AND ".join(conditions)
 
-	rows = frappe.db.sql(
+	passes = frappe.db.sql(
 		"""
         SELECT
             vp.name AS visitor_pass,
@@ -104,38 +103,99 @@ def get_data(filters):
             vp.visitor_full_name AS visitor_name,
             vp.visitor_type,
             vp.company__organisation AS company,
-            vp.person_to_visit,
+            vp.host_name,
             vp.purpose_of_visit,
-            sl_in.check_in_date_time AS checkin,
-            sl_out.check_out_date_time AS checkout,
-            sl_in.gate_name,
             vp.status
         FROM `tabVisitor Pass` vp
-        LEFT JOIN `tabSecurity Log` sl_in
-            ON sl_in.visitor_pass = vp.name AND sl_in.event_type = 'Check-In'
-        LEFT JOIN `tabSecurity Log` sl_out
-            ON sl_out.visitor_pass = vp.name AND sl_out.event_type = 'Check-Out'
         """
 		+ where
 		+ """
-        ORDER BY vp.visit_date DESC, sl_in.check_in_date_time DESC
+        ORDER BY vp.visit_date DESC, vp.name DESC
         LIMIT %(row_limit)s
         """,
 		values,
 		as_dict=True,
 	)
 
-	truncated = len(rows) > MAX_ROWS
+	truncated = len(passes) > MAX_ROWS
 	if truncated:
-		rows = rows[:MAX_ROWS]
+		passes = passes[:MAX_ROWS]
+
+	entries = _gate_entries([p.visitor_pass for p in passes])
+
+	# One row per entry through the gate, not per pair of logs. Joining every
+	# Check-In with every Check-Out gave a visitor who came in twice four rows,
+	# two of them showing a check-out earlier than its check-in. A pass nobody
+	# has used yet still gets its one row, with the gate columns empty.
+	rows = []
+	for visitor_pass in passes:
+		for entry in entries.get(visitor_pass.visitor_pass) or [{}]:
+			rows.append(
+				frappe._dict(
+					visitor_pass,
+					checkin=entry.get("checkin"),
+					checkout=entry.get("checkout"),
+					gate_name=entry.get("gate_name"),
+				)
+			)
+
+	# Newest first, as before: by visit date, then by time of entry. Both sorts are
+	# stable, so passes not yet used keep their place after the day's entries.
+	rows.sort(key=lambda r: r.checkin or get_datetime("1900-01-01"), reverse=True)
+	rows.sort(key=lambda r: get_datetime(r.visit_date), reverse=True)
 	return rows, truncated
 
 
+def _gate_entries(pass_names):
+	"""{pass: [{checkin, checkout, gate_name}]} — each Check-In with the Check-Out that closed it.
+
+	The logs of a pass are walked in the order they happened: a Check-In opens an
+	entry and the next Check-Out closes it. A Check-Out with no open entry before
+	it (a log entered out of order) is not attached to anything.
+	"""
+	entries = {}
+	for start in range(0, len(pass_names), 1000):
+		logs = frappe.db.sql(
+			"""
+            SELECT
+                sl.visitor_pass,
+                sl.event_type,
+                sl.gate_name,
+                COALESCE(
+                    CASE
+                        WHEN sl.event_type = 'Check-In' THEN sl.check_in_date_time
+                        ELSE sl.check_out_date_time
+                    END,
+                    sl.creation
+                ) AS event_time
+            FROM `tabSecurity Log` sl
+            WHERE sl.visitor_pass IN %(names)s
+                AND sl.event_type IN ('Check-In', 'Check-Out')
+            ORDER BY sl.visitor_pass, event_time, sl.creation
+            """,
+			{"names": pass_names[start : start + 1000]},
+			as_dict=True,
+		)
+		for log in logs:
+			pass_entries = entries.setdefault(log.visitor_pass, [])
+			if log.event_type == "Check-In":
+				pass_entries.append({"checkin": log.event_time, "checkout": None, "gate_name": log.gate_name})
+			elif pass_entries and not pass_entries[-1]["checkout"]:
+				pass_entries[-1]["checkout"] = log.event_time
+	return entries
+
+
+def _visits(data):
+	"""The rows of `data` reduced to one per pass: a re-entry is the same visit."""
+	return list({row.visitor_pass: row for row in data}.values())
+
+
 def get_summary(data):
-	total = len(data)
-	checked_in = sum(1 for r in data if r.status == "Checked-In")
-	checked_out = sum(1 for r in data if r.status == "Checked-Out")
-	approved = sum(1 for r in data if r.status == "Approved")
+	visits = _visits(data)
+	total = len(visits)
+	checked_in = sum(1 for r in visits if r.status == "Checked-In")
+	checked_out = sum(1 for r in visits if r.status == "Checked-Out")
+	approved = sum(1 for r in visits if r.status == "Approved")
 
 	return [
 		{"value": total, "label": _("Total Visits"), "indicator": "Blue"},
@@ -147,7 +207,7 @@ def get_summary(data):
 
 def get_chart(data):
 	by_type = {}
-	for row in data:
+	for row in _visits(data):
 		by_type[row.visitor_type] = by_type.get(row.visitor_type, 0) + 1
 	if not by_type:
 		return None

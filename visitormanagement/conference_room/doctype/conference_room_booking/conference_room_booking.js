@@ -5,12 +5,32 @@ frappe.ui.form.on("Conference Room Booking", {
 		frm.set_query("conference_room", () => ({
 			filters: { is_active: 1 },
 		}));
-		frm.set_query("booked_by", () => ({
-			filters: { status: "Active" },
-		}));
+	},
+
+	onload(frm) {
+		// booked_by links to Employee (HRMS): see public/js/core_link_pickers.js.
+		vms_setup_core_link_pickers(frm, { booked_by: { status: "Active" } });
+	},
+
+	booked_by(frm) {
+		// Was `fetch_from: booked_by.department`, which needs READ on Employee.
+		if (!frm.doc.booked_by) {
+			return;
+		}
+		frappe.call({
+			method: "visitormanagement.visitor_management.link_details.get_link_details",
+			args: {
+				doctype: "Employee",
+				name: frm.doc.booked_by,
+				reference_doctype: frm.doctype,
+				fieldname: "booked_by",
+			},
+			callback: (r) => frm.set_value("department", (r.message || {}).department || ""),
+		});
 	},
 
 	refresh(frm) {
+		vms_setup_core_link_pickers(frm, { booked_by: { status: "Active" } });
 		if (frm.doc.docstatus === 0) {
 			frm.add_custom_button(__("Find Available Rooms"), () => {
 				find_available_rooms(frm);
@@ -49,11 +69,7 @@ frappe.ui.form.on("Conference Room Booking", {
 	},
 
 	expected_attendees(frm) {
-		if (
-			frm.doc.conference_room &&
-			frm.doc.expected_attendees &&
-			frm.doc.room_capacity
-		) {
+		if (frm.doc.conference_room && frm.doc.expected_attendees && frm.doc.room_capacity) {
 			if (frm.doc.expected_attendees > frm.doc.room_capacity) {
 				frappe.msgprint({
 					title: __("Capacity Warning"),
@@ -74,10 +90,7 @@ function calculate_duration(frm) {
 		let end = moment(frm.doc.booking_date + " " + frm.doc.end_time);
 		if (end.isAfter(start)) {
 			let hours = end.diff(start, "minutes") / 60;
-			frm.set_value(
-				"duration_hours",
-				Math.round(hours * 100) / 100
-			);
+			frm.set_value("duration_hours", Math.round(hours * 100) / 100);
 		}
 	}
 }
@@ -89,29 +102,28 @@ function find_available_rooms(frm) {
 			{
 				fieldname: "booking_date",
 				fieldtype: "Date",
-				label: "Date",
-				default:
-					frm.doc.booking_date || frappe.datetime.get_today(),
+				label: __("Date"),
+				default: frm.doc.booking_date || frappe.datetime.get_today(),
 				reqd: 1,
 			},
 			{
 				fieldname: "start_time",
 				fieldtype: "Time",
-				label: "Start Time",
+				label: __("Start Time"),
 				default: frm.doc.start_time,
 				reqd: 1,
 			},
 			{
 				fieldname: "end_time",
 				fieldtype: "Time",
-				label: "End Time",
+				label: __("End Time"),
 				default: frm.doc.end_time,
 				reqd: 1,
 			},
 			{
 				fieldname: "min_capacity",
 				fieldtype: "Int",
-				label: "Minimum Capacity",
+				label: __("Minimum Capacity"),
 				default: frm.doc.expected_attendees || 0,
 			},
 			{ fieldtype: "Section Break" },
@@ -133,27 +145,50 @@ function find_available_rooms(frm) {
 					if (r.message && r.message.length) {
 						html =
 							'<table class="table table-bordered"><thead><tr>' +
-							"<th>Room</th><th>Capacity</th><th>Location</th><th>Type</th><th></th>" +
+							`<th>${__("Room")}</th><th>${__("Capacity")}</th><th>${__(
+								"Location"
+							)}</th><th>${__("Type")}</th><th></th>` +
 							"</tr></thead><tbody>";
 						const esc = (v) => frappe.utils.escape_html(v == null ? "" : String(v));
 						r.message.forEach((room) => {
 							html +=
 								"<tr>" +
-								"<td>" + esc(room.room_name) + "</td>" +
-								"<td>" + esc(room.capacity) + "</td>" +
-								"<td>" + esc(room.location || "") + " " + esc(room.floor || "") + "</td>" +
-								"<td>" + esc(room.room_type || "") + "</td>" +
+								"<td>" +
+								esc(room.room_name) +
+								"</td>" +
+								"<td>" +
+								esc(room.capacity) +
+								"</td>" +
+								"<td>" +
+								esc(room.location || "") +
+								" " +
+								esc(room.floor || "") +
+								"</td>" +
+								"<td>" +
+								esc(room.room_type || "") +
+								"</td>" +
 								'<td><button class="btn btn-xs btn-primary select-room-btn" ' +
-								'data-room="' + esc(room.name) + '" ' +
-								'data-date="' + esc(values.booking_date) + '" ' +
-								'data-start="' + esc(values.start_time) + '" ' +
-								'data-end="' + esc(values.end_time) + '">Select</button></td>' +
+								'data-room="' +
+								esc(room.name) +
+								'" ' +
+								'data-date="' +
+								esc(values.booking_date) +
+								'" ' +
+								'data-start="' +
+								esc(values.start_time) +
+								'" ' +
+								'data-end="' +
+								esc(values.end_time) +
+								'">' +
+								__("Select") +
+								"</button></td>" +
 								"</tr>";
 						});
 						html += "</tbody></table>";
 					} else {
-						html =
-							'<p class="text-muted">No rooms available for the selected slot.</p>';
+						html = `<p class="text-muted">${__(
+							"No rooms available for the selected slot."
+						)}</p>`;
 					}
 					d.fields_dict.results_html.$wrapper.html(html);
 
@@ -161,18 +196,9 @@ function find_available_rooms(frm) {
 						.find(".select-room-btn")
 						.on("click", function () {
 							let btn = $(this);
-							frm.set_value(
-								"conference_room",
-								btn.data("room")
-							);
-							frm.set_value(
-								"booking_date",
-								btn.data("date")
-							);
-							frm.set_value(
-								"start_time",
-								btn.data("start")
-							);
+							frm.set_value("conference_room", btn.data("room"));
+							frm.set_value("booking_date", btn.data("date"));
+							frm.set_value("start_time", btn.data("start"));
 							frm.set_value("end_time", btn.data("end"));
 							d.hide();
 						});
@@ -192,15 +218,15 @@ function view_room_schedule(frm) {
 		},
 		callback(r) {
 			if (!r.message || !r.message.length) {
-				frappe.msgprint(
-					__("No other bookings for this room on this date.")
-				);
+				frappe.msgprint(__("No other bookings for this room on this date."));
 				return;
 			}
 			const esc = (v) => frappe.utils.escape_html(v == null ? "" : String(v));
 			let html =
 				'<table class="table table-bordered"><thead><tr>' +
-				"<th>Booking</th><th>Meeting</th><th>Time</th><th>Type</th><th>Status</th>" +
+				`<th>${__("Booking")}</th><th>${__("Meeting")}</th><th>${__("Time")}</th><th>${__(
+					"Type"
+				)}</th><th>${__("Status")}</th>` +
 				"</tr></thead><tbody>";
 			r.message.forEach((b) => {
 				html +=
@@ -210,16 +236,25 @@ function view_room_schedule(frm) {
 					'">' +
 					esc(b.name) +
 					"</a></td>" +
-					"<td>" + esc(b.meeting_title) + "</td>" +
-					"<td>" + esc(b.start_time) + " - " + esc(b.end_time) + "</td>" +
-					"<td>" + esc(b.meeting_type) + "</td>" +
-					"<td>" + esc(b.status) + "</td></tr>";
+					"<td>" +
+					esc(b.meeting_title) +
+					"</td>" +
+					"<td>" +
+					esc(b.start_time) +
+					" - " +
+					esc(b.end_time) +
+					"</td>" +
+					"<td>" +
+					esc(b.meeting_type) +
+					"</td>" +
+					"<td>" +
+					esc(b.status) +
+					"</td></tr>";
 			});
 			html += "</tbody></table>";
 			frappe.msgprint({
-				title: __(
-					esc(frm.doc.conference_room) + " - " + esc(frm.doc.booking_date)
-				),
+				// Data, not a phrase: nothing here to translate.
+				title: esc(frm.doc.conference_room) + " - " + esc(frm.doc.booking_date),
 				message: html,
 				wide: true,
 			});

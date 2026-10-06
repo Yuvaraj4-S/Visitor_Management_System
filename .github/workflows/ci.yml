@@ -1,22 +1,30 @@
 
 name: CI
 
+# The Frappe 15 line is published from `version-15`. `version-15-backport` is the
+# branch the 1.1.0 work was done on and `main` still carries 1.0.0; both stay
+# listed until the release is cut and those branches are settled.
 on:
   push:
     branches:
-      - develop
+      - version-15
+      - version-15-backport
+      - main
   pull_request:
+  workflow_dispatch:
 
 concurrency:
-  group: develop-visitormanagement-${{ github.event.number }}
+  # Per pull request, or per branch for a push: a push to one branch must not
+  # cancel the run of another.
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  tests:
+  install:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-    name: Server
+    name: Install, test and uninstall on a fresh site
 
     services:
       redis-cache:
@@ -30,27 +38,22 @@ jobs:
       mariadb:
         image: mariadb:10.6
         env:
-          MYSQL_ROOT_PASSWORD: root
+          MARIADB_ROOT_PASSWORD: root
         ports:
           - 3306:3306
         options: --health-cmd="mariadb-admin ping" --health-interval=5s --health-timeout=2s --health-retries=3
 
     steps:
       - name: Clone
-        uses: actions/checkout@v3
-
-      - name: Find tests
-        run: |
-          echo "Finding tests"
-          grep -rn "def test" > /dev/null
+        uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 18
           check-latest: true
@@ -77,30 +80,199 @@ jobs:
             ${{ runner.os }}-yarn-
 
       - name: Install MariaDB Client
-        run: sudo apt-get install mariadb-client-10.6
+        run: sudo apt-get install mariadb-client
 
       - name: Setup
         run: |
           pip install frappe-bench
-          bench init --skip-redis-config-generation --skip-assets --python "$(which python)" ~/frappe-bench
+          bench init --skip-redis-config-generation --skip-assets --frappe-branch version-15 --python "$(which python)" ~/frappe-bench
           mariadb --host 127.0.0.1 --port 3306 -u root -proot -e "SET GLOBAL character_set_server = 'utf8mb4'"
           mariadb --host 127.0.0.1 --port 3306 -u root -proot -e "SET GLOBAL collation_server = 'utf8mb4_unicode_ci'"
 
       - name: Install
         working-directory: /home/runner/frappe-bench
         run: |
+          bench get-app --branch version-15 erpnext
+          bench get-app --branch version-15 hrms
           bench get-app visitormanagement $GITHUB_WORKSPACE
           bench setup requirements --dev
           bench new-site --db-root-password root --admin-password admin test_site
+          bench --site test_site install-app erpnext
+          bench --site test_site install-app hrms
           bench --site test_site install-app visitormanagement
           bench build
         env:
           CI: 'Yes'
 
-      - name: Run Tests
+      - name: Migrate twice (setup must be repeatable)
         working-directory: /home/runner/frappe-bench
         run: |
+          bench --site test_site migrate
+          bench --site test_site migrate
+
+      # The newer test files (tests/test_fix_*.py) build their own fixtures, but the
+      # gate tests need a Company to create Employees in, and the older half of the
+      # suite looks for data a brand-new site does not have — an active Employee,
+      # and a user holding each of the app's roles — and skips itself when it finds
+      # none. Without this step a large part of a green run would be skipped tests.
+      #
+      # This is a fresh install, so the three gate switches are off and walk-in
+      # pre-registration is off; the tests that need them set them themselves.
+      #
+      # The tests pick, for each role, the OLDEST enabled user holding it. So:
+      #   - the setup wizard's own user (it is given every role) is disabled again;
+      #   - ERPNext's `before_tests` is deliberately not used: it gives Administrator
+      #     every role, and Administrator passes every permission check;
+      #   - each seeded user holds exactly one role, and only the host is an Employee.
+      - name: Seed a company, employees and one user per role
+        working-directory: /home/runner/frappe-bench/sites
+        run: |
+          ../env/bin/python - <<'PY'
+          import frappe
+
+          frappe.init(site="test_site")
+          frappe.connect()
+          frappe.set_user("Administrator")
+
+          WIZARD_USER = "ci.setup@example.com"
+
+          # 1. A Company, created the way ERPNext's and HRMS's own test setups do it.
+          if not frappe.db.a_row_exists("Company"):
+              from frappe.desk.page.setup_wizard.setup_wizard import setup_complete
+
+              year = frappe.utils.now_datetime().year
+              setup_complete(
+                  {
+                      "currency": "INR",
+                      "full_name": "CI Setup",
+                      "company_name": "VMS CI Company",
+                      "timezone": "Asia/Kolkata",
+                      "company_abbr": "VCI",
+                      "industry": "Manufacturing",
+                      "country": "India",
+                      "fy_start_date": f"{year}-01-01",
+                      "fy_end_date": f"{year}-12-31",
+                      "language": "english",
+                      "company_tagline": "CI",
+                      "email": WIZARD_USER,
+                      "chart_of_accounts": "Standard",
+                  }
+              )
+              frappe.db.commit()
+
+          company = frappe.db.get_value("Company", {}, "name")
+          if not company:
+              raise SystemExit("seed: the setup wizard did not create a Company")
+
+          if frappe.db.exists("User", WIZARD_USER):
+              frappe.db.set_value("User", WIZARD_USER, "enabled", 0)
+
+          def make_user(email, first_name, role=None):
+              if not frappe.db.exists("User", email):
+                  frappe.get_doc(
+                      {
+                          "doctype": "User",
+                          "email": email,
+                          "first_name": first_name,
+                          "send_welcome_email": 0,
+                          "user_type": "System User",
+                      }
+                  ).insert(ignore_permissions=True)
+              if role:
+                  frappe.get_doc("User", email).add_roles(role)
+              return email
+
+          gender = "Male" if frappe.db.exists("Gender", "Male") else frappe.db.get_value("Gender", {}, "name")
+
+          def make_employee(first_name, user_id=None):
+              name = frappe.db.get_value("Employee", {"first_name": first_name}, "name")
+              if name:
+                  return name
+              doc = frappe.get_doc(
+                  {
+                      "doctype": "Employee",
+                      "first_name": first_name,
+                      "gender": gender,
+                      "date_of_birth": "1990-01-01",
+                      "date_of_joining": "2020-01-01",
+                      "company": company,
+                      "status": "Active",
+                      "user_id": user_id,
+                      # No User Permission: it would confine the host to records
+                      # that link to their own Employee.
+                      "create_user_permission": 0,
+                  }
+              )
+              doc.insert(ignore_permissions=True)
+              return doc.name
+
+          # 2. The host first, so they are the oldest holder of the Employee role
+          #    (ERPNext adds that role when the Employee is linked to the user).
+          host_user = make_user("ci.host@example.com", "CI Host")
+          make_employee("CI Host", user_id=host_user)
+          make_employee("CI Second Employee")
+
+          # 3. One user per role the tests ask for.
+          for role in (
+              "Security",
+              "HOD",
+              "CEO",
+              "Hospitality Manager",
+              "Facility Manager",
+              "Host Employee",
+          ):
+              if not frappe.db.exists("Role", role):
+                  raise SystemExit(f"seed: role {role!r} is missing - the app did not install its roles")
+              make_user("ci." + role.lower().replace(" ", ".") + "@example.com", "CI " + role, role)
+
+          frappe.db.commit()
+
+          print("seeded company:", company)
+          print("active employees:", frappe.db.count("Employee", {"status": "Active"}))
+          for role in ("Employee", "Security", "HOD", "CEO", "Hospitality Manager", "Facility Manager"):
+              holders = frappe.get_all(
+                  "Has Role",
+                  filters={"role": role, "parenttype": "User"},
+                  pluck="parent",
+              )
+              print(f"  {role}: {sorted(holders)}")
+          frappe.destroy()
+          PY
+
+      - name: Run Tests
+        working-directory: /home/runner/frappe-bench
+        # `shell: bash` turns on pipefail, so piping through tee keeps a test
+        # failure a failure.
+        #
+        # This site is thrown away, so Frappe may create its test records here.
+        # On any shared site the suite is run with
+        # `--skip-before-tests --skip-test-records` instead (see the README).
+        shell: bash
+        run: |
           bench --site test_site set-config allow_tests true
-          bench --site test_site run-tests --app visitormanagement
+          bench --site test_site run-tests --app visitormanagement 2>&1 | tee /tmp/vms-tests.log
         env:
           TYPE: server
+
+      # A test that skips itself proves nothing. Say how many did, where it is seen.
+      - name: Report skipped tests
+        if: always()
+        shell: bash
+        env:
+          MAX_SKIPPED: '10'
+        run: |
+          ran=$(grep -Eo 'Ran [0-9]+ tests?' /tmp/vms-tests.log 2>/dev/null | tail -1 | grep -Eo '[0-9]+' || true)
+          skipped=$(grep -Eo 'skipped=[0-9]+' /tmp/vms-tests.log 2>/dev/null | tail -1 | grep -Eo '[0-9]+' || true)
+          ran=${ran:-0}
+          skipped=${skipped:-0}
+          echo "Tests run: ${ran}, of which skipped: ${skipped}" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$skipped" -gt "$MAX_SKIPPED" ]; then
+            echo "::warning::${skipped} of ${ran} tests skipped themselves (more than ${MAX_SKIPPED}). Check the seed step: the tests skip when the site has no Employee or no user for a role."
+          fi
+
+      - name: Uninstall
+        working-directory: /home/runner/frappe-bench
+        run: |
+          bench --site test_site uninstall-app visitormanagement --dry-run --yes --no-backup
+          bench --site test_site uninstall-app visitormanagement --yes --no-backup
+          bench --site test_site list-apps

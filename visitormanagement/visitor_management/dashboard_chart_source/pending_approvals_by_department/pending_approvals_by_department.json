@@ -1,0 +1,13 @@
+{
+ "creation": "2026-08-31 15:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Dashboard Chart Source",
+ "idx": 0,
+ "modified": "2026-08-31 15:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Pending Approvals by Department",
+ "owner": "Administrator",
+ "source_name": "Pending Approvals by Department",
+ "timeseries": 0
+}

@@ -6,7 +6,7 @@ frappe.query_reports["Daily Visitor Log"] = {
 			fieldname: "from_date",
 			label: __("From Date"),
 			fieldtype: "Date",
-			default: frappe.datetime.month_start(),
+			default: frappe.datetime.add_days(frappe.datetime.get_today(), -6),
 			reqd: 1,
 		},
 		{
@@ -19,8 +19,8 @@ frappe.query_reports["Daily Visitor Log"] = {
 		{
 			fieldname: "visitor_type",
 			label: __("Visitor Type"),
-			fieldtype: "Select",
-			options: "\nContractor\nCandidate\nCustomer\nSupplier\nVIP",
+			fieldtype: "Link",
+			options: "Visitor Type",
 		},
 		{
 			fieldname: "status",
@@ -33,22 +33,34 @@ frappe.query_reports["Daily Visitor Log"] = {
 			label: __("Host"),
 			fieldtype: "Link",
 			options: "Employee",
+			// Employee is an HRMS DocType: search it through this app's own query, and
+			// skip core's per-pick check, which needs Select on Employee.
+			get_query: () => ({
+				query: "visitormanagement.visitor_management.link_details.link_query",
+			}),
+			ignore_link_validation: 1,
 		},
 	],
 	formatter(value, row, column, data, default_formatter) {
 		value = default_formatter(value, row, column, data);
 		if (column.fieldname === "status" && data) {
 			const colour_map = {
-				Approved: "blue", "Checked-In": "green", "Checked-Out": "grey",
-				Cancelled: "red", Draft: "orange",
+				Approved: "blue",
+				"Checked-In": "green",
+				"Checked-Out": "grey",
+				Cancelled: "red",
+				Draft: "orange",
 			};
 			const colour = colour_map[data.status] || "grey";
 			return `<span class="indicator-pill ${colour}">${value || ""}</span>`;
 		}
 		if (column.fieldname === "visitor_type" && data) {
 			const colour_map = {
-				Contractor: "orange", Candidate: "purple", Customer: "green",
-				Supplier: "blue", VIP: "red",
+				Contractor: "orange",
+				Candidate: "purple",
+				Customer: "green",
+				Supplier: "blue",
+				VIP: "red",
 			};
 			const colour = colour_map[data.visitor_type] || "grey";
 			return `<span class="indicator-pill ${colour}">${value || ""}</span>`;

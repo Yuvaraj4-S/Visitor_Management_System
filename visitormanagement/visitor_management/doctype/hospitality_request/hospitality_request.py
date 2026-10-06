@@ -6,14 +6,15 @@ from datetime import timedelta
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils import date_diff, get_datetime, get_time, getdate, nowdate
 
-from frappe.utils import date_diff, get_datetime, getdate, nowdate
-
-
+from visitormanagement.permissions import HOSPITALITY_OVERSEERS, check_visitor_pass_link
 from visitormanagement.visitor_management.lifecycle import (
+	log_failure,
 	populate_hospitality_request_from_pass,
 	sync_hospitality_to_pass,
 )
+from visitormanagement.visitor_management.mail import esc, send_after_commit
 
 
 def _get_assigned_staff_email(employee_name):
@@ -37,7 +38,9 @@ def _send_hospitality_assignment_mail(doc):
 	if not email:
 		return
 
-	visitor_name = frappe.db.get_value("Visitor Pass", doc.visitor_pass, "visitor_full_name") or doc.visitor_pass
+	visitor_name = (
+		frappe.db.get_value("Visitor Pass", doc.visitor_pass, "visitor_full_name") or doc.visitor_pass
+	)
 	subject = f"Hospitality Confirmed: {visitor_name}"
 	lines = [
 		f"Hospitality Request: {doc.name}",
@@ -55,15 +58,21 @@ def _send_hospitality_assignment_mail(doc):
 		lines.extend(["", f"Notes: {frappe.utils.strip_html(doc.notes)}"])
 
 	try:
-		frappe.sendmail(
+		# After commit, so a mail-server failure cannot fail the save (visitor_management/mail.py).
+		send_after_commit(
 			recipients=[email],
+			reference_doctype=doc.doctype,
+			reference_name=doc.name,
 			subject=subject,
-			message="<br>".join(lines),
-			now=True,
+			# The lines are record values; the mail is HTML, so they are escaped.
+			message="<br>".join(esc(line) for line in lines),
 		)
 	except Exception as exc:
-		# Email Account may not be configured — log and continue rather than blocking the save.
-		frappe.log_error(f"Hospitality assignment email failed for {doc.name}: {exc}", "VMS Hospitality Assignment Email")
+		# Queueing can fail (no Email Account at all) — log and continue rather than blocking the save.
+		log_failure(
+			"VMS Hospitality Assignment Email",
+			f"Hospitality assignment email failed for {doc.name}: {exc}\n\n{frappe.get_traceback()}",
+		)
 
 
 class HospitalityRequest(Document):
@@ -90,6 +99,9 @@ class HospitalityRequest(Document):
 	def validate(self):
 		if not self.status:
 			self.status = "Pending"
+		# Before anything is read from the pass: the lines below copy from it, and
+		# on_update writes back to it.
+		check_visitor_pass_link(self, overseer_roles=HOSPITALITY_OVERSEERS)
 		if self.visitor_pass:
 			populate_hospitality_request_from_pass(self)
 		self._validate_visitor_pass_approved()
@@ -166,11 +178,9 @@ class HospitalityRequest(Document):
 
 		if self.factory_tour_required and self.tour_date:
 			if self.tour_start_time:
-				_check(_("Tour start"),
-					get_datetime(f"{self.tour_date} {self.tour_start_time}"))
+				_check(_("Tour start"), get_datetime(f"{self.tour_date} {self.tour_start_time}"))
 			if self.tour_end_time:
-				_check(_("Tour end"),
-					get_datetime(f"{self.tour_date} {self.tour_end_time}"))
+				_check(_("Tour end"), get_datetime(f"{self.tour_date} {self.tour_end_time}"))
 
 		if self.buggy_required and self.buggy_datetime:
 			_check(_("Buggy pickup"), self.buggy_datetime)
@@ -184,11 +194,15 @@ class HospitalityRequest(Document):
 		if not (self.hotel_required and self.check_in and self.visitor_pass):
 			return
 
-		vp = frappe.db.get_value(
-			"Visitor Pass", self.visitor_pass,
-			["visit_date", "pass_valid_until"],
-			as_dict=True,
-		) or {}
+		vp = (
+			frappe.db.get_value(
+				"Visitor Pass",
+				self.visitor_pass,
+				["visit_date", "pass_valid_until"],
+				as_dict=True,
+			)
+			or {}
+		)
 		visit_date = vp.get("visit_date")
 		valid_until = vp.get("pass_valid_until") or visit_date
 
@@ -232,19 +246,26 @@ class HospitalityRequest(Document):
 		if not self.cab_required:
 			return
 		if self.cab_type in ("Pickup", "Both") and not self.pickup_datetime:
-			frappe.throw("Pickup datetime required when cab type includes Pickup")
+			frappe.throw(_("Pickup datetime required when cab type includes Pickup"))
 		if self.cab_type in ("Drop", "Both") and not self.drop_datetime:
-			frappe.throw("Drop datetime required when cab type includes Drop")
+			frappe.throw(_("Drop datetime required when cab type includes Drop"))
 		if self.pickup_datetime and self.drop_datetime:
 			if get_datetime(self.drop_datetime) < get_datetime(self.pickup_datetime):
-				frappe.throw("Drop datetime cannot be before pickup datetime")
+				frappe.throw(_("Drop datetime cannot be before pickup datetime"))
 
 	def _validate_tour_safety(self):
 		if not self.factory_tour_required:
 			return
 		if self.tour_start_time and self.tour_end_time:
-			if self.tour_end_time <= self.tour_start_time:
-				frappe.throw("Tour end time must be after start time")
+			# Same string-vs-time trap as conference_room.py: a Time field can arrive
+			# as a string, and a single-digit hour has no leading zero, so
+			# "10:00:00" <= "9:00:00" is True as strings ('1' < '9') and a 09:00-10:00
+			# tour was rejected as "end time must be after start time". Worse here
+			# than on Conference Room: retyping the times in the form did not clear
+			# it, so a tour starting before 10:00 could never be re-saved from the
+			# Desk once created. get_time() on both sides fixes it for good.
+			if get_time(self.tour_end_time) <= get_time(self.tour_start_time):
+				frappe.throw(_("Tour end time must be after start time"))
 
 	def _validate_buggy_conflict(self):
 		if not (self.buggy_required and self.buggy_number and self.buggy_datetime):
@@ -260,7 +281,71 @@ class HospitalityRequest(Document):
 			},
 		)
 		if conflict:
-			frappe.throw(f"Buggy {self.buggy_number} already booked at {self.buggy_datetime} ({conflict})")
+			frappe.throw(
+				_("Buggy {0} already booked at {1} ({2})").format(
+					self.buggy_number, self.buggy_datetime, conflict
+				)
+			)
+
+	def before_cancel(self):
+		"""Let the Cancel action actually complete.
+
+		The workflow offers Approved --Cancel--> Cancelled, but the parent
+		Visitor Pass carries a `hospitality_request` link back to this document,
+		and Frappe refuses to cancel anything another record still links to.
+		So Cancel raised LinkExistsError for everyone, every time — the second
+		of two reasons that button never worked (the first was that no role held
+		the `cancel` permission at all).
+
+		The back-link is descriptive, not a dependency: the pass records which
+		request belongs to it, and a cancelled request is still the right answer
+		to that question. `sync_hospitality_to_pass` keeps the pass's own
+		hospitality status in step, so the pass is not left claiming an
+		arrangement that was called off.
+
+		`before_cancel` rather than later: Frappe runs the back-link check at
+		document.py:1384, immediately after `on_cancel`, so the flag has to be set
+		before the cancel save gets that far.
+		"""
+		self.ignore_linked_doctypes = ("Visitor Pass",)
+
+	def on_cancel(self):
+		"""Move the fulfilment status too, not just the workflow state.
+
+		`status` is what the hospitality team actually works from — it is the
+		Pending/Confirmed/Served queue. Cancelling only moved `workflow_state`,
+		so a called-off request still read as "Pending" and the kitchen would
+		keep preparing a meal for a visit that is not happening.
+
+		db_set because the document is cancelled by this point and a normal save
+		would be refused.
+
+		`sync_hospitality_to_pass` has to be called by hand for the same reason:
+		db_set writes straight to the row without running `on_update`, so the
+		sync that normally rides on it never fired on cancel. The Visitor Pass was
+		left reading `hospitality_overall_status = Confirmed` for an arrangement
+		that had just been called off — and the Visitor Itinerary print format
+		shows that field to the gate. The sync itself is `db.set_value`, so it is
+		safe against a document that is already cancelled.
+		"""
+		self.db_set("status", "Cancelled", update_modified=False)
+		sync_hospitality_to_pass(self)
+
+	def run_notifications(self, method):
+		"""Same guard as VisitorPass.run_notifications — see the note there.
+
+		This one matters because a Hospitality Request is created automatically
+		while a Visitor Pass is being submitted, so ITS failing alert email lands
+		in the pass's own response and can evict the messages the approver
+		actually needs to see, including the blacklist warning. Restoring the
+		snapshot keeps a second document's mail problem out of the first
+		document's conversation with the user.
+		"""
+		messages_before = list(frappe.message_log)
+		try:
+			super().run_notifications(method)
+		finally:
+			frappe.local.message_log = messages_before
 
 	def on_update(self):
 		sync_hospitality_to_pass(self)

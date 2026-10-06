@@ -1,7 +1,15 @@
 
 name: Linters
 
+# `version-15` is the branch the Frappe 15 line is published from; the others stay
+# listed until the 1.1.0 release is cut and they are settled.
 on:
+  push:
+    branches:
+      - version-15
+      - version-15-backport
+      - develop
+      - main
   pull_request:
   workflow_dispatch:
 
@@ -16,7 +24,6 @@ jobs:
   linter:
     name: 'Frappe Linter'
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
 
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +53,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Cache pip
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/*requirements.txt', '**/pyproject.toml', '**/setup.py') }}

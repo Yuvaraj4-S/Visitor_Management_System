@@ -8,6 +8,14 @@ from frappe.tests.utils import FrappeTestCase
 
 from visitormanagement.visitor_management import lifecycle
 
+# Frappe 15's test runner builds test records for this doctype's whole Link
+# dependency chain when it loads this module. Employee, Item, Job Applicant,
+# Maintenance Visit and Supplier each lead into ERPNext's Company -> Fiscal Year
+# test records, which collide with a real Fiscal Year on a working site. These
+# tests work on in-memory objects and need no records at all. Listing them here
+# also prunes the same walk wherever another doctype's test reaches Visitor Pass.
+test_ignore = ["Employee", "Item", "Job Applicant", "Maintenance Visit", "Supplier"]
+
 
 class TestVisitorPass(FrappeTestCase):
 	def test_populate_hospitality_request_from_pass_copies_special_diet(self):
@@ -44,9 +52,7 @@ class TestVisitorPass(FrappeTestCase):
 			special_diet="Vegan",
 		)
 
-		with patch(
-			"visitormanagement.visitor_management.lifecycle.frappe.db.set_value"
-		) as mock_set_value:
+		with patch("visitormanagement.visitor_management.lifecycle.frappe.db.set_value") as mock_set_value:
 			lifecycle.sync_hospitality_to_pass(request_doc)
 
 		mock_set_value.assert_called_once()

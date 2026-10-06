@@ -5,15 +5,23 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "sec_event",
   "visitor_pass",
   "event_type",
   "event_status",
+  "col_event",
   "event_time",
   "source_doctype",
   "source_name",
+  "sec_details",
   "details"
  ],
  "fields": [
+  {
+   "fieldname": "sec_event",
+   "fieldtype": "Section Break",
+   "label": "Event"
+  },
   {
    "fieldname": "visitor_pass",
    "fieldtype": "Link",
@@ -35,6 +43,10 @@
    "label": "Event Status"
   },
   {
+   "fieldname": "col_event",
+   "fieldtype": "Column Break"
+  },
+  {
    "fieldname": "event_time",
    "fieldtype": "Datetime",
    "in_list_view": 1,
@@ -52,6 +64,11 @@
    "options": "source_doctype"
   },
   {
+   "fieldname": "sec_details",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
    "fieldname": "details",
    "fieldtype": "Long Text",
    "label": "Details"
@@ -60,7 +77,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-05 00:00:00.000000",
+ "modified": "2026-08-06 10:51:21.673919",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Event Log",
@@ -83,5 +100,8 @@
  "rows_threshold_for_grid_search": 20,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "autoname": "VEL-.YYYY.-.#####",
+ "naming_rule": "Expression (old style)",
+ "track_changes": 1
 }

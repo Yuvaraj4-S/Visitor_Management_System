@@ -1,4 +1,36 @@
-{%- set vp = frappe.get_doc("Visitor Pass", doc.visitor_pass) if doc.visitor_pass else None -%}
+{#-
+	Frappe checks print permission on the Hospitality Request only, and the Jinja
+	sandbox binds the raw `frappe.get_doc`, which performs no permission check of
+	its own. Fetching the linked pass unconditionally therefore handed the
+	visitor's name, company, host and schedule to anyone who could print the
+	request — including users who get a 403 on the Visitor Pass itself.
+
+	That guard was written with `frappe.has_permission`, which is NOT exposed in
+	the print sandbox, so this format raised on every single render — "module has
+	no attribute 'has_permission'" — and the View Itinerary button never opened
+	anything at all. `frappe.get_list` IS exposed and applies the same permission
+	rules, returning no rows when the reader may not see the pass. Same
+	guarantee, and it actually runs.
+-#}
+{%- set vp_rows = frappe.get_list(
+		"Visitor Pass",
+		filters={"name": doc.visitor_pass},
+		fields=[
+			"visitor_full_name", "company__organisation", "visit_date",
+			"expected_checkin", "expected_checkout", "hospitality_overall_status",
+			"host_name", "person_to_visit",
+		],
+		limit_page_length=1,
+	) if doc.visitor_pass else [] -%}
+{%- set vp = vp_rows[0] if vp_rows else None -%}
+{#-
+	Staff are printed by name. The Link fields hold the Employee ID
+	("HR-EMP-00057"), which means nothing to the driver, the guide or the visitor
+	reading this page. Same lookup the Visitor Badge uses for the host.
+-#}
+{%- macro staff(employee) -%}
+	{{ (frappe.db.get_value("Employee", employee, "employee_name") or employee) if employee else "-" }}
+{%- endmacro -%}
 <div style="font-family: Arial, sans-serif; color: #1f2933; font-size: 12px; line-height: 1.5;">
 	<div style="border-bottom: 3px solid #102a43; padding-bottom: 10px; margin-bottom: 15px;">
 		<h2 style="margin: 0; color: #102a43;">Visitor Itinerary</h2>
@@ -17,7 +49,7 @@
 			<td style="padding: 6px 10px; border: 1px solid #d9e2ec; background: #f0f4f8;"><strong>Visit Date</strong></td>
 			<td style="padding: 6px 10px; border: 1px solid #d9e2ec;">{{ vp.visit_date or '-' }}</td>
 			<td style="padding: 6px 10px; border: 1px solid #d9e2ec; background: #f0f4f8;"><strong>Host</strong></td>
-			<td style="padding: 6px 10px; border: 1px solid #d9e2ec;">{{ vp.person_to_visit or '-' }}</td>
+			<td style="padding: 6px 10px; border: 1px solid #d9e2ec;">{{ vp.host_name or staff(vp.person_to_visit) }}</td>
 		</tr>
 		<tr>
 			<td style="padding: 6px 10px; border: 1px solid #d9e2ec; background: #f0f4f8;"><strong>Check-in</strong></td>
@@ -106,16 +138,12 @@
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Time</strong></td>
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.tour_start_time or '-' }} - {{ doc.tour_end_time or '-' }}</td>
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Tour Guide</strong></td>
-			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.tour_guide or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ staff(doc.tour_guide) }}</td>
 		</tr>
-		<tr>
-			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Compliance</strong></td>
-			<td colspan="3" style="padding: 5px 10px; border: 1px solid #d9e2ec;">
-				Safety Briefing: {{ '✓' if doc.safety_briefing_done else '✗' }} &nbsp;&nbsp;
-				PPE Issued: {{ '✓' if doc.ppe_issued else '✗' }} &nbsp;&nbsp;
-				NDA Signed: {{ '✓' if doc.nda_signed else '✗' }}
-			</td>
-		</tr>
+		{#- A "Compliance" row stood here printing Safety Briefing / PPE Issued /
+		    NDA Signed as "✗" on every itinerary: the three fields it read are not
+		    on Hospitality Request, so the page stated something nobody had
+		    recorded. -#}
 		{% if doc.tour_areas %}
 		<tr>
 			<td colspan="4" style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #e6f4ff;"><strong>Tour Areas</strong></td>
@@ -124,7 +152,7 @@
 		<tr>
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ loop.index }}. {{ area.area_name }}</td>
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ area.from_time or '-' }} - {{ area.to_time or '-' }}</td>
-			<td colspan="2" style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ area.responsible_person or '-' }}</td>
+			<td colspan="2" style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ staff(area.responsible_person) }}</td>
 		</tr>
 		{% endfor %}
 		{% endif %}
@@ -150,7 +178,7 @@
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Buggy No</strong></td>
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.buggy_number or '-' }}</td>
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Driver</strong></td>
-			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.buggy_driver or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ staff(doc.buggy_driver) }}</td>
 		</tr>
 	</table>
 	{% endif %}
@@ -172,7 +200,7 @@
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Delivery Point</strong></td>
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.greeting_delivery_point or '-' }}</td>
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Assigned</strong></td>
-			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.greeting_assigned_to or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ staff(doc.greeting_assigned_to) }}</td>
 		</tr>
 	</table>
 	{% endif %}
@@ -185,6 +213,16 @@
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.meal_type or '-' }}</td>
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc; width: 20%;"><strong>Diet</strong></td>
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.special_diet or '-' }}</td>
+		</tr>
+		{#- Allergies and accessibility are recorded on this request but appeared
+		    on no printout, notification or report, so whoever actually serves the
+		    visitor never saw them. Allergies are shown in red: it is the one line
+		    on this page that carries a safety consequence. -#}
+		<tr>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Allergies</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; {% if doc.dietary_allergies %}color: #b42318; font-weight: bold;{% endif %}">{{ doc.dietary_allergies or '-' }}</td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Accessibility</strong></td>
+			<td style="padding: 5px 10px; border: 1px solid #d9e2ec;">{{ doc.accessibility_requirements or '-' }}</td>
 		</tr>
 		<tr>
 			<td style="padding: 5px 10px; border: 1px solid #d9e2ec; background: #f7fafc;"><strong>Conference Room</strong></td>

@@ -1,0 +1,22 @@
+{
+ "action": "Show Form Tour",
+ "action_label": "Take the Tour",
+ "creation": "2026-10-06 09:00:00.000000",
+ "description": "#### A two-minute look at one Visitor Type\n\nOpens a blank Visitor Type and points at the fields that matter: its name, the role that approves it, an optional second approver, the gate it arrives at and whether it gets a printed badge.\n\nNothing is saved unless you choose to save it.",
+ "docstatus": 0,
+ "doctype": "Onboarding Step",
+ "form_tour": "Visitor Type Form Tour",
+ "idx": 0,
+ "is_complete": 0,
+ "is_single": 0,
+ "is_skipped": 0,
+ "modified": "2026-10-06 09:00:00.000000",
+ "modified_by": "Administrator",
+ "name": "VMS Visitor Type Tour",
+ "owner": "Administrator",
+ "reference_document": "Visitor Type",
+ "show_form_tour": 0,
+ "show_full_form": 0,
+ "title": "See how a Visitor Type is set up",
+ "validate_action": 0
+}

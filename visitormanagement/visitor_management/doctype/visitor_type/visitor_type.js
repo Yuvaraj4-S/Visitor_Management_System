@@ -22,10 +22,8 @@ function apply_badge_config_visibility(frm) {
 	};
 	// Hide first so the fields never flash on before the async fetch resolves.
 	setHidden(true);
-	frappe.db
-		.get_value("VMS Settings", "VMS Settings", "enable_badge")
-		.then((r) => {
-			const on = !!cint(((r && r.message) || {}).enable_badge);
-			setHidden(!on);
-		});
+	frappe.db.get_value("VMS Settings", "VMS Settings", "enable_badge").then((r) => {
+		const on = !!cint(((r && r.message) || {}).enable_badge);
+		setHidden(!on);
+	});
 }

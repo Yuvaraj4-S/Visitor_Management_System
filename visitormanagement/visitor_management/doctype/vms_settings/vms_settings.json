@@ -7,6 +7,7 @@
  "field_order": [
   "section_general",
   "admin_email",
+  "home_country",
   "food_dept_email",
   "column_break_general",
   "default_checkout_time",
@@ -16,12 +17,42 @@
   "qr_scan_required_at_gate",
   "require_item_declaration",
   "block_check_in_without_verification",
+  "allow_gate_without_item_verification",
   "column_break_gate",
   "blacklist_action",
-  "gate_list",
   "section_badge",
   "enable_badge",
-  "badge_required_for"
+  "badge_required_for",
+  "section_policy",
+  "max_advance_booking_days",
+  "invitation_expiry_days",
+  "column_break_policy",
+  "no_show_grace_hours",
+  "default_country_code",
+  "fever_threshold_c",
+  "max_portal_submissions_per_hour",
+  "allow_walk_in_pre_registration",
+  "section_meals",
+  "meal_windows",
+  "section_notify",
+  "security_alert_roles",
+  "column_break_notify",
+  "digest_recipient_roles",
+  "section_retention",
+  "data_retention_enabled",
+  "column_break_retention",
+  "data_retention_days",
+  "section_branding",
+  "portal_brand_colour",
+  "portal_logo",
+  "column_break_branding",
+  "portal_organisation_name",
+  "portal_footer_note",
+  "section_privacy",
+  "require_portal_consent",
+  "privacy_notice_version",
+  "column_break_privacy",
+  "privacy_notice_text"
  ],
  "fields": [
   {
@@ -36,6 +67,14 @@
    "options": "Email"
   },
   {
+   "default": "India",
+   "description": "Visitors with a nationality other than this country are treated as foreign nationals.",
+   "fieldname": "home_country",
+   "fieldtype": "Link",
+   "label": "Home Country",
+   "options": "Country"
+  },
+  {
    "fieldname": "food_dept_email",
    "fieldtype": "Data",
    "label": "Food Dept Email",
@@ -47,6 +86,7 @@
   },
   {
    "default": "18:00:00",
+   "description": "Used as the expected check-out when a pass or invitation does not specify one.",
    "fieldname": "default_checkout_time",
    "fieldtype": "Time",
    "label": "Default Checkout Time"
@@ -87,6 +127,13 @@
    "label": "Block Check-In Without Verification"
   },
   {
+   "default": "0",
+   "description": "Leave OFF (the default) to require every declared item to be verified before a Check-In or Check-Out can be saved. Tick only if your site deliberately admits visitors without checking their declared items.",
+   "fieldname": "allow_gate_without_item_verification",
+   "fieldtype": "Check",
+   "label": "Allow Gate Events Without Item Verification"
+  },
+  {
    "fieldname": "column_break_gate",
    "fieldtype": "Column Break"
   },
@@ -96,11 +143,6 @@
    "fieldtype": "Select",
    "label": "Blacklist Action",
    "options": "Block Entry\nAlert Only\nLog Only"
-  },
-  {
-   "fieldname": "gate_list",
-   "fieldtype": "Small Text",
-   "label": "Gate List"
   },
   {
    "fieldname": "section_badge",
@@ -117,17 +159,201 @@
   {
    "default": "Contractor\nCandidate\nCustomer\nSupplier\nVIP",
    "depends_on": "eval:doc.enable_badge",
-   "description": "Select which visitor types require a physical badge. Unselected types will get QR-only access.",
+   "description": "Superseded by 'Requires Physical Badge' on each Visitor Type. Retained only for sites that have not yet set that flag.",
    "fieldname": "badge_required_for",
    "fieldtype": "Small Text",
-   "label": "Badge Required For"
+   "hidden": 1,
+   "label": "Badge Required For (legacy)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_policy",
+   "fieldtype": "Section Break",
+   "label": "Visit Policy"
+  },
+  {
+   "default": "90",
+   "description": "How far ahead a visit may be scheduled. At least 1 day; there is no \"no limit\" setting — enter a large number of days instead.",
+   "fieldname": "max_advance_booking_days",
+   "fieldtype": "Int",
+   "label": "Max Advance Booking (days)"
+  },
+  {
+   "default": "7",
+   "fieldname": "invitation_expiry_days",
+   "fieldtype": "Int",
+   "label": "Invitation Link Expiry (days)"
+  },
+  {
+   "fieldname": "column_break_policy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "4",
+   "fieldname": "no_show_grace_hours",
+   "fieldtype": "Int",
+   "label": "No-Show Grace (hours)"
+  },
+  {
+   "default": "91",
+   "description": "ISD code applied to local mobile numbers, without '+'.",
+   "fieldname": "default_country_code",
+   "fieldtype": "Data",
+   "label": "Default Phone Country Code"
+  },
+  {
+   "default": "37.5",
+   "description": "Body temperature at or above which a Contact Trace Record's exposure risk is classified High. Health policy differs by site and authority.",
+   "fieldname": "fever_threshold_c",
+   "fieldtype": "Float",
+   "label": "Fever Threshold (°C)"
+  },
+  {
+   "default": "20",
+   "description": "Guest pre-registration submissions allowed per identity, per hour, before the public portal rate-limits further attempts. 0 is read as unset (falls back to the default), not as no limit.",
+   "fieldname": "max_portal_submissions_per_hour",
+   "fieldtype": "Int",
+   "label": "Max Portal Submissions per Hour"
+  },
+  {
+   "default": "0",
+   "description": "When off, only visitors holding an invitation link can pre-register. Turn on to let anyone open the public form (for example from a QR code at reception).",
+   "fieldname": "allow_walk_in_pre_registration",
+   "fieldtype": "Check",
+   "label": "Allow Pre-Registration Without an Invitation"
+  },
+  {
+   "description": "Visit windows overlapping these slots auto-derive the meal plan.",
+   "fieldname": "section_meals",
+   "fieldtype": "Section Break",
+   "label": "Meal Windows"
+  },
+  {
+   "fieldname": "meal_windows",
+   "fieldtype": "Table",
+   "label": "Meal Windows",
+   "options": "VMS Meal Window"
+  },
+  {
+   "description": "Who receives VMS alerts. Leave a table empty to fall back to the built-in role list.",
+   "fieldname": "section_notify",
+   "fieldtype": "Section Break",
+   "label": "Notification Recipients"
+  },
+  {
+   "description": "Notified when a blacklisted visitor is matched.",
+   "fieldname": "security_alert_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Security Alert Roles",
+   "options": "VMS Notification Role"
+  },
+  {
+   "fieldname": "column_break_notify",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Receive the daily hospitality schedule digest.",
+   "fieldname": "digest_recipient_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Hospitality Digest Roles",
+   "options": "VMS Notification Role"
+  },
+  {
+   "description": "DPDP / GDPR-style data minimisation for visitor identity data. OFF by default — nothing is ever deleted or anonymised unless this is explicitly turned on.",
+   "fieldname": "section_retention",
+   "fieldtype": "Section Break",
+   "label": "Data Retention & Purge"
+  },
+  {
+   "default": "0",
+   "description": "When ticked, a nightly job anonymises name, mobile, email, ID number and photos on visits that are already over (Checked-Out, Rejected, Cancelled or No-Show) and older than the retention period. The visit record itself — dates, host, gate, badge, workflow history — is kept for audit and statistics. Leave this OFF until your compliance/legal function has confirmed a retention period: this app never purges anything on its own.",
+   "fieldname": "data_retention_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Data Retention Purge"
+  },
+  {
+   "fieldname": "column_break_retention",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "365",
+   "depends_on": "eval:doc.data_retention_enabled",
+   "description": "How long, after a visit is over, its identity data is kept before being anonymised. Only takes effect once Enable Data Retention Purge is ticked.",
+   "fieldname": "data_retention_days",
+   "fieldtype": "Int",
+   "label": "Retention Period (days)"
+  },
+  {
+   "description": "Controls how the public pre-registration page looks. The whole palette is derived from the brand colour, so one setting themes the page.",
+   "fieldname": "section_branding",
+   "fieldtype": "Section Break",
+   "label": "Portal Branding"
+  },
+  {
+   "default": "#1A56DB",
+   "description": "Used for step markers, focus rings and the submit button.",
+   "fieldname": "portal_brand_colour",
+   "fieldtype": "Color",
+   "label": "Brand Colour"
+  },
+  {
+   "description": "Shown above the form title. Leave blank to show no logo.",
+   "fieldname": "portal_logo",
+   "fieldtype": "Attach Image",
+   "label": "Portal Logo"
+  },
+  {
+   "fieldname": "column_break_branding",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Shown beside the logo and in the page footer.",
+   "fieldname": "portal_organisation_name",
+   "fieldtype": "Data",
+   "label": "Organisation Name"
+  },
+  {
+   "description": "Optional line under the form — e.g. a privacy statement or help contact.",
+   "fieldname": "portal_footer_note",
+   "fieldtype": "Small Text",
+   "label": "Footer Note"
+  },
+  {
+   "description": "What visitors are told about their personal data on the public pre-registration form, and whether they must agree before they can submit. Each pass created through the form records that the visitor agreed, when, and to which version of the notice.",
+   "fieldname": "section_privacy",
+   "fieldtype": "Section Break",
+   "label": "Privacy Notice & Consent"
+  },
+  {
+   "default": "1",
+   "description": "Visitors must tick a box under the notice before they can submit the public form.",
+   "fieldname": "require_portal_consent",
+   "fieldtype": "Check",
+   "label": "Require Consent on the Public Form"
+  },
+  {
+   "default": "1",
+   "description": "Recorded on each pass with the visitor's consent. It is raised by one when you change the notice text and leave this as it is; you can also set your own reference (for example 2026-10).",
+   "fieldname": "privacy_notice_version",
+   "fieldtype": "Data",
+   "label": "Privacy Notice Version"
+  },
+  {
+   "fieldname": "column_break_privacy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Shown above the consent box. Leave blank to show the standard notice, which says what is collected (name, contact details, photograph, government ID), why (identity check, visitor pass, site security, legal duties), who sees it and how to ask for correction or deletion. Write your own text to name your organisation, your retention period and a contact for privacy requests.",
+   "fieldname": "privacy_notice_text",
+   "fieldtype": "Small Text",
+   "label": "Privacy Notice Text"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-04-11 12:00:00.000000",
+ "modified": "2026-10-06 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS Settings",
@@ -156,5 +382,6 @@
  "rows_threshold_for_grid_search": 20,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "track_changes": 1
 }

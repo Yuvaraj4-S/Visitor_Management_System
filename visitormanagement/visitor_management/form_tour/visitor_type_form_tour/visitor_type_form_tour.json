@@ -1,0 +1,77 @@
+{
+ "creation": "2026-08-10 09:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Form Tour",
+ "first_document": 0,
+ "idx": 0,
+ "include_name_field": 0,
+ "is_standard": 1,
+ "modified": "2026-10-06 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Visitor Type Form Tour",
+ "new_document_form": 0,
+ "owner": "Administrator",
+ "reference_doctype": "Visitor Type",
+ "save_on_complete": 0,
+ "steps": [
+  {
+   "description": "Contractor, Candidate, Auditor — whatever your site actually receives.",
+   "fieldname": "visitor_type_name",
+   "fieldtype": "Data",
+   "has_next_condition": 0,
+   "is_table_field": 0,
+   "label": "Visitor Type Name",
+   "position": "Bottom",
+   "title": "Name the kind of visit",
+   "ui_tour": 0
+  },
+  {
+   "description": "<p>The role you choose here gets its own approval lane in the workflow. Passes of this type wait for that role and nobody else.</p>",
+   "fieldname": "approver_role",
+   "fieldtype": "Link",
+   "has_next_condition": 0,
+   "is_table_field": 0,
+   "label": "Approver Role",
+   "position": "Bottom",
+   "title": "Who signs this off",
+   "ui_tour": 0
+  },
+  {
+   "description": "Leave blank for single approval. Set it and the pass goes to this role only after the first has approved — used for VIP visits.",
+   "fieldname": "secondary_approver_role",
+   "fieldtype": "Link",
+   "has_next_condition": 0,
+   "is_table_field": 0,
+   "label": "Secondary Approver Role",
+   "position": "Bottom",
+   "title": "A second approver, if needed",
+   "ui_tour": 0
+  },
+  {
+   "description": "Prefills the gate on the security log, so the officer is not guessing.",
+   "fieldname": "default_gate",
+   "fieldtype": "Link",
+   "has_next_condition": 0,
+   "is_table_field": 0,
+   "label": "Default Gate",
+   "position": "Bottom",
+   "title": "Where they arrive",
+   "ui_tour": 0
+  },
+  {
+   "description": "Untick if this type gets QR-only access with no printed badge.",
+   "fieldname": "requires_badge",
+   "fieldtype": "Check",
+   "has_next_condition": 0,
+   "is_table_field": 0,
+   "label": "Requires Physical Badge",
+   "position": "Bottom",
+   "title": "Badge behaviour",
+   "ui_tour": 0
+  }
+ ],
+ "title": "Configuring a Visitor Type",
+ "track_steps": 0,
+ "ui_tour": 0
+}

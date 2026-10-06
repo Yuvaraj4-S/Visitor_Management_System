@@ -1,0 +1,17 @@
+{
+ "action": "Update Settings",
+ "action_label": "Review Settings",
+ "creation": "2026-08-10 09:00:00.000000",
+ "description": "#### Set the ground rules\n\nEverything downstream reads these: how far ahead a visit may be booked, how long an invitation link stays valid, the meal windows that decide hospitality, and the colour and logo on the visitor's pre-registration page.\n\nYou can change any of it later — the app re-reads these on every visit.",
+ "docstatus": 0,
+ "doctype": "Onboarding Step",
+ "idx": 0,
+ "is_single": 1,
+ "modified": "2026-08-10 12:09:38.385524",
+ "modified_by": "Administrator",
+ "name": "VMS Review Settings",
+ "owner": "Administrator",
+ "reference_document": "VMS Settings",
+ "title": "Review Visitor Management Settings",
+ "validate_action": 0
+}

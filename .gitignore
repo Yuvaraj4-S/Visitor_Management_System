@@ -5,3 +5,10 @@
 tags
 node_modules
 __pycache__
+
+# Ruff / tooling caches
+.ruff_cache/
+
+# Local developer notes; never part of the app.
+.claude/
+CLAUDE.md

@@ -26,6 +26,7 @@
 	"root": true,
 	"globals": {
 		"frappe": true,
+		"Html5Qrcode": true,
 		"Vue": true,
 		"SetVueGlobals": true,
 		"__": true,
@@ -119,6 +120,7 @@
 		"after": true,
 		"qz": true,
 		"localforage": true,
-		"extend_cscript": true
+		"extend_cscript": true,
+		"vms_setup_core_link_pickers": true
 	}
 }

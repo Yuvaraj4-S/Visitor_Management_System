@@ -1,0 +1,44 @@
+{
+ "allow_roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "HR Manager"
+  }
+ ],
+ "creation": "2026-08-10 09:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Module Onboarding",
+ "documentation_url": "https://github.com/Yuvaraj4-S/Visitor_Management_System#readme",
+ "idx": 0,
+ "is_complete": 0,
+ "modified": "2026-10-06 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Visitor Management Onboarding",
+ "owner": "Administrator",
+ "steps": [
+  {
+   "step": "VMS Review Settings"
+  },
+  {
+   "step": "VMS Configure Visitor Types"
+  },
+  {
+   "step": "VMS Visitor Type Tour"
+  },
+  {
+   "step": "VMS Confirm Gates"
+  },
+  {
+   "step": "VMS First Invitation"
+  },
+  {
+   "step": "VMS Daily Log"
+  }
+ ],
+ "subtitle": "Settings, Visitor Types, Gates and your first invitation.",
+ "success_message": "Visitor Management is ready to receive visitors.",
+ "title": "Set up Visitor Management"
+}

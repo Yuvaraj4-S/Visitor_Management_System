@@ -4,14 +4,14 @@ frappe.query_reports["Daily Hospitality Schedule"] = {
 	filters: [
 		{
 			fieldname: "date",
-			label: "Date",
+			label: __("Date"),
 			fieldtype: "Date",
 			default: frappe.datetime.get_today(),
 			reqd: 1,
 		},
 		{
 			fieldname: "service",
-			label: "Service",
+			label: __("Service"),
 			fieldtype: "Select",
 			options: "All\nCab\nHotel\nFactory Tour\nBuggy\nGreeting",
 			default: "All",

@@ -6,17 +6,26 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "sec_trace",
   "visitor_pass",
   "security_log",
   "visited_area",
   "time_in",
+  "col_trace",
   "time_out",
-  "close_contacts",
   "exposure_risk",
   "status",
+  "sec_contacts",
+  "close_contacts",
+  "col_contacts",
   "notes"
  ],
  "fields": [
+  {
+   "fieldname": "sec_trace",
+   "fieldtype": "Section Break",
+   "label": "Trace Details"
+  },
   {
    "fieldname": "visitor_pass",
    "fieldtype": "Link",
@@ -45,14 +54,13 @@
    "reqd": 1
   },
   {
+   "fieldname": "col_trace",
+   "fieldtype": "Column Break"
+  },
+  {
    "fieldname": "time_out",
    "fieldtype": "Datetime",
    "label": "Time Out"
-  },
-  {
-   "fieldname": "close_contacts",
-   "fieldtype": "Small Text",
-   "label": "Close Contacts"
   },
   {
    "fieldname": "exposure_risk",
@@ -69,6 +77,20 @@
    "options": "Active\nClosed"
   },
   {
+   "fieldname": "sec_contacts",
+   "fieldtype": "Section Break",
+   "label": "Close Contacts & Notes"
+  },
+  {
+   "fieldname": "close_contacts",
+   "fieldtype": "Small Text",
+   "label": "Close Contacts"
+  },
+  {
+   "fieldname": "col_contacts",
+   "fieldtype": "Column Break"
+  },
+  {
    "fieldname": "notes",
    "fieldtype": "Small Text",
    "label": "Notes"
@@ -77,7 +99,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-05 00:00:00.000000",
+ "modified": "2026-08-06 10:45:17.634553",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Contact Trace Record",
@@ -100,5 +122,7 @@
  "rows_threshold_for_grid_search": 20,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "track_changes": 1,
+ "naming_rule": "Expression (old style)"
 }

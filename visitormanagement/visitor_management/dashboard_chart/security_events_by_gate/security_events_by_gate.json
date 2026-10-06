@@ -14,7 +14,7 @@
  "is_public": 1,
  "is_standard": 1,
  "last_synced_on": "2026-04-04 12:00:00.000000",
- "modified": "2026-04-04 12:00:00.000000",
+ "modified": "2026-10-06 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Security Events by Gate",
@@ -25,7 +25,7 @@
  "time_interval": "Weekly",
  "timeseries": 0,
  "timespan": "Last Week",
- "type": "Donut",
+ "type": "Bar",
  "use_report_chart": 0,
  "value_based_on": "",
  "y_axis": []

@@ -1,0 +1,16 @@
+{
+ "action": "Go to Page",
+ "action_label": "Open Visitor Types",
+ "creation": "2026-08-10 09:00:00.000000",
+ "description": "#### This is the important one\n\nEach Visitor Type names the role that approves it. That single field builds the approval workflow — a contractor can route to the System Manager while a candidate goes to HR, and a VIP can require a second approver.\n\nAdd your own types freely. The workflow regenerates itself, so nothing here is hardcoded.",
+ "docstatus": 0,
+ "doctype": "Onboarding Step",
+ "idx": 0,
+ "modified": "2026-08-10 12:09:38.385524",
+ "modified_by": "Administrator",
+ "name": "VMS Configure Visitor Types",
+ "owner": "Administrator",
+ "path": "visitor-type",
+ "title": "Decide who approves each kind of visitor",
+ "validate_action": 1
+}

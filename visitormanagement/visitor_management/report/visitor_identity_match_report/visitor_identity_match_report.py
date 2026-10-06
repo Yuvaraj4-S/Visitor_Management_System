@@ -1,37 +1,100 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
+
+from visitormanagement.visitor_management.id_masking import mask_id
+from visitormanagement.visitor_management.report.utils import link_or_data, list_scope
+
+# Default and hard-cap window for the mandatory date filter (see _enforce_date_range).
+# Measured before this fix: a filterless run pulled all 502,200 Visitor Pass rows
+# (7,695 ms) straight into the worker's memory.
+DEFAULT_RANGE_DAYS = 30
+MAX_RANGE_DAYS = 90
+
+# A duplicate-key group above this size is skipped rather than pair-matched. The
+# pairing below is O(k^2): a group of 5,000 (a shared reception placeholder number,
+# or a long-running contractor) produces 12.5 million dicts and OOMs the worker
+# before the query even times out. The current data already has a mobile number
+# shared by 15 passes, so this is a real, not hypothetical, shape.
+MAX_GROUP_SIZE = 200
 
 
-VISITOR_TYPES = ("Contractor", "Supplier", "Candidate", "Customer", "VIP")
+def _visitor_types():
+	"""Active Visitor Types, read from the master rather than a frozen tuple."""
+	return frappe.get_all("Visitor Type", filters={"is_active": 1}, pluck="name", order_by="name asc")
 
 
 def execute(filters=None):
 	filters = filters or {}
+	_enforce_date_range(filters)
 
 	columns = get_columns()
-	data = get_data(filters)
-	report_summary = get_report_summary(data)
+	data, skipped_groups = get_data(filters)
+	report_summary = get_report_summary(data, skipped_groups)
 	chart = get_chart(data)
+
+	_notify_skipped_groups(skipped_groups)
 
 	return columns, data, None, chart, report_summary
 
 
+def _enforce_date_range(filters):
+	"""Make the date range mandatory and bounded, in the server, not just the UI.
+
+	The report's `.js` marks from_date/to_date `reqd: 1`, but that is a UI
+	convenience only — it does nothing for a direct call to `execute()` (e.g. from
+	the report API, a console, or a future caller) with empty filters. That direct
+	call is the actual attack/DoS path, so the boundary has to live here: default
+	an empty range to the last DEFAULT_RANGE_DAYS days, then clamp anything wider
+	than MAX_RANGE_DAYS days back down, so the underlying query can never scan the
+	whole `tabVisitor Pass` table regardless of how it was invoked.
+	"""
+	today = frappe.utils.getdate(frappe.utils.nowdate())
+
+	to_date = frappe.utils.getdate(filters["to_date"]) if filters.get("to_date") else today
+	from_date = (
+		frappe.utils.getdate(filters["from_date"])
+		if filters.get("from_date")
+		else frappe.utils.add_days(to_date, -DEFAULT_RANGE_DAYS)
+	)
+
+	if from_date > to_date:
+		from_date, to_date = to_date, from_date
+
+	if (to_date - from_date).days > MAX_RANGE_DAYS:
+		clamped_from = frappe.utils.add_days(to_date, -MAX_RANGE_DAYS)
+		frappe.msgprint(
+			_(
+				"The date range was capped to the last {0} days ({1} to {2}) so this report cannot scan "
+				"the entire Visitor Pass table. Narrow the range further if you need fewer rows."
+			).format(MAX_RANGE_DAYS, clamped_from, to_date),
+			title=_("Date Range Capped"),
+			indicator="orange",
+		)
+		from_date = clamped_from
+
+	filters["from_date"] = str(from_date)
+	filters["to_date"] = str(to_date)
+
+
 def get_columns():
 	return [
-		{"label": "Match Scope", "fieldname": "match_scope", "fieldtype": "Data", "width": 115},
-		{"label": "Match Basis", "fieldname": "match_basis", "fieldtype": "Data", "width": 150},
-		{"label": "Primary Pass", "fieldname": "primary_pass", "fieldtype": "Link", "options": "Visitor Pass", "width": 130},
-		{"label": "Primary Visitor", "fieldname": "primary_visitor", "fieldtype": "Data", "width": 170},
-		{"label": "Primary Type", "fieldname": "primary_type", "fieldtype": "Data", "width": 105},
-		{"label": "Primary Visit", "fieldname": "primary_visit_date", "fieldtype": "Date", "width": 105},
-		{"label": "Matched Pass", "fieldname": "matched_pass", "fieldtype": "Link", "options": "Visitor Pass", "width": 130},
-		{"label": "Matched Visitor", "fieldname": "matched_visitor", "fieldtype": "Data", "width": 170},
-		{"label": "Matched Type", "fieldname": "matched_type", "fieldtype": "Data", "width": 105},
-		{"label": "Matched Visit", "fieldname": "matched_visit_date", "fieldtype": "Date", "width": 105},
-		{"label": "ID Proof", "fieldname": "id_proof_number", "fieldtype": "Data", "width": 140},
-		{"label": "Mobile", "fieldname": "mobile_number", "fieldtype": "Data", "width": 130},
-		{"label": "Email", "fieldname": "email_id", "fieldtype": "Data", "width": 200},
+		{"label": _("Type Comparison"), "fieldname": "match_scope", "fieldtype": "Data", "width": 130},
+		{"label": _("Matched On"), "fieldname": "match_basis", "fieldtype": "Data", "width": 150},
+		link_or_data("Visitor Pass", label=_("Primary Pass"), fieldname="primary_pass", width=130),
+		{"label": _("Primary Visitor"), "fieldname": "primary_visitor", "fieldtype": "Data", "width": 170},
+		{"label": _("Primary Type"), "fieldname": "primary_type", "fieldtype": "Data", "width": 105},
+		{"label": _("Primary Visit"), "fieldname": "primary_visit_date", "fieldtype": "Date", "width": 105},
+		link_or_data("Visitor Pass", label=_("Matched Pass"), fieldname="matched_pass", width=130),
+		{"label": _("Matched Visitor"), "fieldname": "matched_visitor", "fieldtype": "Data", "width": 170},
+		{"label": _("Matched Type"), "fieldname": "matched_type", "fieldtype": "Data", "width": 105},
+		{"label": _("Matched Visit"), "fieldname": "matched_visit_date", "fieldtype": "Date", "width": 105},
+		# Masked. Passes are matched on the full number, on the server; the report
+		# only ever shows the masked form (visitor_management/id_masking.py).
+		{"label": _("ID Proof (Masked)"), "fieldname": "id_proof_number", "fieldtype": "Data", "width": 150},
+		{"label": _("Mobile"), "fieldname": "mobile_number", "fieldtype": "Data", "width": 130},
+		{"label": _("Email"), "fieldname": "email_id", "fieldtype": "Data", "width": 200},
 	]
 
 
@@ -52,9 +115,16 @@ def get_data(filters):
 		if email:
 			indexes["email"].setdefault(email, []).append(record)
 
+	skipped_groups = []
 	for basis, groups in indexes.items():
 		for key, rows in groups.items():
 			if not key or len(rows) < 2:
+				continue
+			if len(rows) > MAX_GROUP_SIZE:
+				# Do not silently truncate: record it so the caller can tell "no
+				# matches" apart from "too many to show" (see _notify_skipped_groups
+				# and get_report_summary).
+				skipped_groups.append({"basis": display_basis(basis), "size": len(rows)})
 				continue
 			add_pair_matches(pairs, rows, basis)
 
@@ -78,43 +148,60 @@ def get_data(filters):
 		),
 		reverse=True,
 	)
-	return data
+	return data, skipped_groups
 
 
 def get_records(filters):
-	conditions = ["visitor_type in %(visitor_types)s"]
-	values = {"visitor_types": VISITOR_TYPES}
+	# The table is referenced by its full name (no alias) because the row scope
+	# from Frappe is written against `tabVisitor Pass`.
+	vp = "`tabVisitor Pass`"
+	conditions = [f"{vp}.visitor_type in %(visitor_types)s"]
+	# A tuple that is never empty: the query needs a value list even on a site
+	# with no active Visitor Type (and then matches nothing).
+	values = {"visitor_types": tuple(_visitor_types()) or ("",)}
 
+	# from_date/to_date are guaranteed present by _enforce_date_range before this
+	# runs, but the checks stay conditional (rather than assuming the keys exist)
+	# so this function is still safe to call on its own, e.g. from a test.
 	if filters.get("from_date"):
-		conditions.append("visit_date >= %(from_date)s")
+		conditions.append(f"{vp}.visit_date >= %(from_date)s")
 		values["from_date"] = filters["from_date"]
 
 	if filters.get("to_date"):
-		conditions.append("visit_date <= %(to_date)s")
+		conditions.append(f"{vp}.visit_date <= %(to_date)s")
 		values["to_date"] = filters["to_date"]
 
 	if filters.get("visitor_type"):
-		conditions.append("visitor_type = %(visitor_type)s")
+		conditions.append(f"{vp}.visitor_type = %(visitor_type)s")
 		values["visitor_type"] = filters["visitor_type"]
+
+	# Only the passes this user's Visitor Pass list shows: the app's row
+	# conditions, the user's User Permissions and shares (report/utils.py).
+	# SQL rather than get_list because the match needs the full ID number, which
+	# no list read returns; it is used below for matching and never sent out.
+	scope = list_scope("Visitor Pass")
+	if scope:
+		conditions.append(f"({scope})")
 
 	where_clause = " AND ".join(conditions)
 
 	return frappe.db.sql(
-		"""
+		f"""
 		SELECT
-			name,
-			visitor_type,
-			visitor_full_name,
-			visit_date,
-			id_proof_number,
-			mobile_number,
-			email_id,
-			status
-		FROM `tabVisitor Pass`
+			{vp}.name AS name,
+			{vp}.visitor_type,
+			{vp}.visitor_full_name,
+			{vp}.visit_date,
+			{vp}.id_proof_type,
+			{vp}.id_proof_number,
+			{vp}.mobile_number,
+			{vp}.email_id,
+			{vp}.status
+		FROM {vp}
 		WHERE """
 		+ where_clause
-		+ """
-		ORDER BY visit_date DESC, modified DESC
+		+ f"""
+		ORDER BY {vp}.visit_date DESC, {vp}.modified DESC
 		""",
 		values,
 		as_dict=True,
@@ -137,7 +224,7 @@ def add_pair_matches(pairs, rows, basis):
 					"matched_type": matched.visitor_type,
 					"matched_visitor": matched.visitor_full_name,
 					"matched_visit_date": matched.visit_date,
-					"id_proof_number": primary.id_proof_number or matched.id_proof_number,
+					"id_proof_number": _masked_id(primary) or _masked_id(matched),
 					"mobile_number": primary.mobile_number or matched.mobile_number,
 					"email_id": primary.email_id or matched.email_id,
 					"primary_status": primary.status,
@@ -146,6 +233,11 @@ def add_pair_matches(pairs, rows, basis):
 				}
 				pairs[pair_key] = entry
 			entry["match_basis"].add(display_basis(basis))
+
+
+def _masked_id(record):
+	"""The record's ID number in masked form — all the report ever shows of it."""
+	return mask_id(record.get("id_proof_type"), record.get("id_proof_number"))
 
 
 def sort_pair(left, right):
@@ -184,15 +276,48 @@ def matched_type_allowed(filter_value, actual_value):
 	return filter_value == actual_value
 
 
-def get_report_summary(data):
+def _notify_skipped_groups(skipped_groups):
+	"""Tell the user, in the UI, that some duplicate-key groups were too large to
+	pair-match — so a report with zero rows because nothing matched is never
+	confused with a report with zero rows because the real matches were too many
+	to show. Never surfaces the actual ID/mobile/email value, only the basis and
+	the group size.
+	"""
+	if not skipped_groups:
+		return
+
+	skipped_groups = sorted(skipped_groups, key=lambda g: g["size"], reverse=True)
+	shown = skipped_groups[:5]
+	lines = ", ".join(f"{g['basis']} group of {g['size']} passes" for g in shown)
+	remainder = len(skipped_groups) - len(shown)
+	if remainder:
+		lines += " " + _("and {0} more group(s)").format(remainder)
+
+	frappe.msgprint(
+		_(
+			"{0} duplicate-key group(s) had more than {1} matching passes and were skipped to avoid "
+			"exhausting server memory: {2}. Narrow the date range to see matches within these groups."
+		).format(len(skipped_groups), MAX_GROUP_SIZE, lines),
+		title=_("Some Matches Not Shown"),
+		indicator="orange",
+	)
+
+
+def get_report_summary(data, skipped_groups=None):
 	same_type = sum(1 for row in data if row["match_scope"] == "Same Type")
 	different_type = sum(1 for row in data if row["match_scope"] == "Different Type")
+	skipped_count = len(skipped_groups or [])
 
-	return [
-		{"value": len(data), "label": "Matched Pairs", "indicator": "Blue"},
-		{"value": same_type, "label": "Same Type", "indicator": "Green"},
-		{"value": different_type, "label": "Different Type", "indicator": "Orange"},
+	summary = [
+		{"value": len(data), "label": _("Matched Pairs"), "indicator": "Blue"},
+		{"value": same_type, "label": _("Same Type"), "indicator": "Green"},
+		{"value": different_type, "label": _("Different Type"), "indicator": "Orange"},
 	]
+	# Only shown when non-zero, so a normal run's summary is unchanged from before
+	# this fix — this is purely the "too many to show" signal from defect 2b.
+	if skipped_count:
+		summary.append({"value": skipped_count, "label": _("Groups Skipped (Too Large)"), "indicator": "Red"})
+	return summary
 
 
 def get_chart(data):
@@ -205,4 +330,3 @@ def get_chart(data):
 		},
 		"type": "donut",
 	}
-

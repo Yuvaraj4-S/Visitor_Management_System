@@ -10,7 +10,7 @@
  "idx": 0,
  "is_standard": "Yes",
  "letter_head": null,
- "modified": "2026-03-02 12:35:42.682586",
+ "modified": "2026-08-31 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Active Visitors",
@@ -22,6 +22,12 @@
  "roles": [
   {
    "role": "System Manager"
+  },
+  {
+   "role": "Security"
+  },
+  {
+   "role": "Host Employee"
   }
  ],
  "timeout": 0

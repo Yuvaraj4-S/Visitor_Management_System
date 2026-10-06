@@ -1,8 +1,13 @@
+import contextlib
+
 import frappe
 from frappe import _
-
+from frappe.model.workflow import apply_workflow
+from frappe.rate_limiter import rate_limit
 from frappe.utils import cint, flt, get_datetime, get_time, getdate, now_datetime, nowdate
 
+from visitormanagement.visitor_management import settings as vms_settings
+from visitormanagement.visitor_management.portal_upload import _count_or_throw, rate_limit_identity
 
 VISITOR_PASS_FOOD_STATUS_FROM_REQUEST = {
 	"Pending": "Pending",
@@ -25,23 +30,55 @@ ARRANGEMENT_REQUIRED_FIELDS = (
 	"buggy_required",
 	"greeting_required",
 )
-ARRANGEMENT_TERMINAL_STATUSES = {"Completed", "Delivered", "Checked Out", "Cancelled"}
-MEAL_WINDOWS = (
-	("Breakfast", "08:00:00", "09:00:00"),
-	("Lunch", "13:00:00", "14:00:00"),
-	("Dinner", "20:00:00", "21:30:00"),
-)
-MEAL_TYPE_SEQUENCE = ("Breakfast", "Lunch", "Dinner")
+# Meal windows are configured in VMS Settings (VMS Meal Window child table).
+# `settings.meal_windows()` falls back to the original Breakfast/Lunch/Dinner
+# slots when a site has not customised them.
 DOUBLE_MEAL_TYPES = {
 	("Breakfast", "Lunch"): "Breakfast + Lunch",
 	("Breakfast", "Dinner"): "Breakfast + Dinner",
 	("Lunch", "Dinner"): "Lunch + Dinner",
 }
 
+# Error Log.method (the title) is a 140-character Data field.
+_ERROR_LOG_TITLE_LENGTH = 140
+
+
+def log_failure(title, message=None):
+	"""Write an Error Log entry for a failure that was caught on purpose.
+
+	Always called from inside an `except` whose whole point is that the user's
+	save goes on, so two things matter:
+
+	- argument order. `frappe.log_error(title, message)`: the first positional
+	  argument is the title unless it contains a newline (frappe/utils/error.py).
+	  This app used to pass the long text first; a single-line message over 140
+	  characters then raised CharacterLengthExceededError from inside the
+	  handler, and the save it was protecting failed after all (a Visitor Pass
+	  with a clashing room could not be submitted).
+	- logging itself must never raise.
+
+	`message` defaults to the current traceback.
+	"""
+	try:
+		frappe.log_error(
+			title=(title or "Visitor Management")[:_ERROR_LOG_TITLE_LENGTH],
+			message=message or frappe.get_traceback(with_context=False),
+		)
+	except Exception:
+		frappe.logger("visitormanagement").exception(title)
+
 
 def normalize_visitor_pass(doc):
 	if not doc.status:
 		doc.status = "Draft"
+
+	# VMS Settings carries a default check-out time; apply it when the caller did
+	# not supply one (portal/API/import paths) instead of failing the mandatory
+	# field. This setting previously had no consumer at all.
+	if not getattr(doc, "expected_checkout", None):
+		fallback = vms_settings.default_checkout_time()
+		if fallback:
+			doc.expected_checkout = fallback
 
 	if not doc.request_channel:
 		doc.request_channel = "Desk"
@@ -49,7 +86,9 @@ def normalize_visitor_pass(doc):
 	# Line 1 (title in Link dropdown) — just the visitor name.
 	doc.visitor_summary = doc.visitor_full_name or "Unnamed"
 
-	if doc.visitor_type == "Supplier" and not doc.supplier_visit_mode:
+	# Supplier-layout types default to a meeting visit; keyed on the layout so a
+	# site's own vendor type behaves the same without being named "Supplier".
+	if getattr(doc, "visitor_type_layout", None) == "Supplier" and not doc.supplier_visit_mode:
 		doc.supplier_visit_mode = "Meeting"
 
 	if doc.actual_checkin:
@@ -60,11 +99,66 @@ def normalize_visitor_pass(doc):
 	if doc.status != "Checked-In" and getattr(doc, "current_location", None):
 		doc.current_location = None
 
+	# service_time preservation stays channel-gated as before — recomputing it on
+	# every Desk save is intentional so a rescheduled visit gets a fresh service
+	# slot; only a repeat Portal save (the visitor revisiting their own request)
+	# keeps the slot they were already given.
 	preserve_hospitality_choices = bool(
-		getattr(doc, "request_channel", None) == "Portal"
-		and not doc.is_new()
+		getattr(doc, "request_channel", None) == "Portal" and not doc.is_new()
 	)
-	apply_hospitality_meal_plan(doc, preserve_existing=preserve_hospitality_choices)
+	# meal_type is different: this used to reuse preserve_hospitality_choices,
+	# which meant a Desk-created pass (request_channel != "Portal") had ANY
+	# receptionist-typed Meal Type overwritten by the derived value on every
+	# single save, including the very first one — the channel a request came
+	# in on says nothing about whether a human just chose this field. What
+	# actually matters is whether the value in front of us differs from what
+	# was already on record, which get_doc_before_save() tells us for an
+	# existing document; a brand-new document has no "before" to compare
+	# against, so any non-blank value here can only have come from the form.
+	apply_hospitality_meal_plan(
+		doc,
+		preserve_existing=preserve_hospitality_choices,
+		honor_manual_meal_type=_field_was_manually_set(doc, "meal_type"),
+	)
+
+
+def _field_was_manually_set(doc, fieldname, ignore_as_default=()):
+	"""True if `fieldname` looks like a human just chose it on this save,
+	rather than a value auto-copied on some earlier save simply surviving
+	untouched. Used to decide whether a fetched/derived field (meal_type,
+	special_diet) should override what is already on the document.
+
+	A brand-new document has no "before" snapshot to diff against, so any
+	non-blank value here can only have come from the form the user just
+	submitted — EXCEPT for a value listed in `ignore_as_default`. That escape
+	hatch exists because special_diet's Select options start with the literal
+	string "None" rather than a blank first option (unlike meal_type), so the
+	client sets doc.special_diet = "None" on a brand-new form the user never
+	touched at all — an untouched new Hospitality Request
+	reached the server with special_diet already "None", which would
+	otherwise have looked exactly like a deliberate choice and blocked the
+	Visitor Pass's value from ever flowing in. `ignore_as_default` only
+	applies to the is_new() branch: on an existing document a change *back*
+	to "None" is a real, diffable edit and is honoured below regardless.
+
+	For an existing document, get_doc_before_save() (populated by
+	check_if_latest() before validate() runs, for both Visitor Pass and
+	Hospitality Request via the normal .save()/.insert() path) gives the row
+	as it stood before this save's changes were applied — if the field
+	differs from that, the caller changed it just now.
+	"""
+	value = getattr(doc, fieldname, None)
+	if not value:
+		return False
+	if doc.is_new():
+		return value not in ignore_as_default
+	before = doc.get_doc_before_save()
+	if not before:
+		# No prior snapshot to diff against (e.g. called outside a normal
+		# .save()/.insert() flow) — treat a present value as intentional
+		# rather than silently discarding it.
+		return True
+	return value != before.get(fieldname)
 
 
 def should_mark_no_show(doc):
@@ -92,12 +186,35 @@ def ensure_hospitality_request(visitor_pass):
 		]
 		+ [cint(getattr(visitor_pass, f, 0)) for f in ARRANGEMENT_REQUIRED_FIELDS]
 	)
-	if not requires_service:
+	# Nothing requested and no request on file: nothing to do. A request that
+	# already exists is still synced below, so a meal the host has since
+	# unticked disappears from it instead of staying on the kitchen's list.
+	if not requires_service and not visitor_pass.hospitality_request:
 		return None
 
-	request_name = visitor_pass.hospitality_request or frappe.db.get_value(
-		"Hospitality Request", {"visitor_pass": visitor_pass.name}, "name"
-	)
+	# Read-then-insert is a time-of-check/time-of-use race. Two saves arriving
+	# together — a portal submission alongside a desk edit, or a double-clicked
+	# workflow action — both find nothing here and both insert, leaving one pass
+	# with two hospitality requests (HOSP-…-130826 and HOSP-…-130826-2, Frappe
+	# suffixing the naming collision). `FOR UPDATE` takes a gap lock on the
+	# visitor_pass index range, so the second transaction waits and then sees the
+	# first one's row. This is the same guard `_validate_duplicate_pass` already
+	# uses on Visitor Pass for exactly this failure.
+	#
+	# The index on `visitor_pass` is what keeps the lock narrow — without it
+	# InnoDB escalates to locking the whole table on every save.
+	request_name = visitor_pass.hospitality_request
+	if not request_name:
+		locked = frappe.db.sql(
+			"""
+			SELECT name FROM `tabHospitality Request`
+			WHERE visitor_pass = %s
+			LIMIT 1
+			FOR UPDATE
+			""",
+			visitor_pass.name,
+		)
+		request_name = locked[0][0] if locked else None
 	is_new_request = not request_name
 	if request_name:
 		doc = frappe.get_doc("Hospitality Request", request_name)
@@ -112,6 +229,38 @@ def ensure_hospitality_request(visitor_pass):
 	else:
 		doc.save(ignore_permissions=True)
 
+	# Once the parent Visitor Pass is Approved (or beyond), move this request out
+	# of Draft and into the Hospitality Manager's queue. Done as its own step,
+	# AFTER the save above has already committed, and through the workflow's real
+	# "Submit" transition (`apply_workflow`) rather than a raw field assignment —
+	# see the long comment in `populate_hospitality_request_from_pass` for why a
+	# raw assignment inside that save used to throw and roll back the parent's
+	# approval/rejection.
+	#
+	# `apply_workflow` is role-checked against whoever is currently saving the
+	# Visitor Pass, who is not necessarily the Hospitality Request's owner and may
+	# not even hold the "Employee" role the Submit transition requires. That is a
+	# legitimate way for this to fail (not a bug in this function), so it is
+	# caught and logged rather than allowed to undo the Visitor Pass approval that
+	# triggered it. `status` above already reflects the real-world outcome
+	# regardless of whether this transition succeeds; a request left behind here
+	# still needs a human to Submit it from the Hospitality Request itself.
+	current_wf = getattr(doc, "workflow_state", None) or "Draft"
+	vp_status = getattr(visitor_pass, "status", None)
+	if (
+		requires_service
+		and current_wf == "Draft"
+		and vp_status in ("Approved", "Items Verified", "Checked-In", "Checked-Out")
+	):
+		try:
+			apply_workflow(doc, "Submit")
+		except Exception as exc:
+			log_failure(
+				"VMS Hospitality Auto-Promote",
+				f"Hospitality Request {doc.name} auto-promotion to Pending Approval failed "
+				f"for Visitor Pass {visitor_pass.name}: {exc}\n\n{frappe.get_traceback()}",
+			)
+
 	if visitor_pass.hospitality_request != doc.name:
 		visitor_pass.db_set("hospitality_request", doc.name, update_modified=False)
 
@@ -121,9 +270,9 @@ def ensure_hospitality_request(visitor_pass):
 	if is_new_request:
 		try:
 			frappe.msgprint(
-				_("Hospitality Request {0} was created from this pass — the Hospitality Manager will see it in their queue.").format(
-					frappe.bold(doc.name)
-				),
+				_(
+					"Hospitality Request {0} was created from this pass — the Hospitality Manager will see it in their queue."
+				).format(frappe.bold(doc.name)),
 				title=_("Hospitality Arranged"),
 				indicator="green",
 				alert=True,
@@ -137,6 +286,63 @@ def ensure_hospitality_request(visitor_pass):
 		ensure_conference_room_booking(visitor_pass)
 
 	return doc.name
+
+
+def call_off_pass_arrangements(visitor_pass):
+	"""A cancelled visit keeps nothing booked: its meal request and room are called off.
+
+	Approved (submitted) ones are cancelled — their own on_cancel moves `status`
+	to Cancelled, which frees the room and takes the order off the kitchen's
+	list. Ones still in Draft or awaiting approval are set to Rejected, so they
+	leave the approver's queue; they could not be approved anyway once the pass
+	is Cancelled (both refuse unless the pass is Approved or beyond).
+
+	Called from VisitorPass.on_cancel, as whoever cancelled the pass — who need
+	not hold the Hospitality / Facility Manager role these transitions need. A
+	cancel does not run workflow validation (Document._validate is skipped for
+	it), so the approved ones are cancelled directly with permissions ignored.
+	Whatever has already happened — a meal served, a booking on an earlier day —
+	is history and left alone.
+	"""
+	today_date = getdate(nowdate())
+	for doctype, name in [
+		*(
+			("Hospitality Request", n)
+			for n in frappe.get_all(
+				"Hospitality Request",
+				filters={
+					"visitor_pass": visitor_pass.name,
+					"docstatus": ("<", 2),
+					"status": ("not in", ("Served", "Completed", "Cancelled")),
+				},
+				pluck="name",
+			)
+		),
+		*(
+			("Conference Room Booking", n)
+			for n in frappe.get_all(
+				"Conference Room Booking",
+				filters={
+					"visitor_pass": visitor_pass.name,
+					"docstatus": ("<", 2),
+					"booking_date": (">=", today_date),
+				},
+				pluck="name",
+			)
+		),
+	]:
+		doc = frappe.get_doc(doctype, name)
+		if doc.docstatus == 1:
+			doc.workflow_state = "Cancelled"
+			doc.flags.ignore_permissions = True
+			doc.cancel()
+		else:
+			values = {"workflow_state": "Rejected"}
+			values["status"] = "Cancelled" if doctype == "Hospitality Request" else "Rejected"
+			doc.db_set(values)
+
+
+_CRB_SAVEPOINT = "vms_room_booking"
 
 
 def ensure_conference_room_booking(visitor_pass):
@@ -172,6 +378,19 @@ def ensure_conference_room_booking(visitor_pass):
 	if not booking.booked_by:
 		booking.booked_by = visitor_pass.person_to_visit
 
+	# A room clash must not look like a failed approval. Conference Room
+	# Booking's own validate_overlap calls frappe.throw, which queues its raw
+	# "Room Already Booked / Please choose a different time slot" message for the
+	# client BEFORE raising — and the `except` below swallows the exception, so
+	# the pass really does advance. The approver was left staring at a blocking-
+	# looking error on a transition that had in fact succeeded, with no way to
+	# tell which. Reported from the field on a pass that had already moved to
+	# Pending CEO while showing this dialog.
+	#
+	# Snapshot the queue, and on failure restore it and say what actually
+	# happened: the visit is approved, the room is not booked, pick another.
+	messages_before = list(frappe.message_log)
+	frappe.db.savepoint(_CRB_SAVEPOINT)
 	try:
 		if booking.is_new():
 			booking.insert(ignore_permissions=True)
@@ -184,33 +403,87 @@ def ensure_conference_room_booking(visitor_pass):
 		# the Notification 'CRB Pending Approval' fires and the FM gets emailed.
 		vp_status = getattr(visitor_pass, "status", None)
 		current_wf = getattr(booking, "workflow_state", None) or "Draft"
-		if current_wf == "Draft" and vp_status in (
-			"Approved", "Items Verified", "Checked-In", "Checked-Out"
-		):
+		if current_wf == "Draft" and vp_status in ("Approved", "Items Verified", "Checked-In", "Checked-Out"):
 			booking.workflow_state = "Pending Approval"
 			booking.save(ignore_permissions=True)
 
 		return booking.name
 	except Exception as exc:
-		frappe.log_error(f"CRB auto-create failed for {visitor_pass.name}: {exc}", "VMS CRB Auto-Create")
+		# Whatever the booking wrote before it failed (a Draft row from the first
+		# save, when it was the move to Pending Approval that failed) goes too:
+		# the approver is about to be told the room is NOT reserved.
+		with contextlib.suppress(Exception):
+			frappe.db.rollback(save_point=_CRB_SAVEPOINT)
+		log_failure(
+			"VMS CRB Auto-Create",
+			f"Conference Room Booking for Visitor Pass {visitor_pass.name} "
+			f"({visitor_pass.conference_room}) was not created: {exc}\n\n{frappe.get_traceback()}",
+		)
+		frappe.local.message_log = messages_before
+
+		from visitormanagement.conference_room.doctype.conference_room_booking.conference_room_booking import (
+			find_conflicting_booking,
+		)
+
+		clash = find_conflicting_booking(
+			visitor_pass.conference_room,
+			visitor_pass.visit_date,
+			start_time,
+			end_time,
+		)
+		# Say what is actually true of THIS pass. The old wording opened with
+		# "The visit is approved", but this runs from on_update on every save of a
+		# pass that is not a Draft — so a host saving a Pending pass, or an
+		# approver rejecting one, was told their visit was approved while the
+		# status badge in front of them said otherwise. Reported from a walkthrough.
+		state = getattr(visitor_pass, "workflow_state", None) or getattr(visitor_pass, "status", None)
+		lead = (
+			_("The visit is approved, but")
+			if state in ("Approved", "Items Verified", "Checked-In", "Checked-Out")
+			else _("This pass is saved, but")
+		)
+
+		if clash:
+			frappe.msgprint(
+				_(
+					"{0} <b>{1}</b> could not be reserved — it is already booked "
+					"from {2} to {3}.<br>"
+					"Pick a different room on this pass, or book one from Conference "
+					"Room Booking. Nothing else about this pass is affected."
+				).format(lead, visitor_pass.conference_room, clash[0].start_time, clash[0].end_time),
+				title=_("Room Not Reserved"),
+				indicator="orange",
+			)
+		else:
+			frappe.msgprint(
+				_(
+					"{0} <b>{1}</b> could not be reserved. An administrator can see "
+					"why in the Error Log; book the room manually in the meantime."
+				).format(lead, visitor_pass.conference_room),
+				title=_("Room Not Reserved"),
+				indicator="orange",
+			)
 		return None
 
 
 def _clamp_to_room_hours(room_name, start, end):
 	"""Clamp visitor time window to the room's operating hours.
 	Returns (start_time, end_time) strings usable for CRB booking.
-	Falls back to 09:00:00–17:00:00 if room has no hours defined."""
-	from frappe.utils import get_time
-
+	Falls back to 09:00:00-17:00:00 if room has no hours defined."""
 	from datetime import datetime, timedelta
 
+	from frappe.utils import get_time
+
 	default_start, default_end = "09:00:00", "17:00:00"
-	room = frappe.db.get_value(
-		"Conference Room",
-		room_name,
-		["available_from", "available_to", "max_booking_hours"],
-		as_dict=True,
-	) or {}
+	room = (
+		frappe.db.get_value(
+			"Conference Room",
+			room_name,
+			["available_from", "available_to", "max_booking_hours"],
+			as_dict=True,
+		)
+		or {}
+	)
 	room_open = room.get("available_from") or default_start
 	room_close = room.get("available_to") or default_end
 	max_hours = int(room.get("max_booking_hours") or 0)
@@ -327,7 +600,7 @@ def derive_hospitality_meal_plan(visitor_pass):
 
 	applicable_meals = []
 	first_service_time = None
-	for meal_label, slot_start, slot_end in MEAL_WINDOWS:
+	for meal_label, slot_start, slot_end in vms_settings.meal_windows():
 		slot_start_dt = _combine_visit_datetime(visit_date, slot_start)
 		slot_end_dt = _combine_visit_datetime(visit_date, slot_end)
 		if _overlaps_time_window(start_dt, end_dt, slot_start_dt, slot_end_dt):
@@ -336,11 +609,19 @@ def derive_hospitality_meal_plan(visitor_pass):
 				first_service_time = slot_start_dt
 
 	meal_required = 1 if applicable_meals else 0
-	if len(applicable_meals) == 3:
+	# Meal windows are admin-configurable, so any combination is reachable, but
+	# DOUBLE_MEAL_TYPES only names the three built-in pairs. Joining the labels
+	# for anything else produced values like "Lunch + Snacks" that are not
+	# options on the meal_type Select, and Frappe refused the save outright —
+	# a site with a fourth meal window could not record an ordinary 10:00-17:00
+	# visit for any visitor type. "All Day" is the catch-all the field already
+	# offers. `>= 3` rather than `== 3` so a fifth window cannot fall through to
+	# the else branch and leave meal_required set with no meal named.
+	if len(applicable_meals) >= 3:
 		derived_meal_type = "All Day"
 		hospitality_type = "Full Day"
 	elif len(applicable_meals) == 2:
-		derived_meal_type = DOUBLE_MEAL_TYPES.get(tuple(applicable_meals), " + ".join(applicable_meals))
+		derived_meal_type = DOUBLE_MEAL_TYPES.get(tuple(applicable_meals)) or "All Day"
 		hospitality_type = "Two Meals"
 	elif len(applicable_meals) == 1:
 		derived_meal_type = applicable_meals[0]
@@ -360,19 +641,50 @@ def derive_hospitality_meal_plan(visitor_pass):
 	}
 
 
-def apply_hospitality_meal_plan(doc, preserve_existing=False):
+def apply_hospitality_meal_plan(doc, preserve_existing=False, honor_manual_meal_type=False):
 	meal_plan = derive_hospitality_meal_plan(doc)
 	existing_meal_type = getattr(doc, "meal_type", None)
 	existing_service_time = getattr(doc, "service_time", None)
-	# Respect user's manual selection — only auto-set if currently unchecked.
-	user_wants_meal = cint(getattr(doc, "meal_required", 0))
-	effective_meal_required = user_wants_meal or meal_plan["meal_required"]
+	# Meal Required is the host's decision. The visit window only SUGGESTS it —
+	# the desk form ticks it live as the times are entered (refresh_hospitality_plan
+	# in visitor_pass.js), where the host can see it and untick it. Forcing it on
+	# here overrode that untick on every save, so a pass overlapping a meal window
+	# could never be saved without a meal and the kitchen was sent orders nobody
+	# asked for. What the derivation still fills in is the detail of a meal the
+	# host did ask for (type, slots, service time).
+	effective_meal_required = cint(getattr(doc, "meal_required", 0))
 	doc.meal_required = effective_meal_required
 	# Keep meal_plan-derived values in sync for downstream logic
 	meal_plan["meal_required"] = effective_meal_required
-	doc.meal_type = (
-		existing_meal_type if preserve_existing and effective_meal_required and existing_meal_type else meal_plan["meal_type"]
+	# meal_type: an explicit human choice (honor_manual_meal_type, from
+	# _meal_type_was_manually_set) always wins over the derived value, on top
+	# of the older channel-gated preserve_existing carve-out. Without either
+	# flag, or when meal is no longer required at all, fall back to what the
+	# visit window derives.
+	# `honor_manual_meal_type` only catches the save on which the human actually
+	# changed the field, because it works by diffing against the before-save
+	# snapshot. That is not enough on its own: on the NEXT save — a receptionist
+	# correcting a phone number, a workflow transition, anything — meal_type is
+	# unchanged since before-save, so the diff says "not manual" and the derived
+	# value overwrites the choice. That silently reintroduced the original bug
+	# from the second save onward (proven: an explicit "Dinner" became "All Day"
+	# after resaving only `remarks`).
+	#
+	# So a stored value that DIVERGES from what the derivation would produce is
+	# also treated as deliberate: the derivation is a suggestion, and the only
+	# way a row can hold something else is that a human put it there. When the
+	# two agree, recomputing is a no-op anyway, so nothing is lost by letting
+	# the derived value through.
+	diverged_from_derived = bool(
+		not doc.is_new() and existing_meal_type and existing_meal_type != meal_plan["meal_type"]
 	)
+	if not effective_meal_required:
+		# No meal asked for: no meal details either, even when the window overlaps one.
+		doc.meal_type = None
+	elif existing_meal_type and (preserve_existing or honor_manual_meal_type or diverged_from_derived):
+		doc.meal_type = existing_meal_type
+	else:
+		doc.meal_type = meal_plan["meal_type"]
 
 	if hasattr(doc, "assigned_meal_slots"):
 		doc.assigned_meal_slots = meal_plan["assigned_meal_slots"] if meal_plan["meal_required"] else None
@@ -381,11 +693,12 @@ def apply_hospitality_meal_plan(doc, preserve_existing=False):
 		doc.hospitality_type = meal_plan["hospitality_type"] if meal_plan["meal_required"] else None
 
 	if hasattr(doc, "service_time"):
-		doc.service_time = (
-			existing_service_time
-			if preserve_existing and meal_plan["meal_required"] and existing_service_time
-			else meal_plan["service_time"]
-		)
+		if not effective_meal_required:
+			doc.service_time = None
+		elif preserve_existing and existing_service_time:
+			doc.service_time = existing_service_time
+		else:
+			doc.service_time = meal_plan["service_time"]
 
 	return meal_plan
 
@@ -398,48 +711,62 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 		return doc
 
 	meal_plan = derive_hospitality_meal_plan(visitor_pass)
-	# Honor manual meal_required on the Visitor Pass — if host/guest ticked it, carry it across
-	# even if visit window doesn't overlap standard meal slots.
-	vp_meal_required = cint(getattr(visitor_pass, "meal_required", 0))
-	doc.meal_required = vp_meal_required or meal_plan["meal_required"]
+	# The Visitor Pass's Meal Required is the decision — carried across as is,
+	# ticked or not (see apply_hospitality_meal_plan).
+	doc.meal_required = cint(getattr(visitor_pass, "meal_required", 0))
 	doc.meal_type = (
-		getattr(visitor_pass, "meal_type", None) or meal_plan["meal_type"]
-	) if doc.meal_required else None
+		(getattr(visitor_pass, "meal_type", None) or meal_plan["meal_type"]) if doc.meal_required else None
+	)
 	doc.visit_start_time = meal_plan["visit_start_time"]
 	doc.visit_end_time = meal_plan["visit_end_time"]
 	doc.assigned_meal_slots = meal_plan["assigned_meal_slots"] if doc.meal_required else None
 	doc.hospitality_type = meal_plan["hospitality_type"] if doc.meal_required else None
-	doc.special_diet = getattr(visitor_pass, "special_diet", None)
+	# special_diet is a plain editable Select on this form (hidden=0, read_only=0)
+	# — it used to be overwritten from the Visitor Pass unconditionally, so a
+	# Hospitality Manager's own pick (e.g. "Vegetarian") never survived a save.
+	# Mirror the Visitor Pass value only when nothing was just chosen here,
+	# using the same manual-vs-stale distinction as meal_type above.
+	if not _field_was_manually_set(doc, "special_diet", ignore_as_default={"None"}):
+		doc.special_diet = getattr(visitor_pass, "special_diet", None)
 	doc.snacks_required = cint(getattr(visitor_pass, "refreshments_required", 0))
 	doc.tea_coffee_required = cint(getattr(visitor_pass, "refreshments_required", 0))
 	doc.conference_room = getattr(visitor_pass, "conference_room", None)
 	doc.seating_capacity = getattr(visitor_pass, "number_of_people", None)
-	doc.service_time = meal_plan["service_time"]
-	# Once the parent Visitor Pass is Approved (or beyond), the Hospitality Request
-	# becomes ready for the Hospitality Manager to review — move it from Draft into
-	# Pending Approval so it shows up in the manager's queue. We do NOT force it to
-	# Approved here: that bypasses the workflow (no Draft→Approved transition exists)
-	# and the submit permission of whoever happens to be saving.
-	# Only fires while the HR is still in its default Draft lane so we never overwrite
-	# an intentional manual transition (Rejected, Cancelled, etc.) to a "live" state.
-	# Guard on `not is_new()`: a brand-new document must be created in the workflow's
-	# default (Draft) state — Frappe rejects a new doc that starts in a non-default
-	# workflow state (WorkflowPermissionError). A freshly-created request is advanced
-	# by the Submit action; only an already-saved request is auto-advanced here (e.g.
-	# when the parent Visitor Pass later becomes Approved).
-	current_wf = getattr(doc, "workflow_state", None) or "Draft"
-	if current_wf == "Draft" and not doc.is_new():
-		vp_status = getattr(visitor_pass, "status", None)
-		if vp_status in ("Approved", "Items Verified", "Checked-In", "Checked-Out"):
-			doc.workflow_state = "Pending Approval"
-		elif vp_status == "Rejected":
-			doc.workflow_state = "Rejected"
+	doc.service_time = meal_plan["service_time"] if doc.meal_required else None
+	# This function must NOT touch `workflow_state`. It used to force Draft ->
+	# "Pending Approval" here whenever the parent pass was Approved, but assigning
+	# the field and letting the following `doc.save()` validate it is not a real
+	# workflow transition — Frappe's `validate_workflow` only recognises a hop that
+	# matches a `Workflow Transition` role-checked against the CURRENT session
+	# user, so it refused the assignment as an unrecognised jump
+	# (WorkflowPermissionError) and, because this function runs inside every save
+	# of this doctype (including the Hospitality Request's own `validate()`, and a
+	# rejected pass's `doc.save()` in `ensure_hospitality_request`), that throw
+	# rolled back whatever outer save triggered it — once making Reapply on a
+	# rejected pass impossible (Reapply itself sets workflow_state to "Draft" and
+	# saves; this code immediately rewrote it to "Pending Approval" mid-transition
+	# and Frappe compared the real pre-save state, "Rejected", against that
+	# mutated target and threw), and separately making it impossible to reject any
+	# pass that had requested a meal, a room or any arrangement.
+	#
+	# The fix keeps this function to pure field population. The one place that is
+	# allowed to promote a Hospitality Request out of Draft is
+	# `ensure_hospitality_request`, below, and only via `apply_workflow` (a real,
+	# role-checked transition) performed AFTER this document's own save has
+	# already committed — so a promotion that the approving user isn't entitled to
+	# (e.g. they lack the "Employee" role the Hospitality Request workflow's
+	# Submit transition requires) is caught and logged there instead of blowing up
+	# here and rolling back the Visitor Pass approval that triggered it. The
+	# outcome of a rejected/approved parent is recorded on `status` below instead
+	# — this document's own field, which needs no workflow transition.
 
 	if sync_management_fields:
 		doc.assigned_staff = getattr(visitor_pass, "food_dept_staff_assigned", None)
 		doc.status = HOSPITALITY_REQUEST_STATUS_FROM_PASS.get(
 			getattr(visitor_pass, "food_status", None), "Pending"
 		)
+		if getattr(visitor_pass, "status", None) in ("Rejected", "Cancelled"):
+			doc.status = "Cancelled"
 		doc.notes = "\n".join(
 			note
 			for note in [
@@ -487,6 +814,7 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 
 	if cint(doc.greeting_required) and not doc.greeting_delivery_time and vp_checkin:
 		from frappe.utils import add_to_date
+
 		doc.greeting_delivery_time = add_to_date(vp_checkin, minutes=-30)
 
 	return doc
@@ -496,9 +824,10 @@ def _compute_overall_hospitality_status(request_doc):
 	# Individual per-service statuses were removed. Overall status now derives
 	# from the Hospitality Request's main `status` field plus whether any
 	# arrangement was requested at all.
-	required_flags = ("cab_required", "hotel_required", "factory_tour_required", "buggy_required", "greeting_required")
-	any_required = any(cint(getattr(request_doc, f, 0)) for f in required_flags)
-	has_food_or_room = cint(getattr(request_doc, "meal_required", 0)) or getattr(request_doc, "conference_room", None)
+	any_required = any(cint(getattr(request_doc, f, 0)) for f in ARRANGEMENT_REQUIRED_FIELDS)
+	has_food_or_room = cint(getattr(request_doc, "meal_required", 0)) or getattr(
+		request_doc, "conference_room", None
+	)
 
 	if not any_required and not has_food_or_room:
 		return "Not Required"
@@ -513,17 +842,179 @@ def _compute_overall_hospitality_status(request_doc):
 	return "Pending"
 
 
-@frappe.whitelist(allow_guest=True)
-def get_hospitality_meal_plan(visit_date=None, expected_checkin=None, expected_checkout=None):
+def _meal_plan_preview(visit_date=None, expected_checkin=None, expected_checkout=None):
+	"""The meals a visit at these times would qualify for (reads the meal windows only).
+
+	Inputs are parsed rather than trusted: a malformed date previously reached
+	dateutil and surfaced as a 500 with a traceback, which told an anonymous
+	caller more about the stack than it should and turned a typo into an
+	error-log entry.
+	"""
 	return derive_hospitality_meal_plan(
 		frappe._dict(
 			{
-				"visit_date": visit_date,
-				"expected_checkin": expected_checkin,
-				"expected_checkout": expected_checkout,
+				"visit_date": _parse_date_arg(visit_date, "Visit Date"),
+				"expected_checkin": _parse_time_arg(expected_checkin, "Expected Check-In"),
+				"expected_checkout": _parse_time_arg(expected_checkout, "Expected Check-Out"),
 			}
 		)
 	)
+
+
+# The anonymous budget: 60 previews an hour for one network address. Frappe's
+# limiter counts by address, not by user (frappe/rate_limiter.py: the key is
+# "rl:<cmd>:<ip>"), so it is applied to anonymous callers only — see
+# get_hospitality_meal_plan.
+GUEST_MEAL_PREVIEWS_PER_HOUR = 60
+_meal_plan_preview_for_guest = rate_limit(limit=GUEST_MEAL_PREVIEWS_PER_HOUR, seconds=60 * 60)(
+	_meal_plan_preview
+)
+
+
+def _count_guest_meal_preview():
+	"""Count one anonymous preview against the caller's hourly budget.
+
+	Frappe's limiter alone does not hold the budget. Its key carries
+	`frappe.form_dict.cmd`, which is the method only on `/api/method/<method>`
+	(frappe/api/v1.py handle_rpc_call sets it). `/api/v2/method/<method>` calls
+	the function without setting it (frappe/api/v2.py handle_rpc_call), so
+	those calls are counted in a second bucket, "rl:None:<ip>", and the same
+	caller was served another 60 an hour there.
+
+	This counter is the one the portal's other limits use (portal_upload): keyed
+	on who is calling and on nothing about how the call was addressed, and
+	prefixed with the site. Same ceiling, same hour, same error as Frappe's.
+	"""
+	if not frappe.request:
+		# A script, a job or a test calling the function: not a web caller.
+		return
+	_count_or_throw(
+		f"vms:portal-meal-plan:{rate_limit_identity()}",
+		GUEST_MEAL_PREVIEWS_PER_HOUR,
+		_("You hit the rate limit because of too many requests. Please try after sometime."),
+		frappe.RateLimitExceededError,
+	)
+
+
+# nosemgrep: guest-whitelisted-method - portal meal preview; rate-limited, reads settings only
+@frappe.whitelist(allow_guest=True)
+def get_hospitality_meal_plan(
+	visit_date: str | None = None,
+	expected_checkin: str | None = None,
+	expected_checkout: str | None = None,
+):
+	"""Preview the meals a visit would qualify for. Reachable without login.
+
+	The public form calls this on every change to the visit times, so it is both
+	anonymous and chatty, and an anonymous caller is rate limited: 60 previews
+	an hour, whichever API route the call arrives by (_count_guest_meal_preview).
+
+	A signed-in caller is not counted. The limiter keys on the network address,
+	so staff used to share one budget with each other and with every visitor
+	behind the same address — an office behind one NAT, a hosted site — and once
+	60 look-ups had been made in an hour every desk form on that address showed
+	"You hit the rate limit" and suggested no meal. A session is an identified,
+	revocable user; the limit exists for callers who are neither.
+	"""
+	if frappe.session.user == "Guest":
+		_count_guest_meal_preview()
+		return _meal_plan_preview_for_guest(visit_date, expected_checkin, expected_checkout)
+	return _meal_plan_preview(visit_date, expected_checkin, expected_checkout)
+
+
+@frappe.whitelist()
+def get_meal_plan_for_pass(
+	visit_date: str | None = None,
+	expected_checkin: str | None = None,
+	expected_checkout: str | None = None,
+):
+	"""The same preview for the Visitor Pass form in the desk: signed-in staff only.
+
+	The desk form used to call the public endpoint above. It has its own method
+	so that staff's work never depends on what is decided for anonymous callers.
+	"""
+	if not (frappe.has_permission("Visitor Pass", "read") or frappe.has_permission("Visitor Pass", "create")):
+		frappe.throw(_("You do not have access to Visitor Passes."), frappe.PermissionError)
+	return _meal_plan_preview(visit_date, expected_checkin, expected_checkout)
+
+
+def _parse_date_arg(value, label):
+	if not value:
+		return None
+	try:
+		return getdate(value)
+	except Exception:
+		frappe.throw(_("{0} is not a valid date.").format(_(label)), frappe.ValidationError)
+
+
+def _parse_time_arg(value, label):
+	if not value:
+		return None
+	try:
+		return get_time(value)
+	except Exception:
+		frappe.throw(_("{0} is not a valid time.").format(_(label)), frappe.ValidationError)
+
+
+# Keys in an event's `details` that hold a record ID rather than something a
+# person recognises. The log is read by security staff, so the ID alone is not
+# an answer to "who was on the gate".
+_DETAIL_LINKS = {
+	"security_officer": ("Employee", "employee_name"),
+	"gate_verified_by": ("Employee", "employee_name"),
+	"assigned_staff": ("Employee", "employee_name"),
+}
+
+# Keys whose humanised label reads better spelled out.
+_DETAIL_LABELS = {
+	"gate_name": "Gate",
+	"visited_area": "Visited Area",
+	"exception_reason": "Exception",
+	"grace_hours": "Grace (hours)",
+}
+
+
+def _format_event_details(details):
+	"""Render an event's details as something a person can read.
+
+	These were stored with `frappe.as_json`, so the Details section of every
+	Visitor Event Log showed the raw payload — braces, quoted keys, and a
+	`"exception_reason": null` line for the common case where nothing went
+	wrong. It also printed `"security_officer": "HR-EMP-00001"`, which is an
+	internal identifier, not a person.
+
+	The structured data is not lost by writing prose here: every log carries
+	`source_doctype`/`source_name` back to the document the event came from,
+	and that document still holds the fields themselves.
+	"""
+	if not details:
+		return ""
+	if isinstance(details, str):
+		return details
+
+	lines = []
+	for key, value in details.items():
+		# An empty value means "not applicable to this event", which is noise in
+		# a log meant to be skimmed.
+		if value is None or value == "":
+			continue
+
+		label = _DETAIL_LABELS.get(key) or key.replace("_", " ").title()
+		text = value
+
+		link = _DETAIL_LINKS.get(key)
+		if link:
+			doctype, display_field = link
+			display = frappe.db.get_value(doctype, value, display_field)
+			# The name only. `HR-EMP-00060` is an internal identifier — it means
+			# nothing to the person reading the log, and printing it next to the
+			# name just puts the code back in front of them. The Employee record
+			# is still reachable through the linked source document.
+			text = display or value
+
+		lines.append(f"{label}: {text}")
+
+	return "\n".join(lines)
 
 
 def log_visitor_event(
@@ -544,7 +1035,7 @@ def log_visitor_event(
 		"source_doctype": source_doctype,
 		"source_name": source_name,
 		"event_time": now_datetime(),
-		"details": frappe.as_json(details or {}),
+		"details": _format_event_details(details),
 	}
 
 	log_name = None
@@ -596,6 +1087,29 @@ def _close_active_contact_trace(visitor_pass_name, event_time, notes=None):
 	return doc.name
 
 
+# Fallback only — the live value comes from VMS Settings (fever_threshold_c()).
+# Health policy on what counts as "fever" differs by site and authority (some
+# use 38.0C, some record Fahrenheit), so this must not stay a bare literal.
+DEFAULT_FEVER_THRESHOLD_C = 37.5
+
+
+def _fever_threshold_c():
+	"""vms_settings.fever_threshold_c(), read defensively.
+
+	That accessor may not exist yet on a site mid-deploy (or in a test run
+	against an older settings.py), and this exposure-risk calculation must never
+	break because of it — fall back to the previous hardcoded value instead.
+	"""
+	getter = getattr(vms_settings, "fever_threshold_c", None)
+	if not callable(getter):
+		return DEFAULT_FEVER_THRESHOLD_C
+	try:
+		value = flt(getter())
+	except Exception:
+		return DEFAULT_FEVER_THRESHOLD_C
+	return value if value else DEFAULT_FEVER_THRESHOLD_C
+
+
 def sync_contact_trace(visitor_pass_name, security_log=None):
 	if not visitor_pass_name or not security_log:
 		return None
@@ -603,13 +1117,24 @@ def sync_contact_trace(visitor_pass_name, security_log=None):
 	if security_log.event_type not in {"Check-In", "Gate Transfer", "Check-Out"}:
 		return None
 
-	event_time = (
-		getattr(security_log, "check_in_date_time", None)
-		or getattr(security_log, "check_out_date_time", None)
-		or getattr(security_log, "modified", None)
-		or now_datetime()
-	)
-	event_time = get_datetime(event_time)
+	# Read the timestamp that belongs to the event being recorded. This used to
+	# take `check_in_date_time` first whatever the event was, so a Check-Out that
+	# also carried a check-in time closed the trace at the moment the visitor
+	# *arrived*. On a visit spanning midnight — in yesterday, out today — that
+	# time_out precedes the record's own time_in, and Contact Trace Record
+	# rightly refuses it, which blocked the check-out itself.
+	#
+	# The Desk form only fills the field matching the event, so this did not
+	# surface there; an API caller or a hand-edited log reaches it.
+	if security_log.event_type == "Check-Out":
+		event_time = getattr(security_log, "check_out_date_time", None) or getattr(
+			security_log, "check_in_date_time", None
+		)
+	else:
+		event_time = getattr(security_log, "check_in_date_time", None) or getattr(
+			security_log, "check_out_date_time", None
+		)
+	event_time = get_datetime(event_time or getattr(security_log, "modified", None) or now_datetime())
 
 	if security_log.event_type == "Check-Out":
 		_close_active_contact_trace(visitor_pass_name, event_time, notes="Visitor checked out")
@@ -625,9 +1150,7 @@ def sync_contact_trace(visitor_pass_name, security_log=None):
 	if not visited_area:
 		return None
 
-	record_name = frappe.db.get_value(
-		"Contact Trace Record", {"security_log": security_log.name}, "name"
-	)
+	record_name = frappe.db.get_value("Contact Trace Record", {"security_log": security_log.name}, "name")
 	doc = (
 		frappe.get_doc("Contact Trace Record", record_name)
 		if record_name
@@ -640,7 +1163,7 @@ def sync_contact_trace(visitor_pass_name, security_log=None):
 	doc.status = "Active"
 	doc.exposure_risk = (
 		"High"
-		if flt(getattr(security_log, "temperature", 0) or 0) >= 37.5
+		if flt(getattr(security_log, "temperature", 0) or 0) >= _fever_threshold_c()
 		or cint(getattr(security_log, "symptoms_flag", 0))
 		else "Low"
 	)
@@ -683,5 +1206,3 @@ def get_last_known_location(visitor_pass_name):
 		return record[0].visited_area
 
 	return frappe.db.get_value("Visitor Pass", visitor_pass_name, "current_location")
-
-

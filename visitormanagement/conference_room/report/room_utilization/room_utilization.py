@@ -3,6 +3,10 @@
 import frappe
 from frappe import _
 
+from visitormanagement.conference_room.doctype.conference_room_booking.conference_room_booking import (
+	NON_BLOCKING_STATUSES,
+)
+
 
 def execute(filters=None):
 	columns = get_columns()
@@ -46,17 +50,20 @@ def get_columns():
 			"width": 100,
 		},
 		{
-			"label": _("External"),
+			"label": _("External / Hybrid"),
 			"fieldname": "external_count",
 			"fieldtype": "Int",
-			"width": 100,
+			"width": 120,
 		},
 	]
 
 
 def get_data(filters):
-	conditions = "WHERE crb.docstatus = 1"
-	values = {}
+	filters = filters or {}
+	# A cancelled or rejected booking used no room time (the same rule as the
+	# clash check and the calendar), so it does not count towards utilisation.
+	conditions = "WHERE crb.docstatus = 1 AND ifnull(crb.status, '') NOT IN %(free)s"
+	values = {"free": NON_BLOCKING_STATUSES}
 
 	if filters.get("from_date"):
 		conditions += " AND crb.booking_date >= %(from_date)s"

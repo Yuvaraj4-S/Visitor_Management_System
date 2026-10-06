@@ -541,7 +541,8 @@ Read this first. The migrate prints one line for each thing it changes; keep tha
   site-wide "UI tour", which could raise a script error on other apps' pages.
 - **The Visitor Pass approval workflow is rebuilt** from your Visitor Types, once. If you had
   edited the "Visitor Pass Approval" workflow by hand, make those edits again afterwards; from
-  then on they are kept.
+  then on they are kept. The rebuilt workflow also lets an approved pass show its gate status
+  (Checked-In, Checked-Out, No-Show) in the header, the list and the banner.
 - **Approval now needs a second person.** Nobody can approve a pass they created, sent for
   approval or host. If only one person holds an approver role, the passes they raise or host
   will wait: give the role to a second user (see [Roles](#roles--who-does-what)). Passes that
@@ -785,6 +786,8 @@ An invitation that passes its expiry becomes **Expired** within the hour. Give i
 4. Click **Save** — the pass is a Draft. A photo and an ID scan are needed before it can go further. Then use **Actions → Submit** to send it to its approver. If you hold the approver role yourself, you are told that somebody else has to approve it.
 5. On **Approve** — by an approver other than the pass's creator, sender and host — the QR code is generated and mailed to the visitor, and hospitality and room booking move forward.
 
+After a customer visit, the host, the sales executive, an approver or whoever raised or sent the pass uses **Record Outcome** on the approved pass to note the meeting outcome, follow-up date and minutes.
+
 To correct a number on a draft, use **Change ID Number**. After approval the number is locked: cancel and amend the pass.
 
 A visitor who registered themselves on the public form without an invitation appears as a Draft pass too. If the form could not match the host they named, **Person to Visit** is empty and a note on the pass says what they typed: set the host before sending the pass for approval.
@@ -827,6 +830,7 @@ A pass that asks for hospitality gets a Hospitality Request, which moves to `Pen
 2. Review meal type, cab pickup/drop, hotel dates, factory tour, greeting type, etc.
 3. Fill in who delivers it — cab vendor, hotel, tour guide, buggy driver, greeting staff.
 4. Click **Approve** → the request is Approved and submitted.
+5. Afterwards, the Hospitality Manager or the staff member it is assigned to records **Service Notes** and the final **Hotel Cost** and **Greeting Cost** on the approved request.
 
 Cancelling an approved Visitor Pass calls off its hospitality request and its room booking.
 
@@ -1054,7 +1058,7 @@ bench --site <test-site> set-config allow_tests true
 bench --site <test-site> run-tests --app visitormanagement --skip-before-tests --skip-test-records
 ```
 
-The suite has 435 tests. Keep both `--skip` flags on any site that is shared or not a
+The suite has 457 tests. Keep both `--skip` flags on any site that is shared or not a
 throw-away: without them Frappe creates test records for linked DocTypes on the site. The
 suite creates the staff it needs — no Employee and no user holding the app's roles has to
 exist on the site — inside the tests' own database transaction, so they are gone when the

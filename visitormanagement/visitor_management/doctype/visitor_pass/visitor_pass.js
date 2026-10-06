@@ -1016,6 +1016,15 @@ function set_visitor_pass_intro(frm) {
 		return;
 	}
 
+	if (stage === "No-Show") {
+		set_pass_intro(
+			frm,
+			__("The visitor did not arrive within the visit window and was marked as a no-show."),
+			"red"
+		);
+		return;
+	}
+
 	if (stage === "Rejected") {
 		set_pass_intro(
 			frm,
@@ -1274,9 +1283,71 @@ frappe.ui.form.on("Visitor Group Member", {
 });
 
 function add_action_buttons(frm) {
-	// "Actions" group removed — "Open Hospitality" is already available
-	// under the "Hospitality" group (see add_hospitality_buttons).
-	return;
+	// "Open Hospitality" lives under the "Hospitality" group (add_hospitality_buttons).
+	add_record_outcome_button(frm);
+}
+
+// What came of a customer visit is known only after the meeting, when the pass
+// is approved — and an approved pass is read-only on this form for everybody
+// but System Manager (the workflow's "Approved" state). So the three fields are
+// offered in a dialog to the people the server allows
+// (VisitorPass.may_record_meeting_outcome, sent as __onload.may_record_outcome),
+// and saved by record_meeting_outcome, which checks again.
+function add_record_outcome_button(frm) {
+	if (frm.is_new() || frm.doc.docstatus !== 1) return;
+	if (!(frm.doc.__onload && frm.doc.__onload.may_record_outcome)) return;
+
+	frm.add_custom_button(__("Record Outcome"), () => {
+		const outcome_df = frappe.meta.get_docfield(
+			"Visitor Pass",
+			"meeting_outcome",
+			frm.doc.name
+		);
+		const dialog = new frappe.ui.Dialog({
+			title: __("Meeting Outcome"),
+			fields: [
+				{
+					fieldname: "meeting_outcome",
+					fieldtype: "Select",
+					label: __("Meeting Outcome"),
+					options: (outcome_df && outcome_df.options) || "",
+					default: frm.doc.meeting_outcome,
+					reqd: 1,
+				},
+				{
+					fieldname: "followup_date",
+					fieldtype: "Date",
+					label: __("Follow-Up Date"),
+					default: frm.doc.followup_date,
+				},
+				{
+					fieldname: "meeting_minutes",
+					fieldtype: "Text Editor",
+					label: __("Meeting Minutes"),
+					default: frm.doc.meeting_minutes,
+				},
+			],
+			primary_action_label: __("Save"),
+			primary_action(values) {
+				frappe.call({
+					method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.record_meeting_outcome",
+					args: {
+						visitor_pass: frm.doc.name,
+						meeting_outcome: values.meeting_outcome,
+						followup_date: values.followup_date || null,
+						meeting_minutes: values.meeting_minutes || null,
+					},
+					freeze: true,
+					callback() {
+						dialog.hide();
+						frappe.show_alert({ message: __("Outcome recorded"), indicator: "green" });
+						frm.reload_doc();
+					},
+				});
+			},
+		});
+		dialog.show();
+	});
 }
 
 function setup_supplier_pass_query(frm) {
@@ -1291,8 +1362,24 @@ function setup_supplier_pass_query(frm) {
 	}));
 }
 
+// After approval the workflow stays at "Approved"; the gate moves `status` on
+// (Items Verified, Checked-In, Checked-Out) and the no-show job sets `no_show`.
+// So on an approved pass the stage is the gate's, or a checked-in visitor was
+// shown as "Approved. Security can now ... record the visitor check-in."
+// The header indicator follows the same rule (visitor_pass_list.js).
+const PASS_GATE_STAGES = ["Items Verified", "Checked-In", "Checked-Out"];
+
 function get_pass_stage(frm) {
-	return frm.doc.workflow_state || frm.doc.status || __("Draft");
+	const doc = frm.doc;
+	if (doc.docstatus === 1 && doc.workflow_state !== "Cancelled") {
+		if (cint(doc.no_show) && ["Approved", "Items Verified"].includes(doc.status)) {
+			return "No-Show";
+		}
+		if (PASS_GATE_STAGES.includes(doc.status)) {
+			return doc.status;
+		}
+	}
+	return doc.workflow_state || doc.status || __("Draft");
 }
 
 // get_approval_lane(visitor_type) used to live here as a hardcoded 5-entry

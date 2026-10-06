@@ -255,7 +255,14 @@ def build_workflow(commit=False):
 	states = [{"state": DRAFT, "doc_status": "0", "allow_edit": REQUESTOR_ROLE}]
 	for role in roles:
 		states.append({"state": lane_for_role(role), "doc_status": "0", "allow_edit": role})
-	states.append({"state": APPROVED, "doc_status": "1", "allow_edit": "System Manager"})
+	# An approved pass stays "Approved" in the workflow while the gate moves its
+	# `status` on (Items Verified, Checked-In, Checked-Out). `avoid_status_override`
+	# lets the document say which (frappe/public/js/frappe/model/indicator.js
+	# get_indicator; Visitor Pass's listview get_indicator), so a visitor who is
+	# inside is no longer shown as "Approved".
+	states.append(
+		{"state": APPROVED, "doc_status": "1", "allow_edit": "System Manager", "avoid_status_override": 1}
+	)
 	states.append({"state": REJECTED, "doc_status": "0", "allow_edit": REQUESTOR_ROLE})
 	states.append({"state": CANCELLED, "doc_status": "2", "allow_edit": "System Manager"})
 

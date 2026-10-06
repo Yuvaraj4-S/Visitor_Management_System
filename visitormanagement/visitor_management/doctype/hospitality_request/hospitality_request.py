@@ -6,12 +6,16 @@ from datetime import timedelta
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import date_diff, get_datetime, get_time, getdate, nowdate
+from frappe.utils import cstr, date_diff, flt, get_datetime, get_time, getdate, nowdate
 
+from visitormanagement.conference_room.doctype.conference_room.conference_room import (
+	_is_framework_now as is_framework_now,
+)
 from visitormanagement.permissions import HOSPITALITY_OVERSEERS, check_visitor_pass_link
 from visitormanagement.visitor_management.lifecycle import (
 	log_failure,
 	populate_hospitality_request_from_pass,
+	step_taken_with_visit,
 	sync_hospitality_to_pass,
 )
 from visitormanagement.visitor_management.mail import esc, send_after_commit
@@ -102,6 +106,8 @@ class HospitalityRequest(Document):
 		# Before anything is read from the pass: the lines below copy from it, and
 		# on_update writes back to it.
 		check_visitor_pass_link(self, overseer_roles=HOSPITALITY_OVERSEERS)
+		# Before the pass's times are copied in: they fill only empty fields.
+		self._forget_times_nobody_entered()
 		if self.visitor_pass:
 			populate_hospitality_request_from_pass(self)
 		self._validate_visitor_pass_approved()
@@ -112,6 +118,89 @@ class HospitalityRequest(Document):
 		self._validate_seating_capacity()
 		self._validate_hotel_in_visit_window()
 		self._validate_activities_in_visit_window()
+
+	def validate_workflow(self):
+		"""Frappe's transition check, except for the step the system takes with the pass.
+
+		A request made from a Visitor Pass goes to the Hospitality Manager when the
+		pass is approved, whoever approved it (lifecycle.send_for_approval_with_visit);
+		Frappe would check that step against the approver's own roles. Every other
+		change of state is checked by Frappe as before.
+		"""
+		if step_taken_with_visit(self):
+			return
+		super().validate_workflow()
+
+	# What the hospitality team records once the visit has happened — what was
+	# actually served, and what the stay and the greeting cost ("once known", as
+	# their descriptions say). All three are "Allow on Submit": an approved request
+	# could only change its status, so the team's own record of the visit had
+	# nowhere to go.
+	SERVICE_RECORD_FIELDS = ("service_notes", "hotel_cost", "greeting_cost")
+
+	def before_update_after_submit(self):
+		"""Saving an approved request: who may write the service record, and what.
+
+		The people who run hospitality (Hospitality Manager, System Manager) and
+		the member of staff it is assigned to; nobody else who may save the request.
+		Frappe itself keeps every field that is not "Allow on Submit" as approved
+		(`notes`, the copy of the pass's Hospitality Notes, among them).
+		`service_notes` is formatted text: Frappe's sanitiser cleans it on this save
+		too (BaseDocument._sanitize_content covers "Allow on Submit" fields of a
+		submitted document).
+		"""
+		before = self.get_doc_before_save()
+		if not before:
+			return
+		changed = [
+			fieldname
+			for fieldname in self.SERVICE_RECORD_FIELDS
+			if (
+				flt(before.get(fieldname)) != flt(self.get(fieldname))
+				if fieldname.endswith("_cost")
+				else cstr(before.get(fieldname)) != cstr(self.get(fieldname))
+			)
+		]
+		if not changed:
+			return
+		if not self._may_keep_service_record(frappe.session.user):
+			frappe.throw(
+				_(
+					"Only the Hospitality Manager or the assigned staff can record {0} on an approved request."
+				).format(", ".join(_(self.meta.get_label(fieldname)) for fieldname in changed)),
+				frappe.PermissionError,
+			)
+		for fieldname in ("hotel_cost", "greeting_cost"):
+			if flt(self.get(fieldname)) < 0:
+				frappe.throw(_("{0} cannot be negative.").format(_(self.meta.get_label(fieldname))))
+
+	def _may_keep_service_record(self, user):
+		if user == "Administrator" or set(frappe.get_roles(user)) & set(HOSPITALITY_OVERSEERS):
+			return True
+		employee = frappe.db.get_value("Employee", {"user_id": user}, "name") if user != "Guest" else None
+		return bool(employee and employee == self.assigned_staff)
+
+	def _forget_times_nobody_entered(self):
+		"""Empty the Time fields Frappe filled with "now" on a new request.
+
+		Frappe 15 gives every Time field of a new document the current time,
+		default or not (frappe/model/create_new.py set_dynamic_default_values), and
+		Document._set_defaults copies that into whatever was left empty on insert —
+		for the request and for each new tour row. So a request created from a pass
+		carried Tour Start / End = the moment the host pressed Submit, which
+		populate_hospitality_request_from_pass then kept (it fills only empty
+		fields), and the visit-window check refused the pass as "Tour start
+		(16:46) is outside the visit window (10:30 -> 16:30)" — on a VIP pass sent
+		in the evening. Such a value is the present moment with microseconds,
+		which nobody types (the same test Conference Room uses for its hours).
+		Only new records and new rows: a stored time is somebody's.
+		"""
+		rows = [self] if self.is_new() else []
+		rows += [row for row in self.get("tour_areas") or [] if row.is_new()]
+		for row in rows:
+			for df in row.meta.get("fields", {"fieldtype": "Time"}):
+				if row.get(df.fieldname) and is_framework_now(row.get(df.fieldname)):
+					row.set(df.fieldname, None)
 
 	# Real-world rule: hospitality preparation should not begin until the visitor
 	# is confirmed. Drafts (and re-applications after rejection) can be created

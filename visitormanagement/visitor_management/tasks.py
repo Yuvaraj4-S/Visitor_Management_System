@@ -799,6 +799,8 @@ _HOSPITALITY_PURGE_VALUES = {
 	"special_diet": "None",
 	"accessibility_requirements": "None",
 	"notes": None,
+	# The hospitality team's free-text record of what was served to whom.
+	"service_notes": None,
 	"hotel_special_requests": None,
 	"cab_pickup_instructions": None,
 	"pickup_location": None,

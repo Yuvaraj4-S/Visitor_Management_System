@@ -4,7 +4,17 @@
 } -%}
 {%- set accent = colours.get(doc.badge_colour, "#334155") -%}
 {%- set host_name = frappe.db.get_value("Employee", doc.person_to_visit, "employee_name") or doc.person_to_visit -%}
-{%- set company = frappe.db.get_single_value("Global Defaults", "default_company") or "Visitor Management" -%}
+{#-
+    The organisation the visitor is visiting. It was Global Defaults' default
+    company alone — on a site with several companies, or whose default company
+    is another business, every badge carried someone else's name. Now: the name
+    set for visitors in VMS Settings (Portal Organisation Name, also shown on the
+    public form), else the host's company, else the default company.
+-#}
+{%- set company = (frappe.db.get_single_value("VMS Settings", "portal_organisation_name") or "").strip()
+    or (frappe.db.get_value("Employee", doc.person_to_visit, "company") if doc.person_to_visit else "")
+    or frappe.db.get_single_value("Global Defaults", "default_company")
+    or "Visitor Management" -%}
 {%- set badge_photo = doc.gate_verified_photo or doc.visitor_photo -%}
 
 <div class="vb-card" style="--accent: {{ accent }};">

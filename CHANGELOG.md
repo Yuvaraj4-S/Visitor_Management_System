@@ -182,6 +182,11 @@ The first migrate prints one line for each thing it changes. Keep that output.
   safe to re-run. The README's "Data & privacy" section has the full list.
 - **Frappe's personal-data requests cover visitors.** A Personal Data Deletion or Download
   Request for an email address now includes that visitor's passes and invitations.
+- **Record Outcome on approved customer visits.** The host, the sales executive, the approvers
+  and whoever raised or sent the pass can record the meeting outcome, follow-up date and
+  minutes on a customer pass after it is approved.
+- **Service Notes, and the final hotel and greeting costs, on approved Hospitality Requests**,
+  recorded by the Hospitality Manager or the staff member the request is assigned to.
 - **Abandoned uploads are cleaned up.** A photo or ID scan uploaded on a desk form that was
   never saved is deleted after a day.
 - **A clean uninstall.** See Fixed.
@@ -366,6 +371,19 @@ The first migrate prints one line for each thing it changes. Keep that output.
 - **A room that is already taken no longer holds up the pass.** The pass is sent for approval
   and approved as usual, and says "Room Not Reserved" so that another room can be picked.
 - **A Rejected booking no longer blocks its room** or shows as "Busy" on the calendar.
+- **Approving a pass with a conference room always reaches the right desk.** Its room booking
+  and hospitality request go to the Facility / Hospitality Manager whichever role approved the
+  pass — they used to stay in Draft when a Sales Manager, HR Manager or CEO approved. The
+  approver is no longer told the room is "already booked" by the visit's own booking, and a
+  rejected pass releases its room.
+- **A pass with a factory tour can be submitted at any time of day.** Tour times are no longer
+  filled in with the current time, which made an evening submission fail as "outside the
+  visit window".
+- **The visitor badge names the right organisation**: the Portal Organisation Name from VMS
+  Settings, else the host's company, else the default company — not always the site's default
+  company.
+- **An approved pass shows where the visitor is.** Checked-In, Checked-Out and No-Show appear
+  in the pass's header, the list and the banner, instead of a plain "Approved".
 - **Approvers without the Employee role can work on a pass without an error.** An approver
   whose login carries only the approver role — a HOD or CEO with no Employee record, say — got
   a red "No permission for VMS Settings" on every Visitor Pass, and the badge fields stayed

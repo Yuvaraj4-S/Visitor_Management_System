@@ -2,7 +2,7 @@ import contextlib
 
 import frappe
 from frappe import _
-from frappe.model.workflow import apply_workflow
+from frappe.model.workflow import get_workflow
 from frappe.rate_limiter import rate_limit
 from frappe.utils import cint, flt, get_datetime, get_time, getdate, now_datetime, nowdate
 
@@ -41,6 +41,17 @@ DOUBLE_MEAL_TYPES = {
 
 # Error Log.method (the title) is a 140-character Data field.
 _ERROR_LOG_TITLE_LENGTH = 140
+
+# A pass in one of these has been approved; the gate has moved the later ones on.
+PASS_APPROVED_OR_LATER = ("Approved", "Items Verified", "Checked-In", "Checked-Out")
+
+# The steps the system takes on a pass's own room booking / hospitality request,
+# because of what happened to the pass. Each is a step the request's workflow
+# declares — the one its requester takes ("Submit": Draft -> Pending Approval,
+# "Reapply": Rejected -> Draft). Approving or rejecting a request stays with the
+# Facility / Hospitality Manager.
+_STEPS_TAKEN_WITH_VISIT = {("Draft", "Pending Approval"), ("Rejected", "Draft")}
+_TAKEN_WITH_VISIT_FLAG = "vms_step_taken_with_visit"
 
 
 def log_failure(title, message=None):
@@ -231,29 +242,22 @@ def ensure_hospitality_request(visitor_pass):
 
 	# Once the parent Visitor Pass is Approved (or beyond), move this request out
 	# of Draft and into the Hospitality Manager's queue. Done as its own step,
-	# AFTER the save above has already committed, and through the workflow's real
-	# "Submit" transition (`apply_workflow`) rather than a raw field assignment —
-	# see the long comment in `populate_hospitality_request_from_pass` for why a
-	# raw assignment inside that save used to throw and roll back the parent's
-	# approval/rejection.
+	# after the save above, and as the workflow's own "Submit" step — see the long
+	# comment in `populate_hospitality_request_from_pass` for why a raw assignment
+	# inside that save used to throw and roll back the parent's approval.
 	#
-	# `apply_workflow` is role-checked against whoever is currently saving the
-	# Visitor Pass, who is not necessarily the Hospitality Request's owner and may
-	# not even hold the "Employee" role the Submit transition requires. That is a
-	# legitimate way for this to fail (not a bug in this function), so it is
-	# caught and logged rather than allowed to undo the Visitor Pass approval that
-	# triggered it. `status` above already reflects the real-world outcome
-	# regardless of whether this transition succeeds; a request left behind here
-	# still needs a human to Submit it from the Hospitality Request itself.
+	# The step is the system's, taken because the visit was approved
+	# (`send_for_approval_with_visit`), not the approver's: it used to be
+	# `apply_workflow` as whoever approved the pass, which Frappe checks against
+	# that user's roles and read access — and a CEO or HR Manager without the
+	# "Employee" role the Submit step names left every request in Draft, where
+	# the Hospitality Manager never saw it. A failure is still caught and logged
+	# rather than allowed to undo the approval that triggered it.
 	current_wf = getattr(doc, "workflow_state", None) or "Draft"
 	vp_status = getattr(visitor_pass, "status", None)
-	if (
-		requires_service
-		and current_wf == "Draft"
-		and vp_status in ("Approved", "Items Verified", "Checked-In", "Checked-Out")
-	):
+	if requires_service and current_wf == "Draft" and vp_status in PASS_APPROVED_OR_LATER:
 		try:
-			apply_workflow(doc, "Submit")
+			send_for_approval_with_visit(doc)
 		except Exception as exc:
 			log_failure(
 				"VMS Hospitality Auto-Promote",
@@ -342,7 +346,90 @@ def call_off_pass_arrangements(visitor_pass):
 			doc.db_set(values)
 
 
+def send_for_approval_with_visit(doc):
+	"""Move a pass's own request from Draft to Pending Approval, as the system.
+
+	The request is the pass's: created from it, for its host. Once the pass is
+	approved the request goes to the Facility / Hospitality Manager, whoever
+	approved the pass. `apply_workflow` or a plain save would check that step
+	against the approver — Frappe's validate_workflow -> get_transitions calls
+	check_permission("read") on the stored request and keeps only transitions
+	whose role the current user holds (frappe/model/workflow.py), and
+	`ignore_permissions` does not reach either check. A Sales Manager, HR
+	Manager or CEO approving a customer, candidate or VIP visit cannot read the
+	host's room booking, so the step failed for them and the booking stayed in
+	Draft for ever. The request's controller accepts exactly this step when it
+	carries the flag set here (`step_taken_with_visit`).
+	"""
+	_take_step_with_visit(doc, "Pending Approval")
+
+
+def _take_step_with_visit(doc, next_state):
+	current = doc.get("workflow_state") or "Draft"
+	if (current, next_state) not in _STEPS_TAKEN_WITH_VISIT:
+		frappe.throw(
+			_("{0} cannot move from {1} to {2} with its visit.").format(doc.doctype, current, next_state)
+		)
+	doc.flags[_TAKEN_WITH_VISIT_FLAG] = (current, next_state)
+	try:
+		doc.workflow_state = next_state
+		doc.save(ignore_permissions=True)
+	finally:
+		doc.flags.pop(_TAKEN_WITH_VISIT_FLAG, None)
+	# What apply_workflow leaves on the timeline (frappe/model/workflow.py).
+	doc.add_comment("Workflow", _(next_state))
+
+
+def step_taken_with_visit(doc):
+	"""True when this save is a step `_take_step_with_visit` is taking.
+
+	For the controllers of Conference Room Booking and Hospitality Request, whose
+	validate_workflow skips Frappe's per-user transition check for it. Only a
+	step the request's own workflow declares, on a request linked to a pass,
+	from the state the request is really in. The flag lives on the document
+	object (`flags` is never filled from a request: BaseDocument._reserved_keywords).
+	"""
+	step = doc.flags.get(_TAKEN_WITH_VISIT_FLAG)
+	if not step or step not in _STEPS_TAKEN_WITH_VISIT or doc.docstatus != 0:
+		return False
+	if not doc.get("visitor_pass"):
+		return False
+	before = doc.get_doc_before_save()
+	if not before or (before.get("workflow_state") or "Draft", doc.get("workflow_state")) != step:
+		return False
+	workflow = get_workflow(doc.doctype)
+	declared = {(t.state, t.next_state) for t in workflow.transitions}
+	if step not in declared:
+		return False
+	pass_status = frappe.db.get_value("Visitor Pass", doc.visitor_pass, "status")
+	if step == ("Draft", "Pending Approval"):
+		return pass_status in PASS_APPROVED_OR_LATER
+	# Rejected -> Draft: the pass, rejected earlier, has been sent for approval again.
+	return pass_status == "Pending Approval"
+
+
 _CRB_SAVEPOINT = "vms_room_booking"
+
+
+def _release_room_of_rejected_pass(visitor_pass):
+	"""A rejected pass does not hold its room.
+
+	The booking is created as a Draft when the pass is sent for approval, and a
+	Draft holds the room (only Cancelled and Rejected ones do not:
+	NON_BLOCKING_STATUSES). A pass that was rejected and never sent again kept
+	the room booked for its date. Only a Draft is released — one awaiting the
+	Facility Manager or approved by them belongs to an approved pass. If the pass
+	is sent for approval again the booking is taken up again
+	(ensure_conference_room_booking), and the room checked once more.
+	"""
+	for name in frappe.get_all(
+		"Conference Room Booking",
+		filters={"visitor_pass": visitor_pass.name, "docstatus": 0, "workflow_state": "Draft"},
+		pluck="name",
+	):
+		frappe.db.set_value(
+			"Conference Room Booking", name, {"workflow_state": "Rejected", "status": "Rejected"}
+		)
 
 
 def ensure_conference_room_booking(visitor_pass):
@@ -350,13 +437,24 @@ def ensure_conference_room_booking(visitor_pass):
 	if not getattr(visitor_pass, "conference_room", None):
 		return None
 
+	if getattr(visitor_pass, "status", None) == "Rejected":
+		_release_room_of_rejected_pass(visitor_pass)
+		return None
+
 	existing = frappe.db.get_value(
 		"Conference Room Booking",
 		{"visitor_pass": visitor_pass.name, "docstatus": ["<", 2]},
 		"name",
+		order_by="creation desc",
 	)
 	if existing:
 		booking = frappe.get_doc("Conference Room Booking", existing)
+		if booking.docstatus == 1:
+			# Approved by the Facility Manager. A submitted booking cannot take new
+			# times or another room (they are not "Allow on Submit"); trying used to
+			# fail and tell the user the room was "already booked" — by itself.
+			_point_out_approved_booking_differs(booking, visitor_pass)
+			return booking.name
 	else:
 		booking = frappe.new_doc("Conference Room Booking")
 		booking.visitor_pass = visitor_pass.name
@@ -391,21 +489,31 @@ def ensure_conference_room_booking(visitor_pass):
 	# happened: the visit is approved, the room is not booked, pick another.
 	messages_before = list(frappe.message_log)
 	frappe.db.savepoint(_CRB_SAVEPOINT)
+	vp_status = getattr(visitor_pass, "status", None)
 	try:
 		if booking.is_new():
 			booking.insert(ignore_permissions=True)
+		elif (booking.workflow_state or "Draft") == "Rejected" and vp_status == "Pending Approval":
+			# Released when the pass was rejected; the pass has now been sent for
+			# approval again, so the room is asked for again (and checked again).
+			_take_step_with_visit(booking, "Draft")
 		else:
 			booking.save(ignore_permissions=True)
 
-		# Move the CRB into the Facility Manager's queue as soon as the parent VP
-		# is confirmed. Without this, auto-created CRBs sit in Draft forever and
-		# the FM never sees an Approve/Reject button. Use save() (not db_set) so
-		# the Notification 'CRB Pending Approval' fires and the FM gets emailed.
-		vp_status = getattr(visitor_pass, "status", None)
-		current_wf = getattr(booking, "workflow_state", None) or "Draft"
-		if current_wf == "Draft" and vp_status in ("Approved", "Items Verified", "Checked-In", "Checked-Out"):
-			booking.workflow_state = "Pending Approval"
-			booking.save(ignore_permissions=True)
+		# Move the booking into the Facility Manager's queue as soon as the pass is
+		# approved, whoever approved it. Without this, bookings sat in Draft for
+		# ever and the Facility Manager never saw an Approve/Reject button. A save,
+		# not db_set, so the Notification "CRB Pending Approval" (Value Change on
+		# workflow_state) mails the Facility Manager.
+		if (booking.workflow_state or "Draft") == "Draft" and vp_status in PASS_APPROVED_OR_LATER:
+			send_for_approval_with_visit(booking)
+			frappe.msgprint(
+				_("Room booking {0} for {1} was sent to the Facility Manager for approval.").format(
+					frappe.bold(booking.name), frappe.bold(booking.conference_room)
+				),
+				alert=True,
+				indicator="green",
+			)
 
 		return booking.name
 	except Exception as exc:
@@ -425,11 +533,15 @@ def ensure_conference_room_booking(visitor_pass):
 			find_conflicting_booking,
 		)
 
+		# Not the pass's own booking: when the step to Pending Approval was what
+		# failed, the Draft from an earlier save is still there and "clashed" with
+		# the very visit it was made for.
 		clash = find_conflicting_booking(
 			visitor_pass.conference_room,
 			visitor_pass.visit_date,
 			start_time,
 			end_time,
+			exclude=existing,
 		)
 		# Say what is actually true of THIS pass. The old wording opened with
 		# "The visit is approved", but this runs from on_update on every save of a
@@ -464,6 +576,24 @@ def ensure_conference_room_booking(visitor_pass):
 				indicator="orange",
 			)
 		return None
+
+
+def _point_out_approved_booking_differs(booking, visitor_pass):
+	"""Say so when the pass now asks for another room than its approved booking holds."""
+	if booking.conference_room == visitor_pass.conference_room:
+		return
+	frappe.msgprint(
+		_(
+			"Room booking {0} was already approved for {1}. To move the meeting to {2}, ask the "
+			"Facility Manager to cancel that booking and book the new room."
+		).format(
+			frappe.bold(booking.name),
+			frappe.bold(booking.conference_room),
+			frappe.bold(visitor_pass.conference_room),
+		),
+		title=_("Room Already Approved"),
+		indicator="orange",
+	)
 
 
 def _clamp_to_room_hours(room_name, start, end):

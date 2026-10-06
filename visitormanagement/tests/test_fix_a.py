@@ -947,6 +947,9 @@ class TestTextEditableAfterApproval(FixATestCase):
 			*vp_module.VisitorPass.APPROVED_PASS_TEXT_FIELDS,  # stripped to plain text
 			"id_proof_number_masked",  # derived from the stored number on every save
 			"hospitality_notes",  # formatted text: Frappe's sanitiser (asserted below)
+			# formatted text: Frappe's sanitiser, and who may write it
+			# (test_round7.TestMeetingOutcome)
+			"meeting_minutes",
 		}
 		self.assertEqual(editable - accounted_for, set(), "text editable after approval with no rule")
 		for fieldname in vp_module.VisitorPass.APPROVED_PASS_TEXT_FIELDS:

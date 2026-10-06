@@ -232,6 +232,7 @@ class VisitorPass(Document):
 		self._validate_host_active()
 		self._validate_duplicate_pass()
 		self._validate_visit_duration()
+		self._validate_followup_date()
 		# Last: every check above has passed, so the numbers are final.
 		self._settle_id_fields()
 
@@ -268,6 +269,12 @@ class VisitorPass(Document):
 		self.set_onload("can_view_full_id", can_view_full_id())
 		self.set_onload("can_open_id_documents", may_open_id_documents(self))
 		self.set_onload("approval_blocked", self._approval_blocked_notice())
+		self.set_onload(
+			"may_record_outcome",
+			cint(self.docstatus) == 1
+			and self.visitor_type_layout == "Customer"
+			and self.may_record_meeting_outcome(),
+		)
 
 	def before_insert(self):
 		"""A new pass that arrives with `id_proof_number` filled: treat it as typed.
@@ -505,6 +512,71 @@ class VisitorPass(Document):
 			row.id_proof_number_masked = mask_id(row.id_proof_type, cstr(row.id_proof_number).strip()) or None
 			row.id_proof_number_entry = None
 		self._sanitize_free_text(approved=True)
+		self._guard_meeting_outcome()
+
+	# ─────────────────────────────────────────────────────────
+	# CUSTOMER VISIT: what came of the meeting
+	# ─────────────────────────────────────────────────────────
+	# Recorded after the visit, so on an approved pass ("Allow on Submit"). They
+	# could only be filled in before approval — before the meeting had happened —
+	# and stayed "Pending" for ever. None of them is about who the visitor is or
+	# whether the visit may happen.
+	MEETING_OUTCOME_FIELDS = ("meeting_outcome", "followup_date", "meeting_minutes")
+
+	def may_record_meeting_outcome(self, user=None):
+		"""The people the meeting belongs to: who raised or sent the pass, the host,
+		the sales executive, the visitor type's approvers, and System Manager."""
+		user = user or frappe.session.user
+		if user == "Administrator":
+			return True
+		if user == "Guest":
+			return False
+		roles = set(frappe.get_roles(user))
+		if "System Manager" in roles:
+			return True
+		if user in (self.owner, self.get("submitted_for_approval_by"), self.get("approved_by")):
+			return True
+		employees = [e for e in (self.person_to_visit, self.get("sales_executive")) if e]
+		if employees and frappe.db.exists("Employee", {"name": ("in", employees), "user_id": user}):
+			return True
+		if self.visitor_type:
+			approvers = frappe.db.get_value(
+				"Visitor Type", self.visitor_type, ["approver_role", "secondary_approver_role"]
+			)
+			if approvers and roles & {role for role in approvers if role}:
+				return True
+		return False
+
+	def _guard_meeting_outcome(self):
+		"""On an approved pass: the outcome is recorded by its people, for a customer visit."""
+		before = self.get_doc_before_save()
+		if not before:
+			return
+		changed = [f for f in self.MEETING_OUTCOME_FIELDS if cstr(before.get(f)) != cstr(self.get(f))]
+		if not changed:
+			return
+		if self.visitor_type_layout != "Customer":
+			frappe.throw(_("A meeting outcome is recorded on customer visits only."))
+		if not self.may_record_meeting_outcome():
+			frappe.throw(
+				_("Only the host, the sales executive or an approver of this visit can record its outcome."),
+				frappe.PermissionError,
+			)
+		self._validate_followup_date()
+
+	def _validate_followup_date(self):
+		if (
+			self.get("followup_date")
+			and self.visit_date
+			and getdate(self.followup_date) < getdate(self.visit_date)
+		):
+			frappe.throw(
+				_("The follow-up date ({0}) cannot be before the visit ({1}).").format(
+					frappe.format(self.followup_date, {"fieldtype": "Date"}),
+					frappe.format(self.visit_date, {"fieldtype": "Date"}),
+				),
+				title=_("Invalid Follow-Up Date"),
+			)
 
 	def save_version(self):
 		"""Keep full ID numbers out of the change history.
@@ -870,11 +942,11 @@ class VisitorPass(Document):
 	# meal slots worked out for the visit and where the visitor was last seen.
 	# Both are read-only on the form, which is the form's word only — the server
 	# saves whatever a request sends for them — and both are shown to the gate
-	# and in reports. The third free-text field that can change after approval,
-	# `hospitality_notes`, is a Text Editor: formatted text is what it is for, and
-	# Frappe's own sanitiser cleans it on every save, approved or not
-	# (BaseDocument._sanitize_content covers allow_on_submit fields of a
-	# submitted document), so it is not flattened here.
+	# and in reports. The other free-text fields that can change after approval,
+	# `hospitality_notes` and `meeting_minutes`, are Text Editors: formatted text
+	# is what they are for, and Frappe's own sanitiser cleans them on every save,
+	# approved or not (BaseDocument._sanitize_content covers allow_on_submit
+	# fields of a submitted document), so they are not flattened here.
 	APPROVED_PASS_TEXT_FIELDS = ("assigned_meal_slots", "current_location")
 
 	def _sanitize_free_text(self, approved=False):
@@ -2840,3 +2912,40 @@ def sync_badge_number(visitor_pass: str):
 	vp.generate_badge_number()
 	vp.reload()
 	return vp.badge_number
+
+
+@frappe.whitelist(methods=["POST"])
+def record_meeting_outcome(
+	visitor_pass: str,
+	meeting_outcome: str | None = None,
+	followup_date: str | None = None,
+	meeting_minutes: str | None = None,
+):
+	"""Record what came of a customer visit, on its approved pass.
+
+	An approved pass is read-only on the form for everybody but System Manager
+	(the workflow's "Approved" state), so the form offers these three fields in
+	a dialog and saves them here. Only these three are written, by the people
+	VisitorPass.may_record_meeting_outcome names, and the save goes through the
+	same checks as any other (before_update_after_submit: _guard_meeting_outcome,
+	the follow-up date, Frappe's sanitiser for the minutes).
+	"""
+	doc = frappe.get_doc("Visitor Pass", visitor_pass)
+	doc.check_permission("read")
+	if cint(doc.docstatus) != 1:
+		frappe.throw(_("Record the outcome on the form itself until the pass is approved."))
+	if doc.visitor_type_layout != "Customer":
+		frappe.throw(_("A meeting outcome is recorded on customer visits only."))
+	if not doc.may_record_meeting_outcome():
+		frappe.throw(
+			_("Only the host, the sales executive or an approver of this visit can record its outcome."),
+			frappe.PermissionError,
+		)
+	doc.meeting_outcome = meeting_outcome or doc.meeting_outcome
+	doc.followup_date = followup_date or None
+	doc.meeting_minutes = meeting_minutes or None
+	# The caller's right to these three fields was checked above; whether their
+	# role may otherwise write the pass (a sales executive's may not) is not the
+	# question here, and nothing else on the pass changes.
+	doc.save(ignore_permissions=True)
+	return {fieldname: doc.get(fieldname) for fieldname in doc.MEETING_OUTCOME_FIELDS}

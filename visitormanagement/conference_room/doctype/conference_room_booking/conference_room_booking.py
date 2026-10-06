@@ -12,6 +12,7 @@ from visitormanagement.permissions import (
 	check_visitor_pass_link,
 	get_conference_room_booking_permission_query_conditions,
 )
+from visitormanagement.visitor_management.lifecycle import step_taken_with_visit
 from visitormanagement.visitor_management.link_details import fill_from_link
 
 # A booking in one of these holds no room. This is the one rule for "is the slot
@@ -38,6 +39,35 @@ class ConferenceRoomBooking(Document):
 		self.auto_set_service_flags()
 		self._validate_visitor_pass_approved()
 		self._sync_status_with_workflow()
+
+	def validate_workflow(self):
+		"""Frappe's transition check, except for the step the system takes with the pass.
+
+		A booking made from a Visitor Pass goes to the Facility Manager when the
+		pass is approved, whoever approved it (lifecycle.send_for_approval_with_visit).
+		Frappe would check that step against the approver's roles and read access,
+		which a Sales Manager or CEO does not have on the host's booking. Every
+		other change of state — the Facility Manager's Approve and Reject included —
+		is checked by Frappe as before.
+		"""
+		if step_taken_with_visit(self):
+			return
+		super().validate_workflow()
+
+	def run_notifications(self, method):
+		"""Same guard as VisitorPass.run_notifications and HospitalityRequest's.
+
+		A booking made from a pass is sent to the Facility Manager inside the
+		approver's own save of the pass, so the "CRB Pending Approval" mail runs in
+		that response. On a site with no outgoing Email Account it queued "Please
+		setup default outgoing Email Account" for the approver, who has nothing to
+		do with mail. Core still records the failure in the Error Log.
+		"""
+		messages_before = list(frappe.message_log)
+		try:
+			super().run_notifications(method)
+		finally:
+			frappe.local.message_log = messages_before
 
 	def _sync_status_with_workflow(self):
 		"""Keep `status` in step with the workflow.

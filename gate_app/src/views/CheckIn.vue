@@ -11,10 +11,10 @@
 				<router-link :to="`/checkout/${encodeURIComponent(name)}?scanned=${scanned ? 1 : 0}`" class="btn-primary w-full">Visitor is inside — go to Check-Out</router-link>
 			</template>
 			<template v-else>
-				<div v-if="!scanned" class="card border border-amber-200 bg-amber-50 text-sm text-amber-800">
-					Scan the visitor's QR code to check them in (gate policy).
-					<router-link to="/scan" class="mt-2 block font-semibold underline">Open scanner</router-link>
-				</div>
+				<p class="text-xs text-slate-500">
+					{{ scanned ? "Identified by QR scan" : "Identified by Visitor Pass ID" }} — {{ name }}
+					<router-link v-if="!scanned" to="/scan" class="ml-1 font-semibold underline">Scan instead</router-link>
+				</p>
 				<CameraCapture v-model="photo" label="Live gate photo (optional)" />
 				<PhotoCompare :visitor="visitor" :live-photo="photo" />
 				<div class="card space-y-3">
@@ -57,8 +57,11 @@ const photoMatch = ref(false);
 const idCard = ref("");
 const verified = ref([]);
 const scanned = computed(() => route.query.scanned === "1");
-// Gate photo and the match ticks are optional — only the QR scan is required.
-const canConfirm = computed(() => scanned.value);
+// The visitor is identified either by QR scan or by the guard entering the Visitor
+// Pass ID (a walk-in pass is minutes old and the visitor has no QR yet) — both reach
+// this screen, so there is nothing further to require. Gate photo and the match
+// tick are optional; `scanned` is still reported so the Security Log stays honest.
+const canConfirm = computed(() => true);
 
 onMounted(async () => {
 	try {

@@ -223,6 +223,11 @@ def get_visitor_for_checkin(pass_name):
 		}
 	)
 	data["next_action"], data["blocked_reason"] = _next_action(doc)
+	# Off = the guard may identify the visitor by typing the Visitor Pass ID instead
+	# of scanning (walk-ins have no QR in hand yet). See Security Log._qr_scan_required.
+	data["qr_scan_required"] = cint(
+		frappe.db.get_single_value("VMS Settings", "qr_scan_required_at_gate")
+	)
 	return data
 
 

@@ -10,6 +10,7 @@ from frappe.model.document import Document
 from frappe.utils import date_diff, get_datetime, getdate, nowdate
 
 
+from visitormanagement.visitor_management.time_utils import clear_auto_now_times
 from visitormanagement.visitor_management.lifecycle import (
 	populate_hospitality_request_from_pass,
 	sync_hospitality_to_pass,
@@ -86,6 +87,22 @@ class HospitalityRequest(Document):
 			candidate = f"{base}-{suffix}"
 			suffix += 1
 		self.name = candidate
+
+	# Frappe fills every empty Time field of a NEW document with the current clock
+	# (frappe/model/create_new.py), so a Hospitality Request is born with Tour Start
+	# and Tour End set to the moment it was created — normally the instant someone
+	# approved the Visitor Pass. That value then fails the visit-window check and
+	# blocks the approval, or slips through and tells the plant the wrong tour time.
+	# Nobody is ever asked for a tour time on the Visitor Pass, so these are blanked
+	# before validate() runs: populate_hospitality_request_from_pass() fills Tour
+	# Start from the visitor's Expected Check-In, and the VMS team enters the rest.
+	AUTO_STAMPED_TIME_FIELDS = ("tour_start_time", "tour_end_time")
+	TOUR_AREA_TIME_FIELDS = ("from_time", "to_time")
+
+	def before_validate(self):
+		clear_auto_now_times(self, *self.AUTO_STAMPED_TIME_FIELDS)
+		for area in self.tour_areas or []:
+			clear_auto_now_times(area, *self.TOUR_AREA_TIME_FIELDS)
 
 	def validate(self):
 		if not self.status:

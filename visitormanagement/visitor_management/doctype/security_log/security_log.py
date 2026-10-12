@@ -250,14 +250,13 @@ class SecurityLog(Document):
             if emp:
                 self.security_officer = emp
 
-        if self.event_type == 'Check-In':
-            # Gate photo and the ID / pass-photo match ticks are optional — recorded when available.
-            if not self.qr_code_scanned:
-                frappe.throw("Scan the visitor's QR code before saving the check-in.")
-
-        if self.event_type == 'Check-Out':
-            if not self.qr_code_scanned:
-                frappe.throw("Scan the visitor's QR code before saving the check-out.")
+        # Check-In / Check-Out carry no further requirements. The visitor is identified
+        # either by scanning their QR or by the guard entering the Visitor Pass ID — a
+        # walk-in pass is minutes old and the visitor has no QR in hand, so both are
+        # accepted. `qr_code_scanned` records which one happened, so the audit trail
+        # never claims a scan that was not made. The gate photo and the pass-photo
+        # match tick are optional for the same reason: they are evidence when captured,
+        # not a reason to hold someone at the gate.
 
         if self.event_type == 'Gate Transfer' and not self.visited_area:
             frappe.throw("Visited Area is required for gate transfer tracking.")

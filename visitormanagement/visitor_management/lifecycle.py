@@ -433,7 +433,10 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 	doc.tea_coffee_required = cint(getattr(visitor_pass, "refreshments_required", 0))
 	doc.conference_room = getattr(visitor_pass, "conference_room", None)
 	doc.seating_capacity = getattr(visitor_pass, "number_of_people", None)
-	doc.service_time = meal_plan["service_time"]
+	# Service / pickup / tour / buggy / greeting times are NOT guessed from the visit
+	# window: the VMS User schedules each one with the kitchen, cab vendor, plant and
+	# so on, and a guessed time reads as a real plan to whoever receives it. Only the
+	# visit window above is carried across, so their entries can be validated against it.
 	# Once the parent Visitor Pass is Approved (or beyond), the Hospitality Request
 	# becomes ready for the VMS Manager to review — move it from Draft into
 	# Pending Approval so it shows up in the manager's queue. We do NOT force it to
@@ -473,41 +476,13 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 			if hasattr(visitor_pass, flag):
 				setattr(doc, flag, cint(getattr(visitor_pass, flag, 0)))
 
-	# Auto-fetch dates/times from Visitor Pass (only when HR fields empty)
-	vp_date = getattr(visitor_pass, "visit_date", None)
-	vp_checkin = _combine_visit_datetime(vp_date, getattr(visitor_pass, "expected_checkin", None))
-	vp_checkout = _combine_visit_datetime(vp_date, getattr(visitor_pass, "expected_checkout", None))
-	vp_valid_until = getattr(visitor_pass, "pass_valid_until", None)
+	# Cab Type is left blank too: it decides whether a pickup, a drop or both have to
+	# be scheduled, so guessing it would demand times nobody has chosen yet.
+	# Head count is a fact of the visit, not a schedule, so it is still carried over.
 	vp_people = getattr(visitor_pass, "number_of_people", None)
 
-	if cint(doc.cab_required):
-		if not doc.cab_type:
-			doc.cab_type = "Both"
-		if doc.cab_type in ("Pickup", "Both") and not doc.pickup_datetime and vp_checkin:
-			doc.pickup_datetime = vp_checkin
-		if doc.cab_type in ("Drop", "Both") and not doc.drop_datetime and vp_checkout:
-			doc.drop_datetime = vp_checkout
-
-	if cint(doc.hotel_required):
-		if not doc.check_in and vp_date:
-			doc.check_in = vp_date
-		if not doc.check_out:
-			doc.check_out = vp_valid_until or vp_date
-		if not doc.no_of_guests and vp_people:
-			doc.no_of_guests = vp_people
-
-	if cint(doc.factory_tour_required):
-		if not doc.tour_date:
-			doc.tour_date = vp_date or nowdate()
-		if not doc.tour_start_time and getattr(visitor_pass, "expected_checkin", None):
-			doc.tour_start_time = str(get_time(getattr(visitor_pass, "expected_checkin", None)))
-
-	if cint(doc.buggy_required) and not doc.buggy_datetime:
-		doc.buggy_datetime = vp_checkin
-
-	if cint(doc.greeting_required) and not doc.greeting_delivery_time and vp_checkin:
-		from frappe.utils import add_to_date
-		doc.greeting_delivery_time = add_to_date(vp_checkin, minutes=-30)
+	if cint(doc.hotel_required) and not doc.no_of_guests and vp_people:
+		doc.no_of_guests = vp_people
 
 	return doc
 

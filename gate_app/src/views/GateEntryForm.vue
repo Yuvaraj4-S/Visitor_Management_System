@@ -38,7 +38,10 @@
 					<label class="label">Mobile{{ i === 0 ? " *" : "" }}</label>
 					<input v-model.trim="v.mobile_number" class="input" inputmode="tel" :required="i === 0" :placeholder="i === 0 ? '' : 'optional'" />
 				</div>
-				<div><label class="label">Email</label><input v-model.trim="v.email_id" type="email" class="input" placeholder="optional" /></div>
+				<div>
+					<label class="label">Email{{ i === 0 ? " *" : "" }}</label>
+					<input v-model.trim="v.email_id" type="email" class="input" :required="i === 0" :placeholder="i === 0 ? '' : 'optional'" />
+				</div>
 			</div>
 			<div class="grid grid-cols-2 gap-3">
 				<div><label class="label">Company</label><input v-model.trim="v.company__organisation" class="input" placeholder="optional" /></div>
@@ -165,6 +168,9 @@ function validate() {
 	for (const [i, v] of visitors.value.entries()) {
 		const who = v.visitor_full_name || `Visitor ${i + 1}`;
 		if (!v.visitor_full_name) return `Visitor ${i + 1} needs a name — or remove that visitor.`;
+		// The pass (QR + approval mail) is emailed to the visitor, so the main visitor needs an address.
+		if (i === 0 && !v.email_id) return `${who}: email is required.`;
+		if (v.email_id && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email_id)) return `${who}: enter a valid email address.`;
 		if (!v.expected_checkin || !v.expected_checkout || v.expected_checkout <= v.expected_checkin)
 			return `${who}: check-out must be after check-in.`;
 		if (v.items.some((item) => !item.item_name || !(item.quantity > 0)))

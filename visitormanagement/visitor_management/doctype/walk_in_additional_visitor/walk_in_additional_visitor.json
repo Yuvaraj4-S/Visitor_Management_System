@@ -52,31 +52,31 @@
   {
    "fieldname": "id_proof_type",
    "fieldtype": "Select",
+   "hidden": 1,
    "label": "ID Proof Type",
    "options": "\nAadhaar\nPAN Card\nPassport\nDriving License"
   },
   {
-   "columns": 2,
    "fieldname": "id_proof_number",
    "fieldtype": "Data",
-   "in_list_view": 1,
+   "hidden": 1,
    "label": "ID Proof Number"
   },
   {
    "columns": 1,
-   "description": "Leave empty to use the request's Expected Check-In.",
    "fieldname": "expected_checkin",
    "fieldtype": "Time",
    "in_list_view": 1,
-   "label": "Expected Check-In"
+   "label": "Expected Check-In",
+   "reqd": 1
   },
   {
    "columns": 1,
-   "description": "Leave empty to use the request's Expected Check-Out.",
    "fieldname": "expected_checkout",
    "fieldtype": "Time",
    "in_list_view": 1,
-   "label": "Expected Check-Out"
+   "label": "Expected Check-Out",
+   "reqd": 1
   },
   {
    "fieldname": "vehicle_number",
@@ -84,7 +84,7 @@
    "label": "Vehicle Number"
   },
   {
-   "description": "Items this visitor is carrying — goes on their own pass.",
+   "description": "Items this visitor is carrying — one per line or comma separated; they go on their own pass.",
    "fieldname": "items_carried",
    "fieldtype": "Small Text",
    "label": "Items Carried"
@@ -92,6 +92,7 @@
   {
    "fieldname": "id_proof_scan",
    "fieldtype": "Attach Image",
+   "hidden": 1,
    "label": "ID Proof Scan"
   },
   {
@@ -114,7 +115,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-10-06 12:30:00.000000",
+ "modified": "2026-10-08 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Walk In Additional Visitor",

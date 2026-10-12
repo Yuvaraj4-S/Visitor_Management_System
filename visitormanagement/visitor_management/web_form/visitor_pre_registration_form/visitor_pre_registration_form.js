@@ -13,6 +13,7 @@ const ALWAYS_LOCKED_FIELDS = [
 	"meal_required",
 	"cab_required",
 	"factory_tour_required",
+	"buggy_required",
 ];
 const CONDITIONALLY_LOCKED_FIELDS = [
 	"purpose_of_visit",

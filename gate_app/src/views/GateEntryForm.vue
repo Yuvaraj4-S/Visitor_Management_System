@@ -45,16 +45,6 @@
 				<div><label class="label">Vehicle number</label><input v-model.trim="v.vehicle_number" class="input" placeholder="optional" autocapitalize="characters" /></div>
 			</div>
 			<div class="grid grid-cols-2 gap-3">
-				<div>
-					<label class="label">ID proof</label>
-					<select v-model="v.id_proof_type" class="input">
-						<option value="">Select</option>
-						<option v-for="t in idTypes" :key="t">{{ t }}</option>
-					</select>
-				</div>
-				<div><label class="label">ID number</label><input v-model.trim="v.id_proof_number" class="input" autocapitalize="characters" /></div>
-			</div>
-			<div class="grid grid-cols-2 gap-3">
 				<div><label class="label">Check-in *</label><input v-model="v.expected_checkin" type="time" class="input" required /></div>
 				<div><label class="label">Check-out *</label><input v-model="v.expected_checkout" type="time" class="input" required /></div>
 			</div>
@@ -64,7 +54,6 @@
 			</div>
 
 			<CameraCapture v-model="v.photo" label="Photo" />
-			<CameraCapture v-model="v.idScan" label="ID proof photo" default-facing="environment" />
 
 			<div class="space-y-2">
 				<div class="flex items-center justify-between">
@@ -103,7 +92,6 @@ import CameraCapture from "../components/CameraCapture.vue";
 
 const router = useRouter();
 const visitorTypes = ref([]);
-const idTypes = ["Aadhaar", "PAN Card", "Passport", "Driving License"];
 
 const pad = (n) => String(n).padStart(2, "0");
 const hhmm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -118,9 +106,9 @@ let visitorKey = 0;
 function newVisitor(from) {
 	const v = {
 		key: ++visitorKey, visitor_full_name: "", mobile_number: "", email_id: "", company__organisation: "",
-		vehicle_number: "", id_proof_type: "", id_proof_number: "",
+		vehicle_number: "",
 		expected_checkin: from ? from.expected_checkin : hhmm(now), expected_checkout: from ? from.expected_checkout : "",
-		photo: "", idScan: "", items: [],
+		photo: "", items: [],
 	};
 	if (!from) setDuration(v, 2);
 	return v;
@@ -198,27 +186,21 @@ async function submit() {
 			email_id: main.email_id,
 			company__organisation: main.company__organisation,
 			vehicle_number: main.vehicle_number,
-			id_proof_type: main.id_proof_type,
-			id_proof_number: main.id_proof_number,
 			expected_checkin: main.expected_checkin,
 			expected_checkout: main.expected_checkout,
 			number_of_visitors: visitors.value.length,
 			items: main.items,
 			visitor_photo_data: main.photo,
-			id_proof_scan_data: main.idScan,
 			additional_visitors: others.map((v) => ({
 				visitor_full_name: v.visitor_full_name,
 				mobile_number: v.mobile_number,
 				email_id: v.email_id,
 				company__organisation: v.company__organisation,
 				vehicle_number: v.vehicle_number,
-				id_proof_type: v.id_proof_type,
-				id_proof_number: v.id_proof_number,
 				expected_checkin: v.expected_checkin,
 				expected_checkout: v.expected_checkout,
 				items: v.items,
 				visitor_photo_data: v.photo,
-				id_proof_scan_data: v.idScan,
 			})),
 		};
 		const res = await call("create_walk_in_request", { data });

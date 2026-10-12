@@ -210,3 +210,15 @@ function showStatusBanner(frm) {
 		$(frm.fields_dict.visitor_type.wrapper).closest(".form-page").find(".form-message").after(html);
 	}
 }
+
+// Visitors table: a factory tour always needs the buggy (same rule as the Visitor Pass).
+frappe.ui.form.on("Visitor Invitation Guest", {
+	factory_tour_required(frm, cdt, cdn) {
+		const row = locals[cdt][cdn];
+		if (row.factory_tour_required && !row.buggy_required) {
+			frappe.model.set_value(cdt, cdn, "buggy_required", 1);
+		} else if (!row.factory_tour_required && row.buggy_required) {
+			frappe.model.set_value(cdt, cdn, "buggy_required", 0);
+		}
+	},
+});

@@ -18,10 +18,13 @@
 				<CameraCapture v-model="photo" label="Live gate photo (optional)" />
 				<PhotoCompare :visitor="visitor" :live-photo="photo" />
 				<div class="card space-y-3">
-					<label class="flex items-center gap-3 text-sm"><input v-model="idMatch" type="checkbox" class="h-5 w-5 accent-slate-900" />Visitor matches the ID proof</label>
 					<label class="flex items-center gap-3 text-sm"><input v-model="photoMatch" type="checkbox" class="h-5 w-5 accent-slate-900" />Visitor matches the pass photo</label>
 				</div>
 				<ItemChecklist v-model="verified" :items="visitor.items" />
+				<div class="card">
+					<label class="label">ID card number</label>
+					<input v-model.trim="idCard" class="input" inputmode="numeric" placeholder="Number on the ID card handed over" />
+				</div>
 				<button class="btn-success w-full py-4 text-base" :disabled="!canConfirm || busy" @click="confirm">
 					{{ busy ? "Checking in…" : "Confirm Check-In" }}
 				</button>
@@ -51,6 +54,7 @@ const busy = ref(false);
 const photo = ref("");
 const idMatch = ref(false);
 const photoMatch = ref(false);
+const idCard = ref("");
 const verified = ref([]);
 const scanned = computed(() => route.query.scanned === "1");
 // Gate photo and the match ticks are optional — only the QR scan is required.
@@ -74,6 +78,7 @@ async function confirm() {
 			gate_photo: photo.value,
 			id_proof_match: idMatch.value ? 1 : 0,
 			pass_photo_match: photoMatch.value ? 1 : 0,
+			id_card_number: idCard.value,
 			qr_scanned: scanned.value ? 1 : 0,
 			verified_items: verified.value,
 		});

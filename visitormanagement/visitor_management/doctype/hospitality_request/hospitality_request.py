@@ -91,7 +91,8 @@ class HospitalityRequest(Document):
 		if not self.status:
 			self.status = "Pending"
 		if self.visitor_pass:
-			populate_hospitality_request_from_pass(self)
+			# New request: checkboxes fetch from the pass. Later saves keep the VMS team's ticks.
+			populate_hospitality_request_from_pass(self, mirror_service_flags=self.is_new())
 		self._validate_visitor_pass_approved()
 		self._compute_hotel_nights()
 		self._validate_cab_timing()
@@ -281,6 +282,15 @@ class HospitalityRequest(Document):
 		_handle_service_assignments(self, previous)
 		_handle_booking_confirmations(self, previous)
 
+	def on_submit(self):
+		# Approved → one email to the visitor with every service that is ticked.
+		_send_visitor_hospitality_summary(self)
+
+	def on_update_after_submit(self):
+		# After approval (submitted) the VMS team keeps filling in cab / hotel / tour /
+		# greeting details — run the same assignment, confirmation and pass sync.
+		self.on_update()
+
 
 def _resolve_user_from_assignment(field_value, link_type):
 	"""Resolve the User ID from an assigned field value.
@@ -446,91 +456,140 @@ def _handle_booking_confirmations(doc, previous):
 		assigned_field = svc["status_field"].replace("_status", "_assigned_to")
 		_close_service_todo(doc.name, assigned_field)
 
-		# Send confirmation to visitor (with attachment for hotel voucher)
-		attachments = []
-		if svc["status_field"] == "hotel_status" and doc.hotel_voucher:
-			attachments = _get_file_attachments(doc.hotel_voucher)
-		_send_visitor_booking_confirmation(doc, svc["label"], svc["details_fn"](doc), attachments)
+		# The visitor gets one consolidated email when the request is approved
+		# (_send_visitor_hospitality_summary) — no separate mail per service.
 
 
-def _get_cab_confirmation_details(doc):
-	lines = []
-	if doc.cab_type:
-		lines.append(f"<li><b>Service:</b> {doc.cab_type}</li>")
-	if doc.cab_vehicle_number:
-		lines.append(f"<li><b>Vehicle Number:</b> {doc.cab_vehicle_number}</li>")
-	if doc.driver_name:
-		lines.append(f"<li><b>Driver Name:</b> {doc.driver_name}</li>")
-	if doc.driver_phone:
-		lines.append(f"<li><b>Driver Phone:</b> {doc.driver_phone}</li>")
-	if doc.pickup_location:
-		lines.append(f"<li><b>Pickup Location:</b> {doc.pickup_location}</li>")
-	if doc.pickup_datetime:
-		lines.append(f"<li><b>Pickup Time:</b> {doc.pickup_datetime}</li>")
-	if doc.drop_location:
-		lines.append(f"<li><b>Drop Location:</b> {doc.drop_location}</li>")
-	if doc.drop_datetime:
-		lines.append(f"<li><b>Drop Time:</b> {doc.drop_datetime}</li>")
-	if doc.cab_pickup_instructions:
-		lines.append(f"<li><b>Instructions:</b> {doc.cab_pickup_instructions}</li>")
-	return "<ul>" + "".join(lines) + "</ul>" if lines else ""
-
-
-def _get_hotel_confirmation_details(doc):
-	lines = []
-	if doc.hotel_name:
-		hotel_label = frappe.db.get_value("Supplier", doc.hotel_name, "supplier_name") or doc.hotel_name
-		lines.append(f"<li><b>Hotel:</b> {hotel_label}</li>")
-	if doc.check_in:
-		lines.append(f"<li><b>Check-in:</b> {doc.check_in}</li>")
-	if doc.check_out:
-		lines.append(f"<li><b>Check-out:</b> {doc.check_out}</li>")
-	if doc.nights:
-		lines.append(f"<li><b>Nights:</b> {doc.nights}</li>")
-	if doc.room_type:
-		lines.append(f"<li><b>Room Type:</b> {doc.room_type}</li>")
-	if doc.no_of_rooms:
-		lines.append(f"<li><b>Rooms:</b> {doc.no_of_rooms}</li>")
-	if doc.booking_reference:
-		lines.append(f"<li><b>Booking Reference:</b> {doc.booking_reference}</li>")
-	return "<ul>" + "".join(lines) + "</ul>" if lines else ""
-
-
-def _send_visitor_booking_confirmation(doc, service_label, details_html, attachments=None):
-	"""Send booking confirmation email to the visitor, optionally with attachments."""
+def _send_visitor_hospitality_summary(doc):
+	"""One email to the visitor on approval, listing only the services that are ticked
+	(Meal, Cab, Hotel, Factory Tour, Buggy) with the details entered. Greeting is an
+	internal welcome arrangement and is not mentioned to the visitor."""
 	if not doc.visitor_pass:
 		return
-
 	vp = frappe.db.get_value(
-		"Visitor Pass", doc.visitor_pass,
-		["visitor_full_name", "email_id", "mobile_number"],
-		as_dict=True,
+		"Visitor Pass", doc.visitor_pass, ["visitor_full_name", "email_id", "visit_date"], as_dict=True
 	)
 	if not vp or not vp.email_id:
 		return
 
-	subject = _("{0} Confirmed for Your Visit").format(service_label)
-	message = (
-		f"<p>Dear {vp.visitor_full_name},</p>"
-		f"<p>Your <b>{service_label}</b> has been confirmed. Here are the details:</p>"
-		f"{details_html}"
-		f"<p>If you have any questions, please contact your host.</p>"
-		f"<p>Regards,<br>Visitor Management Team</p>"
-	)
+	sections = []
+	if doc.meal_required:
+		sections.append((_("Meal"), _get_meal_details(doc)))
+	if doc.cab_required:
+		sections.append((_("Cab / Transport"), _get_cab_confirmation_details(doc)))
+	if doc.hotel_required:
+		sections.append((_("Hotel"), _get_hotel_confirmation_details(doc)))
+	if doc.factory_tour_required:
+		sections.append((_("Factory Tour"), _get_tour_details(doc)))
+	if doc.buggy_required:
+		sections.append((_("Buggy (on-site transport)"), _get_buggy_details(doc)))
+	if not sections:
+		return
 
+	esc = frappe.utils.escape_html
+	body = "".join(
+		f"<h4 style='margin:16px 0 4px;color:#102a43'>{esc(title)}</h4>"
+		+ (details or f"<p style='color:#627d98'>{_('Arranged — details will be shared by your host.')}</p>")
+		for title, details in sections
+	)
+	message = (
+		f"<p>Dear {esc(vp.visitor_full_name or _('Visitor'))},</p>"
+		f"<p>{_('The following arrangements have been confirmed for your visit on {0}:').format(frappe.utils.formatdate(vp.visit_date))}</p>"
+		f"{body}"
+		f"<p>{_('If you have any questions, please contact your host.')}</p>"
+		f"<p>{_('Regards,')}<br>{_('Visitor Management Team')}</p>"
+	)
+	attachments = _get_file_attachments(doc.hotel_voucher) if doc.hotel_required and doc.hotel_voucher else []
 	try:
 		frappe.sendmail(
 			recipients=[vp.email_id],
-			subject=subject,
+			subject=_("Your visit arrangements are confirmed"),
 			message=message,
-			attachments=attachments or [],
-			now=True,
+			attachments=attachments,
+			reference_doctype=doc.doctype,
+			reference_name=doc.name,
 		)
-	except Exception as exc:
-		frappe.log_error(
-			f"Visitor booking confirmation email failed for {doc.name}: {exc}",
-			"VMS Booking Confirmation Email",
-		)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), "VMS Hospitality Summary Email")
+
+
+def _li(label, value):
+	# Skip empty values and the literal "None" option of select fields (e.g. Special Diet).
+	if not value or str(value).strip() == "None":
+		return ""
+	return f"<li><b>{frappe.utils.escape_html(label)}:</b> {frappe.utils.escape_html(str(value))}</li>"
+
+
+def _fmt_dt(value):
+	return frappe.utils.format_datetime(value, "dd-MM-yyyy HH:mm") if value else None
+
+
+def _fmt_t(value):
+	return frappe.utils.format_time(value, "HH:mm") if value else None
+
+
+def _get_meal_details(doc):
+	lines = [
+		_li(_("Meal"), doc.meal_type),
+		_li(_("Service Time"), _fmt_dt(doc.service_time)),
+		_li(_("Diet"), doc.special_diet),
+		_li(_("Allergies"), doc.dietary_allergies),
+	]
+	return "<ul>" + "".join(lines) + "</ul>" if any(lines) else ""
+
+
+def _get_tour_details(doc):
+	lines = [
+		_li(_("Date"), frappe.utils.formatdate(doc.tour_date) if doc.tour_date else None),
+		_li(_("Time"), " – ".join(t for t in (_fmt_t(doc.tour_start_time), _fmt_t(doc.tour_end_time)) if t)),
+	]
+	areas = ", ".join(
+		a.area_name + (f" ({_fmt_t(a.from_time)}–{_fmt_t(a.to_time)})" if a.from_time and a.to_time else "")
+		for a in (doc.tour_areas or [])
+		if a.area_name
+	)
+	lines.append(_li(_("Areas"), areas))
+	return "<ul>" + "".join(lines) + "</ul>" if any(lines) else ""
+
+
+def _get_buggy_details(doc):
+	lines = [
+		_li(_("Pickup Point"), doc.buggy_pickup_point),
+		_li(_("Drop Point"), doc.buggy_drop_point),
+		_li(_("Time"), _fmt_dt(doc.buggy_datetime)),
+	]
+	return "<ul>" + "".join(lines) + "</ul>" if any(lines) else ""
+
+
+def _get_cab_confirmation_details(doc):
+	pickup = doc.cab_type in ("Pickup", "Both")
+	drop = doc.cab_type in ("Drop", "Both")
+	lines = [
+		_li(_("Service"), doc.cab_type),
+		_li(_("Vehicle Number"), doc.cab_vehicle_number),
+		_li(_("Driver Name"), doc.driver_name),
+		_li(_("Driver Phone"), doc.driver_phone),
+		_li(_("Pickup Location"), doc.pickup_location if pickup else None),
+		_li(_("Pickup Time"), _fmt_dt(doc.pickup_datetime) if pickup else None),
+		_li(_("Drop Location"), doc.drop_location if drop else None),
+		_li(_("Drop Time"), _fmt_dt(doc.drop_datetime) if drop else None),
+		_li(_("Instructions"), doc.cab_pickup_instructions),
+	]
+	return "<ul>" + "".join(lines) + "</ul>" if any(lines) else ""
+
+
+def _get_hotel_confirmation_details(doc):
+	hotel = (frappe.db.get_value("Supplier", doc.hotel_name, "supplier_name") or doc.hotel_name) if doc.hotel_name else None
+	lines = [
+		_li(_("Hotel"), hotel),
+		_li(_("Check-in"), frappe.utils.formatdate(doc.check_in) if doc.check_in else None),
+		_li(_("Check-out"), frappe.utils.formatdate(doc.check_out) if doc.check_out else None),
+		_li(_("Nights"), doc.nights),
+		_li(_("Room Type"), doc.room_type),
+		_li(_("Rooms"), doc.no_of_rooms),
+		_li(_("Booking Reference"), doc.booking_reference),
+	]
+	return "<ul>" + "".join(lines) + "</ul>" if any(lines) else ""
 
 
 def _get_file_attachments(file_url):
@@ -561,3 +620,71 @@ def _close_service_todo(request_name, assigned_field):
 	)
 	for todo_name in todos:
 		frappe.db.set_value("ToDo", todo_name, "status", "Closed")
+
+
+# ─────────────────────────────────────────────────────────
+# VMS Manager → VMS User assignment
+# ─────────────────────────────────────────────────────────
+# The VMS Manager receives every new request, then assigns it to a VMS User who
+# enters the cab / meal / factory-tour / greeting details on the request.
+VMS_ASSIGNER_ROLES = ("VMS Manager", "System Manager")
+
+
+def _vms_users():
+	holders = frappe.get_all("Has Role", filters={"role": "VMS User", "parenttype": "User"}, pluck="parent", distinct=True)
+	return frappe.get_all(
+		"User",
+		filters=[
+			["name", "in", holders or [""]],
+			["name", "not in", ["Administrator", "Guest"]],
+			["enabled", "=", 1],
+		],
+		fields=["name", "full_name"],
+		order_by="full_name asc",
+	)
+
+
+@frappe.whitelist()
+def get_vms_users():
+	return _vms_users()
+
+
+@frappe.whitelist()
+def assign_to_vms_user(request_name, user, note=None):
+	from frappe.desk.form.assign_to import add as add_assignment
+
+	if not set(frappe.get_roles()) & set(VMS_ASSIGNER_ROLES):
+		frappe.throw(_("Only a VMS Manager can assign hospitality requests."), frappe.PermissionError)
+	if user not in {u.name for u in _vms_users()}:
+		frappe.throw(_("{0} is not an active VMS User.").format(user))
+
+	doc = frappe.get_doc("Hospitality Request", request_name)
+	visitor = doc.visitor_name_display or doc.visitor_pass
+	services = ", ".join(
+		label
+		for field, label in (
+			("meal_required", "Meal"),
+			("cab_required", "Cab"),
+			("hotel_required", "Hotel"),
+			("factory_tour_required", "Factory Tour"),
+			("buggy_required", "Buggy"),
+			("greeting_required", "Greeting"),
+		)
+		if doc.get(field)
+	) or _("arrangements")
+	description = _("Enter the {0} details for visitor {1}.").format(services, visitor)
+	if note:
+		description += " " + frappe.utils.strip_html(note)
+
+	# Standard assignment: ToDo + email/bell notification, and shares the request if needed.
+	add_assignment(
+		{
+			"assign_to": [user],
+			"doctype": doc.doctype,
+			"name": doc.name,
+			"description": description,
+			"priority": "High",
+			"notify": 1,
+		}
+	)
+	return {"assigned_to": user}

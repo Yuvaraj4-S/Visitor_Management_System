@@ -125,7 +125,7 @@ def ensure_hospitality_request(visitor_pass):
 	if is_new_request:
 		try:
 			frappe.msgprint(
-				_("Hospitality Request {0} was created from this pass — the Hospitality Manager will see it in their queue.").format(
+				_("Hospitality Request {0} was created from this pass — the VMS Manager will see it in their queue.").format(
 					frappe.bold(doc.name)
 				),
 				title=_("Hospitality Arranged"),
@@ -398,7 +398,14 @@ def apply_hospitality_meal_plan(doc, preserve_existing=False):
 	return meal_plan
 
 
-def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_management_fields=False):
+def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_management_fields=False, mirror_service_flags=True):
+	"""Fill a Hospitality Request from its Visitor Pass.
+
+	``mirror_service_flags``: copy the service checkboxes (Meal / Cab / Hotel / Factory Tour /
+	Buggy / Greeting) from the pass. True when the request is new or the pass changed; False
+	when the VMS team saves the request itself, so their ticks (and Meal Type) are kept and
+	synced back to the pass instead of being overwritten.
+	"""
 	visitor_pass = visitor_pass or (
 		frappe.get_doc("Visitor Pass", doc.visitor_pass) if getattr(doc, "visitor_pass", None) else None
 	)
@@ -409,22 +416,26 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 	# Honor manual meal_required on the Visitor Pass — if host/guest ticked it, carry it across
 	# even if visit window doesn't overlap standard meal slots.
 	vp_meal_required = cint(getattr(visitor_pass, "meal_required", 0))
-	doc.meal_required = vp_meal_required or meal_plan["meal_required"]
+	if mirror_service_flags:
+		doc.meal_required = vp_meal_required or meal_plan["meal_required"]
+	keep_meal_type = not mirror_service_flags and getattr(doc, "meal_type", None)
 	doc.meal_type = (
-		getattr(visitor_pass, "meal_type", None) or meal_plan["meal_type"]
+		doc.meal_type if keep_meal_type else (getattr(visitor_pass, "meal_type", None) or meal_plan["meal_type"])
 	) if doc.meal_required else None
 	doc.visit_start_time = meal_plan["visit_start_time"]
 	doc.visit_end_time = meal_plan["visit_end_time"]
 	doc.assigned_meal_slots = meal_plan["assigned_meal_slots"] if doc.meal_required else None
 	doc.hospitality_type = meal_plan["hospitality_type"] if doc.meal_required else None
-	doc.special_diet = getattr(visitor_pass, "special_diet", None)
+	# Diet comes from the pass, but a value the VMS team entered on the request is kept.
+	if mirror_service_flags or not getattr(doc, "special_diet", None):
+		doc.special_diet = getattr(visitor_pass, "special_diet", None) or getattr(doc, "special_diet", None)
 	doc.snacks_required = cint(getattr(visitor_pass, "refreshments_required", 0))
 	doc.tea_coffee_required = cint(getattr(visitor_pass, "refreshments_required", 0))
 	doc.conference_room = getattr(visitor_pass, "conference_room", None)
 	doc.seating_capacity = getattr(visitor_pass, "number_of_people", None)
 	doc.service_time = meal_plan["service_time"]
 	# Once the parent Visitor Pass is Approved (or beyond), the Hospitality Request
-	# becomes ready for the Hospitality Manager to review — move it from Draft into
+	# becomes ready for the VMS Manager to review — move it from Draft into
 	# Pending Approval so it shows up in the manager's queue. We do NOT force it to
 	# Approved here: that bypasses the workflow (no Draft→Approved transition exists)
 	# and the submit permission of whoever happens to be saving.
@@ -457,9 +468,10 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 			if note
 		)
 	# Mirror arrangement request flags from Visitor Pass (host-entered intent)
-	for flag in ARRANGEMENT_REQUIRED_FIELDS:
-		if hasattr(visitor_pass, flag):
-			setattr(doc, flag, cint(getattr(visitor_pass, flag, 0)))
+	if mirror_service_flags:
+		for flag in ARRANGEMENT_REQUIRED_FIELDS:
+			if hasattr(visitor_pass, flag):
+				setattr(doc, flag, cint(getattr(visitor_pass, flag, 0)))
 
 	# Auto-fetch dates/times from Visitor Pass (only when HR fields empty)
 	vp_date = getattr(visitor_pass, "visit_date", None)

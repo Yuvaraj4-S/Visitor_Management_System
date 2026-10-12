@@ -12,6 +12,8 @@
   "meal_required",
   "cab_required",
   "factory_tour_required",
+  "buggy_required",
+  "items_carried",
   "column_break_status",
   "invitation_status",
   "visitor_pass",
@@ -40,8 +42,10 @@
    "reqd": 1
   },
   {
+   "columns": 1,
    "fieldname": "visitor_mobile",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Mobile",
    "options": "Phone"
   },
@@ -70,6 +74,21 @@
    "label": "Factory Tour"
   },
   {
+   "columns": 1,
+   "default": "0",
+   "description": "Ticked automatically with Factory Tour.",
+   "fieldname": "buggy_required",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Buggy"
+  },
+  {
+   "description": "Laptop, charger, tools… one per line or comma separated. Shown on the visitor's invitation link and copied to their Visitor Pass items.",
+   "fieldname": "items_carried",
+   "fieldtype": "Small Text",
+   "label": "Items Carried"
+  },
+  {
    "fieldname": "column_break_status",
    "fieldtype": "Column Break"
   },
@@ -85,10 +104,8 @@
    "read_only": 1
   },
   {
-   "columns": 2,
    "fieldname": "visitor_pass",
    "fieldtype": "Link",
-   "in_list_view": 1,
    "label": "Visitor Pass",
    "no_copy": 1,
    "options": "Visitor Pass",
@@ -136,7 +153,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-10-06 12:30:00.000000",
+ "modified": "2026-10-08 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Invitation Guest",

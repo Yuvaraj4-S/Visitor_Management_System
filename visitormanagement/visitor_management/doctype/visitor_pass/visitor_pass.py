@@ -24,8 +24,17 @@ from visitormanagement.visitor_management.validators import (
     validate_id,
 )
 
+# "Laptop × 2 (S/N 123)", "Laptop x2", "Charger (x2)" — the formats the gate app and
+# the item summary write into items_carried.
+_ITEM_TEXT_RE = re.compile(
+    r"^(?P<name>.+?)"
+    r"(?:\s*×\s*(?P<qty>\d+(?:\.\d+)?)|\s+x\s*(?P<qty2>\d+(?:\.\d+)?)|\s*\(x(?P<qty3>\d+)\))?"
+    r"(?:\s*\(S/N\s*(?P<sn>[^)]*)\))?$",
+    re.IGNORECASE,
+)
+
 # Per-visitor hospitality the host sets on Visitor Invitation → Visitors table.
-INVITATION_GUEST_PASS_FIELDS = ("meal_required", "cab_required", "factory_tour_required")
+INVITATION_GUEST_PASS_FIELDS = ("meal_required", "cab_required", "factory_tour_required", "buggy_required")
 
 # Approver role → the workflow pending lane it owns. Lanes are derived from each
 # Visitor Type's approver_role (and secondary_approver_role) so custom types work
@@ -86,7 +95,6 @@ class VisitorPass(Document):
 
         self._apply_invitation_visitor_choices()
         normalize_visitor_pass(self)
-        self._align_workflow_lane_with_visitor_type()
         validate_multi_day_range(self)
         self._validate_schedule()
         self._validate_formats()
@@ -105,7 +113,7 @@ class VisitorPass(Document):
         rows = frappe.get_all(
             "Visitor Invitation Guest",
             filters={"parent": self.visitor_invitation, "parenttype": "Visitor Invitation"},
-            fields=["name", "visitor_full_name", "visitor_email", "visitor_pass", *INVITATION_GUEST_PASS_FIELDS],
+            fields=["name", "visitor_full_name", "visitor_email", "visitor_pass", "items_carried", *INVITATION_GUEST_PASS_FIELDS],
             order_by="idx asc",
         )
         mine = [r for r in rows if self.name and r.visitor_pass == self.name]
@@ -131,6 +139,46 @@ class VisitorPass(Document):
             return
         for fieldname in INVITATION_GUEST_PASS_FIELDS:
             self.set(fieldname, cint(row.get(fieldname)))
+        # Items the host listed on the invitation → this pass's Items tab, unless the
+        # pass already has items (the visitor's own list from the link wins).
+        if not self.visitor_items and not (self.items_carried or "").strip() and (row.get("items_carried") or "").strip():
+            self.items_carried = row.items_carried.strip()
+
+    def _notify_host_when_pending_approval(self):
+        """Simple approval: System Manager or the mapped host approves. Tell the host
+        (bell + email) as soon as the pass is sent for approval."""
+        if self.workflow_state != "Pending Approval" or not self.has_value_changed("workflow_state"):
+            return
+        host_user = frappe.db.get_value("Employee", self.person_to_visit, "user_id") if self.person_to_visit else None
+        if not host_user:
+            return
+        from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
+
+        esc = frappe.utils.escape_html
+        link = frappe.utils.get_url_to_form("Visitor Pass", self.name)
+        source = (
+            _("filled the pre-registration form for invitation {0}").format(self.visitor_invitation)
+            if self.visitor_invitation
+            else _("was sent for approval")
+        )
+        try:
+            enqueue_create_notification(
+                [host_user],
+                {
+                    "type": "Alert",
+                    "document_type": "Visitor Pass",
+                    "document_name": self.name,
+                    "subject": esc(_("Approve visitor: {0} ({1})").format(self.visitor_full_name, self.visit_date)),
+                    "email_content": (
+                        f"<p><b>{esc(self.visitor_full_name or '')}</b> {esc(source)}.</p>"
+                        f"<p>Open the pass and choose <b>Approve</b> or <b>Reject</b> from the Actions menu.</p>"
+                        f"<p><a href='{link}'>{self.name}</a></p>"
+                    ),
+                    "from_user": frappe.session.user if frappe.session.user != "Guest" else "Administrator",
+                },
+            )
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "VMS host approval notification")
 
     def _link_invitation_visitor_row(self):
         row_name = self.flags.get("invitation_visitor_row")
@@ -458,24 +506,47 @@ class VisitorPass(Document):
             return
 
         if text:
-            current_first = rows[0] if rows else None
-            current_first_name = (current_first.item_name or "").strip() if current_first else ""
-            if current_first_name == text and len(rows) == 1:
+            # Free text (desk, or a walk-in's "Laptop × 2" lines) → one row per item,
+            # keeping any verification already recorded against an item of the same name.
+            parsed = self._parse_items_text(text)
+            if [(r.item_name or "").strip() for r in rows] == [p["item_name"] for p in parsed] and all(
+                float(r.quantity or 1) == p["quantity"] for r, p in zip(rows, parsed)
+            ):
+                self.items_carried = auto_summary
                 return
-            preserved_verified = current_first.verified_by_security if current_first else 0
-            preserved_remarks = current_first.verification_remarks if current_first else None
+            previous = {(r.item_name or "").strip().lower(): r for r in rows}
             self.set("visitor_items", [])
-            row = self.append("visitor_items", {
-                "item_name": text,
-                "quantity": 1,
-            })
-            if preserved_verified:
-                row.verified_by_security = 1
-            if preserved_remarks:
-                row.verification_remarks = preserved_remarks
+            for item in parsed:
+                row = self.append("visitor_items", item)
+                old = previous.get(item["item_name"].lower())
+                if old:
+                    row.verified_by_security = old.verified_by_security
+                    row.verification_remarks = old.verification_remarks
+            # Store the canonical summary so the next save sees rows and text in sync.
+            self.items_carried = self._summarise_items(self.visitor_items) or text
         elif rows:
             # items_carried empty but rows exist (portal flow) → derive summary
             self.items_carried = auto_summary
+
+    @staticmethod
+    def _parse_items_text(text):
+        """"Laptop × 2 (S/N 123)" / "Charger (x2)" / "Laptop, Mouse" → item rows."""
+        items = []
+        for line in re.split(r"[\r\n]+", text or ""):
+            pieces = [line] if "(S/N" in line else line.split(",")
+            for piece in pieces:
+                piece = piece.strip(" -•\t")
+                if not piece:
+                    continue
+                m = _ITEM_TEXT_RE.match(piece)
+                name = (m.group("name") if m else piece).strip()
+                qty = (m.group("qty") or m.group("qty2") or m.group("qty3")) if m else None
+                serial = (m.group("sn") or "").strip() if m else ""
+                item = {"item_name": name or piece, "quantity": float(qty) if qty else 1.0}
+                if serial:
+                    item["serial_number"] = serial
+                items.append(item)
+        return items
 
     @staticmethod
     def _summarise_items(rows):
@@ -496,6 +567,7 @@ class VisitorPass(Document):
 
     def on_update(self):
         self._link_invitation_visitor_row()
+        self._notify_host_when_pending_approval()
         if self.docstatus == 0 and self.status == "Draft":
             return
         # Walk-in visitors don't get hospitality — pass is auto-generated
@@ -1268,6 +1340,7 @@ def get_invitation_visitors(visitor_invitation, visitor_pass=None):
             "visitor_full_name": r.visitor_full_name,
             "visitor_email": r.visitor_email,
             "visitor_mobile": r.visitor_mobile,
+            "items_carried": r.get("items_carried"),
             **{f: cint(r.get(f)) for f in INVITATION_GUEST_PASS_FIELDS},
         }
         for r in inv.visitors

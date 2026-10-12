@@ -19,6 +19,7 @@ ALWAYS_LOCKED_FIELDS = {
 	"meal_required",
 	"cab_required",
 	"factory_tour_required",
+	"buggy_required",
 }
 
 CONDITIONALLY_LOCKED_FIELDS = {
@@ -166,14 +167,14 @@ def get_context(context):
 			<div class="vm-status-title">Invitation Verified</div>
 			<div class="vm-status-message">
 				Your invitation has been verified. Fields marked as locked were set by your host.
-				Please fill in your personal details, identity documents, and any additional information required.
+				Please fill in your personal details, add your photo, and any additional information required.
 			</div>
 		</div>
 	"""
 
 	if getattr(context, "web_form_doc", None):
 		# Hide ALL visitor-type specific sections — keep only the core 4:
-		# Visitor Profile, Visit Details, Identity Documents (+ Visitor Items is injected via JS)
+		# Visitor Profile, Visit Details, Visitor Photo (+ Visitor Items is injected via JS)
 		hide_sections = set(TYPE_SECTION_LABELS.values())
 
 		hiding_section = False

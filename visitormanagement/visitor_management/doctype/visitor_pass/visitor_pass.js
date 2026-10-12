@@ -30,7 +30,8 @@ function get_vms_home_country() {
 // displayed flag/ISD prefix to match it.
 function sync_mobile_country_with_nationality(frm) {
 	const country_name = frm.doc.custom_nationality;
-	if (!country_name) {
+	// Approved passes are read-only — don't touch the phone widget (it marks the form "Not Saved").
+	if (!country_name || frm.doc.docstatus !== 0) {
 		return;
 	}
 	const control = frm.get_field("mobile_number");
@@ -344,7 +345,17 @@ function apply_badge_visibility(frm) {
 		});
 }
 
+// Walk-in passes come from the gate: visitor-type details (meeting subject, CRM,
+// follow-up, interpreter, ...) are optional and never auto-filled on them.
+function is_walk_in_pass(frm) {
+	return frm.doc.request_channel === "Walk-In";
+}
+
 function ensure_customer_crm_defaults(frm) {
+	// Never default values onto a walk-in or an approved pass — it marks the form "Not Saved".
+	if (frm.doc.docstatus !== 0 || is_walk_in_pass(frm)) {
+		return;
+	}
 	if (frm.doc.visitor_type === "Customer" && frm.doc.entry_type === "New" && !frm.doc.crm_reference_type) {
 		frm.set_value("crm_reference_type", "Lead");
 		return;
@@ -474,7 +485,7 @@ function apply_visitor_pass_field_rules(frm) {
 
 	frm.set_df_property("items_verification_status", "hidden", 1);
 	frm.toggle_display("existing_visitor_pass", is_existing);
-	frm.toggle_reqd("existing_visitor_pass", is_existing);
+	frm.toggle_reqd("existing_visitor_pass", is_existing && !is_walk_in_pass(frm));
 	frm.toggle_display("supplier_link", frm.doc.visitor_type === "Supplier" && frm.doc.entry_type === "New");
 	frm.toggle_display("crm_reference_type", frm.doc.visitor_type === "Customer" && frm.doc.entry_type === "New");
 	frm.toggle_display("crm_lead_opportunity", frm.doc.visitor_type === "Customer" && frm.doc.entry_type === "New");
@@ -483,13 +494,13 @@ function apply_visitor_pass_field_rules(frm) {
 	frm.toggle_display("job_applicant_link", frm.doc.visitor_type === "Candidate" && frm.doc.entry_type === "New");
 	const is_supplier_meeting =
 		frm.doc.visitor_type === "Supplier" && frm.doc.supplier_visit_mode === "Meeting";
-	frm.toggle_reqd("meeting_subject", is_supplier_meeting);
+	frm.toggle_reqd("meeting_subject", is_supplier_meeting && !is_walk_in_pass(frm));
 
 	frm.toggle_display("followup_date", is_follow_up);
-	frm.toggle_reqd("followup_date", is_follow_up);
+	frm.toggle_reqd("followup_date", is_follow_up && !is_walk_in_pass(frm));
 
 	frm.toggle_display("interpreter_language", needs_interpreter);
-	frm.toggle_reqd("interpreter_language", needs_interpreter);
+	frm.toggle_reqd("interpreter_language", needs_interpreter && !is_walk_in_pass(frm));
 
 	frm.toggle_display("pass_valid_until", is_multi_day);
 	frm.toggle_reqd("pass_valid_until", is_multi_day);
@@ -579,6 +590,17 @@ function set_visitor_pass_intro(frm) {
 		return;
 	}
 
+	// Invited visitor still filling the link: their final submit sends the pass for approval.
+	if (frm.doc.visitor_invitation && frm.doc.docstatus === 0 && stage === "Draft") {
+		frm.set_intro(
+			__("Pre-registered visitor from {0}. Waiting for the visitor to finish and submit the form — it then goes to Pending Approval.", [
+				frm.doc.visitor_invitation,
+			]),
+			"blue"
+		);
+		return;
+	}
+
 	if (stage.startsWith("Pending")) {
 		frm.set_intro(
 			approval_lane
@@ -643,7 +665,6 @@ function render_approver_context_card(frm) {
 	if (!frm.dashboard || !frm.dashboard.wrapper) return;
 
 	const photo_ok = !!frm.doc.visitor_photo;
-	const id_ok = !!frm.doc.id_proof_scan;
 	const items_declared = (frm.doc.visitor_items || []).length > 0
 		|| !!(frm.doc.items_carried || "").trim();
 
@@ -680,7 +701,6 @@ function render_approver_context_card(frm) {
 				</div>
 				<div style="display:flex; gap:6px; flex-wrap:wrap;">
 					${checklist_item(__("Visitor Photo"), photo_ok)}
-					${checklist_item(__("ID Scan"), id_ok)}
 					${checklist_item(__("Items Declared"), items_declared)}
 				</div>
 			</div>
@@ -727,16 +747,9 @@ function get_pass_stage(frm) {
 	return frm.doc.workflow_state || frm.doc.status || __("Draft");
 }
 
-function get_approval_lane(visitor_type) {
-	const lane = {
-		Contractor: __("System Manager"),
-		Supplier: __("System Manager"),
-		Customer: __("Sales Manager"),
-		Candidate: __("HR Manager"),
-		VIP: __("HOD / CEO"),
-	};
-
-	return lane[visitor_type];
+function get_approval_lane() {
+	// Simple approval for every visitor type: System Manager or the mapped host.
+	return __("System Manager or the host (Person to Visit)");
 }
 
 function get_pass_stage_color(stage) {
@@ -754,7 +767,7 @@ function show_web_submissions_dialog(frm) {
 			doctype: 'Visitor Pass',
 			filters: [
 				['request_channel', '=', 'Portal'],
-				['workflow_state', 'in', ['Pending System Manager', 'Pending Sales Manager', 'Pending HR Manager', 'Pending HOD', 'Pending CEO', 'Draft']]
+				['workflow_state', 'in', ['Pending Approval', 'Draft']]
 			],
 			fields: ['name', 'visitor_full_name', 'visitor_type', 'mobile_number', 'email_id', 'visit_date']
 		},
@@ -1130,7 +1143,7 @@ function confirm_group_action(frm, action, count) {
 	);
 }
 
-const INVITATION_HOSPITALITY_FIELDS = ["meal_required", "cab_required", "factory_tour_required"];
+const INVITATION_HOSPITALITY_FIELDS = ["meal_required", "cab_required", "factory_tour_required", "buggy_required"];
 
 // Pass created in the desk for an invited visitor: copy the invitation's visit
 // details and that visitor's details + hospitality (host's choice).
@@ -1161,8 +1174,12 @@ function fill_from_invitation(frm) {
 						meal_required: visitor.meal_required,
 						cab_required: visitor.cab_required,
 						factory_tour_required: visitor.factory_tour_required,
+						buggy_required: visitor.buggy_required,
 					});
 					if (visitor.visitor_mobile && !frm.doc.mobile_number) values.mobile_number = visitor.visitor_mobile;
+					if (visitor.items_carried && !frm.doc.items_carried && !(frm.doc.visitor_items || []).length) {
+						values.items_carried = visitor.items_carried;
+					}
 				}
 				for (const [fieldname, value] of Object.entries(values)) {
 					if (value !== undefined && value !== null && value !== "") await frm.set_value(fieldname, value);

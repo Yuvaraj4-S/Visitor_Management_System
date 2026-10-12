@@ -17,7 +17,6 @@
 		<dl class="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 p-4 text-sm">
 			<div><dt class="label">Host</dt><dd>{{ visitor.host_name }}</dd></div>
 			<div><dt class="label">Pass</dt><dd>{{ visitor.name }}</dd></div>
-			<div><dt class="label">ID Proof</dt><dd>{{ visitor.id_proof_type }} · {{ visitor.id_proof_number }}</dd></div>
 			<div>
 				<dt class="label">Validity</dt>
 				<dd>

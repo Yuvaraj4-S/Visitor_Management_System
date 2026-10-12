@@ -10,11 +10,6 @@
   "visitor_name_display",
   "visitor_type_display",
   "visitor_mobile_display",
-  "cab_required",
-  "hotel_required",
-  "factory_tour_required",
-  "buggy_required",
-  "greeting_required",
   "section_break_visit_info",
   "visit_start_time",
   "col_break_visit_info",
@@ -37,6 +32,7 @@
   "tea_coffee_required",
   "seating_capacity",
   "cab_section",
+  "cab_required",
   "cab_type",
   "pickup_location",
   "pickup_datetime",
@@ -51,6 +47,7 @@
   "driver_name",
   "driver_phone",
   "hotel_section",
+  "hotel_required",
   "hotel_name",
   "check_in",
   "check_out",
@@ -66,6 +63,7 @@
   "hotel_special_requests",
   "hotel_cost",
   "factory_tour_section",
+  "factory_tour_required",
   "tour_date",
   "tour_start_time",
   "tour_end_time",
@@ -73,6 +71,7 @@
   "tour_col_break",
   "tour_areas",
   "buggy_section",
+  "buggy_required",
   "buggy_pickup_point",
   "buggy_drop_point",
   "buggy_datetime",
@@ -81,6 +80,7 @@
   "buggy_number",
   "buggy_driver",
   "greeting_section",
+  "greeting_required",
   "greeting_type",
   "greeting_delivery_time",
   "greeting_delivery_point",
@@ -129,49 +129,44 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
-   "fetch_from": "visitor_pass.cab_required",
+   "description": "Fetched from the Visitor Pass; tick or untick here if the plan changes.",
    "fieldname": "cab_required",
    "fieldtype": "Check",
-   "hidden": 1,
-   "label": "Cab Required",
-   "read_only": 1
+   "label": "Cab Required"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
-   "fetch_from": "visitor_pass.hotel_required",
+   "description": "Fetched from the Visitor Pass; tick or untick here if the plan changes.",
    "fieldname": "hotel_required",
    "fieldtype": "Check",
-   "hidden": 1,
-   "label": "Hotel Required",
-   "read_only": 1
+   "label": "Hotel Required"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
-   "fetch_from": "visitor_pass.factory_tour_required",
+   "description": "Fetched from the Visitor Pass; tick or untick here if the plan changes.",
    "fieldname": "factory_tour_required",
    "fieldtype": "Check",
-   "hidden": 1,
-   "label": "Factory Tour Required",
-   "read_only": 1
+   "label": "Factory Tour Required"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
-   "fetch_from": "visitor_pass.buggy_required",
+   "description": "Fetched from the Visitor Pass; tick or untick here if the plan changes.",
    "fieldname": "buggy_required",
    "fieldtype": "Check",
-   "hidden": 1,
-   "label": "Buggy Required",
-   "read_only": 1
+   "label": "Buggy Required"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
-   "fetch_from": "visitor_pass.greeting_required",
+   "description": "Fetched from the Visitor Pass; tick or untick here if the plan changes.",
    "fieldname": "greeting_required",
    "fieldtype": "Check",
-   "hidden": 1,
-   "label": "Greeting Required",
-   "read_only": 1
+   "label": "Greeting Required"
   },
   {
    "fieldname": "section_break_visit_info",
@@ -215,13 +210,15 @@
    "label": "Dietary & Accessibility"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "special_diet",
    "fieldtype": "Select",
    "label": "Special Diet",
    "options": "None\nNon-vegetarian\nVegetarian\nVegan\nGluten Free\nHalal\nJain"
   },
   {
-   "description": "Food allergies that could cause a medical reaction \u2014 e.g. peanut, shellfish, dairy. Kitchen team must see this.",
+   "allow_on_submit": 1,
+   "description": "Food allergies that could cause a medical reaction — e.g. peanut, shellfish, dairy. Kitchen team must see this.",
    "fieldname": "dietary_allergies",
    "fieldtype": "Small Text",
    "label": "Dietary Allergies"
@@ -231,6 +228,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "default": "None",
    "description": "Affects hotel room assignment, buggy selection, tour path.",
    "fieldname": "accessibility_requirements",
@@ -244,12 +242,15 @@
    "label": "Meal & Venue"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
+   "description": "Fetched from the Visitor Pass; tick or untick here if the plan changes.",
    "fieldname": "meal_required",
    "fieldtype": "Check",
    "label": "Meal Required"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "meal_type",
    "fieldtype": "Select",
    "label": "Meal Type",
@@ -287,26 +288,29 @@
    "label": "Seating Capacity"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "service_time",
    "fieldtype": "Datetime",
    "hidden": 1,
    "label": "Service Time"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "assigned_staff",
    "fieldtype": "Link",
    "hidden": 1,
+   "ignore_user_permissions": 1,
    "label": "Assigned Staff",
    "options": "Employee"
   },
   {
    "collapsible": 1,
-   "depends_on": "eval:doc.cab_required",
    "fieldname": "cab_section",
    "fieldtype": "Section Break",
    "label": "Cab / Transport"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required",
    "fieldname": "cab_type",
    "fieldtype": "Select",
@@ -314,31 +318,36 @@
    "options": "\nPickup\nDrop\nBoth"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required && (doc.cab_type=='Pickup' || doc.cab_type=='Both')",
    "fieldname": "pickup_location",
    "fieldtype": "Data",
    "label": "Pickup Location"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required && (doc.cab_type=='Pickup' || doc.cab_type=='Both')",
    "fieldname": "pickup_datetime",
    "fieldtype": "Datetime",
    "label": "Pickup Datetime"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required",
-   "description": "Extra notes for the driver \u2014 e.g. \"Wait at Gate 3\", \"Call 5 min before arrival\".",
+   "description": "Extra notes for the driver — e.g. \"Wait at Gate 3\", \"Call 5 min before arrival\".",
    "fieldname": "cab_pickup_instructions",
    "fieldtype": "Small Text",
    "label": "Pickup Instructions"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required && (doc.cab_type=='Drop' || doc.cab_type=='Both')",
    "fieldname": "drop_location",
    "fieldtype": "Data",
    "label": "Drop Location"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required && (doc.cab_type=='Drop' || doc.cab_type=='Both')",
    "fieldname": "drop_datetime",
    "fieldtype": "Datetime",
@@ -353,6 +362,7 @@
    "depends_on": "eval:doc.cab_required",
    "fieldname": "cab_assigned_to",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Assigned To",
    "options": "User"
   },
@@ -398,7 +408,6 @@
   },
   {
    "collapsible": 1,
-   "depends_on": "eval:doc.hotel_required",
    "fieldname": "hotel_section",
    "fieldtype": "Section Break",
    "label": "Hotel Booking"
@@ -413,12 +422,14 @@
    "options": "Supplier"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "check_in",
    "fieldtype": "Date",
    "label": "Check-in Date"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "check_out",
    "fieldtype": "Date",
@@ -436,6 +447,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "room_type",
    "fieldtype": "Select",
@@ -443,6 +455,7 @@
    "options": "\nStandard\nDeluxe\nSuite\nExecutive"
   },
   {
+   "allow_on_submit": 1,
    "default": "1",
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "no_of_rooms",
@@ -450,6 +463,7 @@
    "label": "No of Rooms"
   },
   {
+   "allow_on_submit": 1,
    "default": "1",
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "no_of_guests",
@@ -461,6 +475,7 @@
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "hotel_assigned_to",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Assigned To",
    "options": "User"
   },
@@ -489,8 +504,9 @@
    "label": "Booking Voucher"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
-   "description": "Late checkout, floor preference, Wi-Fi / breakfast inclusions \u2014 passed to front desk.",
+   "description": "Late checkout, floor preference, Wi-Fi / breakfast inclusions — passed to front desk.",
    "fieldname": "hotel_special_requests",
    "fieldtype": "Small Text",
    "label": "Special Requests"
@@ -504,7 +520,6 @@
   },
   {
    "collapsible": 1,
-   "depends_on": "eval:doc.factory_tour_required",
    "fieldname": "factory_tour_section",
    "fieldtype": "Section Break",
    "label": "Factory Tour"
@@ -518,12 +533,14 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.factory_tour_required",
    "fieldname": "tour_start_time",
    "fieldtype": "Time",
    "label": "Tour Start Time"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.factory_tour_required",
    "fieldname": "tour_end_time",
    "fieldtype": "Time",
@@ -534,6 +551,8 @@
    "depends_on": "eval:doc.factory_tour_required",
    "fieldname": "tour_guide",
    "fieldtype": "Link",
+   "hidden": 1,
+   "ignore_user_permissions": 1,
    "label": "Assigned To",
    "options": "Employee"
   },
@@ -542,6 +561,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.factory_tour_required",
    "fieldname": "tour_areas",
    "fieldtype": "Table",
@@ -550,24 +570,26 @@
   },
   {
    "collapsible": 1,
-   "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_section",
    "fieldtype": "Section Break",
    "label": "Buggy Vehicle"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_pickup_point",
    "fieldtype": "Data",
    "label": "Buggy Pickup Point"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_drop_point",
    "fieldtype": "Data",
    "label": "Buggy Drop Point"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_datetime",
    "fieldtype": "Datetime",
@@ -582,6 +604,8 @@
    "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_assigned_to",
    "fieldtype": "Link",
+   "hidden": 1,
+   "ignore_user_permissions": 1,
    "label": "Assigned To",
    "options": "Employee"
   },
@@ -599,17 +623,18 @@
    "fieldname": "buggy_driver",
    "fieldtype": "Link",
    "hidden": 1,
+   "ignore_user_permissions": 1,
    "label": "Buggy Driver",
    "options": "Employee"
   },
   {
    "collapsible": 1,
-   "depends_on": "eval:doc.greeting_required",
    "fieldname": "greeting_section",
    "fieldtype": "Section Break",
    "label": "Greeting Arrangement"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.greeting_required",
    "fieldname": "greeting_type",
    "fieldtype": "Select",
@@ -617,12 +642,14 @@
    "options": "\nBouquet\nGift\nWelcome Board\nCake\nTraditional Welcome"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.greeting_required",
    "fieldname": "greeting_delivery_time",
    "fieldtype": "Datetime",
    "label": "Delivery Time"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.greeting_required",
    "fieldname": "greeting_delivery_point",
    "fieldtype": "Data",
@@ -637,6 +664,8 @@
    "depends_on": "eval:doc.greeting_required",
    "fieldname": "greeting_assigned_to",
    "fieldtype": "Link",
+   "hidden": 1,
+   "ignore_user_permissions": 1,
    "label": "Assigned To",
    "options": "Employee"
   },
@@ -654,6 +683,7 @@
    "label": "Status & Notes"
   },
   {
+   "allow_on_submit": 1,
    "default": "Pending",
    "fieldname": "status",
    "fieldtype": "Select",
@@ -663,6 +693,7 @@
    "options": "Pending\nConfirmed\nServed\nCompleted\nCancelled"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "notes",
    "fieldtype": "Text Editor",
    "hidden": 1,
@@ -683,7 +714,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-05 11:42:44.984150",
+ "modified": "2026-10-08 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Hospitality Request",

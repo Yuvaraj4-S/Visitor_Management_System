@@ -53,7 +53,7 @@ def build_invitation_link(token):
 
 GUEST_DOCTYPE = "Visitor Invitation Guest"
 # Per-visitor hospitality choices the host makes on the Visitors table → copied to the pass.
-GUEST_PASS_FIELDS = ("meal_required", "cab_required", "factory_tour_required")
+GUEST_PASS_FIELDS = ("meal_required", "cab_required", "factory_tour_required", "buggy_required")
 PASS_STATUSES_CLOSED = ("Checked-Out", "Cancelled", "Rejected")
 LINK_STATUS_ORDER = ("Draft", "Sent", "Opened", "Saved", "Submitted", "Expired")
 
@@ -196,6 +196,7 @@ def get_web_form_context(token):
 		"meal_required": guest.meal_required,
 		"cab_required": guest.cab_required,
 		"factory_tour_required": guest.factory_tour_required,
+		"buggy_required": guest.get("buggy_required"),
 		"meal_type": meal_plan["meal_type"] if guest.meal_required else "",
 		"assigned_meal_slots": meal_plan["assigned_meal_slots"] if guest.meal_required else "",
 		"hospitality_type": meal_plan["hospitality_type"] if guest.meal_required else "",
@@ -254,6 +255,10 @@ def get_web_form_context(token):
 				],
 			}
 		)
+
+	# Items the host listed for this visitor on the invitation prefill the link's Items box.
+	if not values.get("visitor_items") and (guest.get("items_carried") or "").strip():
+		values["visitor_items"] = [{"item_name": guest.get("items_carried").strip()}]
 
 	return {
 		"valid": True,
@@ -380,6 +385,9 @@ class VisitorInvitation(Document):
 				)
 			seen.add(key)
 			row.invitation_status = row.invitation_status or "Draft"
+			# A factory tour always needs the buggy (same rule as the Visitor Pass).
+			if cint(row.factory_tour_required):
+				row.buggy_required = 1
 
 		# A visitor who already has a pass cannot be removed from the invitation.
 		if not self.is_new():

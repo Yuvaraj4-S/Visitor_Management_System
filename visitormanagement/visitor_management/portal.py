@@ -4,7 +4,7 @@ import json
 import os
 
 import frappe
-from frappe.utils import cint, now_datetime
+from frappe.utils import cint, flt, now_datetime
 
 # Guests may only upload genuine images / PDFs for ID proof and photo. We trust
 # neither the file extension nor the client-sent MIME type alone — the decoded
@@ -169,6 +169,12 @@ def _normalize_id_proof_type(id_proof_type):
 	return mapper.get(value, value)
 
 
+def _split_item_text(text):
+	from visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass import VisitorPass
+
+	return VisitorPass._parse_items_text(text)
+
+
 def _parse_visitor_items(items):
 	if not items:
 		return []
@@ -184,6 +190,22 @@ def _parse_visitor_items(items):
 		item_name = (row.get("item_name") or "").strip()
 		if not item_name:
 			continue
+
+		# The link form has one free-text "Items" box — "Laptop, Charger × 2" or one per
+		# line becomes one item row each (same parser the Visitor Pass uses).
+		pieces = _split_item_text(item_name) if not row.get("item_code") else []
+		if len(pieces) > 1:
+			parsed_items.extend(pieces)
+			continue
+		if pieces:
+			# One item, possibly typed as "Laptop × 2 (S/N 123)".
+			piece = pieces[0]
+			item_name = piece["item_name"]
+			row = {
+				**row,
+				"quantity": row.get("quantity") if flt(row.get("quantity")) > 1 else piece["quantity"],
+				"serial_number": row.get("serial_number") or piece.get("serial_number"),
+			}
 
 		parsed_items.append(
 			{
@@ -274,6 +296,7 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		),
 		"mobile_number": _normalize_mobile_number(
 			data.get("mobile_number")
+			or (guest.visitor_mobile if guest else None)
 			or (invitation.get("visitor_mobile") if invitation else None),
 			data.get("mobile_country_code"),
 		),
@@ -321,6 +344,7 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		"hospitality_type": _meal_plan("hospitality_type"),
 		"cab_required": cint(guest.cab_required) if guest else data.get("cab_required"),
 		"factory_tour_required": cint(guest.factory_tour_required) if guest else data.get("factory_tour_required"),
+		"buggy_required": cint(guest.get("buggy_required")) if guest else data.get("buggy_required"),
 		"refreshments_required": _from_invitation("refreshments_required"),
 		"conference_room": _from_invitation("conference_room"),
 		"special_diet": data.get("special_diet"),
@@ -403,6 +427,9 @@ def submit_pre_registration(payload=None):
 	)
 	person_to_visit = _resolve_employee_link(invitation.host_employee if invitation else data.get("person_to_visit"))
 	visitor_items = _parse_visitor_items(data.get("visitor_items"))
+	guest_items = (guest.get("items_carried") or "").strip() if guest else ""
+	if not visitor_items and guest_items:
+		visitor_items = _parse_visitor_items([{"item_name": guest_items}])
 
 	if person_to_visit and not frappe.db.exists("Employee", person_to_visit):
 		frappe.throw("Person to Visit must be a valid Employee (Employee ID or exact Employee Name).")
@@ -474,6 +501,20 @@ def submit_pre_registration(payload=None):
 		update_guest_row(invitation, guest, guest_updates)
 		if submission_action == "save":
 			invitation.db_set("form_saved_on", now_datetime(), update_modified=False)
+
+	# Final submit of an invitation link → send the pass for approval (Draft → Pending
+	# Approval); the host is notified when the pass reaches Pending Approval. Frappe's
+	# workflow check reads the document as the session user, which a Guest can't, so this
+	# one fixed transition runs as Administrator and the session is restored right after.
+	if invitation and submission_action == "submit" and (visitor_pass.workflow_state or "Draft") == "Draft":
+		session_user = frappe.session.user
+		try:
+			frappe.set_user("Administrator")
+			pending = frappe.get_doc("Visitor Pass", visitor_pass.name)
+			pending.workflow_state = "Pending Approval"
+			pending.save(ignore_permissions=True)
+		finally:
+			frappe.set_user(session_user)
 
 	saved_values = frappe.db.get_value(
 		"Visitor Pass",

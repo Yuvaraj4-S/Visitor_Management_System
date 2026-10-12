@@ -47,7 +47,7 @@ NOTIFICATIONS = [
 		"value_changed": "status",
 		"condition": "doc.status == 'Completed'",
 		"channel": "Email",
-		"roles": ["Hospitality Manager", "Host Employee"],
+		"roles": ["VMS Manager", "Host Employee"],
 		"message": (
 			"<p>All hospitality arrangements have been completed for visitor pass "
 			"<b>{{ doc.visitor_pass }}</b>. Below is a summary of the services delivered.</p>"

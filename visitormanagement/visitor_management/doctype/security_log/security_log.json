@@ -13,6 +13,8 @@
     "gate_name",
     "column_break_werm",
     "badge_number",
+    "id_card_number",
+    "id_card_returned",
     "security_officer",
     "verification_started_on",
     "verification_duration",
@@ -110,10 +112,26 @@
       "read_only": 1
     },
     {
+      "depends_on": "eval:['Check-In','Check-Out'].includes(doc.event_type)",
+      "description": "Pre-numbered visitor ID card (with lanyard) handed over at check-in.",
+      "fieldname": "id_card_number",
+      "fieldtype": "Data",
+      "label": "ID Card No"
+    },
+    {
+      "default": "0",
+      "depends_on": "eval:doc.event_type=='Check-Out'",
+      "description": "Tick when the visitor hands the ID card back.",
+      "fieldname": "id_card_returned",
+      "fieldtype": "Check",
+      "label": "ID Card Returned"
+    },
+    {
       "fieldname": "security_officer",
       "fieldtype": "Link",
       "label": "Security Officer",
-      "options": "Employee"
+      "options": "Employee",
+      "ignore_user_permissions": 1
     },
     {
       "fieldname": "verification_started_on",
@@ -203,7 +221,8 @@
       "fieldtype": "Link",
       "label": "Person to Visit",
       "options": "Employee",
-      "read_only": 1
+      "read_only": 1,
+      "ignore_user_permissions": 1
     },
     {
       "fetch_from": "visitor_pass.purpose_of_visit",
@@ -217,14 +236,16 @@
       "fieldname": "id_proof_type_verified",
       "fieldtype": "Select",
       "label": "ID Type Presented at Gate",
-      "options": "Aadhaar\nPAN Card\nPassport\nDriving License"
+      "options": "Aadhaar\nPAN Card\nPassport\nDriving License",
+      "hidden": 1
     },
     {
       "description": "Last 4 digits of the ID number — for cross-reference against the document. Read-only; cannot be edited at the gate.",
       "fieldname": "id_proof_number",
       "fieldtype": "Data",
       "label": "ID Number (Last 4 Digits)",
-      "read_only": 1
+      "read_only": 1,
+      "hidden": 1
     },
     {
       "fieldname": "column_break_snapshot",
@@ -273,7 +294,8 @@
       "fieldname": "id_proof_scan",
       "fieldtype": "Attach Image",
       "label": "ID Proof Scan",
-      "read_only": 1
+      "read_only": 1,
+      "hidden": 1
     },
     {
       "fetch_from": "visitor_pass.visitor_photo",
@@ -380,7 +402,8 @@
       "description": "Tick after confirming the visitor matches the ID proof shown.",
       "fieldname": "id_proof_match",
       "fieldtype": "Check",
-      "label": "Matches ID Proof"
+      "label": "Matches ID Proof",
+      "hidden": 1
     },
     {
       "default": "0",
@@ -438,7 +461,7 @@
   "grid_page_length": 50,
   "index_web_pages_for_search": 1,
   "links": [],
-  "modified": "2026-10-06 12:30:00.000000",
+  "modified": "2026-10-08 16:00:00.000000",
   "modified_by": "Administrator",
   "module": "Visitor Management",
   "name": "Security Log",

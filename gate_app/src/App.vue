@@ -9,6 +9,9 @@
 				<div class="text-right text-xs text-slate-300">
 					<p class="font-semibold text-white">{{ boot.user_fullname }}</p>
 					<p :class="online ? 'text-emerald-400' : 'text-rose-400'">{{ online ? "Online" : "Offline" }}</p>
+					<button type="button" class="mt-1 rounded-md border border-slate-600 px-2 py-0.5 font-semibold text-slate-200 hover:bg-slate-800" @click="logout">
+						Logout
+					</button>
 				</div>
 			</div>
 		</header>
@@ -32,6 +35,16 @@
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import BottomNav from "./components/BottomNav.vue";
 import { toast } from "./utils/toast";
+import { call } from "./api";
+
+async function logout() {
+	if (!window.confirm("Log out of the Security Gate?")) return;
+	try {
+		await call("frappe.handler.logout");
+	} finally {
+		window.location.href = "/login?redirect-to=/gate";
+	}
+}
 
 const boot = window.gate_boot || {};
 const online = ref(navigator.onLine);

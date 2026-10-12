@@ -15,16 +15,68 @@ from visitormanagement.visitor_management.validators import (
 )
 
 
+# Per-visitor fields kept on the (hidden) header, always mirrored from row 1 of the
+# Visitors table so notifications, approval and the gate keep reading them as before.
+MAIN_VISITOR_FIELDS = (
+    "visitor_full_name", "mobile_number", "email_id", "company__organisation",
+    "id_proof_type", "id_proof_number", "id_proof_scan", "visitor_photo",
+    "expected_checkin", "expected_checkout", "vehicle_number", "items_carried",
+)
+
+
 class WalkInVisitorRequest(Document):
 
     def validate(self):
         strip_expected_time_seconds(self)
+        self._sync_main_visitor_row()
         self._validate_schedule()
         self._validate_id_proof()
         self._validate_additional_visitors()
         self._validate_host_active()
         self._validate_mobile()
         self._set_host_department()
+
+    def _sync_main_visitor_row(self):
+        """Every visitor is a row of the Visitors table (row 1 = main visitor).
+
+        The /gate app still sends the main visitor in the header: on a new request
+        that main visitor becomes row 1. The hidden header fields then always mirror
+        row 1, and the visitor count follows the table."""
+        rows = list(self.additional_visitors or [])
+        header_name = (self.visitor_full_name or "").strip()
+        if self.is_new() and header_name and not any(
+            (r.visitor_full_name or "").strip() == header_name and (r.mobile_number or "") == (self.mobile_number or "")
+            for r in rows
+        ):
+            main = self.append("additional_visitors", {f: self.get(f) for f in MAIN_VISITOR_FIELDS})
+            self.set("additional_visitors", [main, *rows])
+            # Renumber so the main visitor is row 1 and the order survives a reload.
+            for i, r in enumerate(self.additional_visitors, start=1):
+                r.idx = i
+            rows = list(self.additional_visitors)
+
+        if not rows:
+            frappe.throw(_("Add at least one visitor in the Visitors table."), title=_("No Visitors"))
+
+        for r in rows:
+            # Frappe stamps every Time field of a new child row with "now"; an untouched
+            # row arrives with check-in == check-out — treat that as "not set".
+            r.expected_checkin = strip_seconds(r.expected_checkin) if r.expected_checkin else None
+            r.expected_checkout = strip_seconds(r.expected_checkout) if r.expected_checkout else None
+            if r.expected_checkin and r.expected_checkin == r.expected_checkout:
+                r.expected_checkin = r.expected_checkout = None
+
+        main = rows[0]
+        if not (main.mobile_number or "").strip():
+            frappe.throw(_("Mobile is required for the main visitor (row 1)."), title=_("Missing Mobile"))
+        if not (main.expected_checkin and main.expected_checkout):
+            frappe.throw(
+                _("Expected Check-In and Check-Out are required for the main visitor (row 1)."),
+                title=_("Missing Time"),
+            )
+        for f in MAIN_VISITOR_FIELDS:
+            self.set(f, main.get(f))
+        self.number_of_visitors = len(rows)
 
     def after_insert(self):
         self._notify_host_for_approval()
@@ -54,17 +106,23 @@ class WalkInVisitorRequest(Document):
                 )
 
     def _validate_additional_visitors(self):
-        """Each extra person gets their own pass; ID proof stays optional."""
+        """Each visitor (row) gets their own pass; times fall back to row 1; ID proof stays optional."""
         for row in self.additional_visitors or []:
             row.visitor_full_name = (row.visitor_full_name or "").strip()
             # Each person may have their own times; empty means "same as the request".
             row.expected_checkin = strip_seconds(row.expected_checkin) if row.expected_checkin else None
             row.expected_checkout = strip_seconds(row.expected_checkout) if row.expected_checkout else None
+            # Frappe stamps every Time field of a new child row with "now", so an untouched
+            # row arrives with check-in == check-out. Treat that as "not set".
+            if row.expected_checkin and row.expected_checkin == row.expected_checkout:
+                row.expected_checkin = row.expected_checkout = None
+            row.expected_checkin = row.expected_checkin or strip_seconds(self.expected_checkin)
+            row.expected_checkout = row.expected_checkout or strip_seconds(self.expected_checkout)
             checkin = row.expected_checkin or self.expected_checkin
             checkout = row.expected_checkout or self.expected_checkout
             if checkin and checkout and get_time(checkin) >= get_time(checkout):
                 frappe.throw(
-                    _("Additional visitor row {0} ({1}): Expected Check-In must be before Expected Check-Out.").format(
+                    _("Visitor row {0} ({1}): Expected Check-In must be before Expected Check-Out.").format(
                         row.idx, row.visitor_full_name
                     ),
                     title=_("Invalid Time Range"),
@@ -72,15 +130,11 @@ class WalkInVisitorRequest(Document):
             row.id_proof_number = (row.id_proof_number or "").strip()
             if row.id_proof_type and row.id_proof_number and not validate_id(row.id_proof_type, row.id_proof_number):
                 frappe.throw(
-                    _("Additional visitor row {0} ({1}): {2}").format(
+                    _("Visitor row {0} ({1}): {2}").format(
                         row.idx, row.visitor_full_name, _(id_proof_error_message(row.id_proof_type))
                     ),
                     title=_("Invalid ID Proof"),
                 )
-        # The head count can never be lower than the named visitors.
-        named = 1 + len(self.additional_visitors or [])
-        if (self.number_of_visitors or 0) < named:
-            self.number_of_visitors = named
 
     def _validate_host_active(self):
         if not self.person_to_visit:
@@ -135,9 +189,9 @@ class WalkInVisitorRequest(Document):
                 f"<ul>"
                 f"<li><b>Visitor:</b> {self.visitor_full_name}</li>"
                 + (
-                    f"<li><b>Also visiting:</b> {', '.join(_guest_label(self, r) for r in self.additional_visitors)}"
+                    f"<li><b>Also visiting:</b> {', '.join(_guest_label(self, r) for r in self.additional_visitors[1:])}"
                     f" — each gets their own pass when you approve</li>"
-                    if self.additional_visitors
+                    if len(self.additional_visitors or []) > 1
                     else ""
                 )
                 + f"<li><b>Total visitors:</b> {self.number_of_visitors or 1}</li>"
@@ -204,7 +258,7 @@ def approve_request(request_name):
 
     # Check blacklist before approval — for the lead visitor and every additional one
     from visitormanagement.visitor_management.doctype.visitor_blacklist.visitor_blacklist import VisitorBlacklist
-    people = [doc] + list(doc.additional_visitors or [])
+    people = list(doc.additional_visitors or []) or [doc]
     for person in people:
         blacklist_match = VisitorBlacklist.find_active_match(
             id_proof_number=person.id_proof_number,
@@ -226,15 +280,15 @@ def approve_request(request_name):
     doc.approval_date = now_datetime()
     doc.save(ignore_permissions=True)
 
-    # Auto-create one Visitor Pass per person — lead visitor first
-    extra_rows = list(doc.additional_visitors or [])
+    # Auto-create one Visitor Pass per row of the Visitors table (row 1 = main visitor)
     with _visitor_pass_workflow_paused():
-        visitor_pass = _create_visitor_pass_from_request(doc)
-        extra_passes = []
-        for row in extra_rows:
+        all_passes = []
+        for row in doc.additional_visitors:
             vp = _create_visitor_pass_from_request(doc, visitor=row)
             frappe.db.set_value("Walk In Additional Visitor", row.name, "visitor_pass", vp.name, update_modified=False)
-            extra_passes.append(vp.name)
+            all_passes.append(vp.name)
+    visitor_pass = frappe._dict(name=all_passes[0])
+    extra_passes = all_passes[1:]
 
     # Link the lead pass back to the request
     doc.db_set("visitor_pass", visitor_pass.name, update_modified=False)
@@ -282,6 +336,20 @@ def reject_request(request_name, rejection_reason=None):
     )
 
     return {"status": "Rejected"}
+
+
+@frappe.whitelist()
+def can_current_user_approve(request_name):
+    """Approve / Reject buttons: same rule as approve_request — the host
+    (user linked to Person to Visit) or a System Manager."""
+    doc = frappe.get_doc("Walk In Visitor Request", request_name)
+    doc.check_permission("read")
+    try:
+        _check_approval_permission(doc)
+    except frappe.ValidationError:
+        frappe.clear_messages()
+        return False
+    return True
 
 
 def _check_approval_permission(doc):

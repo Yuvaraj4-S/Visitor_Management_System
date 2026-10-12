@@ -46,7 +46,7 @@
   {
    "fieldname": "visitor_details_section",
    "fieldtype": "Section Break",
-   "label": "Visitor Details"
+   "label": "Common Details"
   },
   {
    "fieldname": "visitor_type",
@@ -59,20 +59,21 @@
   {
    "fieldname": "visitor_full_name",
    "fieldtype": "Data",
+   "hidden": 1,
    "in_list_view": 1,
-   "label": "Visitor Full Name",
-   "reqd": 1
+   "label": "Visitor Full Name"
   },
   {
    "fieldname": "mobile_number",
    "fieldtype": "Phone",
+   "hidden": 1,
    "in_list_view": 1,
-   "label": "Mobile Number",
-   "reqd": 1
+   "label": "Mobile Number"
   },
   {
    "fieldname": "email_id",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Email ID",
    "options": "Email"
   },
@@ -80,6 +81,7 @@
    "depends_on": "eval:['Contractor','Supplier','Customer'].includes(doc.visitor_type)",
    "fieldname": "company__organisation",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Company / Organisation"
   },
   {
@@ -89,30 +91,35 @@
   {
    "fieldname": "id_proof_type",
    "fieldtype": "Select",
+   "hidden": 1,
    "label": "ID Proof Type",
    "options": "Aadhaar\nPAN Card\nPassport\nDriving License"
   },
   {
    "fieldname": "id_proof_number",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "ID Proof Number"
   },
   {
    "fieldname": "id_proof_scan",
    "fieldtype": "Attach Image",
+   "hidden": 1,
    "label": "ID Proof Scan"
   },
   {
    "fieldname": "visitor_photo",
    "fieldtype": "Attach Image",
+   "hidden": 1,
    "label": "Visitor Photo"
   },
   {
    "default": "1",
-   "description": "Total people, including the visitors listed in Additional Visitors (each of them gets their own pass).",
+   "description": "Counted from the Visitors table.",
    "fieldname": "number_of_visitors",
    "fieldtype": "Int",
-   "label": "Number of Visitors"
+   "label": "Number of Visitors",
+   "read_only": 1
   },
   {
    "fieldname": "visit_details_section",
@@ -122,6 +129,7 @@
   {
    "fieldname": "person_to_visit",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "in_list_view": 1,
    "label": "Person to Visit",
    "options": "Employee",
@@ -154,42 +162,46 @@
   {
    "fieldname": "expected_checkin",
    "fieldtype": "Time",
-   "label": "Expected Check-In",
-   "reqd": 1
+   "hidden": 1,
+   "label": "Expected Check-In"
   },
   {
    "fieldname": "expected_checkout",
    "fieldtype": "Time",
-   "label": "Expected Check-Out",
-   "reqd": 1
+   "hidden": 1,
+   "label": "Expected Check-Out"
   },
   {
    "fieldname": "vehicle_number",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Vehicle Number"
   },
   {
    "fieldname": "section_break_additional_visitors",
    "fieldtype": "Section Break",
-   "label": "Additional Visitors"
+   "label": "Visitors"
   },
   {
-   "description": "Other people in the group. One host approval creates a separate Visitor Pass for each of them.",
+   "description": "One row per visitor (row 1 = main visitor). The host approves once and each visitor gets their own Visitor Pass.",
    "fieldname": "additional_visitors",
    "fieldtype": "Table",
-   "label": "Additional Visitors",
-   "options": "Walk In Additional Visitor"
+   "label": "Visitors",
+   "options": "Walk In Additional Visitor",
+   "reqd": 1
   },
   {
    "collapsible": 1,
    "fieldname": "items_section",
    "fieldtype": "Section Break",
+   "hidden": 1,
    "label": "Items Carried"
   },
   {
    "description": "e.g. laptop, toolkit - list the items the visitor is carrying.",
    "fieldname": "items_carried",
    "fieldtype": "Small Text",
+   "hidden": 1,
    "label": "Items"
   },
   {
@@ -258,7 +270,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-06 12:30:00.000000",
+ "modified": "2026-10-08 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Walk In Visitor Request",

@@ -6,13 +6,10 @@ from visitormanagement.visitor_management.multi_day import can_check_in_again, g
 from visitormanagement.visitor_management.time_utils import format_time_hhmm
 
 
+# The VMS Manager receives the day's hospitality schedule and assigns the work
+# (cab, meal, factory tour, greeting, ...) to VMS Users.
 DIGEST_RECIPIENTS_BY_ROLE = [
-	"Hospitality Manager",
-	"Hospitality User",
-	"Transport Coordinator",
-	"Front Office Executive",
-	"Factory Tour Coordinator",
-	"Greeting Staff",
+	"VMS Manager",
 ]
 
 

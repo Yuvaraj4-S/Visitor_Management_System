@@ -719,7 +719,8 @@ function apply_security_log_ui(frm) {
 	frm.toggle_display("id_proof_scan", false);
 	frm.toggle_display(["section_break_identity_comparison", "identity_comparison_html"], has_pass);
 	frm.toggle_display(["photo_at_gate", "capture_photo"], show_gate_photo);
-	frm.toggle_display(["id_proof_match", "pass_photo_match", "verification_notes"], is_check_in || is_check_out);
+	// ID proof is no longer collected — only the pass-photo match is shown.
+	frm.toggle_display(["pass_photo_match", "verification_notes"], is_check_in || is_check_out);
 	frm.toggle_display("exception_reason", show_exception_reason);
 	frm.toggle_display(["section_break_items", "all_items_confirmed"], show_items && has_pass);
 	frm.toggle_reqd("exception_reason", false);
@@ -815,12 +816,8 @@ function render_identity_comparison(frm) {
 		return;
 	}
 
+	// ID proof is no longer collected — compare the pass photo with the live gate capture.
 	const cards = [
-		get_identity_card(
-			__("ID Proof Scan"),
-			frm.doc.id_proof_scan,
-			__("Uploaded with the visitor pass")
-		),
 		get_identity_card(
 			__("Pass Photo"),
 			frm.doc.visitor_photo,
@@ -867,11 +864,11 @@ function get_identity_status_html(frm) {
 		return `<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #fff4d6; color: #8d5d00; font-size: 11px; font-weight: 700;">${__("Awaiting gate capture")}</div>`;
 	}
 
-	if (frm.doc.id_proof_match && frm.doc.pass_photo_match) {
+	if (frm.doc.pass_photo_match) {
 		return `<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #d9f3e4; color: #0d6b3e; font-size: 11px; font-weight: 700;">${__("Verified for badge issue")}</div>`;
 	}
 
-	return `<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #e8f1fb; color: #1f4f82; font-size: 11px; font-weight: 700;">${__("Review and confirm both matches")}</div>`;
+	return `<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #e8f1fb; color: #1f4f82; font-size: 11px; font-weight: 700;">${__("Review and confirm the photo match")}</div>`;
 }
 
 function set_security_log_intro(frm, is_check_in, is_check_out) {
@@ -888,7 +885,7 @@ function set_security_log_intro(frm, is_check_in, is_check_out) {
 			__(
 				frm.__visitor_type === "VIP"
 					? "VIP priority check-in. Review protocol notes, confirm MD/CEO notification, capture gate photo, then save and print the badge."
-					: "Compare the ID proof, pass photo, and live gate capture, complete health screening, then save the check-in and print the badge."
+					: "Compare the pass photo with the live gate capture, complete health screening, then save the check-in and print the badge."
 			),
 			"green"
 		);

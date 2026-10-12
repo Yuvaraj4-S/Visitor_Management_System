@@ -139,10 +139,12 @@ website_route_rules = [
 # }
 permission_query_conditions = {
 	"Visitor Pass": "visitormanagement.permissions.get_visitor_pass_permission_query_conditions",
+	"Hospitality Request": "visitormanagement.permissions.get_hospitality_request_permission_query_conditions",
 }
 
 has_permission = {
 	"Visitor Pass": "visitormanagement.permissions.has_visitor_pass_permission",
+	"Hospitality Request": "visitormanagement.permissions.has_hospitality_request_permission",
 }
 
 # DocType Class
@@ -282,19 +284,26 @@ fixtures = [
         "doctype": "Role",
         "filters": [
             ["name", "in", [
-                "Hospitality User",
+                # VMS Manager / VMS User replace Hospitality Manager and the
+                # coordinator roles (Transport, Factory Tour, Greeting, ...).
+                "VMS Manager",
+                "VMS User",
                 "Facility Manager",
                 "Host Employee",
-                "Hospitality Manager",
-                "Transport Coordinator",
-                "Front Office Executive",
-                "Factory Tour Coordinator",
-                "Greeting Staff",
+                "Security",
+                "HOD",
             ]]
         ]
     },
     "Workflow State",
     "Workflow Action",
+    # Role permissions for the VMS doctypes whose access we changed (VMS Manager /
+    # VMS User). A Custom DocPerm replaces ALL standard perms of its doctype, so each
+    # listed doctype carries its full permission set in fixtures/custom_docperm.json.
+    {
+        "doctype": "Custom DocPerm",
+        "filters": [["parent", "in", ["Hospitality Request", "Visitor Pass"]]],
+    },
     {
         "doctype": "Custom Field",
         "filters": [

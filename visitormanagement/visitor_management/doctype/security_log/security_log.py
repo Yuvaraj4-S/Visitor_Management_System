@@ -214,6 +214,9 @@ class SecurityLog(Document):
                     )
 
             elif self.event_type == 'Check-Out':
+                # The ID card to collect is the one issued at this visit's check-in.
+                if not self.get("id_card_number"):
+                    self.id_card_number = vp.get("id_card_number")
                 if current_status != 'Checked-In':
                     frappe.throw(f"Visitor {self.visitor_name} must be 'Checked-In' before they can 'Check-Out'. (Current Status: {current_status})")
 
@@ -308,6 +311,8 @@ class SecurityLog(Document):
                     'status': 'Checked-In',
                     'actual_checkin': self.check_in_date_time or now_datetime(),
                     'no_show': 0,
+                    'id_card_number': (self.get('id_card_number') or '').strip() or None,
+                    'id_card_returned': 0,
                 },
             )
             self._notify_host_arrival()
@@ -319,6 +324,7 @@ class SecurityLog(Document):
                 {
                     'status': 'Checked-Out',
                     'actual_checkout': self.check_out_date_time or now_datetime(),
+                    'id_card_returned': 1 if self.get('id_card_returned') else 0,
                 },
             )
 

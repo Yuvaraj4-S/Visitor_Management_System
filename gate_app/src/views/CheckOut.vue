@@ -14,8 +14,12 @@
 				<CameraCapture v-model="photo" label="Exit photo (optional)" />
 				<PhotoCompare :visitor="visitor" :live-photo="photo" />
 				<div class="card space-y-3">
-					<label class="flex items-center gap-3 text-sm"><input v-model="idMatch" type="checkbox" class="h-5 w-5 accent-slate-900" />Visitor matches the ID proof</label>
 					<label class="flex items-center gap-3 text-sm"><input v-model="photoMatch" type="checkbox" class="h-5 w-5 accent-slate-900" />Visitor matches the pass photo</label>
+				</div>
+				<div class="card space-y-1">
+					<p class="label">ID card to collect</p>
+					<p class="text-lg font-bold">{{ visitor.id_card_number || "—" }}</p>
+					<label class="flex items-center gap-3 text-sm"><input v-model="cardReturned" type="checkbox" class="h-5 w-5 accent-slate-900" />ID card returned</label>
 				</div>
 				<button class="btn-danger w-full py-4 text-base" :disabled="!canConfirm || busy" @click="confirm">
 					{{ busy ? "Checking out…" : "Confirm Check-Out" }}
@@ -45,6 +49,7 @@ const busy = ref(false);
 const photo = ref("");
 const idMatch = ref(false);
 const photoMatch = ref(false);
+const cardReturned = ref(false);
 const scanned = computed(() => route.query.scanned === "1");
 // Exit photo and the match ticks are optional — only the QR scan is required.
 const canConfirm = computed(() => scanned.value);
@@ -67,6 +72,7 @@ async function confirm() {
 			gate_photo: photo.value,
 			id_proof_match: idMatch.value ? 1 : 0,
 			pass_photo_match: photoMatch.value ? 1 : 0,
+			id_card_returned: cardReturned.value ? 1 : 0,
 			qr_scanned: scanned.value ? 1 : 0,
 		});
 		notify(`${visitor.value.visitor_full_name} checked out`, "success");

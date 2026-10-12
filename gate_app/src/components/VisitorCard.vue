@@ -13,7 +13,7 @@
 				{{ visitor.visitor_type }} · {{ visitor.company__organisation || "—" }} · {{ visitor.host_name }}
 			</p>
 			<p class="text-xs text-slate-400">
-				<template v-if="visitor.status === 'Checked-In'">In since {{ time(visitor.actual_checkin) }} · till {{ time(visitor.expected_checkout) }}</template>
+				<template v-if="visitor.status === 'Checked-In'">In since {{ time(visitor.actual_checkin) }} · till {{ time(visitor.expected_checkout) }}<template v-if="visitor.id_card_number"> · Card {{ visitor.id_card_number }}</template></template>
 				<template v-else-if="visitor.status === 'Checked-Out' && visitor.actual_checkout">Left {{ time(visitor.actual_checkout) }}</template>
 				<template v-else>Expected {{ time(visitor.expected_checkin) }}–{{ time(visitor.expected_checkout) }}</template>
 				<span v-if="visitor.request_channel === 'Walk-In'" class="ml-1 rounded bg-indigo-100 px-1 text-indigo-700">walk-in</span>

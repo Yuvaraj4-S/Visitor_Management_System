@@ -223,6 +223,17 @@ class SecurityLog(Document):
                         self.verification_started_on,
                     )
 
+                # Zone-based access restriction — only applies when the pass declares
+                # zones; passes with none behave exactly as before this check existed.
+                if vp.get('visitor_pass_zones'):
+                    from visitormanagement.visitor_management.doctype.zone.zone import Zone
+
+                    for zone_row in vp.visitor_pass_zones:
+                        if not Zone.is_visitor_type_allowed(zone_row.zone, vp.visitor_type, vp.vip_category):
+                            frappe.throw(
+                                f"Visitor type '{vp.visitor_type}' is not authorized for zone '{zone_row.zone}'."
+                            )
+
             elif self.event_type == 'Check-Out':
                 if current_status != 'Checked-In':
                     frappe.throw(f"Visitor {self.visitor_name} must be 'Checked-In' before they can 'Check-Out'. (Current Status: {current_status})")

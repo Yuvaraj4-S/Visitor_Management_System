@@ -11,6 +11,7 @@
   "column_break_general",
   "default_checkout_time",
   "max_visit_duration_hrs",
+  "home_country",
   "section_gate",
   "require_visitor_photo",
   "qr_scan_required_at_gate",
@@ -56,6 +57,14 @@
    "fieldname": "max_visit_duration_hrs",
    "fieldtype": "Int",
    "label": "Max Visit Duration (hrs)"
+  },
+  {
+   "default": "India",
+   "description": "Visitors whose nationality differs from this are treated as foreign nationals (Passport required, visa copy required before submit).",
+   "fieldname": "home_country",
+   "fieldtype": "Link",
+   "label": "Home Country",
+   "options": "Country"
   },
   {
    "fieldname": "section_gate",

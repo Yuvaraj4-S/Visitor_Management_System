@@ -75,6 +75,7 @@ class VisitorPass(Document):
         self._validate_schedule()
         self._validate_formats()
         self._validate_host_active()
+        self._validate_witness_active()
         self._validate_duplicate_pass()
         self._validate_visit_duration()
 
@@ -148,6 +149,19 @@ class VisitorPass(Document):
                     self.person_to_visit, status or "Unknown"
                 ),
                 title=_("Invalid Host"),
+            )
+
+    def _validate_witness_active(self):
+        """Witness for a Government Official visit must be an Active employee."""
+        if not self.witness:
+            return
+        status = frappe.db.get_value("Employee", self.witness, "status")
+        if status != "Active":
+            frappe.throw(
+                _("Witness {0} is not an Active employee (status: {1}).").format(
+                    self.witness, status or "Unknown"
+                ),
+                title=_("Invalid Witness"),
             )
 
     def _validate_duplicate_pass(self):
@@ -475,6 +489,24 @@ class VisitorPass(Document):
                     title=_("VIP Notification Required"),
                 )
 
+            if self.vip_category == "Government Official":
+                missing_labels = [
+                    label
+                    for field, label in (
+                        ("notice_reference_no", _("Notice / Warrant Reference No.")),
+                        ("legal_basis", _("Legal Basis")),
+                        ("witness", _("Witness")),
+                    )
+                    if not self.get(field)
+                ]
+                if missing_labels:
+                    frappe.throw(
+                        _("Government Official visits require the following before submitting: {0}.").format(
+                            ", ".join(missing_labels)
+                        ),
+                        title=_("Government Visit Details Required"),
+                    )
+
         # 4️⃣ Foreign National Document Check
         home_country = _get_home_country()
         if self.custom_nationality and self.custom_nationality != home_country:
@@ -662,31 +694,42 @@ class VisitorPass(Document):
                 "fcontent": qr_content
             })
 
-        frappe.sendmail(
-            recipients=[self.email_id],
-            subject=f"Visit Approved: {self.visit_date} — Pass {self.name}",
-            message=(
-                f"<div style='font-family: Arial, sans-serif; font-size: 14px; color: #1f2933; line-height: 1.5;'>"
-                f"<p>Dear <b>{self.visitor_full_name}</b>,</p>"
-                f"<p>Your visit has been <b style='color: #28a745;'>APPROVED</b>.</p>"
-                f"<h3 style='margin: 16px 0 6px; font-size: 14px;'>Visit Details</h3>"
-                f"{details_html}"
-                f"{items_section}"
-                f"<h3 style='margin: 16px 0 6px; font-size: 14px;'>On Arrival</h3>"
-                f"<ul style='margin: 0 0 12px 20px; padding: 0;'>"
-                f"<li>Please carry a valid photo ID matching the one you registered with.</li>"
-                f"<li>Scan the <b>QR code attached to this email</b> at the security gate.</li>"
-                f"<li>Your physical badge will be issued at the security desk after item verification.</li>"
-                f"{contractor_li}"
-                f"</ul>"
-                f"<p>We look forward to welcoming you.</p>"
-                f"<p style='margin-top: 20px; color: #64748b; font-size: 12px;'>"
-                f"This is an automated email. Please contact your host for any changes or queries."
-                f"</p>"
-                f"</div>"
-            ),
-            attachments=attachments,
-        )
+        # A missing/misconfigured outgoing Email Account must not block the
+        # approval itself — notification delivery is best-effort, same as the
+        # food-dept notification below. Log it instead of throwing.
+        try:
+            frappe.sendmail(
+                recipients=[self.email_id],
+                subject=f"Visit Approved: {self.visit_date} — Pass {self.name}",
+                message=(
+                    f"<div style='font-family: Arial, sans-serif; font-size: 14px; color: #1f2933; line-height: 1.5;'>"
+                    f"<p>Dear <b>{self.visitor_full_name}</b>,</p>"
+                    f"<p>Your visit has been <b style='color: #28a745;'>APPROVED</b>.</p>"
+                    f"<h3 style='margin: 16px 0 6px; font-size: 14px;'>Visit Details</h3>"
+                    f"{details_html}"
+                    f"{items_section}"
+                    f"<h3 style='margin: 16px 0 6px; font-size: 14px;'>On Arrival</h3>"
+                    f"<ul style='margin: 0 0 12px 20px; padding: 0;'>"
+                    f"<li>Please carry a valid photo ID matching the one you registered with.</li>"
+                    f"<li>Scan the <b>QR code attached to this email</b> at the security gate.</li>"
+                    f"<li>Your physical badge will be issued at the security desk after item verification.</li>"
+                    f"{contractor_li}"
+                    f"</ul>"
+                    f"<p>We look forward to welcoming you.</p>"
+                    f"<p style='margin-top: 20px; color: #64748b; font-size: 12px;'>"
+                    f"This is an automated email. Please contact your host for any changes or queries."
+                    f"</p>"
+                    f"</div>"
+                ),
+                attachments=attachments,
+            )
+        except Exception as exc:
+            frappe.log_error(f"Approval email failed for {self.name}: {exc}", "VMS Approval Email")
+            frappe.msgprint(
+                _("Pass approved, but the approval email could not be sent (no outgoing Email Account configured?). Notify the visitor manually."),
+                alert=True,
+                indicator="orange",
+            )
 
     # ─────────────────────────────────────────────────────────
     # PRIVATE: NOTIFY FOOD DEPT

@@ -71,6 +71,11 @@
   "section_break_vip_details",
   "vip_category",
   "mdceo_notified",
+  "authority_department",
+  "official_designation",
+  "notice_reference_no",
+  "legal_basis",
+  "witness",
   "column_break_vip",
   "interpreter_required",
   "interpreter_language",
@@ -123,6 +128,7 @@
   "section_break_gaxf",
   "items_carried",
   "visitor_items",
+  "visitor_pass_zones",
   "amended_from"
  ],
  "fields": [
@@ -549,6 +555,46 @@
    "label": "MD/CEO Notified"
   },
   {
+   "depends_on": "eval:doc.visitor_type == 'VIP' && doc.vip_category == 'Government Official'",
+   "description": "Government department/agency the officer represents, e.g. \"City Police Station\", \"Central Excise Department\".",
+   "fieldname": "authority_department",
+   "fieldtype": "Data",
+   "label": "Authority / Department",
+   "mandatory_depends_on": "eval:doc.visitor_type == 'VIP' && doc.vip_category == 'Government Official'"
+  },
+  {
+   "depends_on": "eval:doc.visitor_type == 'VIP' && doc.vip_category == 'Government Official'",
+   "fieldname": "official_designation",
+   "fieldtype": "Data",
+   "label": "Official Designation",
+   "mandatory_depends_on": "eval:doc.visitor_type == 'VIP' && doc.vip_category == 'Government Official'"
+  },
+  {
+   "depends_on": "eval:doc.visitor_type == 'VIP' && doc.vip_category == 'Government Official'",
+   "description": "Warrant / notice / summons reference number authorizing this visit.",
+   "fieldname": "notice_reference_no",
+   "fieldtype": "Data",
+   "label": "Notice / Warrant Reference No.",
+   "mandatory_depends_on": "eval:doc.visitor_type == 'VIP' && doc.vip_category == 'Government Official'"
+  },
+  {
+   "depends_on": "eval:doc.visitor_type == 'VIP' && doc.vip_category == 'Government Official'",
+   "fieldname": "legal_basis",
+   "fieldtype": "Select",
+   "label": "Legal Basis",
+   "mandatory_depends_on": "eval:doc.visitor_type == 'VIP' && doc.vip_category == 'Government Official'",
+   "options": "Inspection\nInvestigation\nAudit\nSummons\nRaid\nOther"
+  },
+  {
+   "depends_on": "eval:doc.visitor_type == 'VIP' && doc.vip_category == 'Government Official'",
+   "description": "A company representative who must be present throughout the visit.",
+   "fieldname": "witness",
+   "fieldtype": "Link",
+   "label": "Witness",
+   "mandatory_depends_on": "eval:doc.visitor_type == 'VIP' && doc.vip_category == 'Government Official'",
+   "options": "Employee"
+  },
+  {
    "depends_on": "eval:doc.visitor_type == 'VIP'",
    "fieldname": "column_break_vip",
    "fieldtype": "Column Break"
@@ -898,6 +944,13 @@
    "hidden": 1,
    "label": "Visitor Items",
    "options": "Visitor Item"
+  },
+  {
+   "description": "Zones this pass authorizes the visitor to enter. Leave empty for passes that don't need zone-based restriction.",
+   "fieldname": "visitor_pass_zones",
+   "fieldtype": "Table",
+   "label": "Authorized Zones",
+   "options": "Visitor Pass Zone"
   },
   {
    "fieldname": "amended_from",

@@ -21,6 +21,62 @@ def run():
 	_expire_due_invitations()
 	_fill_invitation_host_names()
 	_repair_room_opening_hours()
+	_stop_suggesting_meals_for_working_visitors()
+	_fill_hospitality_services_summary()
+	_set_gate_time_tolerance()
+
+
+def _set_gate_time_tolerance():
+	"""Show the gate's time tolerance as what it is (30 minutes) on sites that never saved it."""
+	from visitormanagement.visitor_management.gate_timing import DEFAULT_TOLERANCE_MINUTES
+
+	# VMS Settings is a Single: it has no table of its own, so ask the DocType, not the database.
+	if not frappe.get_meta("VMS Settings").has_field("gate_time_tolerance_minutes"):
+		return
+	if frappe.db.sql(
+		"select 1 from `tabSingles` where doctype = 'VMS Settings' and field = 'gate_time_tolerance_minutes'"
+	):
+		return
+	frappe.db.set_single_value("VMS Settings", "gate_time_tolerance_minutes", DEFAULT_TOLERANCE_MINUTES)
+	print(f"  VMS Settings: Gate Time Tolerance set to {DEFAULT_TOLERANCE_MINUTES} minutes")
+
+
+_MEALS_NOT_SUGGESTED_MARKER = "vms_meals_not_suggested_for_working_visitors"
+
+
+def _stop_suggesting_meals_for_working_visitors():
+	"""Once: the shipped Contractor and Supplier types stop ticking Meal Required by themselves.
+
+	"Suggest Meals" is new, so no administrator has chosen a value for it yet;
+	the column starts ticked for every type. A contractor working through lunch
+	is not a lunch guest — every such pass used to land in the hospitality queue.
+	Done once, so an administrator who turns it back on keeps that choice.
+	"""
+	if frappe.db.get_default(_MEALS_NOT_SUGGESTED_MARKER) or not frappe.db.has_column(
+		"Visitor Type", "suggest_meals"
+	):
+		return
+	for name in ("Contractor", "Supplier"):
+		if frappe.db.exists("Visitor Type", name):
+			frappe.db.set_value("Visitor Type", name, "suggest_meals", 0, update_modified=False)
+			print(f"  Visitor Type {name}: Suggest Meals turned off (one-time)")
+	frappe.db.set_default(_MEALS_NOT_SUGGESTED_MARKER, "1")
+
+
+def _fill_hospitality_services_summary():
+	"""Fill the new Services column of requests raised before it existed (derived, not an edit)."""
+	if not frappe.db.has_column("Hospitality Request", "services_summary"):
+		return
+	names = frappe.get_all(
+		"Hospitality Request", filters={"services_summary": ("is", "not set")}, pluck="name", order_by=None
+	)
+	for name in names:
+		doc = frappe.get_doc("Hospitality Request", name)
+		frappe.db.set_value(
+			"Hospitality Request", name, "services_summary", doc._services_summary(), update_modified=False
+		)
+	if names:
+		print(f"  Hospitality Request: filled the Services column on {len(names)} request(s)")
 
 
 def _expire_due_invitations():

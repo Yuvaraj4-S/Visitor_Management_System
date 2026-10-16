@@ -18,6 +18,7 @@
   "verification_started_on",
   "verification_duration",
   "qr_code_scanned",
+  "qr_skip_reason",
   "gate_auto_assigned",
   "mdceo_notified",
   "vip_meeting_room",
@@ -54,6 +55,8 @@
   "id_proof_match",
   "pass_photo_match",
   "exception_reason",
+  "outside_booked_time",
+  "timing_note",
   "verification_notes",
   "section_break_items",
   "items_carried",
@@ -146,6 +149,13 @@
    "fieldtype": "Check",
    "label": "QR Code Scanned",
    "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.qr_skip_reason || doc.__vms_walk_in_no_qr",
+   "description": "Walk-in visitors only: why the pass was identified by its number instead of a QR scan (for example: registered at the gate a few minutes ago, nothing printed yet). Kept on the log.",
+   "fieldname": "qr_skip_reason",
+   "fieldtype": "Small Text",
+   "label": "No QR Scan – Reason"
   },
   {
    "default": "0",
@@ -416,6 +426,22 @@
    "label": "Exception Reason"
   },
   {
+   "depends_on": "eval:doc.outside_booked_time",
+   "description": "Set by the system when the visitor arrived or left outside their booked time.",
+   "fieldname": "outside_booked_time",
+   "fieldtype": "Check",
+   "in_standard_filter": 1,
+   "label": "Outside Booked Time",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.timing_note || doc.__vms_timing_note",
+   "fieldname": "timing_note",
+   "fieldtype": "Small Text",
+   "label": "Timing Note",
+   "read_only": 1
+  },
+  {
    "fieldname": "verification_notes",
    "fieldtype": "Small Text",
    "label": "Verification Notes"
@@ -459,10 +485,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-05 16:00:00.000000",
+ "modified": "2026-10-14 20:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Security Log",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {
@@ -495,6 +522,5 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "track_changes": 1,
- "naming_rule": "Expression (old style)"
+ "track_changes": 1
 }

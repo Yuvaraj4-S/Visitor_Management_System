@@ -400,6 +400,32 @@ def check_visitor_pass_link(doc, overseer_roles=(), fieldname="visitor_pass"):
 HOSPITALITY_OVERSEERS = ("System Manager", "Hospitality Manager")
 
 
+def _json_string(value):
+	"""`value` as it appears inside Frappe's `_assign` JSON list ("user@x"), safe in a LIKE.
+
+	An email may hold `_` or `%`, which LIKE reads as wildcards: escaped, so one
+	user's address cannot match another's.
+	"""
+	return frappe.as_json(value).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _assigned_users(doc):
+	"""Users the record is open to through Frappe's "Assigned To" (`_assign`).
+
+	Always read from the stored record: a document being saved arrives from the
+	browser, which does not send `_assign` — and a crafted request could send one
+	naming whoever it likes.
+	"""
+	name = doc if isinstance(doc, str) else doc.get("name")
+	if not name:
+		return set()
+	raw = frappe.db.get_value("Hospitality Request", name, "_assign")
+	try:
+		return set(frappe.parse_json(raw or "[]") or [])
+	except Exception:
+		return set()
+
+
 def get_hospitality_request_permission_query_conditions(user=None):
 	user = user or frappe.session.user
 	if _is_admin(user):
@@ -411,6 +437,9 @@ def get_hospitality_request_permission_query_conditions(user=None):
 
 	table = "tabHospitality Request"
 	conditions = [_owner_condition(table, user)]
+	# Given to them with Frappe's own "Assigned To" (which only someone who can
+	# already see the request can do): the colleague arranging a cab or a hotel.
+	conditions.append(f"`{table}`.`_assign` like {frappe.db.escape(f'%{_json_string(user)}%')}")
 
 	employee = _employee_for_user(user)
 	if employee:
@@ -439,6 +468,9 @@ def has_hospitality_request_permission(doc, user=None, ptype=None, debug=False):
 		return True
 
 	if doc.owner == user:
+		return True
+
+	if user in _assigned_users(doc):
 		return True
 
 	employee = _employee_for_user(user)

@@ -36,6 +36,9 @@ from visitormanagement.visitor_management.portal_upload import (
 
 # An invitation in one of these can still be used; any other status is final.
 OPEN_STATUSES = ("Draft", "Sent", "Opened", "Saved")
+# Who may name somebody else as the host: reception, HR (interview invitations)
+# and administrators. Everyone else invites their own visitors.
+HOST_ON_BEHALF_ROLES = {"System Manager", "Front Office Executive", "HR Manager"}
 
 # Wrong tokens one caller may present per hour before every token it presents is
 # treated as wrong. Only misses are counted, so a visitor opening their own link
@@ -60,6 +63,23 @@ def build_invitation_link(token):
 	link that is a bearer credential and is sent by email.
 	"""
 	return get_url(f"/visitor-pre-registration-form/new?token={token}")
+
+
+def _end_of_day(day):
+	return get_datetime(f"{getdate(day)} 23:59:59")
+
+
+def own_employee(user=None):
+	"""The user's own active Employee record, if they have one."""
+	user = user or frappe.session.user
+	if user in ("Administrator", "Guest"):
+		return None
+	return frappe.db.get_value("Employee", {"user_id": user, "status": "Active"}, "name")
+
+
+def may_invite_on_behalf(user=None):
+	user = user or frappe.session.user
+	return user == "Administrator" or bool(HOST_ON_BEHALF_ROLES.intersection(frappe.get_roles(user)))
 
 
 def _is_past(value):
@@ -410,18 +430,115 @@ class VisitorInvitation(Document):
 		self._validate_mobile()
 		self._validate_time_range()
 		self._validate_host_active()
+		self._validate_host_rule()
+		self._withdraw_link_if_email_changed()
+		self._move_expiry_with_visit_date()
 		# Shown in the list and on the form instead of the Employee ID. Filled
 		# here rather than with fetch_from, which reads the Employee with the
 		# saver's own rights (see link_details.fill_from_link).
 		fill_from_link(self, "host_employee", "Employee", {"host_name": "employee_name"})
 
 		if not self.invitation_expires_on and self.visit_date:
-			self.invitation_expires_on = get_datetime(f"{self.visit_date} 23:59:59")
+			self.invitation_expires_on = _end_of_day(self.visit_date)
 
 		self.invitation_expires_on = _coerce_datetime(self.invitation_expires_on)
 		self._settle_expiry()
 
 		self._apply_hospitality_defaults()
+
+	def _validate_host_rule(self):
+		"""A host invites their own visitors; reception, HR and administrators may
+		invite on somebody else's behalf.
+
+		The form's host picker offered a host only their own record, but that was
+		the whole rule: through the API any employee could name any colleague as
+		the host of a visitor that colleague knew nothing about. Checked when the
+		host is set or changed, so an invitation reception raised for a host stays
+		editable by that host. Server-side callers acting with ignore_permissions
+		(the Job Applicant flow) are not a user choosing a host.
+		"""
+		if not self.host_employee or self.flags.ignore_permissions:
+			return
+		if not (self.is_new() or self.has_value_changed("host_employee")):
+			return
+		if may_invite_on_behalf() or self.host_employee == own_employee():
+			return
+		frappe.throw(
+			_(
+				"You can only invite a visitor with yourself as the host. "
+				"Ask reception to raise an invitation on someone else's behalf."
+			),
+			frappe.PermissionError,
+			title=_("Host Not Allowed"),
+		)
+
+	def _withdraw_link_if_email_changed(self):
+		"""A link belongs to the address it was sent to.
+
+		Correcting a mistyped Visitor Email left the first link alive — and the
+		next send re-used the same token — so whoever received the first mail could
+		still register as the visitor. Changing the address now withdraws the link;
+		the next send issues a new one.
+		"""
+		if self.is_new() or not self.invitation_token or self.invitation_status not in OPEN_STATUSES:
+			return
+		previous = self.get_doc_before_save()
+		if not previous:
+			return
+		if (previous.visitor_email or "").strip().lower() == (self.visitor_email or "").strip().lower():
+			return
+		self.invitation_token = None
+		self.portal_submission_url = None
+		self.invitation_sent_on = None
+		self.link_opened_on = None
+		self.invitation_status = "Draft"
+		frappe.msgprint(
+			_(
+				"The visitor's email has changed, so the link sent earlier no longer works. "
+				"Send the invitation again to issue a new link."
+			),
+			alert=True,
+			indicator="orange",
+		)
+
+	def _move_expiry_with_visit_date(self):
+		"""Keep the default expiry (the end of the visit day) on the visit day.
+
+		It is filled in once, on the first save. Moving the visit to a later date
+		left the link expiring on the old day — before the visit. An expiry the
+		host chose themselves is left alone.
+		"""
+		previous = self.get_doc_before_save()
+		if self.is_new() or not previous or not previous.visit_date or not self.visit_date:
+			return
+		if getdate(previous.visit_date) == getdate(self.visit_date):
+			return
+		if _coerce_datetime(self.invitation_expires_on) == _end_of_day(previous.visit_date):
+			self.invitation_expires_on = _end_of_day(self.visit_date)
+
+	@frappe.whitelist()
+	def cancel_invitation(self):
+		"""Withdraw the invitation: its link stops working at once.
+
+		Works from the saved record and needs write access, like Send.
+		"""
+		self.check_permission("write")
+		stored = frappe.get_doc(self.doctype, self.name)
+		if stored.invitation_status == "Submitted":
+			message = _("The visitor has already registered with this invitation, so it cannot be cancelled.")
+			if stored.visitor_pass:
+				message += " " + _("Cancel or reject Visitor Pass {0} instead.").format(
+					frappe.utils.get_link_to_form("Visitor Pass", stored.visitor_pass)
+				)
+			frappe.throw(message, title=_("Already Used"))
+		if stored.invitation_status != "Cancelled":
+			# get_valid_invitation_by_token refuses a Cancelled invitation; the token
+			# goes too, so nothing that only looks at the token can revive it.
+			stored.db_set(
+				{"invitation_status": "Cancelled", "invitation_token": None, "portal_submission_url": None}
+			)
+			stored.add_comment("Info", _("cancelled this invitation. Its link no longer works."))
+		return {"invitation_status": "Cancelled"}
 
 	def _settle_expiry(self):
 		"""Keep the status and the expiry date telling the same story.

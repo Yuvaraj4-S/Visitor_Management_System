@@ -11,6 +11,7 @@ import frappe
 from frappe.permissions import setup_custom_perms
 from frappe.utils import cint
 
+from visitormanagement.visitor_management.settings import FEATURE_SWITCHES
 from visitormanagement.visitor_management.upgrades import is_fresh_install
 
 SETTINGS = "VMS Settings"
@@ -21,6 +22,9 @@ SETTINGS = "VMS Settings"
 NEW_SETTING_DEFAULTS = {
 	"require_portal_consent": 1,
 	"privacy_notice_version": "1",
+	# VMS Settings -> Features: every switch starts in the position the app
+	# behaved in before it existed.
+	**FEATURE_SWITCHES,
 }
 
 # The three checks 1.0.0 applied to every Check-In and Check-Out whatever the

@@ -10,6 +10,8 @@
   "visitor_name_display",
   "visitor_type_display",
   "visitor_mobile_display",
+  "services_summary",
+  "notes",
   "cab_required",
   "hotel_required",
   "factory_tour_required",
@@ -19,6 +21,8 @@
   "visit_start_time",
   "col_break_visit_info",
   "visit_end_time",
+  "assigned_meal_slots",
+  "hospitality_type",
   "section_break_dietary",
   "special_diet",
   "dietary_allergies",
@@ -27,16 +31,16 @@
   "section_break_meal",
   "meal_required",
   "meal_type",
+  "meal_status",
   "col_break_meal",
-  "service_time",
-  "assigned_staff",
-  "conference_room",
-  "assigned_meal_slots",
-  "hospitality_type",
   "snacks_required",
   "tea_coffee_required",
+  "conference_room",
   "seating_capacity",
+  "service_time",
+  "assigned_staff",
   "cab_section",
+  "cab_status",
   "cab_type",
   "pickup_location",
   "pickup_datetime",
@@ -48,6 +52,7 @@
   "driver_name",
   "driver_phone",
   "hotel_section",
+  "hotel_status",
   "hotel_name",
   "check_in",
   "check_out",
@@ -60,6 +65,7 @@
   "hotel_special_requests",
   "hotel_cost",
   "factory_tour_section",
+  "tour_status",
   "tour_date",
   "tour_start_time",
   "tour_end_time",
@@ -67,6 +73,7 @@
   "tour_col_break",
   "tour_areas",
   "buggy_section",
+  "buggy_status",
   "buggy_pickup_point",
   "buggy_drop_point",
   "buggy_datetime",
@@ -74,6 +81,7 @@
   "buggy_number",
   "buggy_driver",
   "greeting_section",
+  "greeting_status",
   "greeting_type",
   "greeting_delivery_time",
   "greeting_delivery_point",
@@ -85,19 +93,17 @@
   "section_break_status",
   "status",
   "workflow_state",
-  "notes",
   "amended_from"
  ],
  "fields": [
   {
+   "description": "The visitor this request belongs to.",
    "fieldname": "visitor_pass",
    "fieldtype": "Link",
-   "in_list_view": 1,
    "label": "Visitor Pass",
    "options": "Visitor Pass",
    "reqd": 1,
-   "search_index": 1,
-   "description": "The visitor this request belongs to."
+   "search_index": 1
   },
   {
    "fetch_from": "visitor_pass.visitor_full_name",
@@ -112,7 +118,6 @@
    "fetch_from": "visitor_pass.visitor_type",
    "fieldname": "visitor_type_display",
    "fieldtype": "Data",
-   "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Visitor Type",
    "read_only": 1
@@ -121,9 +126,25 @@
    "fetch_from": "visitor_pass.mobile_number",
    "fieldname": "visitor_mobile_display",
    "fieldtype": "Data",
-   "in_list_view": 1,
    "label": "Mobile",
    "options": "Phone",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "What was asked for, with how far each one has got.",
+   "fieldname": "services_summary",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Services",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.notes",
+   "description": "What the host wrote on the Visitor Pass (Hospitality Notes) — allergies, timing, anything the team should know.",
+   "fieldname": "notes",
+   "fieldtype": "Text Editor",
+   "label": "Notes From the Host",
    "read_only": 1
   },
   {
@@ -179,6 +200,7 @@
   {
    "fieldname": "visit_start_time",
    "fieldtype": "Datetime",
+   "in_list_view": 1,
    "label": "Visit Start Time",
    "read_only": 1
   },
@@ -254,6 +276,17 @@
    "options": "Breakfast\nLunch\nDinner\nBreakfast + Lunch\nLunch + Dinner\nBreakfast + Dinner\nSnacks\nAll Day"
   },
   {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.meal_required",
+   "description": "Pending = still to arrange. Booked = arranged (the host is told). Done = delivered.",
+   "fieldname": "meal_status",
+   "fieldtype": "Select",
+   "in_standard_filter": 0,
+   "label": "Meal Status",
+   "options": "Pending\nBooked\nDone\nCancelled"
+  },
+  {
    "fieldname": "col_break_meal",
    "fieldtype": "Column Break"
   },
@@ -294,9 +327,9 @@
    "fieldname": "assigned_staff",
    "fieldtype": "Link",
    "hidden": 1,
+   "ignore_user_permissions": 1,
    "label": "Assigned Staff",
-   "options": "Employee",
-   "ignore_user_permissions": 1
+   "options": "Employee"
   },
   {
    "collapsible": 1,
@@ -306,6 +339,18 @@
    "label": "Cab / Transport"
   },
   {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.cab_required",
+   "description": "Pending = still to arrange. Booked = arranged (the host is told). Done = delivered.",
+   "fieldname": "cab_status",
+   "fieldtype": "Select",
+   "in_standard_filter": 0,
+   "label": "Cab Status",
+   "options": "Pending\nBooked\nDone\nCancelled"
+  },
+  {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required",
    "fieldname": "cab_type",
    "fieldtype": "Select",
@@ -313,18 +358,21 @@
    "options": "\nPickup\nDrop\nBoth"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required && (doc.cab_type=='Pickup' || doc.cab_type=='Both')",
    "fieldname": "pickup_location",
    "fieldtype": "Data",
    "label": "Pickup Location"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required && (doc.cab_type=='Pickup' || doc.cab_type=='Both')",
    "fieldname": "pickup_datetime",
    "fieldtype": "Datetime",
    "label": "Pickup Datetime"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required",
    "description": "Extra notes for the driver — e.g. \"Wait at Gate 3\", \"Call 5 min before arrival\".",
    "fieldname": "cab_pickup_instructions",
@@ -332,12 +380,14 @@
    "label": "Pickup Instructions"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required && (doc.cab_type=='Drop' || doc.cab_type=='Both')",
    "fieldname": "drop_location",
    "fieldtype": "Data",
    "label": "Drop Location"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required && (doc.cab_type=='Drop' || doc.cab_type=='Both')",
    "fieldname": "drop_datetime",
    "fieldtype": "Datetime",
@@ -348,6 +398,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required",
    "description": "The cab company, once the cab is booked.",
    "fieldname": "cab_vendor",
@@ -356,12 +407,14 @@
    "options": "Supplier"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required",
    "fieldname": "driver_name",
    "fieldtype": "Data",
    "label": "Driver Name"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required",
    "fieldname": "driver_phone",
    "fieldtype": "Data",
@@ -376,6 +429,18 @@
    "label": "Hotel Booking"
   },
   {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.hotel_required",
+   "description": "Pending = still to arrange. Booked = arranged (the host is told). Done = delivered.",
+   "fieldname": "hotel_status",
+   "fieldtype": "Select",
+   "in_standard_filter": 0,
+   "label": "Hotel Status",
+   "options": "Pending\nBooked\nDone\nCancelled"
+  },
+  {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "description": "The hotel, once the room is booked.",
    "fieldname": "hotel_name",
@@ -384,18 +449,21 @@
    "options": "Supplier"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "check_in",
    "fieldtype": "Date",
    "label": "Check-in Date"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "check_out",
    "fieldtype": "Date",
    "label": "Check-out Date"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "nights",
    "fieldtype": "Int",
@@ -407,6 +475,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "room_type",
    "fieldtype": "Select",
@@ -414,6 +483,7 @@
    "options": "\nStandard\nDeluxe\nSuite\nExecutive"
   },
   {
+   "allow_on_submit": 1,
    "default": "1",
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "no_of_rooms",
@@ -421,6 +491,7 @@
    "label": "No of Rooms"
   },
   {
+   "allow_on_submit": 1,
    "default": "1",
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "no_of_guests",
@@ -428,12 +499,14 @@
    "label": "No of Guests"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "booking_reference",
    "fieldtype": "Data",
    "label": "Booking Reference"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "description": "Late checkout, floor preference, Wi-Fi / breakfast inclusions — passed to front desk.",
    "fieldname": "hotel_special_requests",
@@ -456,6 +529,17 @@
    "label": "Factory Tour"
   },
   {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.factory_tour_required",
+   "description": "Pending = still to arrange. Booked = arranged (the host is told). Done = delivered.",
+   "fieldname": "tour_status",
+   "fieldtype": "Select",
+   "in_standard_filter": 0,
+   "label": "Tour Status",
+   "options": "Pending\nBooked\nDone\nCancelled"
+  },
+  {
    "depends_on": "eval:doc.factory_tour_required",
    "description": "Taken from the visit date on the Visitor Pass.",
    "fieldname": "tour_date",
@@ -464,30 +548,34 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.factory_tour_required",
    "fieldname": "tour_start_time",
    "fieldtype": "Time",
    "label": "Tour Start Time"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.factory_tour_required",
    "fieldname": "tour_end_time",
    "fieldtype": "Time",
    "label": "Tour End Time"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.factory_tour_required",
    "fieldname": "tour_guide",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Tour Guide",
-   "options": "Employee",
-   "ignore_user_permissions": 1
+   "options": "Employee"
   },
   {
    "fieldname": "tour_col_break",
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.factory_tour_required",
    "fieldname": "tour_areas",
    "fieldtype": "Table",
@@ -502,18 +590,32 @@
    "label": "Buggy Vehicle"
   },
   {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.buggy_required",
+   "description": "Pending = still to arrange. Booked = arranged (the host is told). Done = delivered.",
+   "fieldname": "buggy_status",
+   "fieldtype": "Select",
+   "in_standard_filter": 0,
+   "label": "Buggy Status",
+   "options": "Pending\nBooked\nDone\nCancelled"
+  },
+  {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_pickup_point",
    "fieldtype": "Data",
    "label": "Buggy Pickup Point"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_drop_point",
    "fieldtype": "Data",
    "label": "Buggy Drop Point"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_datetime",
    "fieldtype": "Datetime",
@@ -524,6 +626,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.buggy_required",
    "description": "The buggy assigned to this visitor. The same buggy cannot be given to two visitors at the same time.",
    "fieldname": "buggy_number",
@@ -531,12 +634,13 @@
    "label": "Buggy Number"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_driver",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Buggy Driver",
-   "options": "Employee",
-   "ignore_user_permissions": 1
+   "options": "Employee"
   },
   {
    "collapsible": 1,
@@ -546,6 +650,18 @@
    "label": "Greeting Arrangement"
   },
   {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.greeting_required",
+   "description": "Pending = still to arrange. Booked = arranged (the host is told). Done = delivered.",
+   "fieldname": "greeting_status",
+   "fieldtype": "Select",
+   "in_standard_filter": 0,
+   "label": "Greeting Status",
+   "options": "Pending\nBooked\nDone\nCancelled"
+  },
+  {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.greeting_required",
    "fieldname": "greeting_type",
    "fieldtype": "Select",
@@ -553,12 +669,14 @@
    "options": "\nBouquet\nGift\nWelcome Board\nCake\nTraditional Welcome"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.greeting_required",
    "fieldname": "greeting_delivery_time",
    "fieldtype": "Datetime",
    "label": "Delivery Time"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.greeting_required",
    "fieldname": "greeting_delivery_point",
    "fieldtype": "Data",
@@ -569,13 +687,14 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.greeting_required",
    "description": "The staff member arranging the greeting.",
    "fieldname": "greeting_assigned_to",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Assigned To",
-   "options": "Employee",
-   "ignore_user_permissions": 1
+   "options": "Employee"
   },
   {
    "allow_on_submit": 1,
@@ -604,13 +723,13 @@
    "label": "Status & Notes"
   },
   {
+   "allow_on_submit": 1,
    "default": "Pending",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Pending\nConfirmed\nServed\nCompleted\nCancelled",
-   "allow_on_submit": 1
+   "options": "Pending\nConfirmed\nServed\nCompleted\nCancelled"
   },
   {
    "fieldname": "workflow_state",
@@ -619,12 +738,6 @@
    "label": "Workflow State",
    "options": "Workflow State",
    "read_only": 1
-  },
-  {
-   "fieldname": "notes",
-   "fieldtype": "Text Editor",
-   "hidden": 1,
-   "label": "Notes"
   },
   {
    "fieldname": "amended_from",
@@ -641,7 +754,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-06 16:00:00.000000",
+ "modified": "2026-10-14 22:21:00.836363",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Hospitality Request",

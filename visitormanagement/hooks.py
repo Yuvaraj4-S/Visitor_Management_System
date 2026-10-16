@@ -67,13 +67,14 @@ webform_include_js = {
 # ERPNext DocTypes (see the file). Only this app's DocTypes load it.
 doctype_js = {
 	"Job Applicant": "public/js/job_applicant.js",
-	"Visitor Pass": "public/js/core_link_pickers.js",
+	# walk_in.js: the gate's short "New Walk-In" form, on this app's own screens only.
+	"Visitor Pass": ["public/js/core_link_pickers.js", "public/js/walk_in.js"],
 	"Visitor Invitation": "public/js/core_link_pickers.js",
-	"Security Log": "public/js/core_link_pickers.js",
+	"Security Log": ["public/js/core_link_pickers.js", "public/js/walk_in.js"],
 	"Hospitality Request": "public/js/core_link_pickers.js",
 	"Conference Room Booking": "public/js/core_link_pickers.js",
 }
-# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
+doctype_list_js = {"Visitor Pass": "public/js/walk_in.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
@@ -120,6 +121,10 @@ before_install = "visitormanagement.setup.before_install"
 # marks patches complete without running them, so a fresh site would get none of
 # the master data.
 after_install = "visitormanagement.setup.after_install"
+
+# The site's country is known only once the setup wizard has run (on Frappe Cloud
+# the app is often installed before it): fit the ID Proof Types to it then.
+setup_wizard_success = "visitormanagement.setup.after_setup_wizard"
 
 # Uninstallation
 # ------------
@@ -227,6 +232,13 @@ doc_events = {
 
 scheduler_events = {
 	"cron": {
+		# A visitor still inside past their expected check-out: the host and the gate are
+		# told once (gate_timing / tasks.flag_overdue_visitors). Warns only; never checks anyone out.
+		"*/15 * * * *": [
+			"visitormanagement.visitor_management.tasks.flag_overdue_visitors",
+			# Thanks a visitor once the visit is over, not at a step-out for lunch.
+			"visitormanagement.visitor_management.tasks.send_visit_thank_you",
+		],
 		"0 7 * * *": ["visitormanagement.visitor_management.tasks.send_daily_hospitality_digest"],
 		# Off-peak, and independent of the digest/no-show/overstay jobs below. This is
 		# OFF in effect on every site until an administrator turns on VMS Settings ->
@@ -250,6 +262,9 @@ scheduler_events = {
 		# and the retention purge, which takes only finished invitations, never
 		# reached it.
 		"visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation.expire_due_invitations",
+		# Closes the hospitality requests of visits that are over (no-shows, stays
+		# that have ended), so the Hospitality Manager's list holds only live work.
+		"visitormanagement.visitor_management.tasks.close_finished_hospitality",
 	],
 }
 

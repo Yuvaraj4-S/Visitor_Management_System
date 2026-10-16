@@ -3,11 +3,14 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import cint, get_datetime, getdate, now_datetime, time_diff_in_seconds
+from frappe.utils import add_days, cint, get_datetime, getdate, now_datetime, time_diff_in_seconds
 
 from visitormanagement.visitor_management import settings as vms_settings
+from visitormanagement.visitor_management.gate_timing import timing_note
 from visitormanagement.visitor_management.id_masking import mask_id
 from visitormanagement.visitor_management.lifecycle import (
+	close_arrangements_after_visit,
+	log_failure,
 	log_visitor_event,
 	sync_contact_trace,
 )
@@ -109,18 +112,73 @@ def gate_blacklist_verdict(vp):
 	reassigned — so it is always a prompt to check the ID by hand, the same
 	warning the host sees when the pass is raised.
 	"""
+	# Everyone arriving on the pass, not only the lead visitor. Group members are
+	# screened when the pass is sent for approval, but a blacklisting can come
+	# after that — and the gate used to re-check the lead alone, so a barred
+	# person listed on somebody else's group walked in unchallenged. The most
+	# serious finding wins: a block over a warning, a strong match over a weak one.
+	verdicts = [_person_blacklist_verdict(vp.get("name"), person, who) for who, person in _people_on_pass(vp)]
+	verdicts = [v for v in verdicts if v]
+	if not verdicts:
+		return None
+	return min(verdicts, key=lambda v: _VERDICT_RANK[v["outcome"], v.get("strength", "strong")])
+
+
+# Most serious first.
+_VERDICT_RANK = {
+	("block", "strong"): 0,
+	("warn", "strong"): 1,
+	("warn", "weak"): 2,
+	("log", "strong"): 3,
+}
+
+
+def _people_on_pass(vp):
+	"""(who, details) for the lead visitor and each accompanying visitor on the pass."""
+	people = [
+		(
+			None,
+			frappe._dict(
+				visitor_name=vp.get("visitor_full_name"),
+				id_proof_number=vp.get("id_proof_number"),
+				id_proof_type=vp.get("id_proof_type"),
+				mobile_number=vp.get("mobile_number"),
+			),
+		)
+	]
+	members = vp.get("group_members")
+	if members is None and vp.get("name"):
+		# The gate endpoints read the pass's own fields only (visitor_gate._PASS_FIELDS).
+		members = frappe.get_all(
+			"Visitor Group Member",
+			filters={"parent": vp.get("name"), "parenttype": "Visitor Pass"},
+			fields=["idx", "visitor_name", "id_proof_number", "id_proof_type", "mobile_number"],
+			order_by="idx asc",
+		)
+	for row in members or []:
+		who = _("{0} (accompanying visitor, row {1})").format(row.get("visitor_name"), row.get("idx"))
+		people.append((who, row))
+	return people
+
+
+def _with_person(who, message):
+	"""Name the group member a gate message is about: "Ravi (row 2): <message>"."""
+	return _("{0}: {1}").format(who, message) if who else message
+
+
+def _person_blacklist_verdict(pass_name, person, who=None):
+	"""The verdict for one person on the pass; `who` names an accompanying visitor."""
 	from visitormanagement.visitor_management.doctype.visitor_blacklist.visitor_blacklist import (
 		VisitorBlacklist,
 	)
 
-	pass_name = vp.get("name")
-	visitor = vp.get("visitor_full_name")
+	visitor = who or person.get("visitor_name")
 
 	strong = VisitorBlacklist.find_active_match(
-		id_proof_number=vp.get("id_proof_number"),
-		visitor_name=visitor,
-		id_proof_type=vp.get("id_proof_type"),
-		mobile_number=vp.get("mobile_number"),
+		id_proof_number=person.get("id_proof_number"),
+		visitor_name=person.get("visitor_name"),
+		id_proof_type=person.get("id_proof_type"),
+		mobile_number=person.get("mobile_number"),
 	)
 	if strong:
 		bl = frappe.db.get_value("Visitor Blacklist", strong, ["reason", "blocked_by"], as_dict=True) or {}
@@ -148,19 +206,25 @@ def gate_blacklist_verdict(vp):
 			verdict.update(outcome="log", title=None, message=None)
 		return verdict
 
-	weak = VisitorBlacklist.find_weak_match(visitor_name=visitor, mobile_number=vp.get("mobile_number"))
+	weak = VisitorBlacklist.find_weak_match(
+		visitor_name=person.get("visitor_name"), mobile_number=person.get("mobile_number")
+	)
 	if not weak:
 		return None
 	reason = frappe.db.get_value("Visitor Blacklist", weak["name"], "reason")
 	return {
 		"outcome": "warn",
+		"strength": "weak",
 		"title": _("Possible Blacklist Match — Verify ID"),
-		"message": _(
-			"This visitor's {0} matches an active blacklist "
-			"entry ({1}, reason: {2}), but not "
-			"strongly enough to block automatically.\n"
-			"Verify their ID against the blacklist entry before allowing entry."
-		).format(weak["matched_on"], weak["name"], reason or _("Not specified")),
+		"message": _with_person(
+			who,
+			_(
+				"This visitor's {0} matches an active blacklist "
+				"entry ({1}, reason: {2}), but not "
+				"strongly enough to block automatically.\n"
+				"Verify their ID against the blacklist entry before allowing entry."
+			).format(weak["matched_on"], weak["name"], reason or _("Not specified")),
+		),
 		"log_title": "VMS Blacklist weak match at gate",
 		"log_message": f"Weak blacklist match at gate on {weak['matched_on']}: {pass_name} vs {weak['name']}",
 	}
@@ -348,6 +412,7 @@ class SecurityLog(Document):
 
 		if vp and recording:
 			self._validate_movement(vp, now)
+			self._note_timing(vp)
 
 		# 4. The officer. Security staff log on their own behalf: the form shows the
 		# field read-only to them, but that is the browser's word, so a posted value
@@ -519,7 +584,9 @@ class SecurityLog(Document):
 								"Check-in date ({0}) is after this multi-day pass's validity window, which ends {1}."
 							).format(checkin_date, window_end)
 						)
-				elif checkin_date > expected_date:
+				elif checkin_date > expected_date and not self._overnight_arrival(
+					vp, checkin_date, expected_date
+				):
 					frappe.throw(
 						_(
 							"Check-in date ({0}) is after the scheduled visit date ({1}). "
@@ -588,6 +655,8 @@ class SecurityLog(Document):
 			if window_end:
 				checkout_date = getdate(self.check_out_date_time)
 				expiry = getdate(window_end)
+				if cint(vp.get("overnight_visit")):
+					expiry = add_days(expiry, 1)  # night work ends the next morning
 				if checkout_date > expiry:
 					days_late = (checkout_date - expiry).days
 					frappe.msgprint(
@@ -607,6 +676,52 @@ class SecurityLog(Document):
 				)
 			)
 
+	def _overnight_arrival(self, vp, checkin_date, expected_date):
+		"""Night work (Ends Next Day) may start just after midnight, before the booked end."""
+		if not cint(vp.get("overnight_visit")) or checkin_date != add_days(expected_date, 1):
+			return False
+		end = get_datetime(f"{checkin_date} {vp.expected_checkout}")
+		return get_datetime(self.check_in_date_time) <= end
+
+	def _note_timing(self, vp):
+		"""Arrived or left outside the booked time: warn the officer and keep a note.
+
+		Never a refusal (see gate_timing). The note and the flag stay on the
+		locked log, so a report can list everyone who came late or stayed on.
+		A check-out on a later day already gets the "Late Check-Out" warning
+		above; the note is kept for it, without a second dialog.
+		"""
+		at = self.check_in_date_time if self.event_type == "Check-In" else self.check_out_date_time
+		note = timing_note(vp, self.event_type, at)
+		self.outside_booked_time = 1 if note else 0
+		self.timing_note = note
+		if not note:
+			return
+		window_end = vp.pass_valid_until if vp.multi_day_pass and vp.pass_valid_until else vp.visit_date
+		if window_end and cint(vp.get("overnight_visit")):
+			window_end = add_days(window_end, 1)
+		if self.event_type == "Check-Out" and window_end and getdate(at) > getdate(window_end):
+			return
+		frappe.msgprint(
+			_("{0} Recorded as usual; the note is kept on this log.").format(note),
+			title=_("Outside Booked Time"),
+			indicator="orange",
+		)
+
+	def _walk_in_without_qr(self, vp):
+		"""A walk-in registered at the gate may be identified by its pass number, with a reason.
+
+		Such a pass is minutes old and the visitor has no printed or emailed QR in
+		hand. Only for the Walk-In channel — every other pass still has to be
+		scanned when the site requires it — and only with a written reason, which
+		stays on the (locked) log for anyone auditing the gate.
+		"""
+		if not vp or vp.get("request_channel") != "Walk-In":
+			return False
+		if not vms_settings.feature_on("allow_walk_in_without_qr"):
+			return False
+		return bool((self.qr_skip_reason or "").strip())
+
 	def _assert_gate_requirements(self, vp):
 		"""The three VMS Settings gate switches, enforced where the event is recorded.
 
@@ -621,8 +736,17 @@ class SecurityLog(Document):
 		"""
 		movement = "check-in" if self.event_type == "Check-In" else "check-out"
 
-		if vms_settings.flag("qr_scan_required_at_gate") and not cint(self.qr_code_scanned):
-			frappe.throw(_("Scan the visitor's QR code before saving the {0}.").format(_(movement)))
+		if (
+			vms_settings.flag("qr_scan_required_at_gate")
+			and not cint(self.qr_code_scanned)
+			and not self._walk_in_without_qr(vp)
+		):
+			message = _("Scan the visitor's QR code before saving the {0}.").format(_(movement))
+			if vp and vp.get("request_channel") == "Walk-In":
+				message += " " + _(
+					"For a walk-in registered at the gate, write in No QR Scan – Reason why it was not scanned."  # noqa: RUF001
+				)
+			frappe.throw(message)
 
 		if vms_settings.flag("require_visitor_photo"):
 			if not self.photo_at_gate:
@@ -749,6 +873,7 @@ class SecurityLog(Document):
 					"actual_checkout": self.check_out_date_time or now_datetime(),
 				}
 			)
+			self._close_hospitality_if_visit_over()
 
 		self._record_lifecycle_event()
 		sync_contact_trace(self.visitor_pass, self)
@@ -859,6 +984,8 @@ class SecurityLog(Document):
 			{
 				"item_verification_status": new_status,
 				"items_verified": items_verified_flag,
+				# The pass shows both ticks; they must not disagree.
+				"all_items_verified": items_verified_flag,
 			},
 		)
 
@@ -1034,6 +1161,29 @@ class SecurityLog(Document):
 		# gets restored if the mail fails.
 		_send_host_checkin_email(visitor_pass, self, messages_before=list(frappe.message_log))
 
+	def _close_hospitality_if_visit_over(self):
+		"""The last check-out closes the visit's hospitality request (lifecycle).
+
+		A multi-day pass checks out every evening; only the check-out on or after
+		its last day ends the visit. A failure here is logged: the check-out
+		itself is what the officer recorded and must stand. Not at all when VMS
+		Settings -> Close Hospitality Requests When the Visit Is Over is off.
+		"""
+		if not vms_settings.feature_on("close_hospitality_after_visit"):
+			return
+		multi_day, valid_until = frappe.db.get_value(
+			"Visitor Pass", self.visitor_pass, ["multi_day_pass", "pass_valid_until"]
+		) or (0, None)
+		day = getdate(self.check_out_date_time or now_datetime())
+		if cint(multi_day) and valid_until and day < getdate(valid_until):
+			return
+		frappe.db.savepoint("vms_close_hospitality")
+		try:
+			close_arrangements_after_visit(self.visitor_pass)
+		except Exception:
+			frappe.db.rollback(save_point="vms_close_hospitality")
+			log_failure(f"VMS Close Hospitality: {self.visitor_pass}")
+
 	def _record_lifecycle_event(self):
 		if not self.visitor_pass:
 			return
@@ -1061,6 +1211,7 @@ def gate_policy():
 		"identity_match_required": bool(vms_settings.flag("block_check_in_without_verification")),
 		"items_verification_required": not vms_settings.flag("allow_gate_without_item_verification"),
 		"badge_enabled": bool(vms_settings.flag("enable_badge", 1)),
+		"walk_in_without_qr": vms_settings.feature_on("allow_walk_in_without_qr"),
 	}
 
 

@@ -4,7 +4,7 @@ import frappe
 from frappe import _
 from frappe.model.workflow import get_workflow
 from frappe.rate_limiter import rate_limit
-from frappe.utils import cint, flt, get_datetime, get_time, getdate, now_datetime, nowdate
+from frappe.utils import add_days, cint, flt, get_datetime, get_time, getdate, now_datetime, nowdate
 
 from visitormanagement.visitor_management import settings as vms_settings
 from visitormanagement.visitor_management.portal_upload import _count_or_throw, rate_limit_identity
@@ -238,7 +238,13 @@ def ensure_hospitality_request(visitor_pass):
 	if doc.is_new():
 		doc.insert(ignore_permissions=True)
 	else:
-		doc.save(ignore_permissions=True)
+		# The copy from the pass fills empty booking details only; it is not an
+		# edit of the hospitality team's record (HospitalityRequest.before_update_after_submit).
+		doc.flags.vms_sync_from_pass = True
+		try:
+			doc.save(ignore_permissions=True)
+		finally:
+			doc.flags.pop("vms_sync_from_pass", None)
 
 	# Once the parent Visitor Pass is Approved (or beyond), move this request out
 	# of Draft and into the Hospitality Manager's queue. Done as its own step,
@@ -275,7 +281,7 @@ def ensure_hospitality_request(visitor_pass):
 		try:
 			frappe.msgprint(
 				_(
-					"Hospitality Request {0} was created from this pass — the Hospitality Manager will see it in their queue."
+					"Hospitality Request {0} was created from this pass — it reaches the Hospitality Manager once the pass is approved."
 				).format(frappe.bold(doc.name)),
 				title=_("Hospitality Arranged"),
 				indicator="green",
@@ -344,6 +350,61 @@ def call_off_pass_arrangements(visitor_pass):
 			values = {"workflow_state": "Rejected"}
 			values["status"] = "Cancelled" if doctype == "Hospitality Request" else "Rejected"
 			doc.db_set(values)
+
+
+def close_arrangements_after_visit(visitor_pass_name, reason=None):
+	"""The visit is over: its hospitality request stops waiting for anybody.
+
+	Called when the visitor checks out for the last time and, for passes nobody
+	checked out (a no-show, a pass whose day has passed), by the hourly sweep.
+
+	* An approved request: what was Booked is now Done — the visitor has been and
+	  gone — and the request is Completed. A hotel stay that runs past today is
+	  left open; the sweep closes it once the check-out date has passed. A service
+	  nobody ever marked stays Pending and is named in a comment on the request,
+	  so the record does not claim it was delivered.
+	* A request still waiting for approval: nothing will be arranged for a visit
+	  that has ended, so it leaves the approver's queue the way a cancelled
+	  visit's does (Rejected, status Cancelled).
+	"""
+	from visitormanagement.visitor_management.doctype.hospitality_request.hospitality_request import SERVICES
+
+	today_date = getdate(nowdate())
+	for name in frappe.get_all(
+		"Hospitality Request",
+		filters={
+			"visitor_pass": visitor_pass_name,
+			"docstatus": ("<", 2),
+			"status": ("not in", ("Completed", "Cancelled")),
+		},
+		pluck="name",
+	):
+		doc = frappe.get_doc("Hospitality Request", name)
+		if doc.docstatus == 0:
+			doc.db_set({"workflow_state": "Rejected", "status": "Cancelled"})
+			doc.add_comment("Info", reason or _("The visit ended before this request was approved."))
+			sync_hospitality_to_pass(doc)
+			continue
+		if cint(doc.hotel_required) and doc.check_out and getdate(doc.check_out) > today_date:
+			continue
+		updates, never_marked = {}, []
+		for flag, status, label in SERVICES:
+			if not cint(doc.get(flag)):
+				continue
+			if doc.get(status) == "Booked":
+				updates[status] = "Done"
+			elif (doc.get(status) or "Pending") == "Pending":
+				never_marked.append(_(label))
+		updates["status"] = "Completed"
+		doc.db_set(updates)
+		if never_marked:
+			doc.add_comment(
+				"Info",
+				_("Closed after the visit. Never marked as arranged: {0}.").format(", ".join(never_marked)),
+			)
+		doc.reload()
+		doc.db_set("services_summary", doc._services_summary())
+		sync_hospitality_to_pass(doc)
 
 
 def send_for_approval_with_visit(doc):
@@ -723,8 +784,8 @@ def _overlaps_time_window(start_dt, end_dt, window_start_dt, window_end_dt):
 
 def derive_hospitality_meal_plan(visitor_pass):
 	visit_date = getattr(visitor_pass, "visit_date", None)
-	start_dt = _combine_visit_datetime(visit_date, getattr(visitor_pass, "expected_checkin", None))
-	end_dt = _combine_visit_datetime(visit_date, getattr(visitor_pass, "expected_checkout", None))
+	# An overnight visit (Ends Next Day) runs past midnight: visit_window moves its end.
+	start_dt, end_dt = visit_window(visitor_pass)
 	if start_dt and end_dt and end_dt < start_dt:
 		end_dt = start_dt
 
@@ -847,6 +908,8 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 	doc.meal_type = (
 		(getattr(visitor_pass, "meal_type", None) or meal_plan["meal_type"]) if doc.meal_required else None
 	)
+	# What the request recorded last time, before this save moves it (_follow_visit_window).
+	previous_window = _window_from_request(doc)
 	doc.visit_start_time = meal_plan["visit_start_time"]
 	doc.visit_end_time = meal_plan["visit_end_time"]
 	doc.assigned_meal_slots = meal_plan["assigned_meal_slots"] if doc.meal_required else None
@@ -910,44 +973,217 @@ def populate_hospitality_request_from_pass(doc, visitor_pass=None, sync_manageme
 		if hasattr(visitor_pass, flag):
 			setattr(doc, flag, cint(getattr(visitor_pass, flag, 0)))
 
-	# Auto-fetch dates/times from Visitor Pass (only when HR fields empty)
-	vp_date = getattr(visitor_pass, "visit_date", None)
-	vp_checkin = _combine_visit_datetime(vp_date, getattr(visitor_pass, "expected_checkin", None))
-	vp_checkout = _combine_visit_datetime(vp_date, getattr(visitor_pass, "expected_checkout", None))
-	vp_valid_until = getattr(visitor_pass, "pass_valid_until", None)
 	vp_people = getattr(visitor_pass, "number_of_people", None)
 
+	# Places come from what the host said on the pass and fill empty fields only:
+	# the hospitality team's own entries are kept.
 	if cint(doc.cab_required):
 		if not doc.cab_type:
 			doc.cab_type = "Both"
-		if doc.cab_type in ("Pickup", "Both") and not doc.pickup_datetime and vp_checkin:
-			doc.pickup_datetime = vp_checkin
-		if doc.cab_type in ("Drop", "Both") and not doc.drop_datetime and vp_checkout:
-			doc.drop_datetime = vp_checkout
+		if (
+			doc.cab_type in ("Pickup", "Both")
+			and not doc.pickup_location
+			and getattr(visitor_pass, "cab_pickup_from", None)
+		):
+			doc.pickup_location = visitor_pass.cab_pickup_from
+		if (
+			doc.cab_type in ("Drop", "Both")
+			and not doc.drop_location
+			and getattr(visitor_pass, "cab_drop_to", None)
+		):
+			doc.drop_location = visitor_pass.cab_drop_to
+	if cint(doc.hotel_required) and not doc.no_of_guests and vp_people:
+		doc.no_of_guests = vp_people
+	if (
+		cint(doc.greeting_required)
+		and not doc.greeting_delivery_point
+		and getattr(visitor_pass, "greeting_point", None)
+	):
+		doc.greeting_delivery_point = visitor_pass.greeting_point
 
-	if cint(doc.hotel_required):
-		if not doc.check_in and vp_date:
-			doc.check_in = vp_date
-		if not doc.check_out:
-			doc.check_out = vp_valid_until or vp_date
-		if not doc.no_of_guests and vp_people:
-			doc.no_of_guests = vp_people
-
-	if cint(doc.factory_tour_required):
-		if not doc.tour_date:
-			doc.tour_date = vp_date or nowdate()
-		if not doc.tour_start_time and getattr(visitor_pass, "expected_checkin", None):
-			doc.tour_start_time = getattr(visitor_pass, "expected_checkin", None)
-
-	if cint(doc.buggy_required) and not doc.buggy_datetime:
-		doc.buggy_datetime = vp_checkin
-
-	if cint(doc.greeting_required) and not doc.greeting_delivery_time and vp_checkin:
-		from frappe.utils import add_to_date
-
-		doc.greeting_delivery_time = add_to_date(vp_checkin, minutes=-30)
+	# Times follow the visit, also when it is rescheduled.
+	_follow_visit_window(doc, visitor_pass, previous_window)
 
 	return doc
+
+
+def visit_window(visitor_pass):
+	"""(start, end) of the visit on its first day; an overnight visit ends the next morning."""
+	visit_date = getattr(visitor_pass, "visit_date", None)
+	start = _combine_visit_datetime(visit_date, getattr(visitor_pass, "expected_checkin", None))
+	end = _combine_visit_datetime(visit_date, getattr(visitor_pass, "expected_checkout", None))
+	if not (start and end):
+		return None, None
+	if end <= start and cint(getattr(visitor_pass, "overnight_visit", 0)):
+		end = add_days(end, 1)
+	return start, end
+
+
+def _window_from_pass(visitor_pass):
+	"""The visit window the pass asks for now, or None while it has no times."""
+	start, end = visit_window(visitor_pass)
+	if not (start and end):
+		return None
+	if end < start:
+		end = start
+	first_day = getdate(visitor_pass.visit_date)
+	last_day = getdate(getattr(visitor_pass, "pass_valid_until", None) or visitor_pass.visit_date)
+	return frappe._dict(start=start, end=end, first_day=first_day, last_day=max(first_day, last_day))
+
+
+def _window_from_request(doc):
+	"""The visit window the request recorded last time it was saved, or None."""
+	# Called with a full document, and by callers that pass a plain object.
+	if not hasattr(doc, "is_new") or doc.is_new():
+		return None
+	if not (getattr(doc, "visit_start_time", None) and getattr(doc, "visit_end_time", None)):
+		return None
+	before = doc.get_doc_before_save() if hasattr(doc, "get_doc_before_save") else None
+	source = before or frappe.db.get_value(
+		"Hospitality Request",
+		doc.name,
+		["visit_start_time", "visit_end_time", "check_in", "check_out"],
+		as_dict=True,
+	)
+	if not source or not (source.get("visit_start_time") and source.get("visit_end_time")):
+		return None
+	start, end = get_datetime(source.get("visit_start_time")), get_datetime(source.get("visit_end_time"))
+	return frappe._dict(start=start, end=end, first_day=getdate(start), last_day=getdate(end))
+
+
+def _default_times(window, visitor_pass):
+	"""The time each service starts out with for a visit window.
+
+	What the host gave on the pass (a flight's pickup time, the hotel nights)
+	comes first; the visit window is the fallback.
+	"""
+	from datetime import timedelta
+
+	check_in = getattr(visitor_pass, "hotel_check_in", None) or window.first_day
+	# A hotel is booked for a night: the morning after, not the same day (that
+	# read as a 0-night booking). A multi-day visit runs to its last day.
+	check_out = getattr(visitor_pass, "hotel_check_out", None) or (
+		window.last_day if window.last_day > getdate(check_in) else add_days(check_in, 1)
+	)
+	return {
+		"pickup_datetime": getattr(visitor_pass, "cab_pickup_at", None) or window.start,
+		"drop_datetime": window.end,
+		"check_in": check_in,
+		"check_out": check_out,
+		"tour_start_time": window.start.strftime("%H:%M:%S"),
+		"buggy_datetime": window.start,
+		# A greeting is ready before the visitor walks in.
+		"greeting_delivery_time": window.start - timedelta(minutes=30),
+	}
+
+
+def _same_moment(fieldname, value, other):
+	if fieldname in ("check_in", "check_out"):
+		return getdate(value) == getdate(other)
+	if fieldname in ("tour_start_time", "tour_end_time"):
+		return get_time(value) == get_time(other)
+	return get_datetime(value) == get_datetime(other)
+
+
+def _fits_window(fieldname, value, window):
+	"""Whether a time still belongs to the visit — the limits the request itself validates.
+
+	Tour, buggy and greeting inside the visit (a greeting may be half an hour
+	either side); hotel and cab within a day of the visit's days.
+	"""
+	from datetime import timedelta
+
+	if fieldname in ("pickup_datetime", "drop_datetime", "check_in", "check_out"):
+		day = timedelta(days=1)
+		return window.first_day - day <= getdate(value) <= window.last_day + day
+	if fieldname in ("tour_start_time", "tour_end_time"):
+		return window.start.time() <= get_time(value) <= window.end.time()
+	if fieldname == "buggy_datetime":
+		return window.start <= get_datetime(value) <= window.end
+	if fieldname == "greeting_delivery_time":
+		buffer = timedelta(minutes=30)
+		return window.start - buffer <= get_datetime(value) <= window.end + buffer
+	return True
+
+
+def _follow_visit_window(doc, visitor_pass, previous_window):
+	"""Set the request's service times from the visit window, and move them with it.
+
+	Each service's time starts as a default taken from the visit (cab pickup at
+	check-in, greeting half an hour before it, ...) and a person can then change
+	it. These used to be filled in only while empty, so a rescheduled visit kept
+	the old day's cab, tour and greeting — and the request's own "outside the
+	visit window" check then refused the pass's save.
+
+	When the visit window has moved since the request last recorded it:
+	- a time still holding the old default follows to the new default;
+	- a time a person set stays if it still belongs to the new visit;
+	- a time a person set that no longer does is reset to the new default, and
+	  the person saving is told which, so they can set it again.
+	An unchanged window leaves everything a person typed alone.
+	"""
+	window = _window_from_pass(visitor_pass)
+	if not window:
+		return
+
+	services = []
+	if cint(doc.cab_required):
+		if doc.cab_type in ("Pickup", "Both"):
+			services.append("pickup_datetime")
+		if doc.cab_type in ("Drop", "Both"):
+			services.append("drop_datetime")
+	if cint(doc.hotel_required):
+		services += ["check_in", "check_out"]
+	if cint(doc.factory_tour_required):
+		# Tour Date is read-only on the form: it is always the visit date.
+		doc.tour_date = window.first_day
+		services += ["tour_start_time", "tour_end_time"]
+	if cint(doc.buggy_required):
+		services.append("buggy_datetime")
+	if cint(doc.greeting_required):
+		services.append("greeting_delivery_time")
+
+	defaults = _default_times(window, visitor_pass)
+	moved = bool(
+		previous_window and (previous_window.start != window.start or previous_window.end != window.end)
+	)
+	old_defaults = _default_times(previous_window, visitor_pass) if moved else {}
+	reset = []
+
+	for fieldname in services:
+		value = doc.get(fieldname)
+		# Tour End Time has no default: only a person sets it.
+		default = defaults.get(fieldname)
+		if not value:
+			if default is not None:
+				doc.set(fieldname, default)
+			continue
+		if not moved:
+			continue
+		old_default = old_defaults.get(fieldname)
+		if old_default is not None and _same_moment(fieldname, value, old_default):
+			doc.set(fieldname, default)
+		elif not _fits_window(fieldname, value, window):
+			doc.set(fieldname, default)
+			reset.append(fieldname)
+
+	if moved and cint(doc.factory_tour_required) and doc.tour_start_time and doc.tour_end_time:
+		# A reset start can land on or after an end that was kept.
+		if get_time(doc.tour_end_time) <= get_time(doc.tour_start_time):
+			doc.tour_end_time = None
+			if "tour_end_time" not in reset:
+				reset.append("tour_end_time")
+
+	if reset:
+		labels = ", ".join(frappe.bold(_(doc.meta.get_label(fieldname))) for fieldname in reset)
+		frappe.msgprint(
+			_(
+				"The visit was moved, and these times on Hospitality Request {0} no longer "
+				"fitted it: {1}. They were reset to the new visit time — open the request to set them again."
+			).format(doc.name or _("(new)"), labels),
+			title=_("Hospitality Times Reset"),
+			indicator="orange",
+		)
 
 
 def _compute_overall_hospitality_status(request_doc):
@@ -1057,15 +1293,32 @@ def get_meal_plan_for_pass(
 	visit_date: str | None = None,
 	expected_checkin: str | None = None,
 	expected_checkout: str | None = None,
+	visitor_type: str | None = None,
 ):
 	"""The same preview for the Visitor Pass form in the desk: signed-in staff only.
 
 	The desk form used to call the public endpoint above. It has its own method
 	so that staff's work never depends on what is decided for anonymous callers.
+
+	Given a `visitor_type`, `suggest_meal` says whether the form should tick Meal
+	Required by itself: only for a Visitor Type whose "Suggest Meals" is on. An
+	electrician working through lunch is not a lunch guest; a customer usually is.
+	Without one the answer is the public preview's, unchanged.
 	"""
 	if not (frappe.has_permission("Visitor Pass", "read") or frappe.has_permission("Visitor Pass", "create")):
 		frappe.throw(_("You do not have access to Visitor Passes."), frappe.PermissionError)
-	return _meal_plan_preview(visit_date, expected_checkin, expected_checkout)
+	plan = _meal_plan_preview(visit_date, expected_checkin, expected_checkout)
+	if visitor_type:
+		plan["suggest_meal"] = visitor_type_suggests_meals(visitor_type)
+	return plan
+
+
+def visitor_type_suggests_meals(visitor_type):
+	"""Visitor Type "Suggest Meals" — on unless the type turns it off (and for no type)."""
+	if not visitor_type or not frappe.db.has_column("Visitor Type", "suggest_meals"):
+		return 1
+	value = frappe.db.get_value("Visitor Type", visitor_type, "suggest_meals")
+	return 1 if value is None else cint(value)
 
 
 def _parse_date_arg(value, label):

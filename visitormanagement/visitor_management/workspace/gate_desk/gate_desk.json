@@ -1,0 +1,98 @@
+{
+ "app": "visitormanagement",
+ "charts": [],
+ "content": "[{\"id\": \"gate-h-do\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>At the Gate</b></span>\", \"col\": 12}}, {\"id\": \"gate-s-0\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"New Walk-In\", \"col\": 4}}, {\"id\": \"gate-s-1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Check-In / Check-Out\", \"col\": 4}}, {\"id\": \"gate-s-2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Waiting for Approval\", \"col\": 4}}, {\"id\": \"gate-s-3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Approved \\u2013 Expected Today\", \"col\": 4}}, {\"id\": \"gate-s-4\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Inside Now\", \"col\": 4}}, {\"id\": \"gate-s-5\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Active Visitors\", \"col\": 4}}, {\"id\": \"gate-h-now\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Today</b></span>\", \"col\": 12}}, {\"id\": \"gate-c-0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Today's Visitors\", \"col\": 4}}, {\"id\": \"gate-c-1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"On Site Now\", \"col\": 4}}, {\"id\": \"gate-c-2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Pending Visitor Approvals\", \"col\": 4}}]",
+ "creation": "2026-10-14 16:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 1,
+ "icon": "users",
+ "idx": 0,
+ "is_hidden": 0,
+ "label": "Gate Desk",
+ "links": [],
+ "modified": "2026-10-16 10:45:07.055929",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Gate Desk",
+ "number_cards": [
+  {
+   "label": "Today's Visitors",
+   "number_card_name": "Today's Visitors"
+  },
+  {
+   "label": "On Site Now",
+   "number_card_name": "Checked-In Visitors"
+  },
+  {
+   "label": "Pending Visitor Approvals",
+   "number_card_name": "Pending Visitor Approvals"
+  }
+ ],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "restrict_to_domain": "",
+ "roles": [
+  {
+   "role": "Security"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
+ "sequence_id": 24.5,
+ "shortcuts": [
+  {
+   "color": "Green",
+   "label": "New Walk-In",
+   "type": "URL",
+   "url": "/app/visitor-pass/new?request_channel=Walk-In"
+  },
+  {
+   "color": "Blue",
+   "label": "Check-In / Check-Out",
+   "type": "URL",
+   "url": "/app/security-log/new"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "format": "{} Waiting",
+   "label": "Waiting for Approval",
+   "link_to": "Visitor Pass",
+   "stats_filter": "[[\"Visitor Pass\", \"status\", \"=\", \"Pending Approval\", false]]",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "format": "{} Expected",
+   "label": "Approved – Expected Today",
+   "link_to": "Visitor Pass",
+   "stats_filter": "[[\"Visitor Pass\", \"status\", \"=\", \"Approved\", false], [\"Visitor Pass\", \"visit_date\", \"Timespan\", \"today\", false]]",
+   "type": "DocType"
+  },
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "format": "{} Inside",
+   "label": "Inside Now",
+   "link_to": "Visitor Pass",
+   "stats_filter": "[[\"Visitor Pass\", \"status\", \"=\", \"Checked-In\", false]]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "Active Visitors",
+   "link_to": "Active Visitors",
+   "type": "Report"
+  }
+ ],
+ "title": "Gate Desk",
+ "type": "Workspace"
+}

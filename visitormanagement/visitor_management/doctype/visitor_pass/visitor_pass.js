@@ -52,8 +52,58 @@ const PASS_FORM_SETTINGS_DEFAULTS = {
 	enable_badge: 1,
 	badge_required_for: "",
 	foreign_national_id_types: null,
+	require_rejection_reason: 1,
 };
 let _pass_form_settings_promise = null;
+
+// Asks the approver why the pass is rejected and records it before the Reject
+// action runs. Resolves once it is saved; left unsettled if the dialog is closed.
+function ask_rejection_reason(frm) {
+	return new Promise((resolve) => {
+		frappe.dom.unfreeze();
+		let done = false;
+		const dialog = new frappe.ui.Dialog({
+			title: __("Reject {0}", [frm.doc.visitor_full_name || frm.doc.name]),
+			fields: [
+				{
+					fieldname: "reason",
+					fieldtype: "Small Text",
+					label: __("Reason for rejecting"),
+					reqd: 1,
+					default: frm.doc.rejection_reason || "",
+					description: __("The host and whoever raised the pass see this reason."),
+				},
+			],
+			primary_action_label: __("Reject"),
+			primary_action(values) {
+				// Saved first: the Reject action reloads the pass from the database.
+				frappe
+					.xcall(
+						"visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.set_rejection_reason",
+						{
+							visitor_pass: frm.doc.name,
+							reason: values.reason,
+						}
+					)
+					.then((reason) => {
+						done = true;
+						frm.doc.rejection_reason = reason;
+						dialog.hide();
+						frappe.dom.freeze();
+						resolve();
+					});
+			},
+		});
+		dialog.onhide = () => {
+			// Changed their mind: the action is simply not taken. (The promise is
+			// left unsettled rather than rejected, so nothing is logged as an error.)
+			if (!done) {
+				frm.selected_workflow_action = null;
+			}
+		};
+		dialog.show();
+	});
+}
 
 function get_pass_form_settings() {
 	if (!_pass_form_settings_promise) {
@@ -231,10 +281,34 @@ frappe.ui.form.on("Visitor Pass", {
 		wait_for_phone_build(frm);
 	},
 
+	// Rejecting asks why: the host and whoever raised the pass are told the reason
+	// (Rejection Reason, in the rejection alert), so they can fix it and Reapply.
+	// Not asked when VMS Settings -> Approver Must Give a Reason to Reject is off.
+	// Frappe freezes the screen around a workflow action; the prompt unfreezes it
+	// while it is open, and leaves it unfrozen if the approver changes their mind.
+	before_workflow_action(frm) {
+		if (frm.selected_workflow_action !== "Reject") return;
+		return get_pass_form_settings().then((settings) => {
+			if (!cint(settings.require_rejection_reason)) return;
+			return ask_rejection_reason(frm);
+		});
+	},
+
 	onload(frm) {
 		// A pass is being opened: read the settings afresh, once, for this load.
 		_pass_form_settings_promise = null;
 		vms_setup_core_link_pickers(frm, VISITOR_PASS_CORE_LINKS);
+		// Opened as a walk-in (the gate's "New Walk-In" shortcut): offer the short
+		// form. Closing it leaves this full form, already marked Walk-In.
+		if (
+			frm.is_new() &&
+			frm.doc.request_channel === "Walk-In" &&
+			!frm.__vms_walk_in_offered &&
+			typeof vms_open_walk_in_dialog === "function"
+		) {
+			frm.__vms_walk_in_offered = true;
+			vms_open_walk_in_dialog();
+		}
 		if (frm.is_new() && frm.doc.amended_from) {
 			VISIT_ONLY_FIELDS.forEach((fieldname) => {
 				frm.doc[fieldname] = null;
@@ -256,6 +330,7 @@ frappe.ui.form.on("Visitor Pass", {
 		add_action_buttons(frm);
 		add_hospitality_buttons(frm);
 		add_gate_buttons(frm);
+		render_hospitality_progress(frm);
 	},
 
 	// The full ID number is never sent to this form. It shows the masked number
@@ -291,6 +366,10 @@ frappe.ui.form.on("Visitor Pass", {
 		ensure_customer_crm_defaults(frm);
 		setup_supplier_pass_query(frm);
 		apply_visitor_pass_ui(frm);
+		// Whether a meal is suggested depends on the visitor type.
+		if (frm.doc.docstatus === 0 && frm.doc.expected_checkin && frm.doc.expected_checkout) {
+			refresh_hospitality_plan(frm);
+		}
 	},
 
 	custom_nationality(frm) {
@@ -301,6 +380,15 @@ frappe.ui.form.on("Visitor Pass", {
 		if (frm.doc.factory_tour_required) {
 			if (!frm.doc.buggy_required) {
 				frm.set_value("buggy_required", 1);
+				frappe.show_alert(
+					{
+						message: __(
+							"Buggy added to take the visitor round the plant. Untick Buggy Required if they will walk."
+						),
+						indicator: "blue",
+					},
+					7
+				);
 			}
 		} else if (frm.doc.buggy_required) {
 			frm.set_value("buggy_required", 0);
@@ -473,6 +561,11 @@ frappe.ui.form.on("Visitor Pass", {
 	},
 
 	meal_required(frm) {
+		// A person ticking or unticking it decides; the visit window stops suggesting.
+		if (!frm.__vms_meal_auto) {
+			frm.__vms_meal_unticked = !cint(frm.doc.meal_required);
+			frm.__vms_meal_suggested = false;
+		}
 		apply_visitor_pass_ui(frm);
 	},
 
@@ -857,19 +950,48 @@ function refresh_hospitality_plan(frm) {
 			visit_date: frm.doc.visit_date,
 			expected_checkin: frm.doc.expected_checkin,
 			expected_checkout: frm.doc.expected_checkout,
+			visitor_type: frm.doc.visitor_type || null,
 		},
 		callback: ({ message }) => {
 			if (!message) {
 				return;
 			}
 
+			// A meal is only SUGGESTED, and only for visitor types that "Suggest
+			// Meals" (not contractors or suppliers). Whoever fills the pass is told,
+			// because the tick lands on the Hospitality tab, out of sight; and a meal
+			// they have unticked is not ticked again when the times change.
+			const was_ticked = cint(frm.doc.meal_required);
+			const ticked_by_person = was_ticked && !frm.__vms_meal_suggested;
+			// No visitor type yet: suggest, as before.
+			const suggest_for_type =
+				message.suggest_meal === undefined ? 1 : cint(message.suggest_meal);
+			const suggest = suggest_for_type && cint(message.meal_required);
+			const keep_meal = ticked_by_person && cint(message.meal_required);
+			const meal_required = keep_meal || (suggest && !frm.__vms_meal_unticked) ? 1 : 0;
+			frm.__vms_meal_suggested = Boolean(meal_required && !ticked_by_person);
+			frm.__vms_meal_auto = true;
 			frm.set_value({
-				meal_required: message.meal_required || 0,
-				meal_type: message.meal_type || "",
-				assigned_meal_slots: message.assigned_meal_slots || "",
-				hospitality_type: message.hospitality_type || "",
-				service_time: message.service_time || null,
+				meal_required,
+				meal_type: meal_required ? message.meal_type || "" : "",
+				assigned_meal_slots: meal_required ? message.assigned_meal_slots || "" : "",
+				hospitality_type: meal_required ? message.hospitality_type || "" : "",
+				service_time: meal_required ? message.service_time || null : null,
+			}).then(() => {
+				frm.__vms_meal_auto = false;
 			});
+			if (meal_required && !was_ticked) {
+				frappe.show_alert(
+					{
+						message: __(
+							"{0} added because the visit covers its time. Untick Meal Required on the Hospitality tab if it is not needed.",
+							[frappe.utils.escape_html(message.meal_type || __("A meal"))]
+						),
+						indicator: "blue",
+					},
+					8
+				);
+			}
 			apply_visitor_pass_ui(frm);
 		},
 	});
@@ -1028,9 +1150,12 @@ function set_visitor_pass_intro(frm) {
 	if (stage === "Rejected") {
 		set_pass_intro(
 			frm,
-			__(
-				"Request rejected. Update the details and reapply if the visit still needs to happen."
-			),
+			(frm.doc.rejection_reason
+				? __("Request rejected: {0}", [
+						frappe.utils.escape_html(frm.doc.rejection_reason),
+				  ]) + " "
+				: __("Request rejected.") + " ") +
+				__("Update the details and reapply if the visit still needs to happen."),
 			"red"
 		);
 		return;
@@ -1040,6 +1165,113 @@ function set_visitor_pass_intro(frm) {
 }
 
 const APPROVER_CARD_CLASS = "vm-approver-card-host";
+
+// The host's answer to "is it arranged?": each service asked for, how far it has
+// got, and the details they need (driver, hotel, guide). Same dashboard-section
+// pattern as the approver card below.
+const HOSPITALITY_CARD_CLASS = "vm-hospitality-progress";
+const HOSPITALITY_STATUS_COLOURS = {
+	Pending: ["#fff4e5", "#9a5b00"],
+	Booked: ["#e0f2fe", "#075985"],
+	Done: ["#d9f3e4", "#0d6b3e"],
+	Cancelled: ["#f1f5f9", "#475569"],
+};
+
+function render_hospitality_progress(frm) {
+	if (
+		frm.is_new() ||
+		!frm.doc.hospitality_request ||
+		!frm.dashboard ||
+		!frm.dashboard.add_section
+	)
+		return;
+	const docname = frm.doc.name;
+	frappe
+		.xcall(
+			"visitormanagement.visitor_management.doctype.hospitality_request.hospitality_request.get_hospitality_progress",
+			{
+				visitor_pass: docname,
+			}
+		)
+		.then((data) => {
+			if (!data || frm.doc.name !== docname) return;
+			const esc = (v) => frappe.utils.escape_html(v == null ? "" : String(v));
+			const request = data.request;
+			const rows = [];
+			let heading = __("Hospitality");
+			if (request) {
+				const state = request.workflow_state || "Draft";
+				if (
+					request.status === "Cancelled" ||
+					state === "Rejected" ||
+					state === "Cancelled"
+				) {
+					heading = __("Hospitality: called off");
+				} else if (state === "Draft") {
+					heading = __("Hospitality: waiting for this pass to be approved");
+				} else if (state === "Pending Approval") {
+					heading = __("Hospitality: waiting for the Hospitality Manager");
+				} else if (request.status === "Completed") {
+					heading = __("Hospitality: completed");
+				} else {
+					heading = __("Hospitality: being arranged");
+				}
+				for (const service of request.services || []) {
+					const [bg, fg] =
+						HOSPITALITY_STATUS_COLOURS[service.status] ||
+						HOSPITALITY_STATUS_COLOURS.Pending;
+					const details = (service.details || [])
+						.map(([label, value]) => `${esc(label)}: <b>${esc(value)}</b>`)
+						.join(" · ");
+					rows.push(`
+						<div style="display:flex; gap:10px; align-items:baseline; padding:4px 0; border-top:1px solid #e5e9ef;">
+							<span style="min-width:110px; font-weight:600;">${esc(service.label)}</span>
+							<span style="padding:1px 8px; border-radius:999px; font-size:11px; font-weight:700; background:${bg}; color:${fg};">${esc(
+						__(service.status)
+					)}</span>
+							<span style="font-size:12px; color:#334e68;">${details}</span>
+						</div>`);
+				}
+			}
+			if (data.room) {
+				rows.push(`
+					<div style="display:flex; gap:10px; align-items:baseline; padding:4px 0; border-top:1px solid #e5e9ef;">
+						<span style="min-width:110px; font-weight:600;">${__("Room")}</span>
+						<span style="padding:1px 8px; border-radius:999px; font-size:11px; font-weight:700; background:#f1f5f9; color:#334e68;">${esc(
+							__(data.room.workflow_state || "Draft")
+						)}</span>
+						<span style="font-size:12px; color:#334e68;">${esc(data.room.conference_room)}</span>
+					</div>`);
+			}
+			if (!rows.length) return;
+			const who =
+				request && request.assigned_to && request.assigned_to.length
+					? `<div style="font-size:12px; color:#52606d; margin-top:6px;">${__(
+							"Being handled by"
+					  )}: ${esc(request.assigned_to.join(", "))}</div>`
+					: "";
+			const link = request
+				? `<a href="/app/hospitality-request/${encodeURIComponent(
+						request.name
+				  )}" style="font-size:12px;">${esc(request.name)}</a>`
+				: "";
+			const html = `
+				<div style="width:100%; border:1px solid #dbe3ea; border-radius:12px; padding:12px 16px; background:#fbfcfd;">
+					<div style="display:flex; justify-content:space-between; gap:10px; margin-bottom:6px; flex-wrap:wrap;">
+						<div style="font-size:13px; font-weight:700; color:#102a43;">${esc(heading)}</div>${link}
+					</div>
+					${rows.join("")}
+					${who}
+				</div>`;
+			frm.dashboard.parent &&
+				frm.dashboard.parent.find(`.${HOSPITALITY_CARD_CLASS}`).remove();
+			frm.dashboard.add_section(html, null, `custom ${HOSPITALITY_CARD_CLASS}`);
+			frm.dashboard.show();
+		})
+		.catch(() => {
+			// No access to the request, or it was removed: the pass shows nothing extra.
+		});
+}
 
 function render_approver_context_card(frm) {
 	// One-glance card for approvers: visit details + attachment checklist.
@@ -1610,6 +1842,9 @@ function pass_valid_today(frm) {
 function add_gate_buttons(frm) {
 	// Only a submitted (approved) pass reaches the gate — never a draft or a cancelled one.
 	if (frm.is_new() || frm.doc.docstatus !== 1) return;
+	// Only for the gate: the server refuses anyone else (visitor_gate._assert_gate_permission),
+	// so for a host the button could only ever end in an error.
+	if (!frappe.model.can_create("Security Log")) return;
 
 	const stage = frm.doc.status;
 	// A visitor who stepped out comes back in on the same pass.

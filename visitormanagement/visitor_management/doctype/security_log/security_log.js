@@ -82,6 +82,19 @@ frappe.ui.form.on("Security Log", {
 		setup_record_action(frm);
 		apply_security_log_ui(frm);
 
+		// A visitor with no pass yet: register them here (public/js/walk_in.js).
+		if (
+			frm.is_new() &&
+			!frm.doc.visitor_pass &&
+			typeof vms_when_walk_in_enabled === "function"
+		) {
+			vms_when_walk_in_enabled(() => {
+				if (frm.is_new() && !frm.doc.visitor_pass) {
+					frm.add_custom_button(__("New Walk-In"), () => vms_open_walk_in_dialog());
+				}
+			});
+		}
+
 		if (frm.doc.visitor_pass) {
 			frm.add_custom_button(
 				__("Print Badge"),
@@ -750,6 +763,18 @@ function record_gate_event(frm, btn) {
 		show_gate_checklist(__("Finish these steps before recording"), gate_steps(frm));
 		return;
 	}
+	// The time of the event is when it is recorded, not when the form was opened
+	// (a guard may spend minutes checking ID and items). A time the guard typed
+	// in themselves is kept.
+	const now = frappe.datetime.now_datetime();
+	if (frm.doc.event_type === "Check-In" && frm.doc.check_in_date_time === frm.__gate_auto_time) {
+		frm.doc.check_in_date_time = now;
+	} else if (
+		frm.doc.event_type === "Check-Out" &&
+		frm.doc.check_out_date_time === frm.__gate_auto_time
+	) {
+		frm.doc.check_out_date_time = now;
+	}
 	frm.__gate_record_intent = Date.now();
 	frm.__gate_recording = true;
 	// The button is passed on so Frappe re-enables it if the save is refused.
@@ -764,9 +789,17 @@ function gate_steps(frm) {
 	if (!GATE_MOVEMENTS.includes(frm.doc.event_type)) return steps;
 
 	if (policy.qr_scan_required) {
+		// A walk-in registered at the gate has no QR in hand yet: the pass number
+		// plus a written reason will do (SecurityLog._walk_in_without_qr).
+		const walk_in_reason =
+			frm.__gate_walk_in &&
+			(frm.__gate_policy || {}).walk_in_without_qr &&
+			(frm.doc.qr_skip_reason || "").trim();
 		steps.push({
-			ok: Boolean(cint(frm.doc.qr_code_scanned)),
-			label: __("Scan the visitor's QR code"),
+			ok: Boolean(cint(frm.doc.qr_code_scanned) || walk_in_reason),
+			label: frm.__gate_walk_in
+				? __("Scan the visitor's QR code, or write why it was not scanned (walk-in)")
+				: __("Scan the visitor's QR code"),
 		});
 	}
 	if (policy.photo_required) {
@@ -825,6 +858,28 @@ function gate_message_html(text) {
 function apply_gate_context(frm, context) {
 	if (context.policy) {
 		frm.__gate_policy = context.policy;
+	}
+	// A walk-in may be identified by its pass number with a reason, when the
+	// site requires a QR scan (shows "No QR Scan – Reason").
+	frm.__gate_walk_in = context.request_channel === "Walk-In";
+	const policy = frm.__gate_policy || {};
+	frm.doc.__vms_walk_in_no_qr =
+		frm.__gate_walk_in && policy.qr_scan_required && policy.walk_in_without_qr ? 1 : 0;
+	frm.refresh_field("qr_skip_reason");
+	// Outside the booked time (gate_timing): told now, before recording — never
+	// a refusal. The server writes the same note onto the log when it is recorded.
+	frm.doc.__vms_timing_note = context.timing_warning ? 1 : 0;
+	frm.set_value("timing_note", context.timing_warning || "");
+	if (context.timing_warning) {
+		frappe.show_alert(
+			{
+				message: __("Outside booked time: {0} You can still record it.", [
+					frappe.utils.escape_html(context.timing_warning),
+				]),
+				indicator: "orange",
+			},
+			12
+		);
 	}
 	frm.__visitor_type = context.visitor_type;
 	// The layout drives VIP-specific gate behaviour, so a site's own
@@ -898,9 +953,11 @@ function apply_gate_context(frm, context) {
 			frm.set_value("visited_area", frm.doc.gate_name);
 		}
 		if (event_type === "Check-In" && !frm.doc.check_in_date_time) {
-			frm.set_value("check_in_date_time", frappe.datetime.now_datetime());
+			frm.__gate_auto_time = frappe.datetime.now_datetime();
+			frm.set_value("check_in_date_time", frm.__gate_auto_time);
 		} else if (event_type === "Check-Out" && !frm.doc.check_out_date_time) {
-			frm.set_value("check_out_date_time", frappe.datetime.now_datetime());
+			frm.__gate_auto_time = frappe.datetime.now_datetime();
+			frm.set_value("check_out_date_time", frm.__gate_auto_time);
 		}
 	}
 

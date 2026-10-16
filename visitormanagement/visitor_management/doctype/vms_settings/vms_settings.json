@@ -5,6 +5,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "tab_general",
   "section_general",
   "admin_email",
   "home_country",
@@ -12,6 +13,10 @@
   "column_break_general",
   "default_checkout_time",
   "max_visit_duration_hrs",
+  "section_badge",
+  "enable_badge",
+  "badge_required_for",
+  "tab_gate",
   "section_gate",
   "require_visitor_photo",
   "qr_scan_required_at_gate",
@@ -20,9 +25,15 @@
   "allow_gate_without_item_verification",
   "column_break_gate",
   "blacklist_action",
-  "section_badge",
-  "enable_badge",
-  "badge_required_for",
+  "section_walk_in",
+  "enable_walk_in_registration",
+  "column_break_walk_in",
+  "allow_walk_in_without_qr",
+  "section_booked_time",
+  "warn_outside_booked_time",
+  "column_break_booked_time",
+  "gate_time_tolerance_minutes",
+  "tab_visits",
   "section_policy",
   "max_advance_booking_days",
   "invitation_expiry_days",
@@ -30,18 +41,28 @@
   "no_show_grace_hours",
   "default_country_code",
   "fever_threshold_c",
-  "max_portal_submissions_per_hour",
-  "allow_walk_in_pre_registration",
-  "section_meals",
-  "meal_windows",
+  "section_alerts",
+  "alert_overdue_visitors",
+  "alert_host_on_no_show",
+  "column_break_alerts",
+  "send_thank_you_email",
+  "require_rejection_reason",
   "section_notify",
   "security_alert_roles",
   "column_break_notify",
   "digest_recipient_roles",
-  "section_retention",
-  "data_retention_enabled",
-  "column_break_retention",
-  "data_retention_days",
+  "tab_hospitality",
+  "section_hospitality",
+  "email_visitor_about_bookings",
+  "column_break_hospitality",
+  "close_hospitality_after_visit",
+  "section_meals",
+  "meal_windows",
+  "tab_portal",
+  "section_portal_access",
+  "allow_walk_in_pre_registration",
+  "column_break_portal_access",
+  "max_portal_submissions_per_hour",
   "section_branding",
   "portal_brand_colour",
   "portal_logo",
@@ -52,9 +73,19 @@
   "require_portal_consent",
   "privacy_notice_version",
   "column_break_privacy",
-  "privacy_notice_text"
+  "privacy_notice_text",
+  "tab_data",
+  "section_retention",
+  "data_retention_enabled",
+  "column_break_retention",
+  "data_retention_days"
  ],
  "fields": [
+  {
+   "fieldname": "tab_general",
+   "fieldtype": "Tab Break",
+   "label": "General"
+  },
   {
    "fieldname": "section_general",
    "fieldtype": "Section Break",
@@ -67,8 +98,7 @@
    "options": "Email"
   },
   {
-   "default": "India",
-   "description": "Visitors with a nationality other than this country are treated as foreign nationals.",
+   "description": "Visitors with a nationality other than this country are treated as foreign nationals. Leave blank to use the site's country (System Settings).",
    "fieldname": "home_country",
    "fieldtype": "Link",
    "label": "Home Country",
@@ -96,6 +126,33 @@
    "fieldname": "max_visit_duration_hrs",
    "fieldtype": "Int",
    "label": "Max Visit Duration (hrs)"
+  },
+  {
+   "fieldname": "section_badge",
+   "fieldtype": "Section Break",
+   "label": "Badge Configuration"
+  },
+  {
+   "default": "1",
+   "description": "Enable physical badge issuance for visitors. If disabled, visitors will only get QR codes.",
+   "fieldname": "enable_badge",
+   "fieldtype": "Check",
+   "label": "Enable Badge"
+  },
+  {
+   "default": "Contractor\nCandidate\nCustomer\nSupplier\nVIP",
+   "depends_on": "eval:doc.enable_badge",
+   "description": "Superseded by 'Requires Physical Badge' on each Visitor Type. Retained only for sites that have not yet set that flag.",
+   "fieldname": "badge_required_for",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "Badge Required For (legacy)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tab_gate",
+   "fieldtype": "Tab Break",
+   "label": "Gate"
   },
   {
    "fieldname": "section_gate",
@@ -145,26 +202,57 @@
    "options": "Block Entry\nAlert Only\nLog Only"
   },
   {
-   "fieldname": "section_badge",
+   "fieldname": "section_walk_in",
    "fieldtype": "Section Break",
-   "label": "Badge Configuration"
+   "label": "Walk-In Visitors"
   },
   {
    "default": "1",
-   "description": "Enable physical badge issuance for visitors. If disabled, visitors will only get QR codes.",
-   "fieldname": "enable_badge",
+   "description": "Shows New Walk-In on Gate Desk, the Visitor Pass list and the Security Log: a short form for a visitor who turns up without a pass. The pass still goes to the Visitor Type's approver. When off, every visitor needs a pass raised by a host.",
+   "fieldname": "enable_walk_in_registration",
    "fieldtype": "Check",
-   "label": "Enable Badge"
+   "label": "Let the Gate Register Walk-In Visitors"
   },
   {
-   "default": "Contractor\nCandidate\nCustomer\nSupplier\nVIP",
-   "depends_on": "eval:doc.enable_badge",
-   "description": "Superseded by 'Requires Physical Badge' on each Visitor Type. Retained only for sites that have not yet set that flag.",
-   "fieldname": "badge_required_for",
-   "fieldtype": "Small Text",
-   "hidden": 1,
-   "label": "Badge Required For (legacy)",
-   "read_only": 1
+   "fieldname": "column_break_walk_in",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.enable_walk_in_registration",
+   "description": "When QR Scan Required at Gate is on, a walk-in registered minutes ago has no QR to show. With this on the guard picks the pass and writes why there was no scan; the reason stays on the Security Log. When off, walk-ins are scanned like everyone else.",
+   "fieldname": "allow_walk_in_without_qr",
+   "fieldtype": "Check",
+   "label": "Let a Walk-In In Without a QR Scan"
+  },
+  {
+   "fieldname": "section_booked_time",
+   "fieldtype": "Section Break",
+   "label": "Booked Time"
+  },
+  {
+   "default": "1",
+   "description": "The guard sees a warning when a visitor arrives or leaves outside the booked time (plus the tolerance), and the Security Log keeps a note and the Outside Booked Time flag. The check-in or check-out is always recorded.",
+   "fieldname": "warn_outside_booked_time",
+   "fieldtype": "Check",
+   "label": "Warn When Outside the Booked Time"
+  },
+  {
+   "fieldname": "column_break_booked_time",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "30",
+   "description": "How far outside the booked time a visitor may arrive or leave before the gate warns and notes it on the Security Log, and before the host is told a visitor is still inside. The gate never refuses entry or exit for the time of day.",
+   "fieldname": "gate_time_tolerance_minutes",
+   "fieldtype": "Int",
+   "label": "Gate Time Tolerance (minutes)",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "tab_visits",
+   "fieldtype": "Tab Break",
+   "label": "Visits & Alerts"
   },
   {
    "fieldname": "section_policy",
@@ -195,8 +283,7 @@
    "label": "No-Show Grace (hours)"
   },
   {
-   "default": "91",
-   "description": "ISD code applied to local mobile numbers, without '+'.",
+   "description": "ISD code applied to local mobile numbers, without '+'. Leave blank to use the home country's code.",
    "fieldname": "default_country_code",
    "fieldtype": "Data",
    "label": "Default Phone Country Code"
@@ -209,30 +296,41 @@
    "label": "Fever Threshold (°C)"
   },
   {
-   "default": "20",
-   "description": "Guest pre-registration submissions allowed per identity, per hour, before the public portal rate-limits further attempts. 0 is read as unset (falls back to the default), not as no limit.",
-   "fieldname": "max_portal_submissions_per_hour",
-   "fieldtype": "Int",
-   "label": "Max Portal Submissions per Hour"
-  },
-  {
-   "default": "0",
-   "description": "When off, only visitors holding an invitation link can pre-register. Turn on to let anyone open the public form (for example from a QR code at reception).",
-   "fieldname": "allow_walk_in_pre_registration",
-   "fieldtype": "Check",
-   "label": "Allow Pre-Registration Without an Invitation"
-  },
-  {
-   "description": "Visit windows overlapping these slots auto-derive the meal plan.",
-   "fieldname": "section_meals",
+   "fieldname": "section_alerts",
    "fieldtype": "Section Break",
-   "label": "Meal Windows"
+   "label": "Alerts & Emails"
   },
   {
-   "fieldname": "meal_windows",
-   "fieldtype": "Table",
-   "label": "Meal Windows",
-   "options": "VMS Meal Window"
+   "default": "1",
+   "description": "Every 15 minutes, the host and Security get a bell alert and an email for a visitor still inside after the expected check-out plus the tolerance. Once per visitor per day.",
+   "fieldname": "alert_overdue_visitors",
+   "fieldtype": "Check",
+   "label": "Alert When a Visitor Stays Past Check-Out"
+  },
+  {
+   "default": "1",
+   "description": "The host and whoever raised the pass get a bell alert and an email when their visitor is marked as a no-show (No-Show Grace above).",
+   "fieldname": "alert_host_on_no_show",
+   "fieldtype": "Check",
+   "label": "Tell the Host About a No-Show"
+  },
+  {
+   "fieldname": "column_break_alerts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Sent once, after the visitor is checked out and the booked time of the last day is over. The wording is the VMS Visitor Thank You notification.",
+   "fieldname": "send_thank_you_email",
+   "fieldtype": "Check",
+   "label": "Email the Visitor a Thank-You After the Visit"
+  },
+  {
+   "default": "1",
+   "description": "Asks for the reason when a pass is rejected. It is shown on the pass and in the rejection email to the host.",
+   "fieldname": "require_rejection_reason",
+   "fieldtype": "Check",
+   "label": "Approver Must Give a Reason to Reject"
   },
   {
    "description": "Who receives VMS alerts. Leave a table empty to fall back to the built-in role list.",
@@ -259,29 +357,72 @@
    "options": "VMS Notification Role"
   },
   {
-   "description": "DPDP / GDPR-style data minimisation for visitor identity data. OFF by default — nothing is ever deleted or anonymised unless this is explicitly turned on.",
-   "fieldname": "section_retention",
+   "fieldname": "tab_hospitality",
+   "fieldtype": "Tab Break",
+   "label": "Hospitality"
+  },
+  {
+   "fieldname": "section_hospitality",
    "fieldtype": "Section Break",
-   "label": "Data Retention & Purge"
+   "label": "Hospitality"
   },
   {
-   "default": "0",
-   "description": "When ticked, a nightly job anonymises name, mobile, email, ID number and photos on visits that are already over (Checked-Out, Rejected, Cancelled or No-Show) and older than the retention period. The visit record itself — dates, host, gate, badge, workflow history — is kept for audit and statistics. Leave this OFF until your compliance/legal function has confirmed a retention period: this app never purges anything on its own.",
-   "fieldname": "data_retention_enabled",
+   "default": "1",
+   "description": "The host and whoever raised the pass are always told what was booked. With this on, the visitor is emailed the cab or hotel details too (when the pass has an email).",
+   "fieldname": "email_visitor_about_bookings",
    "fieldtype": "Check",
-   "label": "Enable Data Retention Purge"
+   "label": "Email the Visitor When a Cab or Hotel Is Booked"
   },
   {
-   "fieldname": "column_break_retention",
+   "fieldname": "column_break_hospitality",
    "fieldtype": "Column Break"
   },
   {
-   "default": "365",
-   "depends_on": "eval:doc.data_retention_enabled",
-   "description": "How long, after a visit is over, its identity data is kept before being anonymised. Only takes effect once Enable Data Retention Purge is ticked.",
-   "fieldname": "data_retention_days",
+   "default": "1",
+   "description": "At the visitor's last check-out, and hourly for no-shows and visits never checked out, open hospitality requests are closed so the Hospitality Manager's list holds only live work.",
+   "fieldname": "close_hospitality_after_visit",
+   "fieldtype": "Check",
+   "label": "Close Hospitality Requests When the Visit Is Over"
+  },
+  {
+   "description": "Visit windows overlapping these slots auto-derive the meal plan.",
+   "fieldname": "section_meals",
+   "fieldtype": "Section Break",
+   "label": "Meal Windows"
+  },
+  {
+   "fieldname": "meal_windows",
+   "fieldtype": "Table",
+   "label": "Meal Windows",
+   "options": "VMS Meal Window"
+  },
+  {
+   "fieldname": "tab_portal",
+   "fieldtype": "Tab Break",
+   "label": "Public Form"
+  },
+  {
+   "fieldname": "section_portal_access",
+   "fieldtype": "Section Break",
+   "label": "Who Can Use It"
+  },
+  {
+   "default": "0",
+   "description": "When off, only visitors holding an invitation link can pre-register. Turn on to let anyone open the public form (for example from a QR code at reception).",
+   "fieldname": "allow_walk_in_pre_registration",
+   "fieldtype": "Check",
+   "label": "Allow Pre-Registration Without an Invitation"
+  },
+  {
+   "fieldname": "column_break_portal_access",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "20",
+   "description": "Guest pre-registration submissions allowed per identity, per hour, before the public portal rate-limits further attempts. 0 is read as unset (falls back to the default), not as no limit.",
+   "fieldname": "max_portal_submissions_per_hour",
    "fieldtype": "Int",
-   "label": "Retention Period (days)"
+   "label": "Max Portal Submissions per Hour"
   },
   {
    "description": "Controls how the public pre-registration page looks. The whole palette is derived from the brand colour, so one setting themes the page.",
@@ -347,13 +488,43 @@
    "fieldname": "privacy_notice_text",
    "fieldtype": "Small Text",
    "label": "Privacy Notice Text"
+  },
+  {
+   "fieldname": "tab_data",
+   "fieldtype": "Tab Break",
+   "label": "Data Retention"
+  },
+  {
+   "description": "DPDP / GDPR-style data minimisation for visitor identity data. OFF by default — nothing is ever deleted or anonymised unless this is explicitly turned on.",
+   "fieldname": "section_retention",
+   "fieldtype": "Section Break",
+   "label": "Data Retention & Purge"
+  },
+  {
+   "default": "0",
+   "description": "When ticked, a nightly job anonymises name, mobile, email, ID number and photos on visits that are already over (Checked-Out, Rejected, Cancelled or No-Show) and older than the retention period. The visit record itself — dates, host, gate, badge, workflow history — is kept for audit and statistics. Leave this OFF until your compliance/legal function has confirmed a retention period: this app never purges anything on its own.",
+   "fieldname": "data_retention_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Data Retention Purge"
+  },
+  {
+   "fieldname": "column_break_retention",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "365",
+   "depends_on": "eval:doc.data_retention_enabled",
+   "description": "How long, after a visit is over, its identity data is kept before being anonymised. Only takes effect once Enable Data Retention Purge is ticked.",
+   "fieldname": "data_retention_days",
+   "fieldtype": "Int",
+   "label": "Retention Period (days)"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-06 12:00:00.000000",
+ "modified": "2026-10-15 23:05:38.458870",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS Settings",

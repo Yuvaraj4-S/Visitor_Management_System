@@ -50,7 +50,9 @@ def _maybe_create_invitation(doc, method=None):
 	if (doc.get("custom_interview_mode") or "Online") != "Offline":
 		return
 
-	if frappe.db.exists("Visitor Invitation", {"reference_job_applicant": doc.name}):
+	existing = frappe.db.get_value("Visitor Invitation", {"reference_job_applicant": doc.name}, "name")
+	if existing:
+		_follow_reschedule(doc, frappe.get_doc("Visitor Invitation", existing))
 		return
 
 	if not doc.email_id:
@@ -133,3 +135,77 @@ def _resolve_candidate_visitor_type():
 			f"{types}. Using {types[0]!r} for candidate invitations.",
 		)
 	return types[0]
+
+
+# What an interview change carries over to the candidate's invitation.
+_INTERVIEW_TO_INVITATION = (
+	("custom_interview_visit_date", "visit_date"),
+	("custom_interview_checkin_time", "expected_checkin"),
+	("custom_interview_checkout_time", "expected_checkout"),
+	("custom_interview_host", "host_employee"),
+)
+_CLOSED_INVITATION_STATUSES = ("Submitted", "Expired", "Cancelled")
+
+
+def _follow_reschedule(doc, inv):
+	"""Carry a rescheduled interview over to the invitation already raised for it.
+
+	This used to stop at "an invitation exists": HR moved the interview on the
+	Job Applicant, and the candidate's invitation — and the pass made from it,
+	and what the gate expects — kept the old date, with nobody told. An open
+	invitation now moves and is sent again; one the candidate has already used
+	(or that is cancelled or expired) is left as it is and HR is told.
+	"""
+	changes = {}
+	for source, target in _INTERVIEW_TO_INVITATION:
+		value = doc.get(source)
+		if value and str(value) != str(inv.get(target) or ""):
+			if target == "visit_date" and getdate(value) == getdate(inv.visit_date):
+				continue
+			changes[target] = value
+	if not changes:
+		return
+	link = frappe.utils.get_link_to_form("Visitor Invitation", inv.name)
+	if inv.invitation_status in _CLOSED_INVITATION_STATUSES:
+		frappe.msgprint(
+			_(
+				"The interview schedule changed, but Visitor Invitation {0} is already {1}, so it was not "
+				"updated. Update the candidate's visit yourself."
+			).format(link, _(inv.invitation_status)),
+			title=_("Invitation Not Updated"),
+			indicator="orange",
+		)
+		return
+	inv.update(changes)
+	try:
+		inv.save(ignore_permissions=True)
+	except frappe.ValidationError as exc:
+		frappe.clear_messages()
+		frappe.msgprint(
+			_(
+				"Visitor Invitation {0} could not be moved to the new interview schedule: {1} "
+				"Please correct the invitation yourself."
+			).format(link, frappe.utils.strip_html(str(exc))),
+			title=_("Invitation Not Updated"),
+			indicator="orange",
+		)
+		return
+	try:
+		inv.send_invitation()
+		frappe.msgprint(
+			_(
+				"Visitor Invitation {0} now follows the new interview schedule and was sent again to {1}."
+			).format(link, frappe.bold(inv.visitor_email)),
+			alert=True,
+			indicator="green",
+		)
+	except Exception:
+		log_failure("Candidate Flow: resend after reschedule failed")
+		frappe.msgprint(
+			_(
+				"Visitor Invitation {0} now follows the new interview schedule, but the email to {1} could "
+				"not be sent. Please tell the candidate about the change."
+			).format(link, frappe.bold(inv.visitor_email)),
+			title=_("Candidate Not Notified"),
+			indicator="orange",
+		)

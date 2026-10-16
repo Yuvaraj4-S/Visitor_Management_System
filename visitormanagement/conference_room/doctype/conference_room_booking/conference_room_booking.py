@@ -33,9 +33,11 @@ class ConferenceRoomBooking(Document):
 		check_visitor_pass_link(self, overseer_roles=CONFERENCE_ROOM_BOOKING_OVERSEERS)
 		self.validate_schedule()
 		self.calculate_duration()
-		self.validate_capacity()
-		self.validate_overlap()
-		self.validate_operating_hours()
+		if self._asks_for_the_room():
+			self.validate_past_date()
+			self.validate_capacity()
+			self.validate_overlap()
+			self.validate_operating_hours()
 		self.auto_set_service_flags()
 		self._validate_visitor_pass_approved()
 		self._sync_status_with_workflow()
@@ -124,10 +126,56 @@ class ConferenceRoomBooking(Document):
 
 	# -- Schedule Validation ---
 
-	def validate_schedule(self):
-		if getdate(self.booking_date) < getdate(today()):
+	def _asks_for_the_room(self):
+		"""Whether this save claims the slot, and so has to satisfy the room's rules.
+
+		A booking being rejected gives the slot up. Holding that save to the rules
+		for taking a room meant a pending booking whose date had passed could not
+		be rejected ("Cannot book a room for a past date") and stayed in the
+		Facility Manager's queue for good. The rules apply again the moment it is
+		re-applied.
+		"""
+		return (getattr(self, "workflow_state", None) or "Draft") != "Rejected"
+
+	def validate_past_date(self):
+		"""No booking is made for, moved to, or approved on a day that has passed.
+
+		Asked only when the slot is being asked for — a new booking, a changed date
+		or time, sending it for approval — and when it is approved. Any other save
+		of an existing booking (a note, a title) is not choosing a date, and
+		refusing those froze old bookings.
+		"""
+		if getdate(self.booking_date) >= getdate(today()):
+			return
+		if self.docstatus == 1:
+			frappe.throw(
+				_(
+					"The booking date {0} has passed, so this booking can no longer be approved. "
+					"Reject it to clear it from the queue."
+				).format(frappe.format(self.booking_date, {"fieldtype": "Date"})),
+				title=_("Booking Date Passed"),
+			)
+		if self.is_new() or self._slot_changed():
 			frappe.throw(_("Cannot book a room for a past date."))
 
+	def _slot_changed(self):
+		before = self.get_doc_before_save()
+		if not before:
+			return True
+		return (
+			self.conference_room != before.conference_room
+			or getdate(self.booking_date) != getdate(before.booking_date)
+			or get_time(self.start_time) != get_time(before.start_time)
+			or get_time(self.end_time) != get_time(before.end_time)
+			# Sending it for approval, or asking again after a rejection, is asking for the slot.
+			or before.get("workflow_state") == "Rejected"
+			or (
+				self.get("workflow_state") == "Pending Approval"
+				and before.get("workflow_state") != "Pending Approval"
+			)
+		)
+
+	def validate_schedule(self):
 		if not self.start_time or not self.end_time:
 			frappe.throw(_("Both Start Time and End Time are required."))
 

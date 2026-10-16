@@ -56,6 +56,14 @@ ACTION_CANCEL = "Cancel"
 # The role a plain host/reception user has when raising a pass.
 REQUESTOR_ROLE = "Employee"
 
+# The gate registers walk-in visitors (walk_in.create_walk_in_pass), and a guard
+# is often a contract worker with no Employee record, so no Employee role. They
+# may edit and send for approval only the walk-in passes they raised themselves
+# (setup._let_guards_register_walk_ins gives Security create/write on its own
+# passes); approving stays with the Visitor Type's approver, as for any pass.
+GATE_ROLE = "Security"
+_IS_WALK_IN = "doc.request_channel == 'Walk-In'"
+
 # Cancelling an Approved pass is the approval authority exercised in reverse, so
 # the Cancel transitions are generated for the approver roles themselves (see
 # `build_workflow`). Security is deliberately not among them: it is read-only on
@@ -250,9 +258,13 @@ def build_workflow(commit=False):
 		_ensure_role(role)
 		_ensure_workflow_state(lane_for_role(role), PENDING_STYLE)
 	_ensure_role(REQUESTOR_ROLE)
+	_ensure_role(GATE_ROLE)
 
 	# --- states -------------------------------------------------------
-	states = [{"state": DRAFT, "doc_status": "0", "allow_edit": REQUESTOR_ROLE}]
+	states = [
+		{"state": DRAFT, "doc_status": "0", "allow_edit": REQUESTOR_ROLE},
+		{"state": DRAFT, "doc_status": "0", "allow_edit": GATE_ROLE},
+	]
 	for role in roles:
 		states.append({"state": lane_for_role(role), "doc_status": "0", "allow_edit": role})
 	# An approved pass stays "Approved" in the workflow while the gate moves its
@@ -280,6 +292,15 @@ def build_workflow(commit=False):
 				"next_state": lane_for_role(role),
 				"allowed": REQUESTOR_ROLE,
 				"condition": _routes_to(role),
+			}
+		)
+		transitions.append(
+			{
+				"state": DRAFT,
+				"action": ACTION_SUBMIT,
+				"next_state": lane_for_role(role),
+				"allowed": GATE_ROLE,
+				"condition": f"({_routes_to(role)}) and {_IS_WALK_IN}",
 			}
 		)
 

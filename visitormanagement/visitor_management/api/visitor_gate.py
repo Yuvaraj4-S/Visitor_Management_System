@@ -31,7 +31,7 @@ others. A pass the caller can read gets the specific reason.
 
 import frappe
 from frappe import _
-from frappe.utils import cint, formatdate, getdate, today, urlencode
+from frappe.utils import cint, formatdate, getdate, now_datetime, today, urlencode
 
 from visitormanagement.visitor_management.doctype.security_log.security_log import (
 	_get_default_gate,
@@ -39,6 +39,7 @@ from visitormanagement.visitor_management.doctype.security_log.security_log impo
 	gate_policy,
 	record_gate_blacklist,
 )
+from visitormanagement.visitor_management.gate_timing import timing_note
 from visitormanagement.visitor_management.id_masking import mask_id
 from visitormanagement.visitor_management.workflow_builder import APPROVED_STATES
 
@@ -75,6 +76,10 @@ _PASS_FIELDS = (
 	"id_proof_scan",
 	"person_to_visit",
 	"host_name",
+	"request_channel",
+	"expected_checkin",
+	"expected_checkout",
+	"overnight_visit",
 )
 
 
@@ -433,6 +438,7 @@ def get_gate_context(visitor_pass: str):
 		"visitor_full_name": vp.visitor_full_name,
 		"visitor_type": vp.visitor_type,
 		"visitor_type_layout": vp.visitor_type_layout,
+		"request_channel": vp.request_channel,
 		"badge_number": vp.badge_number,
 		"visitor_photo": vp.visitor_photo,
 		"id_proof_scan": vp.id_proof_scan,
@@ -445,6 +451,8 @@ def get_gate_context(visitor_pass: str):
 		"refusal": None,
 		"warning": None,
 		"policy": gate_policy(),
+		# Outside the booked time: shown to the officer before recording, never a refusal.
+		"timing_warning": timing_note(vp, movement["event_type"], now_datetime()),
 	}
 	if movement["refusal"]:
 		context["refusal"] = {"message": movement["refusal"][0], "title": movement["refusal"][1]}

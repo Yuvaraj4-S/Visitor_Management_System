@@ -3,6 +3,7 @@ from frappe.utils import (
 	add_to_date,
 	cint,
 	get_datetime,
+	get_time,
 	getdate,
 	now_datetime,
 	nowdate,
@@ -316,7 +317,7 @@ def flag_no_show_passes():
 			"no_show": 0,
 			"docstatus": ["<", 2],
 		},
-		fields=["name", "visit_date", "expected_checkout"],
+		fields=["name", "visit_date", "expected_checkin", "expected_checkout", "overnight_visit"],
 		# Order doesn't matter here — every candidate is evaluated regardless
 		# of order — and the implicit "modified desc" default forces a
 		# filesort alongside these unindexed filters. Skip it.
@@ -339,6 +340,14 @@ def flag_no_show_passes():
 		except Exception:
 			continue
 
+		if (
+			cint(cand.overnight_visit)
+			and cand.expected_checkin
+			and cand.expected_checkout
+			and get_datetime(f"{cand.visit_date} {cand.expected_checkout}")
+			<= get_datetime(f"{cand.visit_date} {cand.expected_checkin}")
+		):
+			deadline = add_to_date(deadline, days=1)  # night work ends the next morning
 		deadline = add_to_date(deadline, hours=grace_hours)
 		if now < deadline:
 			continue
@@ -456,6 +465,323 @@ def flag_no_show_passes():
 		)
 		for name in chunk:
 			frappe.clear_document_cache("Visitor Pass", name)
+
+	_tell_hosts_about_no_shows(names)
+
+
+def _tell_hosts_about_no_shows(names):
+	"""The host and whoever raised the pass hear their visitor did not come (bell + email).
+
+	The "VMS No-Show Alert" Notification waits for a save that changes no_show,
+	and this job sets it with one UPDATE — so it never fired and nobody was told.
+	Only passes this run actually marked are told about (a row that checked in
+	meanwhile fell out of the UPDATE above).
+	"""
+	from visitormanagement.visitor_management.people_alerts import alert_users, users_of_visit
+
+	if not names or not vms_settings.feature_on("alert_host_on_no_show"):
+		return
+	closes = vms_settings.feature_on("close_hospitality_after_visit")
+	for vp in frappe.get_all(
+		"Visitor Pass",
+		filters={"name": ("in", names), "no_show": 1},
+		fields=[
+			"name",
+			"visitor_full_name",
+			"company__organisation",
+			"visit_date",
+			"expected_checkin",
+			"expected_checkout",
+			"host_email",
+			"owner",
+			"submitted_for_approval_by",
+		],
+		order_by=None,
+	):
+		visitor = vp.visitor_full_name or vp.name
+		times = " – ".join(  # noqa: RUF001
+			get_time(t).strftime("%H:%M") for t in (vp.expected_checkin, vp.expected_checkout) if t
+		)
+		next_steps = (
+			frappe._(
+				"Any meal, cab or hotel arranged for them is closed automatically. If the visit is still needed, raise a new pass."
+			)
+			if closes
+			else frappe._(
+				"Cancel any meal, cab or hotel arranged for them. If the visit is still needed, raise a new pass."
+			)
+		)
+		message = (
+			"<p>"
+			+ esc(
+				frappe._("{0} did not arrive for their visit on {1} ({2}).").format(
+					visitor, vp.visit_date, times or "-"
+				)
+			)
+			+ "</p><p>"
+			+ esc(next_steps)
+			+ "</p>"
+		)
+		try:
+			alert_users(
+				users_of_visit(vp),
+				frappe._("No-show: {0} on {1}").format(visitor, vp.visit_date),
+				message,
+				"Visitor Pass",
+				vp.name,
+			)
+		except Exception:
+			from visitormanagement.visitor_management.lifecycle import log_failure
+
+			log_failure(f"VMS No-Show Alert: {vp.name}")
+
+
+_THANK_YOU_SINCE = "vms_thank_you_after_visit_since"
+
+
+def send_visit_thank_you():
+	"""Every 15 minutes: thank visitors whose visit is over — once.
+
+	The thank-you mail used to go at every check-out: a visitor who stepped out
+	for lunch was thanked for their visit and walked back in, and a three-day
+	contractor was thanked on the first evening. It now goes when the visitor is
+	checked out and the booked time of the last day has passed (plus the gate
+	tolerance), so a step-out that ends in coming back is never thanked.
+
+	The wording is the "VMS Visitor Thank You" Notification's subject and
+	message, so a site's own edits to it still apply; the Notification itself is
+	switched off once (setup.DISABLED_NOTIFICATIONS) so it cannot also send at
+	check-out. Passes checked out before this ran for the first time are left
+	alone: their visitor was already thanked the old way.
+	"""
+	from visitormanagement.visitor_management.gate_timing import booked_window, tolerance
+	from visitormanagement.visitor_management.lifecycle import log_failure, log_visitor_event
+	from visitormanagement.visitor_management.people_alerts import send_email
+
+	now = now_datetime()
+	if not vms_settings.feature_on("send_thank_you_email"):
+		# Switched off: when it is switched on again, only visits that end from
+		# then on are thanked, not everyone checked out in the meantime.
+		frappe.db.set_default(_THANK_YOU_SINCE, str(now))
+		return 0
+	since = frappe.db.get_default(_THANK_YOU_SINCE)
+	if not since:
+		frappe.db.set_default(_THANK_YOU_SINCE, str(now))
+		return 0
+	template = frappe.db.get_value(
+		"Notification", "VMS Visitor Thank You", ["subject", "message"], as_dict=True
+	)
+	slack = tolerance()
+	sent = 0
+	for row in frappe.get_all(
+		"Visitor Pass",
+		filters={
+			"status": "Checked-Out",
+			"docstatus": 1,
+			"email_id": ("is", "set"),
+			"actual_checkout": (">=", since),
+		},
+		fields=[
+			"name",
+			"visit_date",
+			"pass_valid_until",
+			"multi_day_pass",
+			"expected_checkin",
+			"expected_checkout",
+			"overnight_visit",
+		],
+		order_by=None,
+	):
+		last_day = (
+			row.pass_valid_until if cint(row.multi_day_pass) and row.pass_valid_until else row.visit_date
+		)
+		window = booked_window(row, get_datetime(f"{last_day} 12:00:00"))
+		visit_over = (now > window[1] + slack) if window else getdate(now) > getdate(last_day)
+		if not visit_over or frappe.db.exists(
+			"Visitor Event Log", {"visitor_pass": row.name, "event_type": "Thank You Sent"}
+		):
+			continue
+		doc = frappe.get_doc("Visitor Pass", row.name)
+		try:
+			context = {"doc": doc}
+			# The template is the "VMS Visitor Thank You" Notification's, which only a
+			# System Manager can edit — the same trust Frappe's own Notification sending gives it.
+			# nosemgrep: frappe-ssti
+			subject = frappe.render_template(
+				(template and template.subject) or "Thank you for visiting", context
+			)
+			# nosemgrep: frappe-ssti
+			message = frappe.render_template(
+				(template and template.message)
+				or "<p>Thank you for visiting, {{ doc.visitor_full_name }}. We hope your visit was productive.</p>",
+				context,
+			)
+			send_email([doc.email_id], subject, message, "Visitor Pass", doc.name)
+			log_visitor_event(doc.name, "Thank You Sent", details={"sent_at": str(now)})
+			sent += 1
+		except Exception:
+			log_failure(f"VMS Thank You: {doc.name}")
+	return sent
+
+
+def flag_overdue_visitors():
+	"""Every 15 minutes: tell the host and the gate when a visitor is still inside past their time.
+
+	A visitor due out at 15:00 who is still in at 15:40 is the everyday case — a
+	meeting ran over, or they left without being checked out. Either way the
+	host should know, and the gate should go and look. One bell alert and email
+	per visitor per day (a Visitor Event Log "Overdue" row records it), only
+	after the VMS Settings tolerance, and nothing is changed on the pass: a
+	check-out is recorded only when somebody sees them leave. The 12-hour
+	`flag_overstaying_visitors` alert stays as the safety net.
+	"""
+	from visitormanagement.visitor_management.gate_timing import _hhmm, _span, booked_window, tolerance
+	from visitormanagement.visitor_management.lifecycle import log_visitor_event
+	from visitormanagement.visitor_management.people_alerts import alert_users
+
+	if not vms_settings.feature_on("alert_overdue_visitors"):
+		return 0
+	now = now_datetime()
+	slack = tolerance()
+	security_users = [
+		name
+		for name in (
+			frappe.db.get_value("User", {"email": email}, "name") for email in _get_recipients(["Security"])
+		)
+		if name
+	]
+	flagged = 0
+	for row in frappe.get_all(
+		"Visitor Pass",
+		filters={
+			"status": "Checked-In",
+			"docstatus": 1,
+			"actual_checkin": (">=", add_to_date(now, days=-OVERSTAY_SCAN_WINDOW_DAYS)),
+		},
+		fields=[
+			"name",
+			"visitor_full_name",
+			"visit_date",
+			"expected_checkin",
+			"expected_checkout",
+			"multi_day_pass",
+			"pass_valid_until",
+			"overnight_visit",
+			"host_name",
+			"host_email",
+			"owner",
+			"badge_number",
+			"company__organisation",
+		],
+		order_by=None,
+	):
+		window = booked_window(row, now)
+		if not window or now <= window[1] + slack:
+			continue
+		end = window[1]
+		marker = f"Overdue {getdate(end)}"
+		if frappe.db.exists(
+			"Visitor Event Log", {"visitor_pass": row.name, "event_type": "Overdue", "event_status": marker}
+		):
+			continue
+		log_visitor_event(
+			row.name,
+			"Overdue",
+			event_status=marker,
+			details={"expected_checkout": str(end), "noticed_at": str(now)},
+		)
+		over = _span(now - end)
+		visitor = row.visitor_full_name or row.name
+		subject = frappe._("Still inside: {0} was due out at {1}").format(visitor, _hhmm(end))
+		message = (
+			"<p>"
+			+ esc(
+				frappe._("{0} was expected to leave at {1} and has not been checked out ({2} over).").format(
+					visitor, _hhmm(end), over
+				)
+			)
+			+ "</p><ul>"
+			+ "".join(
+				f"<li>{esc(label)}: <b>{esc(value)}</b></li>"
+				for label, value in (
+					(frappe._("Company"), row.company__organisation),
+					(frappe._("Host"), row.host_name),
+					(frappe._("Badge"), row.badge_number),
+					(frappe._("Pass"), row.name),
+				)
+				if value
+			)
+			+ "</ul><p>"
+			+ esc(
+				frappe._(
+					"If they have left, record the check-out at the gate; if the visit is running over, nothing needs doing."
+				)
+			)
+			+ "</p>"
+		)
+		recipients = [
+			u for u in (row.host_email,) if u and frappe.db.get_value("User", u, "enabled")
+		] + security_users
+		alert_users(recipients, subject, message, "Visitor Pass", row.name)
+		flagged += 1
+	return flagged
+
+
+def close_finished_hospitality():
+	"""Hourly: close hospitality requests whose visit is over.
+
+	The visitor's last check-out closes them straight away (Security Log); this
+	catches the rest — a no-show, a visit that ended without a check-out being
+	recorded, and a hotel stay that ran past the check-out — so the Hospitality
+	Manager's list does not fill with requests nobody will ever act on again.
+	"""
+	from visitormanagement.visitor_management.lifecycle import close_arrangements_after_visit, log_failure
+
+	if not vms_settings.feature_on("close_hospitality_after_visit"):
+		return
+	today_date = getdate(nowdate())
+	open_requests = frappe.get_all(
+		"Hospitality Request",
+		filters={"docstatus": ("<", 2), "status": ("not in", ("Completed", "Cancelled"))},
+		fields=["name", "visitor_pass", "hotel_required", "check_out"],
+		order_by=None,
+	)
+	passes = {r.visitor_pass for r in open_requests if r.visitor_pass}
+	if not passes:
+		return
+	pass_rows = {
+		p.name: p
+		for p in frappe.get_all(
+			"Visitor Pass",
+			filters={"name": ("in", list(passes))},
+			fields=["name", "status", "no_show", "visit_date", "pass_valid_until", "multi_day_pass"],
+			order_by=None,
+		)
+	}
+	for request in open_requests:
+		vp = pass_rows.get(request.visitor_pass)
+		if not vp:
+			continue
+		last_day = (
+			getdate(vp.pass_valid_until)
+			if cint(vp.multi_day_pass) and vp.pass_valid_until
+			else getdate(vp.visit_date)
+		)
+		visit_over = cint(vp.no_show) or (vp.status == "Checked-Out" and last_day <= today_date)
+		if not visit_over:
+			continue
+		# Each request closes on its own: one failure must not undo the others.
+		frappe.db.savepoint("vms_close_finished_hospitality")
+		try:
+			close_arrangements_after_visit(
+				vp.name,
+				reason=frappe._("The visitor did not come; nothing was arranged.")
+				if cint(vp.no_show)
+				else None,
+			)
+		except Exception:
+			frappe.db.rollback(save_point="vms_close_finished_hospitality")
+			log_failure(f"VMS Close Hospitality (hourly): {request.name}")
 
 
 # How far back the overstay scan looks for "Checked-In" passes. The job never

@@ -378,6 +378,7 @@ def count_event(key):
 def events_counted(key):
 	"""The current total of an hourly counter, without adding to it."""
 	try:
+		# nosemgrep: frappe-cache-breaks-multitenancy - _counter_key adds the site prefix (make_key)
 		return int(frappe.cache().get(_counter_key(key)) or 0)
 	except (TypeError, ValueError):
 		return 0

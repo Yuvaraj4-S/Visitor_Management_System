@@ -19,6 +19,7 @@
   "requires_badge",
   "issue_badge_at_gate",
   "requires_executive_notification",
+  "suggest_meals",
   "column_break_badge",
   "default_gate",
   "detail_layout"
@@ -86,36 +87,43 @@
   },
   {
    "default": "1",
+   "description": "Unticked types get QR-only access with no badge number.",
    "fieldname": "requires_badge",
    "fieldtype": "Check",
-   "label": "Requires Physical Badge",
-   "description": "Unticked types get QR-only access with no badge number."
+   "label": "Requires Physical Badge"
   },
   {
    "default": "0",
+   "description": "Badge number is minted during gate check-in instead of on approval.",
    "fieldname": "issue_badge_at_gate",
    "fieldtype": "Check",
-   "label": "Issue Badge at Gate",
-   "description": "Badge number is minted during gate check-in instead of on approval."
+   "label": "Issue Badge at Gate"
   },
   {
    "default": "0",
+   "description": "Pass cannot be submitted until 'MD/CEO Notified' is ticked.",
    "fieldname": "requires_executive_notification",
    "fieldtype": "Check",
-   "label": "Requires Executive Notification",
-   "description": "Pass cannot be submitted until 'MD/CEO Notified' is ticked."
+   "label": "Requires Executive Notification"
   },
   {
+   "default": "1",
+   "description": "Tick Meal Required by itself when the visit covers a meal time. Turn off for contractors, suppliers and deliveries; the host can still tick it.",
+   "fieldname": "suggest_meals",
+   "fieldtype": "Check",
+   "label": "Suggest Meals"
+  },
+  {
+   "description": "Which extra detail section the Visitor Pass form shows for this type. Leave blank for a type that needs only the common fields.",
    "fieldname": "detail_layout",
    "fieldtype": "Select",
    "label": "Detail Layout",
-   "options": "\nSupplier\nCustomer\nContractor\nCandidate\nVIP",
-   "description": "Which extra detail section the Visitor Pass form shows for this type. Leave blank for a type that needs only the common fields."
+   "options": "\nSupplier\nCustomer\nContractor\nCandidate\nVIP"
   }
  ],
  "icon": "fa fa-id-badge",
  "links": [],
- "modified": "2026-08-06 10:45:05.834235",
+ "modified": "2026-10-14 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Type",
@@ -140,6 +148,10 @@
    "report": 1,
    "role": "Employee",
    "share": 0
+  },
+  {
+   "role": "Security",
+   "select": 1
   }
  ],
  "quick_entry": 1,

@@ -99,6 +99,44 @@ The first migrate prints one line for each thing it changes. Keep that output.
 
 ### Added
 
+- **Gate Desk workspace and a short walk-in form.** Security gets a Gate Desk (New Walk-In,
+  Check-In / Check-Out, who is waiting, expected today and inside now). **New Walk-In** asks
+  only what a guard can ask the person in front of them; email is optional, today's date and
+  times are filled in, and the pass goes straight for approval to the Visitor Type's approver.
+  A guard with no Employee record can use it too: Security may create and edit only the
+  passes it raised itself, may send only walk-in passes for approval, and approves nothing.
+  At the gate a walk-in without a printed QR is let through with a written reason.
+- **Arriving or leaving outside the booked time only warns.** The guard sees an orange
+  message, the check-in or check-out is recorded as usual, and the Security Log keeps a note
+  ("Arrived 45 min late (booked 10:00–12:00)") and an **Outside Booked Time** flag. The
+  margin is **Gate Time Tolerance (minutes)** in VMS Settings, 30 by default. Visits that end
+  the next day are ticked **Ends Next Day** on the pass.
+- **Visits the gate has to know about.** Every 15 minutes the host and Security get a bell and
+  an email for a visitor still inside after the expected check-out ("Still inside: …"). Hosts
+  are told about no-shows, a thank-you mail goes to the visitor after the visit, and the host
+  and whoever raised the pass are told when it is approved, rejected (with the reason the
+  approver must now give) or cancelled.
+- **Hospitality shows its progress after approval.** Each service (meal, cab, hotel, tour,
+  buggy, greeting) has its own status, Pending, Booked, Done or Cancelled, and the request
+  shows a one-line summary. The coordinators the request is assigned to can record the
+  booking on the approved request; the host and the visitor are told what was booked, and the
+  pass shows a hospitality progress card. Requests close by themselves once the visit is
+  over. Meals are no longer suggested for Contractor and Supplier visits (**Suggest Meals** on
+  the Visitor Type).
+- **The country follows the site.** Home Country and the phone code come from the site's own
+  country (System Settings) unless VMS Settings names one; India / 91 only when nothing is
+  known. On a site outside India, Passport and Driving License take an international format
+  and Aadhaar and PAN Card are switched off (never deleted, and not when a pass uses them) —
+  once the setup wizard has run, if the app was installed before it. A site already in use
+  keeps what it has.
+- **Turn the app's own features on or off in VMS Settings.** The form is now in tabs
+  (General, Gate, Visits & Alerts, Hospitality, Public Form, Data Retention) and has nine
+  switches, all on by default so nothing changes until you choose: let the gate register
+  walk-ins; let a walk-in in without a QR scan (with a reason); warn when outside the booked
+  time; alert when a visitor stays past check-out; tell the host about a no-show; email the
+  visitor a thank-you; approver must give a reason to reject; email the visitor when a cab or
+  hotel is booked; close hospitality requests when the visit is over. A site upgraded to this
+  version gets each switch stored as on by the migrate.
 - **ID numbers are stored in full and shown masked.** The blacklist and the duplicate checks
   still match on the whole number, but nobody reads it off a screen any more: forms, lists,
   reports, exports, emails, prints, the change history and the API all carry the masked form
@@ -193,6 +231,11 @@ The first migrate prints one line for each thing it changes. Keep that output.
 
 ### Changed
 
+- **The dashboards are tidier.** Visitor Management shows its number cards in four even rows
+  (Today, Needs Action, Hospitality & Rooms Today, Security & Risk) and its charts two to a
+  row in one colour; the setup box moved to the bottom. No card shows "% since yesterday".
+  "Visitors On Site (All Dates)" is now **On Site Now** and "Passes Missing Photo (This Week)"
+  is **Missing Photo (This Week)**. Conference Rooms no longer lists the same links twice.
 - **A gate event is recorded when the officer says so.** A new Security Log has one button —
   **Record Check-In**, **Record Check-Out** or **Record Event** — and nothing is saved until
   it is pressed. Attaching the gate photo no longer saves the log. Before recording, the
@@ -273,6 +316,30 @@ The first migrate prints one line for each thing it changes. Keep that output.
   silently got none of it.
 
 ### Fixed
+
+- **Default Checkout Time is 18:00 on a new site**, not the minute the app was installed
+  (Frappe gives a new record's Time fields the current time). A site that already stored its
+  install moment gets 18:00 on the next migrate; a time an administrator chose is kept.
+- **A host's item list is no longer replaced by the short "Items Carried" text.** A host who
+  filled in both lost the serial numbers, values and real quantities of the list on save. The
+  list is now kept, and the text follows it; editing only the text still updates the list.
+- **The hospitality team sees the host's notes.** What the host writes under Hospitality Notes
+  (an allergy, a timing) was copied to a hidden field on the request. It now shows at the top
+  as "Notes From the Host".
+- **Tour stops can be booked after the request is approved**, by the Hospitality Manager or
+  the staff it is assigned to, like every other booking detail.
+- **A meal asked for says which meal.** A visit that covers no meal time (14:00–16:30, say)
+  went for approval with Meal Required and no meal; the host is now asked to choose one
+  (Snacks for refreshments) or untick it.
+- **A re-applied pass does not carry its old rejection reason** into the next decision or the
+  next rejection email.
+- **"Items Verified" and "All Items Verified" on the pass agree** after the gate verifies the
+  items.
+- **The pass's Check In / Check Out buttons show only to gate staff**, who are the only ones
+  the server lets use them.
+- **A guard with no Employee record can register walk-ins.** Security may create and edit only
+  the walk-in passes it raises, send only those for approval, and pick a Visitor Type; it
+  approves nothing.
 
 - **Fresh installs finish.** Workflow states, workflow actions and the roles a workflow
   refers to are now created before the workflow itself, so a clean install no longer ends up

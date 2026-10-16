@@ -2,6 +2,7 @@
 
 import re
 from io import BytesIO
+from urllib.parse import urlencode
 
 import frappe
 import qrcode
@@ -113,6 +114,7 @@ CONSENT_FIELDS = ("consent_given", "consent_timestamp", "consent_notice_version"
 
 # Why a user may not approve a pass (VisitorPass._approval_conflict), as told to them.
 # Functions, so that each is translated for the user reading it.
+# nosemgrep: frappe-breaks-multitenancy - fixed message functions, no site data is kept here
 _APPROVAL_CONFLICT_MESSAGES = {
 	"owner": lambda: _("You created this pass, so another approver has to approve it."),
 	"submitter": lambda: _("You sent this pass for approval, so another approver has to approve it."),
@@ -225,6 +227,7 @@ class VisitorPass(Document):
 		self._validate_group_members()
 		self._warn_conference_room_busy()
 		self._require_documents_to_leave_draft()
+		self._require_meal_type_to_send()
 		self._settle_executive_notification()
 		self._validate_not_blacklisted()
 		self._validate_schedule()
@@ -668,6 +671,10 @@ class VisitorPass(Document):
 		if self.workflow_state in lanes and not was_pending:
 			self.submitted_for_approval_by = frappe.session.user
 			self.flags.vms_sent_for_approval = True
+			# A pass sent again after a rejection: the old reason was for the old
+			# request. The host saw it while fixing the draft; a later rejection
+			# must not show (or email) it as if it were the new one.
+			self.rejection_reason = None
 		else:
 			self.submitted_for_approval_by = before.get("submitted_for_approval_by") if before else None
 
@@ -1382,6 +1389,28 @@ class VisitorPass(Document):
 					indicator="orange",
 				)
 
+	def _require_meal_type_to_send(self):
+		"""A meal asked for must say which meal, by the time the pass goes for approval.
+
+		The meal is filled in from the visit's times (VMS Settings -> Meal
+		Windows). A visit that covers no meal time — 14:00 to 16:30, say — got
+		none, so a pass with Meal Required went to the Hospitality Manager as
+		"Meal - (blank)", and the kitchen could not know what to make.
+		"""
+		if not self.flags.get("vms_sent_for_approval") or not cint(self.meal_required) or self.meal_type:
+			return
+		frappe.throw(
+			_(
+				"Meal Required is ticked but no Meal Type is chosen: the visit ({0} – {1}) does not cover a "  # noqa: RUF001
+				"meal time. Choose the meal on the Hospitality tab (Snacks for tea and refreshments), or "
+				"untick Meal Required."
+			).format(
+				get_time(self.expected_checkin).strftime("%H:%M") if self.expected_checkin else "-",
+				get_time(self.expected_checkout).strftime("%H:%M") if self.expected_checkout else "-",
+			),
+			title=_("Which Meal?"),
+		)
+
 	def _require_documents_to_leave_draft(self):
 		"""Photo and ID scan are needed to send a pass for approval, not to draft one.
 
@@ -1408,12 +1437,31 @@ class VisitorPass(Document):
 				if not self.get(field)
 			]
 			if missing:
-				frappe.throw(
-					_("{0} must be attached before this pass can be sent for approval.").format(
-						", ".join(missing)
-					),
-					title=_("Missing Documents"),
+				message = _("{0} must be attached before this pass can be sent for approval.").format(
+					", ".join(missing)
 				)
+				if self.request_channel not in ("Portal", "Walk-In") and self.email_id:
+					# A host inviting someone rarely has their photo and ID. The
+					# invitation link lets the visitor upload both themselves.
+					prefill = {
+						"visitor_type": self.visitor_type,
+						"visitor_email": self.email_id,
+						"visitor_full_name": self.visitor_full_name,
+						"host_employee": self.person_to_visit,
+						"visit_date": self.visit_date,
+						"expected_checkin": self.expected_checkin,
+						"expected_checkout": self.expected_checkout,
+						"purpose_of_visit": self.purpose_of_visit,
+					}
+					route = "/app/visitor-invitation/new?" + urlencode(
+						{k: v for k, v in prefill.items() if v}
+					)
+					message += "<br><br>" + _(
+						"Don't have them? {0} instead: the visitor gets a link and uploads their own photo and ID."
+					).format(
+						f'<a href="{frappe.utils.escape_html(route)}">{_("Send the visitor an invitation")}</a>'
+					)
+				frappe.throw(message, title=_("Missing Documents"))
 
 	# Roles whose approval is itself the MD/CEO being told about the visit.
 	EXECUTIVE_APPROVER_ROLES = ("CEO",)
@@ -1497,13 +1545,18 @@ class VisitorPass(Document):
 
 		# Check-in before check-out
 		if self.expected_checkin and self.expected_checkout:
-			if get_time(self.expected_checkin) >= get_time(self.expected_checkout):
+			ends_after_midnight = get_time(self.expected_checkin) >= get_time(self.expected_checkout)
+			if ends_after_midnight and not cint(self.get("overnight_visit")):
 				frappe.throw(
-					_("Expected Check-In ({0}) must be before Expected Check-Out ({1}).").format(
-						self.expected_checkin, self.expected_checkout
-					),
+					_(
+						"Expected Check-In ({0}) must be before Expected Check-Out ({1}). "
+						"For night work that ends after midnight, tick Ends Next Day."
+					).format(self.expected_checkin, self.expected_checkout),
 					title=_("Invalid Time Range"),
 				)
+			if not ends_after_midnight and cint(self.get("overnight_visit")):
+				# Ends Next Day only means something when the times cross midnight.
+				self.overnight_visit = 0
 
 	def _validate_formats(self):
 		"""Validate email and ID proof number format per type."""
@@ -1621,6 +1674,8 @@ class VisitorPass(Document):
 		ci = get_time(self.expected_checkin)
 		co = get_time(self.expected_checkout)
 		duration_hours = (co.hour * 60 + co.minute - ci.hour * 60 - ci.minute) / 60
+		if duration_hours <= 0 and cint(self.get("overnight_visit")):
+			duration_hours += 24  # ends the next morning
 		if duration_hours > max_hours:
 			frappe.throw(
 				_(
@@ -1834,6 +1889,14 @@ class VisitorPass(Document):
 			# Already consistent; don't rebuild anything.
 			return
 
+		if rows and self._item_rows_changed(rows):
+			# The table was filled in or edited on this save: it holds what the text
+			# cannot (category, serial number, value, the real quantity), so it is
+			# the record and the text becomes its summary. Rebuilding the rows from
+			# the text instead dropped all of that when a host filled in both.
+			self.items_carried = auto_summary
+			return
+
 		if text:
 			parsed = self._parse_items_carried(text)
 			if not parsed:
@@ -1889,6 +1952,28 @@ class VisitorPass(Document):
 		elif rows:
 			# items_carried empty but rows exist (portal flow) → derive summary
 			self.items_carried = auto_summary
+
+	_ITEM_ROW_FIELDS = (
+		"item_name",
+		"quantity",
+		"item_code",
+		"item_category",
+		"unit_of_measure",
+		"serial_number",
+		"description",
+		"estimated_value",
+	)
+
+	def _item_rows_changed(self, rows):
+		"""Were the item rows added or edited on this save (not rebuilt from the text)?"""
+
+		def signature(items):
+			return [tuple(cstr(row.get(f)) for f in self._ITEM_ROW_FIELDS) for row in items or []]
+
+		before = self.get_doc_before_save()
+		if before is None:
+			return bool(rows)
+		return signature(rows) != signature(before.get("visitor_items"))
 
 	@staticmethod
 	def _parse_items_carried(text):
@@ -2136,6 +2221,63 @@ class VisitorPass(Document):
 		self.db_set("status", "Cancelled")
 		# The visit is off, so its meal request and room booking are too.
 		call_off_pass_arrangements(self)
+		messages_before = list(frappe.message_log)
+		try:
+			self._tell_everyone_cancelled()
+		except Exception:
+			log_failure(f"VMS Cancelled Alert: {self.name}")
+		finally:
+			frappe.local.message_log = messages_before
+
+	def _tell_everyone_cancelled(self):
+		"""A cancelled visit tells the visitor, the host and whoever raised the pass.
+
+		Nobody was told: the visitor still held an approval mail with a QR code
+		that now fails at the gate, and turned up to be refused. Only a pass that
+		had been approved sent that mail, so only then is the visitor written to.
+		"""
+		from visitormanagement.visitor_management.people_alerts import alert_users, send_email, users_of_visit
+
+		visitor = self.visitor_full_name or self.name
+		times = " – ".join(  # noqa: RUF001
+			get_time(t).strftime("%H:%M") for t in (self.expected_checkin, self.expected_checkout) if t
+		)
+		alert_users(
+			users_of_visit(self, exclude=(frappe.session.user,)),
+			_("Cancelled: {0} on {1}").format(visitor, self.visit_date),
+			"<p>"
+			+ esc(
+				_("Visitor Pass {0} for {1} on {2} ({3}) has been cancelled by {4}.").format(
+					self.name,
+					visitor,
+					self.visit_date,
+					times or "-",
+					frappe.utils.get_fullname(frappe.session.user),
+				)
+			)
+			+ "</p><p>"
+			+ esc(_("Any meal, cab, hotel or room arranged for it is called off."))
+			+ "</p>",
+			self.doctype,
+			self.name,
+		)
+		if self.email_id and self.approval_date:
+			send_email(
+				[self.email_id],
+				_("Your visit on {0} has been cancelled").format(self.visit_date),
+				"<p>"
+				+ esc(_("Dear {0},").format(visitor))
+				+ "</p><p>"
+				+ esc(
+					_(
+						"Your visit on {0} with {1} has been cancelled, and the QR code sent to you earlier "
+						"will no longer open the gate. Please contact your host if you have any questions."
+					).format(self.visit_date, self.host_name or _("your host"))
+				)
+				+ "</p>",
+				self.doctype,
+				self.name,
+			)
 
 	# ─────────────────────────────────────────────────────────
 	# ON SUBMIT
@@ -2177,6 +2319,49 @@ class VisitorPass(Document):
 				self._notify_food_dept()
 			finally:
 				frappe.local.message_log = messages_before
+
+		messages_before = list(frappe.message_log)
+		try:
+			self._tell_host_and_sender_approved()
+		except Exception:
+			log_failure(f"VMS Approved Alert: {self.name}")
+		finally:
+			frappe.local.message_log = messages_before
+
+	def _tell_host_and_sender_approved(self):
+		"""The host and whoever raised the pass hear it was approved (bell + email).
+
+		Nobody told them before: the visitor got the approval mail, the gate got
+		"verify items", and the host — and the guard who registered a walk-in at
+		the gate and was waiting to let them in — had to keep reopening the pass.
+		The approver is left out: they have just done it.
+		"""
+		from visitormanagement.visitor_management.people_alerts import alert_users, users_of_visit
+
+		users = users_of_visit(self, exclude=(frappe.session.user,))
+		if not users:
+			return
+		visitor = self.visitor_full_name or self.name
+		gate = self._arrival_gate()
+		subject = _("Approved: {0} on {1}").format(visitor, self.visit_date)
+		times = " – ".join(  # noqa: RUF001
+			get_time(t).strftime("%H:%M") for t in (self.expected_checkin, self.expected_checkout) if t
+		)
+		rows = [
+			(_("Visitor"), visitor),
+			(_("Company"), self.company__organisation),
+			(_("Visit"), f"{self.visit_date} {times}".strip()),
+			(_("Host"), self.host_name),
+			(_("Gate"), gate),
+			(_("Badge"), self.badge_number),
+		]
+		message = (
+			f"<p>{esc(_('Visitor Pass {0} has been approved. The visitor may now be let in at the gate.').format(self.name))}</p>"
+			"<ul>"
+			+ "".join(f"<li>{esc(label)}: <b>{esc(value)}</b></li>" for label, value in rows if value)
+			+ "</ul>"
+		)
+		alert_users(users, subject, message, self.doctype, self.name)
 
 	# ─────────────────────────────────────────────────────────
 	# GENERATE BADGE NUMBER (Called by Security Log)
@@ -2538,6 +2723,7 @@ PASS_FORM_SETTING_KEYS = (
 	"enable_badge",
 	"badge_required_for",
 	"foreign_national_id_types",
+	"require_rejection_reason",
 )
 
 
@@ -2563,6 +2749,7 @@ def get_pass_form_settings() -> dict:
 	  enable_badge               whether the badge fields are shown at all
 	  badge_required_for         the legacy per-type badge list (Visitor Type names)
 	  foreign_national_id_types  names of the ID Proof Types a foreign visitor may present
+	  require_rejection_reason   whether Reject asks the approver why
 	"""
 	if not frappe.has_permission("Visitor Pass", "read"):
 		frappe.throw(_("You do not have access to Visitor Passes."), frappe.PermissionError)
@@ -2580,6 +2767,7 @@ def get_pass_form_settings() -> dict:
 		"foreign_national_id_types": frappe.get_all(
 			"ID Proof Type", filters={"valid_for_foreign_nationals": 1}, pluck="name", order_by="name asc"
 		),
+		"require_rejection_reason": cint(vms_settings.feature_on("require_rejection_reason")),
 	}
 	return {key: values[key] for key in PASS_FORM_SETTING_KEYS}
 
@@ -2949,3 +3137,24 @@ def record_meeting_outcome(
 	# question here, and nothing else on the pass changes.
 	doc.save(ignore_permissions=True)
 	return {fieldname: doc.get(fieldname) for fieldname in doc.MEETING_OUTCOME_FIELDS}
+
+
+@frappe.whitelist(methods=["POST"])
+def set_rejection_reason(visitor_pass: str, reason: str):
+	"""Record why a pass is being rejected, just before the Reject action.
+
+	Frappe's workflow action reloads the pass from the database before it moves
+	it (frappe.model.workflow.apply_workflow), so a reason typed on the form would
+	be lost on the way. Only somebody who may take Reject on this pass, now, may
+	write it.
+	"""
+	from frappe.model.workflow import get_transitions
+
+	reason = (reason or "").strip()
+	if not reason:
+		frappe.throw(_("Give a reason for rejecting the pass."))
+	doc = frappe.get_doc("Visitor Pass", visitor_pass)
+	if not any(t.action == "Reject" for t in get_transitions(doc)):
+		frappe.throw(_("You cannot reject this pass."), frappe.PermissionError)
+	doc.db_set("rejection_reason", reason[:1000])
+	return reason

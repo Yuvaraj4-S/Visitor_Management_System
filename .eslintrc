@@ -121,6 +121,8 @@
 		"qz": true,
 		"localforage": true,
 		"extend_cscript": true,
-		"vms_setup_core_link_pickers": true
+		"vms_setup_core_link_pickers": true,
+		"vms_open_walk_in_dialog": true,
+		"vms_when_walk_in_enabled": true
 	}
 }

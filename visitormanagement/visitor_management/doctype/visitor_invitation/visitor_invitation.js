@@ -55,6 +55,25 @@ frappe.ui.form.on("Visitor Invitation", {
 			return;
 		}
 
+		// --- Cancel Invitation: the link stops working at once ---
+		if (["Draft", "Sent", "Opened", "Saved"].includes(frm.doc.invitation_status)) {
+			frm.add_custom_button(__("Cancel Invitation"), () => {
+				frappe.confirm(
+					__("Cancel this invitation? The link sent to {0} will stop working at once.", [
+						frappe.utils.escape_html(frm.doc.visitor_email || __("the visitor")),
+					]),
+					() =>
+						frm.call("cancel_invitation").then(() => {
+							frappe.show_alert({
+								message: __("Invitation cancelled"),
+								indicator: "orange",
+							});
+							frm.reload_doc();
+						})
+				);
+			});
+		}
+
 		// --- Send Invitation button ---
 		if (
 			frm.doc.visitor_email &&

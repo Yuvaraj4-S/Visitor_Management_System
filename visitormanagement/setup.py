@@ -104,6 +104,15 @@ HOSPITALITY_REPORT_RUNNERS = ["Hospitality User"]
 # cancelled request that can never be amended is a dead end.
 HOSPITALITY_CANCELLERS = ["Hospitality Manager", "System Manager"]
 
+# Who books what the Hospitality Manager approved (the cab, the hotel, the tour,
+# the greeting) on the approved request. See _ensure_permissions.
+HOSPITALITY_ARRANGERS = [
+	"Hospitality User",
+	"Transport Coordinator",
+	"Factory Tour Coordinator",
+	"Greeting Staff",
+]
+
 # The same trap, one doctype over. The Visitor Pass workflow now offers
 # Approved --Cancel--> Cancelled, but no DocPerm row granted `cancel` on Visitor
 # Pass to anyone, so the action would appear in the Actions menu and then be
@@ -140,6 +149,8 @@ HOSPITALITY_DIGEST_READERS = [
 VISITOR_TYPES = [
 	{
 		"visitor_type_name": "Contractor",
+		# Working visitors: no meal ticked just because the visit spans lunch.
+		"suggest_meals": 0,
 		"approver_role": "System Manager",
 		"badge_prefix": "CON",
 		"badge_colour": "Orange",
@@ -164,6 +175,8 @@ VISITOR_TYPES = [
 	},
 	{
 		"visitor_type_name": "Supplier",
+		# Working visitors: no meal ticked just because the visit spans lunch.
+		"suggest_meals": 0,
 		"approver_role": "System Manager",
 		"badge_prefix": "SUP",
 		"badge_colour": "Teal",
@@ -243,6 +256,22 @@ ID_PROOF_TYPES = [
 	},
 ]
 
+# The formats above are India's. On a site set up for another country the two
+# documents every country has take an international shape, and the two that only
+# India issues are not offered (_seed_id_proof_types, _fit_id_proof_types_to_country).
+INDIA_ONLY_ID_PROOF_TYPES = ("Aadhaar", "PAN Card")
+INTERNATIONAL_ID_FORMATS = {
+	"Passport": {
+		"validation_regex": "^[A-Z0-9]{6,12}$",
+		"error_message": "Passport must be 6–12 letters or digits.",  # noqa: RUF001
+	},
+	"Driving License": {
+		"validation_regex": "^[A-Z0-9 -]{4,20}$",
+		"normalisation": "Uppercase and strip spaces",
+		"error_message": "Driving License must be 4–20 letters, digits, spaces or hyphens.",  # noqa: RUF001
+	},
+}
+
 MEAL_WINDOWS = [
 	{"meal_label": "Breakfast", "start_time": "08:00:00", "end_time": "09:00:00"},
 	{"meal_label": "Lunch", "start_time": "13:00:00", "end_time": "14:00:00"},
@@ -261,8 +290,9 @@ POLICY_DEFAULTS = {
 	"max_advance_booking_days": 90,
 	"invitation_expiry_days": 7,
 	"no_show_grace_hours": 4,
-	"default_country_code": "91",
-	"home_country": "India",
+	# Not home_country / default_country_code: left blank, they follow the site's
+	# own country (settings.home_country / country_code). Stored as India / 91 for
+	# every site, they made every local visitor of a site abroad a foreign national.
 	"fever_threshold_c": 37.5,
 	"max_portal_submissions_per_hour": 20,
 	# Only the number, not the switch: `data_retention_enabled` defaults to 0 in
@@ -278,7 +308,17 @@ POLICY_DEFAULTS = {
 # two "Visit Approved" emails for the same pass. Disabled once at setup time,
 # same as everything else `enabled=0` — after that, an admin who re-enables
 # one through the Desk keeps it enabled; see `_configure_notifications`.
-DISABLED_NOTIFICATIONS = ["VMS Host Alert", "VMS Food Dept Alert", "VMS Approval Email"]
+DISABLED_NOTIFICATIONS = [
+	"VMS Host Alert",
+	"VMS Food Dept Alert",
+	"VMS Approval Email",
+	# Sent from code now: the no-show job sets no_show with one UPDATE, which this
+	# Notification never saw (tasks._tell_hosts_about_no_shows) ...
+	"VMS No-Show Alert",
+	# ... and the thank-you waits for the visit to be over, not the first
+	# check-out (tasks.send_visit_thank_you, which uses this one's wording).
+	"VMS Visitor Thank You",
+]
 
 # On Frappe 15 this app never turns on the System Setting
 # `allow_guests_to_upload_files`: the visitor portal sends its files inside the
@@ -609,7 +649,9 @@ def setup_visitor_management():
 	_seed_gates()
 	_seed_visitor_types()
 	_seed_id_proof_types()
+	_fit_id_proof_types_to_country()
 	_seed_settings()
+	_settle_default_checkout_time()
 	_drop_stale_property_setters()
 	_clear_stale_layout_fields()
 	_rewrite_event_log_details()
@@ -631,6 +673,8 @@ def setup_visitor_management():
 	_harden_invitation_token_collation()
 	_seed_static_workflows()
 	_repair_seed_self_approval()
+	_let_arrangers_edit_approved_requests()
+	_let_guards_register_walk_ins()
 	_build_workflow()
 	# After the Visitor Types are seeded and the workflow is generated, so the
 	# approver set these read is the same one the lanes were built from. Same three
@@ -840,6 +884,15 @@ def _ensure_permissions():
 	for role in HOSPITALITY_CANCELLERS:
 		_grant("Hospitality Request", role, "cancel")
 		_grant("Hospitality Request", role, "amend")
+	# The people who arrange what the Hospitality Manager approved. Frappe needs
+	# "submit" to save an approved (submitted) request at all — which is where the
+	# cab, hotel and tour get booked. Which requests they can open is still the
+	# row rule in permissions.py (assigned to them, raised by them, their visitor),
+	# what they may change is HospitalityRequest.before_update_after_submit, and
+	# approving stays with the Hospitality Manager through the workflow.
+	for role in HOSPITALITY_ARRANGERS:
+		for ptype in ("read", "write", "submit"):
+			_grant("Hospitality Request", role, ptype)
 	# _grant_visitor_pass_cancel() is deliberately NOT called here. It reads the
 	# approver roles off the Visitor Type masters, and `_seed_visitor_types()` has
 	# not run yet at this point in `setup_visitor_management()` — so on a FRESH
@@ -852,6 +905,10 @@ def _ensure_permissions():
 	# masters.
 	for role in VISITOR_PASS_READERS:
 		_grant("Visitor Pass", role)
+	# A guard registering a walk-in picks the Visitor Type; a contract guard has
+	# no Employee role, which is what reads it otherwise (_let_guards_register_walk_ins).
+	# Select only: the guard can search and pick a type; the master stays closed.
+	_grant("Visitor Type", "Security", "select")
 	for role in HOSPITALITY_DIGEST_READERS:
 		_grant("Hospitality Request", role)
 	for role in HOSPITALITY_REPORT_RUNNERS:
@@ -1150,16 +1207,18 @@ def _sync_approval_notification_recipients():
 
 	Rebuilt from the same source the lanes come from, so the two cannot drift.
 	"""
-	name = "VMS PRR Submitted"
-	if not frappe.db.exists("Notification", name):
-		return
-
 	from visitormanagement.visitor_management.workflow_builder import approver_roles, lane_for_role
 
 	roles = [r for r in approver_roles() if frappe.db.exists("Role", r)]
 	if not roles:
 		return
+	# The email and its bell-only twin (which still works on a site with no mail server).
+	for name in ("VMS PRR Submitted", "VMS PRR Submitted In-App"):
+		if frappe.db.exists("Notification", name):
+			_point_approval_alert_at(name, roles, lane_for_role)
 
+
+def _point_approval_alert_at(name, roles, lane_for_role):
 	doc = frappe.get_doc("Notification", name)
 	wanted = {(r, f"doc.workflow_state == {lane_for_role(r)!r}") for r in roles}
 	current = {(r.receiver_by_role, (r.condition or "").strip()) for r in doc.recipients}
@@ -1178,7 +1237,7 @@ def _sync_approval_notification_recipients():
 	doc.save(ignore_permissions=True)
 	added = sorted(r for r, _ in wanted - current)
 	if added:
-		print(f"  approval alert now also reaches: {', '.join(added)}")
+		print(f"  {name} now also reaches: {', '.join(added)}")
 
 
 def _seed_gates():
@@ -1211,12 +1270,72 @@ def _seed_visitor_types():
 
 
 def _seed_id_proof_types():
+	"""Create the shipped ID Proof Types that are missing, in the shape for the site's country.
+
+	A site whose country is not known yet (installed before the setup wizard, as
+	on Frappe Cloud) gets the Indian set; _fit_id_proof_types_to_country adapts
+	it once the country is known.
+	"""
+	from visitormanagement.visitor_management.settings import site_country
+
+	abroad = site_country() not in (None, "India")
 	for spec in ID_PROOF_TYPES:
-		if frappe.db.exists("ID Proof Type", spec["id_proof_type_name"]):
+		name = spec["id_proof_type_name"]
+		if frappe.db.exists("ID Proof Type", name) or (abroad and name in INDIA_ONLY_ID_PROOF_TYPES):
 			continue
-		frappe.get_doc({"doctype": "ID Proof Type", "is_active": 1, **spec}).insert(ignore_permissions=True)
-		print(f"  created ID Proof Type {spec['id_proof_type_name']}")
+		values = {**spec, **INTERNATIONAL_ID_FORMATS.get(name, {})} if abroad else spec
+		frappe.get_doc({"doctype": "ID Proof Type", "is_active": 1, **values}).insert(ignore_permissions=True)
+		print(f"  created ID Proof Type {name}")
 	frappe.cache.delete_value("vms_id_proof_types")
+
+
+_ID_TYPES_FITTED_MARKER = "vms_id_proof_types_fitted_to_country"
+
+
+def _fit_id_proof_types_to_country():
+	"""Once the site's country is known and is not India, adapt the Indian ID types created earlier.
+
+	Only records still exactly as this app created them are touched; one an
+	administrator edited is theirs. Passport and Driving License take the
+	international format. Aadhaar and PAN Card are switched off (never deleted),
+	unless a pass already uses them. Runs once: after the setup wizard
+	(setup_wizard_success) or at the first migrate that knows the country.
+	"""
+	from visitormanagement.visitor_management.settings import site_country
+
+	if frappe.db.get_default(_ID_TYPES_FITTED_MARKER):
+		return
+	country = site_country()
+	if not country:
+		return  # not known yet: try again after the setup wizard
+	if country != "India":
+		for spec in ID_PROOF_TYPES:
+			name = spec["id_proof_type_name"]
+			stored = frappe.db.get_value(
+				"ID Proof Type", name, ["validation_regex", "error_message", "is_active"], as_dict=True
+			)
+			if not stored or (stored.validation_regex or "", stored.error_message or "") != (
+				spec.get("validation_regex") or "",
+				spec.get("error_message") or "",
+			):
+				continue
+			if name in INTERNATIONAL_ID_FORMATS:
+				frappe.db.set_value("ID Proof Type", name, INTERNATIONAL_ID_FORMATS[name])
+				print(f"  ID Proof Type {name}: international format for a site in {country}")
+			elif (
+				name in INDIA_ONLY_ID_PROOF_TYPES
+				and stored.is_active
+				and not frappe.db.exists("Visitor Pass", {"id_proof_type": name})
+			):
+				frappe.db.set_value("ID Proof Type", name, "is_active", 0)
+				print(f"  ID Proof Type {name}: switched off for a site in {country}")
+		frappe.cache.delete_value("vms_id_proof_types")
+	frappe.db.set_default(_ID_TYPES_FITTED_MARKER, "1")
+
+
+def after_setup_wizard(wizard_values=None):
+	"""`setup_wizard_success` hook: the site's country is known now."""
+	_fit_id_proof_types_to_country()
 
 
 def _seed_settings():
@@ -1238,6 +1357,34 @@ def _seed_settings():
 		settings.flags.ignore_mandatory = True
 		settings.save(ignore_permissions=True)
 		print("  seeded VMS Settings defaults")
+
+
+def _settle_default_checkout_time():
+	"""Default Checkout Time is 18:00 unless an administrator chose another time.
+
+	Frappe 15 gives a Time field of a newly created document the present moment
+	(frappe/model/create_new.py set_dynamic_default_values), default or not, so
+	every new site stored the minute it was installed (21:34, say) instead of the
+	shipped 18:00. Such a value carries microseconds; a time typed into the form
+	never does, so only the framework's value is replaced.
+	"""
+	from frappe.utils import get_time
+
+	stored = frappe.db.get_value(
+		"Singles", {"doctype": "VMS Settings", "field": "default_checkout_time"}, "value", order_by=None
+	)
+	if not stored:
+		return
+	try:
+		chosen_by_someone = not get_time(stored).microsecond
+	except Exception:
+		chosen_by_someone = True
+	if chosen_by_someone:
+		return
+	default = frappe.get_meta("VMS Settings").get_field("default_checkout_time").default or "18:00:00"
+	frappe.db.set_single_value("VMS Settings", "default_checkout_time", default, update_modified=False)
+	frappe.clear_document_cache("VMS Settings")
+	print(f"  VMS Settings: Default Checkout Time was the install moment ({stored}); set to {default}")
 
 
 def _drop_stale_property_setters():
@@ -1847,6 +1994,91 @@ def _load_workflow_seed():
 			return json.load(f)
 	except OSError:
 		return []
+
+
+_GUARDS_WALK_IN_MARKER = "vms_guards_register_walk_ins"
+
+
+def _let_guards_register_walk_ins():
+	"""Once: a guard can register a walk-in, even one with no Employee record.
+
+	Gate Desk offers "New Walk-In", but Visitor Pass gave Security read only, so a
+	guard who is a contract worker (no Employee record, so no Employee role) got
+	"Not permitted". Security now creates and edits only the passes it raised
+	itself ("Only If Creator"), as visitor_pass.json ships for new sites; the
+	workflow lets it send just walk-in passes for approval, and approving stays
+	with the Visitor Type's approver (workflow_builder.GATE_ROLE). A site whose
+	Visitor Pass permissions are stored as Custom DocPerm does not read the
+	doctype's own rows, so the row is added there. One-time: an admin who
+	removes it keeps it removed.
+	"""
+	if frappe.db.get_default(_GUARDS_WALK_IN_MARKER):
+		return
+	if frappe.db.exists("Role", "Security") and frappe.db.exists(
+		"Custom DocPerm", {"parent": "Visitor Pass"}
+	):
+		if not frappe.db.exists(
+			"Custom DocPerm", {"parent": "Visitor Pass", "role": "Security", "permlevel": 0, "if_owner": 1}
+		):
+			frappe.get_doc(
+				{
+					"doctype": "Custom DocPerm",
+					"parent": "Visitor Pass",
+					"parenttype": "DocType",
+					"parentfield": "permissions",
+					"role": "Security",
+					"permlevel": 0,
+					"if_owner": 1,
+					"read": 1,
+					"write": 1,
+					"create": 1,
+				}
+			).insert(ignore_permissions=True)
+			frappe.clear_cache(doctype="Visitor Pass")
+			print("  Visitor Pass: Security may now register walk-ins it raises (one-time)")
+	frappe.db.set_default(_GUARDS_WALK_IN_MARKER, "1")
+
+
+_ARRANGERS_EDIT_MARKER = "vms_hospitality_arrangers_edit_approved"
+
+
+def _let_arrangers_edit_approved_requests():
+	"""Once: the people who book cabs, hotels, tours and greetings can edit an approved request.
+
+	The workflow's "Approved" state named only the Hospitality Manager under
+	"Only Allow Edit For", so the form opened read-only for the coordinator the
+	request was assigned to — the person who actually makes the bookings — and
+	nobody could record "Cab booked, driver Ramesh". The server already let them
+	(HospitalityRequest.before_update_after_submit decides what they may change);
+	the form did not. Adds one "Approved" state row per arranging role, as
+	workflow_seed.json now ships for new sites. Approving stays a transition the
+	Hospitality Manager alone holds. One-time: rows an admin removes stay removed.
+	"""
+	name = "Hospitality Request Approval"
+	if frappe.db.get_default(_ARRANGERS_EDIT_MARKER) or not frappe.db.exists("Workflow", name):
+		return
+	workflow = frappe.get_doc("Workflow", name)
+	approved = [s for s in workflow.states if s.state == "Approved"]
+	if approved:
+		have = {s.allow_edit for s in approved}
+		added = []
+		for role in HOSPITALITY_ARRANGERS:
+			if role in have or not frappe.db.exists("Role", role):
+				continue
+			workflow.append(
+				"states",
+				{
+					"state": "Approved",
+					"doc_status": approved[0].doc_status,
+					"allow_edit": role,
+					"send_email": 0,
+				},
+			)
+			added.append(role)
+		if added:
+			workflow.save(ignore_permissions=True)
+			print(f"  {name}: approved requests now editable by {', '.join(added)} (one-time)")
+	frappe.db.set_default(_ARRANGERS_EDIT_MARKER, "1")
 
 
 def _repair_seed_self_approval():

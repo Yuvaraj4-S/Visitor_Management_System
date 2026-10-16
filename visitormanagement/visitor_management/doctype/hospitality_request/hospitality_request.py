@@ -11,7 +11,7 @@ from frappe.utils import cstr, date_diff, flt, get_datetime, get_time, getdate, 
 from visitormanagement.conference_room.doctype.conference_room.conference_room import (
 	_is_framework_now as is_framework_now,
 )
-from visitormanagement.permissions import HOSPITALITY_OVERSEERS, check_visitor_pass_link
+from visitormanagement.permissions import HOSPITALITY_OVERSEERS, _assigned_users, check_visitor_pass_link
 from visitormanagement.visitor_management.lifecycle import (
 	log_failure,
 	populate_hospitality_request_from_pass,
@@ -19,6 +19,71 @@ from visitormanagement.visitor_management.lifecycle import (
 	sync_hospitality_to_pass,
 )
 from visitormanagement.visitor_management.mail import esc, send_after_commit
+from visitormanagement.visitor_management.people_alerts import alert_users, send_email, users_of_visit
+from visitormanagement.visitor_management.settings import feature_on
+
+# Every service a request can carry: (asked-for flag, its progress field, label).
+# Progress runs Pending -> Booked (arranged; the host is told) -> Done (delivered).
+SERVICES = (
+	("meal_required", "meal_status", "Meal"),
+	("cab_required", "cab_status", "Cab"),
+	("hotel_required", "hotel_status", "Hotel"),
+	("factory_tour_required", "tour_status", "Factory Tour"),
+	("buggy_required", "buggy_status", "Buggy"),
+	("greeting_required", "greeting_status", "Greeting"),
+)
+SERVICE_STATUS_FIELDS = tuple(status for _flag, status, _label in SERVICES)
+# Set by lifecycle.ensure_hospitality_request on the save that copies the pass across.
+SYNC_FROM_PASS_FLAG = "vms_sync_from_pass"
+ARRANGED = ("Booked", "Done")
+
+# What has to be written down before a service can be called Booked — the one
+# detail the people delivering it cannot do without.
+DETAILS_TO_BOOK = {
+	# A round trip is booked by where it starts; a drop-only cab by where it goes.
+	"cab_status": (
+		("pickup_location", "Pickup Location", ("Pickup", "Both")),
+		("drop_location", "Drop Location", ("Drop",)),
+	),
+	"hotel_status": (("hotel_name", "Hotel", None),),
+	"tour_status": (("tour_guide", "Tour Guide", None), ("tour_start_time", "Tour Start Time", None)),
+	"buggy_status": (("buggy_pickup_point", "Buggy Pickup Point", None),),
+	"greeting_status": (("greeting_type", "Greeting Type", None),),
+}
+
+# Arrangement details the team fills in once something is booked — after approval
+# too. Changing them on an approved request is theirs alone (before_update_after_submit).
+BOOKING_FIELDS = (
+	"cab_type",
+	"pickup_location",
+	"pickup_datetime",
+	"cab_pickup_instructions",
+	"drop_location",
+	"drop_datetime",
+	"cab_vendor",
+	"driver_name",
+	"driver_phone",
+	"hotel_name",
+	"check_in",
+	"check_out",
+	"room_type",
+	"no_of_rooms",
+	"no_of_guests",
+	"booking_reference",
+	"hotel_special_requests",
+	"tour_start_time",
+	"tour_end_time",
+	"tour_guide",
+	"buggy_pickup_point",
+	"buggy_drop_point",
+	"buggy_datetime",
+	"buggy_number",
+	"buggy_driver",
+	"greeting_type",
+	"greeting_delivery_time",
+	"greeting_delivery_point",
+	"greeting_assigned_to",
+)
 
 
 def _get_assigned_staff_email(employee_name):
@@ -118,6 +183,71 @@ class HospitalityRequest(Document):
 		self._validate_seating_capacity()
 		self._validate_hotel_in_visit_window()
 		self._validate_activities_in_visit_window()
+		self._validate_service_progress()
+		self._derive_status_from_services()
+		self.services_summary = self._services_summary()
+
+	# ------------------------------------------------------------------
+	# Progress of each service
+	# ------------------------------------------------------------------
+
+	def _asked_for(self):
+		"""(status field, label) of every service this request carries."""
+		return [(status, label) for flag, status, label in SERVICES if self.get(flag)]
+
+	def _validate_service_progress(self):
+		"""Booked or Done only once the visit is approved, and only with what the job needs."""
+		for _flag, status, _label in SERVICES:
+			if not self.get(status):
+				self.set(status, "Pending")
+		arranged = [(status, label) for status, label in self._asked_for() if self.get(status) in ARRANGED]
+		if not arranged:
+			return
+		if (self.get("workflow_state") or "Draft") in ("Draft", "Rejected"):
+			frappe.throw(
+				_("{0} cannot be marked Booked or Done before the visit is approved.").format(
+					", ".join(_(label) for _status, label in arranged)
+				),
+				title=_("Not Approved Yet"),
+			)
+		missing = []
+		for status, label in arranged:
+			for fieldname, field_label, cab_types in DETAILS_TO_BOOK.get(status, ()):
+				if cab_types and self.cab_type not in cab_types:
+					continue
+				if not self.get(fieldname):
+					missing.append(_("{0}: {1}").format(_(label), _(field_label)))
+		if missing:
+			frappe.throw(
+				_("Fill these in before marking them Booked:") + "<br>" + "<br>".join(missing),
+				title=_("Booking Details Missing"),
+			)
+
+	def _derive_status_from_services(self):
+		"""The request's Status follows its services: nobody has to keep it up to date.
+
+		Pending while nothing is arranged, Confirmed once anything is Booked or Done,
+		Completed when every service asked for is Done (or called off, with at least
+		one Done). Left alone while every service is still Pending, so a Status set
+		some other way (the pass's food status, a cancellation) is not undone.
+		"""
+		if self.status == "Cancelled" or self.docstatus == 2:
+			return
+		statuses = [self.get(status) for status, _label in self._asked_for()]
+		if not statuses or all(s == "Pending" for s in statuses):
+			return
+		if all(s in ("Done", "Cancelled") for s in statuses) and "Done" in statuses:
+			self.status = "Completed"
+		elif any(s in ARRANGED for s in statuses):
+			self.status = "Confirmed"
+		else:
+			self.status = "Pending"
+
+	def _services_summary(self):
+		parts = [f"{label} – {self.get(status) or 'Pending'}" for status, label in self._asked_for()]  # noqa: RUF001
+		if self.conference_room:
+			parts.append(f"{_('Room')} – {self.conference_room}")  # noqa: RUF001
+		return ", ".join(parts)[:140]
 
 	def validate_workflow(self):
 		"""Frappe's transition check, except for the step the system takes with the pass.
@@ -152,18 +282,30 @@ class HospitalityRequest(Document):
 		before = self.get_doc_before_save()
 		if not before:
 			return
+		self._check_who_changes_bookings(before)
+		self._after_submit_checks()
+
+	def _check_who_changes_bookings(self, before):
 		changed = [
 			fieldname
-			for fieldname in self.SERVICE_RECORD_FIELDS
+			for fieldname in (*self.SERVICE_RECORD_FIELDS, *BOOKING_FIELDS, *SERVICE_STATUS_FIELDS)
 			if (
 				flt(before.get(fieldname)) != flt(self.get(fieldname))
 				if fieldname.endswith("_cost")
 				else cstr(before.get(fieldname)) != cstr(self.get(fieldname))
 			)
 		]
+		if _tour_rows(before) != _tour_rows(self):
+			# The tour's stops are booked after approval too.
+			changed.append("tour_areas")
 		if not changed:
 			return
-		if not self._may_keep_service_record(frappe.session.user):
+		# The system's own copy from the pass (lifecycle.ensure_hospitality_request)
+		# only fills booking details that are empty; it is nobody's edit. It says so
+		# with its own flag — `ignore_permissions` is not enough, a caller can set that.
+		if not self.flags.get(SYNC_FROM_PASS_FLAG) and not self._may_keep_service_record(
+			frappe.session.user, stored=before
+		):
 			frappe.throw(
 				_(
 					"Only the Hospitality Manager or the assigned staff can record {0} on an approved request."
@@ -174,11 +316,33 @@ class HospitalityRequest(Document):
 			if flt(self.get(fieldname)) < 0:
 				frappe.throw(_("{0} cannot be negative.").format(_(self.meta.get_label(fieldname))))
 
-	def _may_keep_service_record(self, user):
+	def _after_submit_checks(self):
+		"""Frappe runs no `validate` when an approved request is saved, and this is
+		where bookings are made: the same checks, and the status that follows them."""
+		self._compute_hotel_nights()
+		self._validate_cab_timing()
+		self._validate_tour_safety()
+		self._validate_buggy_conflict()
+		self._validate_hotel_in_visit_window()
+		self._validate_activities_in_visit_window()
+		self._validate_service_progress()
+		self._derive_status_from_services()
+		self.services_summary = self._services_summary()
+
+	def _may_keep_service_record(self, user, stored=None):
+		"""`stored`: the request as saved before this edit — who it is assigned to is
+		read from there, so nobody becomes "assigned" by naming themselves in the same save."""
+		stored = stored or self
 		if user == "Administrator" or set(frappe.get_roles(user)) & set(HOSPITALITY_OVERSEERS):
 			return True
+		# Assigned with Frappe's own "Assigned To" (the sidebar), which also gives a ToDo and a
+		# bell alert. Read from the stored record, never from the document being saved.
+		if user in _assigned_users(self.name):
+			return True
 		employee = frappe.db.get_value("Employee", {"user_id": user}, "name") if user != "Guest" else None
-		return bool(employee and employee == self.assigned_staff)
+		return bool(
+			employee and employee in (stored.get("assigned_staff"), stored.get("greeting_assigned_to"))
+		)
 
 	def _forget_times_nobody_entered(self):
 		"""Empty the Time fields Frappe filled with "now" on a new request.
@@ -450,3 +614,170 @@ class HospitalityRequest(Document):
 		)
 		if status_changed_to_confirmed or assigned_staff_changed:
 			_send_hospitality_assignment_mail(self)
+		self._tell_what_was_booked(previous)
+
+	def on_update_after_submit(self):
+		# Bookings happen on the approved request: the pass and the people need to
+		# hear about them just as they do before approval.
+		self.on_update()
+
+	def _tell_what_was_booked(self, previous):
+		"""When a service becomes Booked, the host and whoever raised the pass hear about it.
+
+		The visitor is emailed too for a cab or a hotel — the two they have to act on
+		(be at the pickup point, go to the hotel). Nobody is told about a status that
+		only moved back, or was already Booked or Done.
+		"""
+		newly_booked = [
+			(status, label)
+			for status, label in self._asked_for()
+			if self.get(status) in ARRANGED
+			and (not previous or (previous.get(status) or "Pending") not in ARRANGED)
+		]
+		if not newly_booked or not self.visitor_pass:
+			return
+		visitor_pass = frappe.get_doc("Visitor Pass", self.visitor_pass)
+		visitor = visitor_pass.visitor_full_name or visitor_pass.name
+		lines = [_booking_line(self, status, label) for status, label in newly_booked]
+		labels = ", ".join(_(label) for _status, label in newly_booked)
+		subject = _("Booked for {0}: {1}").format(visitor, labels)
+		body = (
+			f"<p>{esc(_('These have been arranged for your visitor {0} ({1}):').format(visitor, visitor_pass.visit_date))}</p>"
+			f"<ul>{''.join(f'<li>{line}</li>' for line in lines)}</ul>"
+			f"<p>{esc(_('Hospitality request'))}: {esc(self.name)} · {esc(_('Visitor Pass'))}: {esc(visitor_pass.name)}</p>"
+		)
+		alert_users(
+			users_of_visit(visitor_pass, exclude=(frappe.session.user,)),
+			subject,
+			body,
+			"Visitor Pass",
+			visitor_pass.name,
+		)
+		for_visitor = [(s, label) for s, label in newly_booked if s in ("cab_status", "hotel_status")]
+		if for_visitor and visitor_pass.email_id and feature_on("email_visitor_about_bookings"):
+			send_email(
+				[visitor_pass.email_id],
+				_("Your {0} for the visit on {1}").format(
+					", ".join(_(label).lower() for _s, label in for_visitor), visitor_pass.visit_date
+				),
+				f"<p>{esc(_('Dear {0},').format(visitor))}</p>"
+				f"<p>{esc(_('We have arranged the following for your visit:'))}</p>"
+				f"<ul>{''.join(f'<li>{_booking_line(self, s, label)}</li>' for s, label in for_visitor)}</ul>"
+				f"<p>{esc(_('Please contact your host if anything needs to change.'))}</p>",
+				"Visitor Pass",
+				visitor_pass.name,
+			)
+
+
+def _tour_rows(doc):
+	"""The tour's stops, as plain values, to tell whether somebody changed them."""
+	fields = ("area_name", "from_time", "to_time", "responsible_person", "remarks")
+	return [tuple(cstr(row.get(f)) for f in fields) for row in doc.get("tour_areas") or []]
+
+
+@frappe.whitelist()
+def get_hospitality_progress(visitor_pass: str):
+	"""What the host sees on the pass: each service asked for, how far it has got, and its details.
+
+	Only for somebody who may open the pass. Plain values; the form escapes them.
+	"""
+	if not frappe.has_permission("Visitor Pass", "read", doc=visitor_pass):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	request_name = frappe.db.get_value("Visitor Pass", visitor_pass, "hospitality_request")
+	room = frappe.db.get_value(
+		"Conference Room Booking",
+		{"visitor_pass": visitor_pass, "docstatus": ("<", 2)},
+		["name", "conference_room", "workflow_state"],
+		as_dict=True,
+		order_by="creation desc",
+	)
+	result = {"request": None, "room": room}
+	if not request_name:
+		return result
+	doc = frappe.get_doc("Hospitality Request", request_name)
+
+	def employee(name):
+		return frappe.db.get_value("Employee", name, "employee_name") if name else None
+
+	def join(*values, sep=" "):
+		return sep.join(cstr(v) for v in values if v) or None
+
+	details = {
+		"meal_status": [("Meal", doc.meal_type)],
+		"cab_status": [
+			("Pickup", join(doc.pickup_datetime, doc.pickup_location)),
+			("Drop", join(doc.drop_datetime, doc.drop_location)),
+			("Driver", join(doc.driver_name, doc.driver_phone)),
+			("Cab company", doc.cab_vendor),
+		],
+		"hotel_status": [
+			("Hotel", doc.hotel_name),
+			("Stay", join(doc.check_in, doc.check_out, sep=" → ")),
+			("Booking reference", doc.booking_reference),
+		],
+		"tour_status": [
+			("Time", join(doc.tour_start_time, doc.tour_end_time, sep=" – ")),  # noqa: RUF001
+			("Guide", employee(doc.tour_guide)),
+		],
+		"buggy_status": [
+			("Pickup", join(doc.buggy_datetime, doc.buggy_pickup_point)),
+			("Buggy", doc.buggy_number),
+		],
+		"greeting_status": [
+			("Greeting", join(doc.greeting_type, doc.greeting_delivery_point, sep=" at ")),
+			("By", employee(doc.greeting_assigned_to)),
+		],
+	}
+	result["request"] = {
+		"name": doc.name,
+		"workflow_state": doc.workflow_state,
+		"status": doc.status,
+		"assigned_to": [
+			frappe.utils.get_fullname(user) for user in (frappe.parse_json(doc.get("_assign") or "[]") or [])
+		],
+		"services": [
+			{
+				"label": _(label),
+				"status": doc.get(status) or "Pending",
+				"details": [(_(k), v) for k, v in details.get(status, []) if v],
+			}
+			for status, label in doc._asked_for()
+		],
+	}
+	return result
+
+
+def _booking_line(doc, status, label):
+	"""One line of HTML: the service and the details people need to use it."""
+
+	def part(field_label, value):
+		return f"{esc(_(field_label))}: <b>{esc(value)}</b>" if value else ""
+
+	details = {
+		"meal_status": [part("Meal", doc.meal_type)],
+		"cab_status": [
+			part("Pickup", " ".join(cstr(v) for v in (doc.pickup_datetime, doc.pickup_location) if v)),
+			part("Drop", " ".join(cstr(v) for v in (doc.drop_datetime, doc.drop_location) if v)),
+			part("Driver", " ".join(cstr(v) for v in (doc.driver_name, doc.driver_phone) if v)),
+		],
+		"hotel_status": [
+			part("Hotel", doc.hotel_name),
+			part("Stay", f"{doc.check_in} → {doc.check_out}" if doc.check_in and doc.check_out else None),
+			part("Booking reference", doc.booking_reference),
+		],
+		"tour_status": [
+			part("Tour", " – ".join(cstr(v) for v in (doc.tour_start_time, doc.tour_end_time) if v)),  # noqa: RUF001
+			part(
+				"Guide",
+				frappe.db.get_value("Employee", doc.tour_guide, "employee_name") if doc.tour_guide else None,
+			),
+		],
+		"buggy_status": [
+			part("Buggy pickup", " ".join(cstr(v) for v in (doc.buggy_datetime, doc.buggy_pickup_point) if v))
+		],
+		"greeting_status": [
+			part("Greeting", " ".join(cstr(v) for v in (doc.greeting_type, doc.greeting_delivery_point) if v))
+		],
+	}.get(status, [])
+	shown = " · ".join(p for p in details if p)
+	return f"<b>{esc(_(label))}</b> ({esc(_(doc.get(status)))})" + (f" — {shown}" if shown else "")

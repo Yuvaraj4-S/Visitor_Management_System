@@ -9,14 +9,14 @@
  "idx": 0,
  "is_public": 1,
  "is_standard": 1,
- "label": "Passes Missing Photo (This Week)",
- "modified": "2026-08-31 14:00:00.000000",
+ "label": "Missing Photo (This Week)",
+ "modified": "2026-10-16 10:46:42.140027",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Passes Missing Photo",
  "owner": "Administrator",
  "show_full_number": 0,
- "show_percentage_stats": 1,
+ "show_percentage_stats": 0,
  "stats_time_interval": "Daily",
  "type": "Document Type"
 }

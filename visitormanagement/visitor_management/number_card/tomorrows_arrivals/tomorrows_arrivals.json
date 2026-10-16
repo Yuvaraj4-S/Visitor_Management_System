@@ -10,13 +10,13 @@
  "is_public": 1,
  "is_standard": 1,
  "label": "Tomorrow's Arrivals",
- "modified": "2026-04-20 00:00:00.000000",
+ "modified": "2026-10-16 10:45:07.055929",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Tomorrow's Arrivals",
  "owner": "Administrator",
  "show_full_number": 0,
- "show_percentage_stats": 1,
+ "show_percentage_stats": 0,
  "stats_time_interval": "Daily",
  "type": "Document Type"
 }

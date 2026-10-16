@@ -1,19 +1,55 @@
 // For license information, please see license.txt
 
+// Each service asked for: its flag, its progress field and its label.
+const HOSPITALITY_SERVICES = [
+	["meal_required", "meal_status", __("Meal")],
+	["cab_required", "cab_status", __("Cab")],
+	["hotel_required", "hotel_status", __("Hotel")],
+	["factory_tour_required", "tour_status", __("Factory Tour")],
+	["buggy_required", "buggy_status", __("Buggy")],
+	["greeting_required", "greeting_status", __("Greeting")],
+];
+
+function is_booked(frm, status_field) {
+	return ["Booked", "Done"].includes(frm.doc[status_field]);
+}
+
 function sync_reqd_flags(frm) {
 	// UI-only sync of required-field markers. Must NOT call set_value() — doing
 	// so on refresh dirties the form and shows "Not Saved" before the user has
 	// touched anything.
+	//
+	// The details a service needs are asked for when it is marked Booked, not
+	// before approval: the Hospitality Manager approves what was asked for, and
+	// whoever arranges it fills in the details as they become known.
 	const t = frm.doc.cab_type;
 	const needs_pickup = t === "Pickup" || t === "Both";
-	const needs_drop = t === "Drop" || t === "Both";
+	const cab = frm.doc.cab_required && is_booked(frm, "cab_status");
 	frm.toggle_reqd(["cab_type"], frm.doc.cab_required);
-	frm.toggle_reqd(["pickup_location", "pickup_datetime"], frm.doc.cab_required && needs_pickup);
-	frm.toggle_reqd(["drop_location", "drop_datetime"], frm.doc.cab_required && needs_drop);
+	frm.toggle_reqd(["pickup_location", "pickup_datetime"], cab && needs_pickup);
+	frm.toggle_reqd(["drop_location", "drop_datetime"], cab && t === "Drop");
 	frm.toggle_reqd(["check_in", "check_out"], frm.doc.hotel_required);
-	frm.toggle_reqd(["tour_guide"], frm.doc.factory_tour_required);
-	frm.toggle_reqd(["buggy_pickup_point", "buggy_datetime"], frm.doc.buggy_required);
-	frm.toggle_reqd(["greeting_type", "greeting_delivery_time"], frm.doc.greeting_required);
+	frm.toggle_reqd(["hotel_name"], frm.doc.hotel_required && is_booked(frm, "hotel_status"));
+	frm.toggle_reqd(
+		["tour_guide", "tour_start_time"],
+		frm.doc.factory_tour_required && is_booked(frm, "tour_status")
+	);
+	frm.toggle_reqd(
+		["buggy_pickup_point"],
+		frm.doc.buggy_required && is_booked(frm, "buggy_status")
+	);
+	frm.toggle_reqd(
+		["greeting_type"],
+		frm.doc.greeting_required && is_booked(frm, "greeting_status")
+	);
+}
+
+// "Meal: Done · Cab: Booked · Hotel: Pending" — what is left to do, at a glance.
+function hospitality_progress_line(frm) {
+	const parts = HOSPITALITY_SERVICES.filter(([flag]) => frm.doc[flag]).map(
+		([, status, label]) => `${label}: ${__(frm.doc[status] || "Pending")}`
+	);
+	return parts.length ? parts.join(" · ") : "";
 }
 
 // One line telling whoever opens the request what it is waiting for. Frappe
@@ -45,15 +81,23 @@ function set_hospitality_intro(frm) {
 	} else if (state === "Pending Approval") {
 		frm.set_intro(
 			__(
-				"Waiting for the Hospitality Manager. Check the sections below and complete the details before approving."
+				"Waiting for the Hospitality Manager. Approve what was asked for; booking details can be filled in now or after approval."
 			),
 			"orange"
 		);
 	} else if (frm.doc.docstatus === 1) {
+		const progress = hospitality_progress_line(frm);
 		frm.set_intro(
-			__("Approved. Arrange what is ticked below and update Status as each part is done."),
+			frm.doc.status === "Completed"
+				? __("Completed. Everything asked for has been delivered.")
+				: __(
+						"Approved. Set each service to Booked when it is arranged (the host is told) and Done when it has been delivered. To hand a service to a colleague, use Assigned To on the left."
+				  ),
 			"green"
 		);
+		if (progress) {
+			frm.set_intro(__("Progress: {0}", [frappe.utils.escape_html(progress)]), "blue");
+		}
 	}
 }
 
@@ -105,8 +149,7 @@ frappe.ui.form.on("Hospitality Request", {
 		const t = frm.doc.cab_type;
 		const needs_pickup = t === "Pickup" || t === "Both";
 		const needs_drop = t === "Drop" || t === "Both";
-		frm.toggle_reqd(["pickup_location", "pickup_datetime"], needs_pickup);
-		frm.toggle_reqd(["drop_location", "drop_datetime"], needs_drop);
+		sync_reqd_flags(frm);
 		if (!needs_pickup) {
 			frm.set_value("pickup_location", null);
 			frm.set_value("pickup_datetime", null);
@@ -158,10 +201,18 @@ frappe.ui.form.on("Hospitality Request", {
 	},
 
 	buggy_required(frm) {
-		frm.toggle_reqd(["buggy_pickup_point", "buggy_datetime"], frm.doc.buggy_required);
+		sync_reqd_flags(frm);
 	},
 
 	greeting_required(frm) {
-		frm.toggle_reqd(["greeting_type", "greeting_delivery_time"], frm.doc.greeting_required);
+		sync_reqd_flags(frm);
 	},
+
+	// Marking a service Booked asks for the details it needs.
+	meal_status: sync_reqd_flags,
+	cab_status: sync_reqd_flags,
+	hotel_status: sync_reqd_flags,
+	tour_status: sync_reqd_flags,
+	buggy_status: sync_reqd_flags,
+	greeting_status: sync_reqd_flags,
 });

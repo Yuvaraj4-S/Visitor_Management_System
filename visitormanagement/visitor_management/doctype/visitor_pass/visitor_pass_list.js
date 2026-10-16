@@ -13,7 +13,19 @@ const VISITOR_PASS_GATE_INDICATORS = {
 };
 
 frappe.listview_settings["Visitor Pass"] = {
-	add_fields: ["status", "no_show", "workflow_state"],
+	add_fields: ["status", "no_show", "workflow_state", "request_channel"],
+
+	onload(listview) {
+		// The gate's short form for a visitor who has just arrived (public/js/walk_in.js).
+		if (
+			frappe.model.can_create("Visitor Pass") &&
+			typeof vms_when_walk_in_enabled === "function"
+		) {
+			vms_when_walk_in_enabled(() =>
+				listview.page.add_inner_button(__("New Walk-In"), () => vms_open_walk_in_dialog())
+			);
+		}
+	},
 
 	get_indicator(doc) {
 		if (doc.docstatus !== 1) return;

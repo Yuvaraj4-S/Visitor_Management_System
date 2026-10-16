@@ -106,16 +106,45 @@ def max_portal_submissions_per_hour():
 	return _int("max_portal_submissions_per_hour", DEFAULT_MAX_PORTAL_SUBMISSIONS_PER_HOUR)
 
 
+def site_country():
+	"""The country the site was set up for (System Settings), or None before the setup wizard."""
+	try:
+		return frappe.db.get_single_value("System Settings", "country") or None
+	except Exception:
+		return None
+
+
+def _dialling_code(country):
+	"""Digits of a country's ISD code ("+971" -> "971"), from Frappe's own country data."""
+	if not country:
+		return None
+	try:
+		from frappe.geo.country_info import get_country_info
+
+		isd = (get_country_info(country) or {}).get("isd") or ""
+	except Exception:
+		return None
+	return "".join(c for c in str(isd) if c.isdigit()) or None
+
+
 def country_code():
+	"""Dialling code for local mobile numbers: the setting, else the home country's, else 91."""
 	doc = _settings()
 	raw = (getattr(doc, "default_country_code", None) or "") if doc else ""
 	digits = "".join(c for c in str(raw) if c.isdigit())
-	return digits or DEFAULT_COUNTRY_CODE
+	return digits or _dialling_code(home_country()) or DEFAULT_COUNTRY_CODE
 
 
 def home_country():
+	"""Visitors from any other country are foreign nationals.
+
+	The setting when an administrator chose one, else the site's own country
+	(System Settings, set by the setup wizard), else India. The app used to
+	store India for every new site, so a site in Dubai treated every local
+	visitor as foreign — passport and visa copy required.
+	"""
 	doc = _settings()
-	return (getattr(doc, "home_country", None) if doc else None) or DEFAULT_HOME_COUNTRY
+	return (getattr(doc, "home_country", None) if doc else None) or site_country() or DEFAULT_HOME_COUNTRY
 
 
 def flag(fieldname, fallback=0):
@@ -124,6 +153,42 @@ def flag(fieldname, fallback=0):
 	if not doc:
 		return cint(fallback)
 	return cint(getattr(doc, fieldname, fallback))
+
+
+# On/off switches for the app's own features (VMS Settings -> Features). Each is
+# on by default, which is how the app behaved before the switch existed.
+FEATURE_SWITCHES = {
+	"enable_walk_in_registration": 1,
+	"allow_walk_in_without_qr": 1,
+	"warn_outside_booked_time": 1,
+	"alert_overdue_visitors": 1,
+	"alert_host_on_no_show": 1,
+	"send_thank_you_email": 1,
+	"require_rejection_reason": 1,
+	"email_visitor_about_bookings": 1,
+	"close_hospitality_after_visit": 1,
+}
+
+
+def feature_on(fieldname):
+	"""Is this feature switched on in VMS Settings?
+
+	A switch that was never saved reads as its default. Frappe loads a Check that
+	is not stored as 0 (BaseDocument._fix_numeric_types), so a site upgraded to a
+	version with a new switch would otherwise find the feature off before anyone
+	chose that; upgrades/platform_steps stores the defaults on the next migrate.
+	"""
+	default = FEATURE_SWITCHES.get(fieldname, 0)
+	doc = _settings()
+	if not doc:
+		return bool(default)
+	if cint(getattr(doc, fieldname, 0)):
+		return True
+	# `tabSingles` has no `modified` column, which get_value sorts by unless told not to.
+	stored = frappe.db.get_value(
+		"Singles", {"doctype": "VMS Settings", "field": fieldname}, "value", order_by=None
+	)
+	return bool(default) if stored is None else False
 
 
 DEFAULT_SECURITY_ALERT_ROLES = ("Security", "System Manager")

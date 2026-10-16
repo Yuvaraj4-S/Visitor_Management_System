@@ -107,38 +107,16 @@ frappe.ui.form.on("Visitor Pass", {
 		fetch_customer_crm_details(frm);
 	},
 
+	// Picking the Supplier records WHO the visit is against. It does not touch the
+	// Visitor Profile: the person at the gate is a human being, not the supplier
+	// master, and whoever raised the pass has already typed their real name,
+	// mobile, email and company. Overwriting that lost the visitor's own details.
 	supplier_link(frm) {
-		if (frm.doc.supplier_link) {
-			frappe.call({
-				method: 'frappe.client.get',
-				args: { doctype: 'Supplier', name: frm.doc.supplier_link },
-				callback: function(r) {
-					if (r.message) {
-						frm.set_value('visitor_full_name', r.message.supplier_name);
-						frm.set_value('mobile_number', r.message.mobile_no || '');
-						frm.set_value('email_id', r.message.email_id || '');
-						frm.set_value('company__organisation', r.message.supplier_name);
-					}
-				}
-			});
-		}
+		// link only — the pass details stay as entered
 	},
 
 	contractor_link(frm) {
-		if (frm.doc.contractor_link) {
-			frappe.call({
-				method: 'frappe.client.get',
-				args: { doctype: 'Supplier', name: frm.doc.contractor_link },
-				callback: function(r) {
-					if (r.message) {
-						frm.set_value('visitor_full_name', r.message.supplier_name);
-						frm.set_value('mobile_number', r.message.mobile_no || '');
-						frm.set_value('email_id', r.message.email_id || '');
-						frm.set_value('company__organisation', r.message.supplier_name);
-					}
-				}
-			});
-		}
+		// link only — the pass details stay as entered (see supplier_link above)
 	},
 
 	job_applicant_link(frm) {
@@ -389,39 +367,23 @@ function fetch_customer_crm_details(frm) {
 				return;
 			}
 
-			let visitor_full_name = "";
-			let mobile_number = "";
-			let email_id = "";
-			let company__organisation = "";
 			let sales_executive = "";
 
 			if (frm.doc.crm_reference_type === "Lead") {
-				visitor_full_name = message.lead_name || "";
-				mobile_number = message.mobile_no || "";
-				email_id = message.email_id || "";
-				company__organisation = message.company_name || "";
 				sales_executive = message.lead_owner || "";
 			} else if (frm.doc.crm_reference_type === "Opportunity") {
-				visitor_full_name = message.contact_display || message.customer_name || "";
-				mobile_number = message.contact_mobile || "";
-				email_id = message.contact_email || "";
-				company__organisation = message.customer_name || "";
 				sales_executive = message.opportunity_owner || "";
 			} else if (frm.doc.crm_reference_type === "Customer") {
-				visitor_full_name = message.customer_name || "";
-				mobile_number = message.mobile_no || "";
-				email_id = message.email_id || "";
-				company__organisation = message.customer_name || "";
 				// Sales executive might need to be fetched differently
 			}
 
-			frm.set_value({
-				visitor_full_name: visitor_full_name,
-				mobile_number: mobile_number,
-				email_id: email_id,
-				company__organisation: company__organisation,
-				sales_executive: sales_executive,
-			});
+			// Only the Sales Executive is taken from the CRM record — it decides
+			// who inside Kaynes owns the visit. Visitor Full Name, Mobile, Email
+			// and Company are left exactly as they were entered: choosing a Lead,
+			// Opportunity or Customer must never rewrite the visitor's own details.
+			if (sales_executive) {
+				frm.set_value("sales_executive", sales_executive);
+			}
 
 			if (message.owner_user && !message.sales_executive) {
 				frappe.show_alert(

@@ -107,6 +107,63 @@ class TestNationalityDefault(FrappeTestCase):
         self.assertIn("Laptop", vp.items_carried or "")
 
 
+class TestVisaCopyUpload(FrappeTestCase):
+    """custom_visa_copy from the guest portal is stored like id_proof_scan: only a
+    file uploaded with the request is kept, never a URL supplied by the guest."""
+
+    def _payload(self, host, **extra):
+        payload = {
+            "visitor_type": "Contractor",
+            "entry_type": "New",
+            "visitor_full_name": "HSF Visa Copy",
+            "mobile_number": "9876500003",
+            "email_id": "hsf-visa@example.com",
+            "id_proof_type": "PAN Card",
+            "id_proof_number": _fresh_pan(),
+            "id_proof_scan": PNG_DATA_URI,
+            "visitor_photo": PNG_DATA_URI,
+            "purpose_of_visit": "Visa copy upload test",
+            "person_to_visit": host,
+            "visit_date": nowdate(),
+            "expected_checkin": "10:00:00",
+            "expected_checkout": "17:00:00",
+            "submission_action": "submit",
+        }
+        payload.update(extra)
+        return payload
+
+    def _submit(self, payload):
+        from visitormanagement.visitor_management import portal
+
+        result = portal.submit_pre_registration(payload=json.dumps(payload))
+        name = result["name"] if isinstance(result, dict) else result
+        self.assertTrue(name, "portal submission returned no Visitor Pass")
+        return frappe.get_doc("Visitor Pass", name)
+
+    def test_guest_supplied_url_is_not_stored(self):
+        host = _active_host()
+        if not host:
+            self.skipTest("no active Employee")
+        vp = self._submit(self._payload(host, custom_visa_copy="/private/files/someone-elses-passport.pdf"))
+        self.assertFalse(vp.custom_visa_copy)
+
+    def test_uploaded_visa_copy_is_stored_privately_and_attached(self):
+        host = _active_host()
+        if not host:
+            self.skipTest("no active Employee")
+        vp = self._submit(self._payload(host, custom_visa_copy=PNG_DATA_URI, custom_visa_copy_filename="visa.png"))
+        self.assertTrue((vp.custom_visa_copy or "").startswith("/private/files/"))
+        attached = frappe.db.get_value(
+            "File",
+            {"file_url": vp.custom_visa_copy},
+            ["attached_to_doctype", "attached_to_name", "attached_to_field"],
+            as_dict=True,
+        )
+        self.assertEqual(attached.attached_to_doctype, "Visitor Pass")
+        self.assertEqual(attached.attached_to_name, vp.name)
+        self.assertEqual(attached.attached_to_field, "custom_visa_copy")
+
+
 class TestBadgeColourPalette(FrappeTestCase):
     """#2 — a Visitor Type using one of the new colours must not crash the pass."""
 

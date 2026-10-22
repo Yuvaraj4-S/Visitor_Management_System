@@ -239,7 +239,9 @@ def _get_portal_submission_state(visitor_type, submission_action):
 	return "Draft"
 
 
-def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_photo_url, invitation=None):
+def _build_visitor_pass_values(
+	data, person_to_visit, id_proof_url, visitor_photo_url, invitation=None, visa_copy_url=None
+):
 	visitor_type = invitation.visitor_type if invitation else data.get("visitor_type")
 	submission_action = (data.get("submission_action") or "submit").strip().lower()
 	target_state = _get_portal_submission_state(visitor_type, submission_action)
@@ -295,7 +297,7 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		# nationals). When absent, the Visitor Pass controller defaults nationality
 		# to the home country, so the mandatory field never blocks the submission.
 		"custom_nationality": data.get("custom_nationality"),
-		"custom_visa_copy": data.get("custom_visa_copy"),
+		"custom_visa_copy": visa_copy_url,
 		"id_proof_type": _normalize_id_proof_type(data.get("id_proof_type")),
 		"id_proof_number": data.get("id_proof_number"),
 		"id_proof_scan": id_proof_url,
@@ -394,6 +396,16 @@ def submit_pre_registration(payload=None):
 		data.get("visitor_photo"),
 		data.get("visitor_photo_filename") or "visitor-photo.png",
 	)
+	# The visa copy goes through the same upload path as the ID proof. Only a file
+	# uploaded with this request (a data URI) is accepted: any other value, such as
+	# the URL of an existing file, is dropped rather than stored on the pass.
+	visa_copy_payload = data.get("custom_visa_copy")
+	if not (isinstance(visa_copy_payload, str) and "data:" in visa_copy_payload):
+		visa_copy_payload = None
+	visa_copy_filename, visa_copy_content = _extract_file_payload(
+		visa_copy_payload,
+		data.get("custom_visa_copy_filename") or "visitor-visa-copy.png",
+	)
 	person_to_visit = _resolve_employee_link(invitation.host_employee if invitation else data.get("person_to_visit"))
 	visitor_items = _parse_visitor_items(data.get("visitor_items"))
 
@@ -421,6 +433,8 @@ def submit_pre_registration(payload=None):
 	id_proof_url = id_proof_url or (existing_doc.id_proof_scan if existing_doc else None)
 	visitor_photo_url, visitor_photo_file = _store_file(visitor_photo_filename, visitor_photo_content)
 	visitor_photo_url = visitor_photo_url or (existing_doc.visitor_photo if existing_doc else None)
+	visa_copy_url, visa_copy_file = _store_file(visa_copy_filename, visa_copy_content)
+	visa_copy_url = visa_copy_url or (existing_doc.custom_visa_copy if existing_doc else None)
 
 	doc_values = _build_visitor_pass_values(
 		data,
@@ -428,6 +442,7 @@ def submit_pre_registration(payload=None):
 		id_proof_url,
 		visitor_photo_url,
 		invitation=invitation,
+		visa_copy_url=visa_copy_url,
 	)
 
 	visitor_pass = existing_doc or frappe.new_doc("Visitor Pass")
@@ -452,6 +467,7 @@ def submit_pre_registration(payload=None):
 	# the pass can view them, while they stay out of the public files directory.
 	_attach_file_to_pass(id_proof_file, visitor_pass.name, "id_proof_scan")
 	_attach_file_to_pass(visitor_photo_file, visitor_pass.name, "visitor_photo")
+	_attach_file_to_pass(visa_copy_file, visitor_pass.name, "custom_visa_copy")
 
 	if invitation:
 		invitation_updates = {

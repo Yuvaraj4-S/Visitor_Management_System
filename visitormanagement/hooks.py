@@ -297,6 +297,10 @@ fixtures = [
     },
     "Workflow State",
     "Workflow Action",
+    {
+        "doctype": "Notification",
+        "filters": [["name", "in", ["Visitor Invitation Guest Email"]]],
+    },
     # Role permissions for the VMS doctypes whose access we changed (VMS Manager /
     # VMS User). A Custom DocPerm replaces ALL standard perms of its doctype, so each
     # listed doctype carries its full permission set in fixtures/custom_docperm.json.

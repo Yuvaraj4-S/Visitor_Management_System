@@ -20,6 +20,8 @@ from visitormanagement.visitor_management.multi_day import (
 	validate_multi_day_range,
 )
 
+INVITATION_NOTIFICATION = "Visitor Invitation Guest Email"
+
 
 INVITATION_EXPIRY_DAYS = 7
 
@@ -490,25 +492,52 @@ class VisitorInvitation(Document):
 		return sent_to
 
 	def _send_guest_email(self, row, link, expires_on):
-		message = [
-			f"Dear {frappe.utils.escape_html(row.visitor_full_name or 'Visitor')},",
-			"",
-			"You have received a visitor pre-registration invitation from our company.",
-			f"Visitor Type: {self.visitor_type or '-'}",
-			f"Host: {self.host_employee or '-'}",
-			f"Visit Date: {date_range_label(self) or '-'}",
-			f"Expected Check-In: {format_time_hhmm(self.expected_checkin, '-')}",
-			f"Expected Check-Out: {format_time_hhmm(self.expected_checkout, '-')}",
-			f"Purpose: {self.purpose_of_visit or '-'}",
-			"",
-			"Please use the secure link below to fill your information before arrival:",
-			f"<a href=\"{link}\">{link}</a>",
-			"",
-			f"This invitation expires on {expires_on}.",
-		]
-		frappe.sendmail(
-			recipients=[row.visitor_email],
-			subject="Visitor Pre-Registration Invitation",
-			message="<br>".join(message),
-			now=True,
+		"""Send this guest's invitation through the "Visitor Invitation Guest Email"
+		Notification (edit the wording under Notification in the desk). Each guest has
+		their own link, so their details are set on the document for the template."""
+		notification = frappe.get_doc("Notification", INVITATION_NOTIFICATION)
+		if not notification.enabled:
+			frappe.throw(_("Notification {0} is disabled.").format(INVITATION_NOTIFICATION))
+
+		host_name = (
+			frappe.db.get_value("Employee", self.host_employee, "employee_name") if self.host_employee else None
 		)
+		self.guest_name = row.visitor_full_name
+		self.guest_email = row.visitor_email
+		self.guest_link = link
+		self.guest_expires_on = expires_on
+		self.guest_host = host_name or self.host_employee
+		self.guest_visit_date = date_range_label(self)
+		self.guest_checkin = format_time_hhmm(self.expected_checkin, "-")
+		self.guest_checkout = format_time_hhmm(self.expected_checkout, "-")
+		try:
+			notification.send(self)
+		finally:
+			for attr in ("guest_name", "guest_email", "guest_link", "guest_expires_on", "guest_host",
+						 "guest_visit_date", "guest_checkin", "guest_checkout"):
+				self.__dict__.pop(attr, None)
+
+	# ---- Previous hard-coded email (replaced by the Notification above) ----
+#	def _send_guest_email(self, row, link, expires_on):
+#		message = [
+#			f"Dear {frappe.utils.escape_html(row.visitor_full_name or 'Visitor')},",
+#			"",
+#			"You have received a visitor pre-registration invitation from our company.",
+#			f"Visitor Type: {self.visitor_type or '-'}",
+#			f"Host: {self.host_employee or '-'}",
+#			f"Visit Date: {date_range_label(self) or '-'}",
+#			f"Expected Check-In: {format_time_hhmm(self.expected_checkin, '-')}",
+#			f"Expected Check-Out: {format_time_hhmm(self.expected_checkout, '-')}",
+#			f"Purpose: {self.purpose_of_visit or '-'}",
+#			"",
+#			"Please use the secure link below to fill your information before arrival:",
+#			f"<a href=\"{link}\">{link}</a>",
+#			"",
+#			f"This invitation expires on {expires_on}.",
+#		]
+#		frappe.sendmail(
+#			recipients=[row.visitor_email],
+#			subject="Visitor Pre-Registration Invitation",
+#			message="<br>".join(message),
+#			now=True,
+#		)

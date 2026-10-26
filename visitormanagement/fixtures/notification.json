@@ -1,0 +1,24 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Notification",
+  "name": "Visitor Invitation Guest Email",
+  "enabled": 1,
+  "channel": "Email",
+  "document_type": "Visitor Invitation",
+  "event": "Custom",
+  "message_type": "HTML",
+  "subject": "Visitor Pre-Registration Invitation",
+  "message": "Dear {{ frappe.utils.escape_html(doc.guest_name or 'Visitor') }},<br>\n<br>\nYou have received a visitor pre-registration invitation from our company.<br>\nVisitor Type: {{ doc.visitor_type or '-' }}<br>\nHost: {{ doc.guest_host or '-' }}<br>\nVisit Date: {{ doc.guest_visit_date or '-' }}<br>\nExpected Check-In: {{ doc.guest_checkin or '-' }}<br>\nExpected Check-Out: {{ doc.guest_checkout or '-' }}<br>\nPurpose: {{ doc.purpose_of_visit or '-' }}<br>\n<br>\nPlease use the secure link below to fill your information before arrival:<br>\n<a href=\"{{ doc.guest_link }}\">{{ doc.guest_link }}</a><br>\n<br>\nThis invitation expires on {{ doc.guest_expires_on }}.",
+  "modified": "2026-10-26 12:00:00.000000",
+  "recipients": [
+   {
+    "docstatus": 0,
+    "doctype": "Notification Recipient",
+    "parentfield": "recipients",
+    "parenttype": "Notification",
+    "receiver_by_document_field": "guest_email"
+   }
+  ]
+ }
+]

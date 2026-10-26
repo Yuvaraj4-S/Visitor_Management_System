@@ -1,0 +1,15 @@
+{
+ "add_total_row": 0,
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "is_standard": "Yes",
+ "modified": "2026-10-23 23:59:30.000000",
+ "module": "Visitor Management",
+ "name": "Visitor Summary",
+ "prepared_report": 0,
+ "ref_doctype": "Visitor Pass",
+ "report_name": "Visitor Summary",
+ "report_type": "Script Report",
+ "roles": []
+}

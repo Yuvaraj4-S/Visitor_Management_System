@@ -36,6 +36,8 @@ def _get_columns():
 		{"label": _("Details"), "fieldname": "details", "fieldtype": "Data", "width": 260},
 		{"label": _("Assignee"), "fieldname": "assignee", "fieldtype": "Data", "width": 160},
 		{"label": _("Approval"), "fieldname": "workflow_state", "fieldtype": "Data", "width": 130},
+		# The service's own progress (Pending / Booked / Done), not the request's:
+		# the cab can be Booked while the hotel is still Pending.
 		{"label": _("Status"), "fieldname": "status", "fieldtype": "Data", "width": 110},
 	]
 
@@ -104,6 +106,11 @@ def _get_data(target_date, service_filter):
 			"greeting_type",
 			"greeting_delivery_time",
 			"greeting_assigned_to",
+			"cab_status",
+			"hotel_status",
+			"tour_status",
+			"buggy_status",
+			"greeting_status",
 		],
 		# get_list pages at 20 by default; a day's schedule must be complete.
 		limit_page_length=0,
@@ -112,7 +119,7 @@ def _get_data(target_date, service_filter):
 	data = []
 	show_all = service_filter == "All"
 
-	def add(r, service, time, details, assignee):
+	def add(r, service, time, details, assignee, status):
 		data.append(
 			{
 				"service": service,
@@ -123,12 +130,17 @@ def _get_data(target_date, service_filter):
 				"details": details,
 				"assignee": assignee,
 				"workflow_state": _(r.workflow_state),
-				"status": _(r.status or "Pending"),
+				"status": _(status or "Pending"),
 			}
 		)
 
+	def wanted(r, status_field):
+		# A service called off on its own (the cab no longer needed) is not on
+		# the day's schedule, though the rest of its request is.
+		return (r.get(status_field) or "Pending") != "Cancelled"
+
 	for r in rows:
-		if (show_all or service_filter == "Cab") and r.cab_required:
+		if (show_all or service_filter == "Cab") and r.cab_required and wanted(r, "cab_status"):
 			if r.pickup_datetime and day_start <= str(r.pickup_datetime) <= day_end:
 				add(
 					r,
@@ -136,12 +148,21 @@ def _get_data(target_date, service_filter):
 					str(r.pickup_datetime),
 					_text(r.pickup_location),
 					_text(r.driver_name),
+					r.cab_status,
 				)
 			if r.drop_datetime and day_start <= str(r.drop_datetime) <= day_end:
-				add(r, _("Cab (Drop)"), str(r.drop_datetime), _text(r.drop_location), _text(r.driver_name))
+				add(
+					r,
+					_("Cab (Drop)"),
+					str(r.drop_datetime),
+					_text(r.drop_location),
+					_text(r.driver_name),
+					r.cab_status,
+				)
 		if (
 			(show_all or service_filter == "Hotel")
 			and r.hotel_required
+			and wanted(r, "hotel_status")
 			and r.check_in
 			and getdate(r.check_in) == target_date
 		):
@@ -151,24 +172,42 @@ def _get_data(target_date, service_filter):
 				str(r.check_in),
 				_("{0} | Ref: {1}").format(_text(r.hotel_name), _text(r.booking_reference)),
 				_("Front Office"),
+				r.hotel_status,
 			)
 		if (
 			(show_all or service_filter == "Factory Tour")
 			and r.factory_tour_required
+			and wanted(r, "tour_status")
 			and r.tour_date
 			and getdate(r.tour_date) == target_date
 		):
-			add(r, _("Factory Tour"), str(r.tour_start_time or "-"), _("Plant tour"), _text(r.tour_guide))
+			add(
+				r,
+				_("Factory Tour"),
+				str(r.tour_start_time or "-"),
+				_("Plant tour"),
+				_text(r.tour_guide),
+				r.tour_status,
+			)
 		if (
 			(show_all or service_filter == "Buggy")
 			and r.buggy_required
+			and wanted(r, "buggy_status")
 			and r.buggy_datetime
 			and day_start <= str(r.buggy_datetime) <= day_end
 		):
-			add(r, _("Buggy"), str(r.buggy_datetime), _text(r.buggy_pickup_point), _text(r.buggy_driver))
+			add(
+				r,
+				_("Buggy"),
+				str(r.buggy_datetime),
+				_text(r.buggy_pickup_point),
+				_text(r.buggy_driver),
+				r.buggy_status,
+			)
 		if (
 			(show_all or service_filter == "Greeting")
 			and r.greeting_required
+			and wanted(r, "greeting_status")
 			and r.greeting_delivery_time
 			and day_start <= str(r.greeting_delivery_time) <= day_end
 		):
@@ -178,6 +217,7 @@ def _get_data(target_date, service_filter):
 				str(r.greeting_delivery_time),
 				_text(r.greeting_type),
 				_text(r.greeting_assigned_to),
+				r.greeting_status,
 			)
 
 	data.sort(key=lambda x: x["time"])

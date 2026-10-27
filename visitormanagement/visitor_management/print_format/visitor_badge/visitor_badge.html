@@ -46,8 +46,18 @@
             <div class="vb-row"><span class="vb-k">From</span><span class="vb-v">{{ (doc.company__organisation) | e if doc.company__organisation else "&mdash;" }}</span></div>
             <div class="vb-row"><span class="vb-k">Host</span><span class="vb-v">{{ (host_name) | e if host_name else "&mdash;" }}</span></div>
             <div class="vb-row"><span class="vb-k">Purpose</span><span class="vb-v">{{ (doc.purpose_of_visit) | e if doc.purpose_of_visit else "&mdash;" }}</span></div>
+            {#- A multi-day pass admits on every day of its range, so the badge shows
+                the range rather than the first day alone. -#}
+            {% if doc.multi_day_pass and doc.pass_valid_until %}
+            <div class="vb-row"><span class="vb-k">Valid</span><span class="vb-v">{{ (frappe.utils.formatdate(doc.visit_date, "d MMM") ~ " – " ~ frappe.utils.formatdate(doc.pass_valid_until, "d MMM")) | e }}</span></div>
+            {% else %}
             <div class="vb-row"><span class="vb-k">Date</span><span class="vb-v">{{ (doc.get_formatted("visit_date")) | e }}</span></div>
-            <div class="vb-row"><span class="vb-k">Valid&nbsp;till</span><span class="vb-v">{{ (doc.get_formatted("expected_checkout") or "End of Day") | e }}</span></div>
+            <div class="vb-row"><span class="vb-k">Valid&nbsp;till</span><span class="vb-v">{{ (frappe.utils.format_time(doc.expected_checkout, "h:mm a") if doc.expected_checkout else "End of Day") | e }}</span></div>
+            {% endif %}
+            {%- set accompanying = (doc.group_members or []) | length if doc.is_group_visit else 0 -%}
+            {% if accompanying %}
+            <div class="vb-row"><span class="vb-k">Group</span><span class="vb-v">+{{ accompanying }} accompanying</span></div>
+            {% endif %}
         </div>
 
         {% if doc.badge_number %}

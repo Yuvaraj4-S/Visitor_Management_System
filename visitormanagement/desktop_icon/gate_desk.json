@@ -1,0 +1,28 @@
+{
+ "icon": "shield",
+ "icon_type": "Link",
+ "idx": 0,
+ "label": "Gate Desk",
+ "link_to": "Gate Desk",
+ "link_type": "Workspace Sidebar",
+ "name": "Gate Desk",
+ "parent_icon": "Visitor Management",
+ "restrict_removal": 0,
+ "creation": "2026-10-16 12:00:00.000000",
+ "modified": "2026-10-16 12:00:00.000000",
+ "modified_by": "Administrator",
+ "owner": "Administrator",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "app": "visitormanagement",
+ "standard": 1,
+ "hidden": 0,
+ "roles": [
+  {
+   "role": "Security"
+  },
+  {
+   "role": "System Manager"
+  }
+ ]
+}

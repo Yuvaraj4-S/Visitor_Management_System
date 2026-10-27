@@ -1,12 +1,14 @@
 {
  "actions": [],
- "allow_rename": 1,
+ "allow_rename": 0,
  "autoname": "VP-.YYYY.-.#####",
  "creation": "2026-02-28 17:44:43.087151",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "overview_tab",
+  "section_decision",
+  "rejection_reason",
   "section_break_q9pi",
   "visitor_type",
   "visitor_type_layout",
@@ -30,6 +32,7 @@
   "id_proof_type",
   "id_proof_masked",
   "id_proof_number",
+  "id_proof_key",
   "id_proof_source",
   "id_proof_scan",
   "visitor_photo",
@@ -118,8 +121,14 @@
   "badge_colour",
   "approval_date",
   "approved_by",
+  "submitted_for_approval_by",
+  "routed_approver",
+  "current_approvers",
+  "pending_since",
+  "approval_reminder_sent_on",
   "column_break_badge",
   "qr_code_image",
+  "qr_token",
   "gate_verified_photo",
   "gate_verified_on",
   "gate_verified_by",
@@ -222,10 +231,11 @@
   },
   {
    "default": "Desk",
+   "description": "How the request came in. Walk-In is set only by the gate's New Walk-In form.",
    "fieldname": "request_channel",
    "fieldtype": "Select",
    "label": "Request Channel",
-   "options": "Desk\nPortal\nPhone\nEmail"
+   "options": "Desk\nPortal\nPhone\nEmail\nWalk-In"
   },
   {
    "fieldname": "visitor_invitation",
@@ -274,10 +284,10 @@
    "search_index": 1
   },
   {
+   "description": "Optional. The approval and QR code are emailed here when given.",
    "fieldname": "email_id",
    "fieldtype": "Data",
-   "label": "Email ID",
-   "reqd": 1
+   "label": "Email ID"
   },
   {
    "depends_on": "eval:doc.visitor_type_layout == 'Contractor' || doc.visitor_type_layout == 'Supplier' || doc.visitor_type_layout == 'Customer'",
@@ -299,18 +309,31 @@
    "reqd": 1
   },
   {
-   "description": "Type the visitor's full ID number. Once saved, only the last four characters are shown; the full number is kept securely and only Security and System Manager can see it.",
+   "description": "Type the visitor's full ID number. Once saved, only the last four characters are shown. The full number is kept securely: Security and System Manager can reveal it with Reveal Full ID, and every reveal is recorded.",
    "fieldname": "id_proof_masked",
    "fieldtype": "Data",
    "label": "ID Proof Number",
    "reqd": 1
   },
   {
-   "description": "The full ID number. Only Security and System Manager can see it.",
+   "description": "The full ID number, kept for matching. Nobody is shown it; Security and System Manager can reveal it with Reveal Full ID.",
    "fieldname": "id_proof_number",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "ID Proof Number (Full)",
    "mask": 1,
+   "permlevel": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "description": "The ID number as the duplicate-pass check compares it: upper case, without spaces, hyphens or slashes. Set on save; nobody is shown it.",
+   "fieldname": "id_proof_key",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "ID Proof Match Key",
+   "mask": 1,
+   "no_copy": 1,
    "permlevel": 1,
    "read_only": 1,
    "search_index": 1
@@ -900,6 +923,18 @@
    "read_only": 1
   },
   {
+   "description": "Secret part of the gate QR code, set at approval. Only the server reads it.",
+   "fieldname": "qr_token",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "QR Token",
+   "no_copy": 1,
+   "permlevel": 2,
+   "print_hide": 1,
+   "read_only": 1,
+   "report_hide": 1
+  },
+  {
    "allow_on_submit": 1,
    "fieldname": "gate_verified_photo",
    "fieldtype": "Attach Image",
@@ -971,7 +1006,7 @@
    "fieldtype": "Select",
    "label": "Item Verification Status",
    "no_copy": 1,
-   "options": "Pending\nPartial\nAll Verified",
+   "options": "Pending\nPartial\nAll Verified\nDiscrepancy",
    "read_only": 1
   },
   {
@@ -1051,13 +1086,78 @@
    "label": "Accompanying Visitors",
    "mandatory_depends_on": "eval:doc.is_group_visit",
    "options": "Visitor Group Member"
+  },
+  {
+   "depends_on": "eval:doc.rejection_reason && !(doc.workflow_state || '').startsWith('Pending')",
+   "fieldname": "section_decision",
+   "fieldtype": "Section Break",
+   "label": "Approver's Decision"
+  },
+  {
+   "depends_on": "eval:doc.rejection_reason && !(doc.workflow_state || '').startsWith('Pending')",
+   "description": "Why the approver turned this pass down. Required to reject a pass.",
+   "fieldname": "rejection_reason",
+   "fieldtype": "Small Text",
+   "label": "Rejection Reason",
+   "no_copy": 1,
+   "read_only_depends_on": "eval:!(doc.workflow_state || '').startsWith('Pending')"
+  },
+  {
+   "description": "The host's manager this approval step went to (VMS Settings: Send approvals to the host's own manager). Set by the server.",
+   "fieldname": "routed_approver",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Routed Approver",
+   "no_copy": 1,
+   "options": "User",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "description": "Users named to decide the current approval step: the routed manager and anyone standing in for an approver. Empty means everyone with the step's role. Set by the server.",
+   "fieldname": "current_approvers",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "Current Approvers",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "pending_since",
+   "fieldtype": "Datetime",
+   "hidden": 1,
+   "label": "Waiting for Approval Since",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_reminder_sent_on",
+   "fieldtype": "Datetime",
+   "hidden": 1,
+   "label": "Approval Reminder Sent On",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "description": "Who sent this pass for approval. That user cannot approve or reject it. Set by the server.",
+   "fieldname": "submitted_for_approval_by",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Sent for Approval By",
+   "no_copy": 1,
+   "options": "User",
+   "print_hide": 1,
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-06 04:10:00.000000",
+ "modified": "2026-10-17 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Pass",
@@ -1170,19 +1270,6 @@
    "report": 1,
    "role": "Facility Manager",
    "share": 1
-  },
-  {
-   "mask": 1,
-   "permlevel": 1,
-   "read": 1,
-   "role": "System Manager",
-   "write": 1
-  },
-  {
-   "mask": 1,
-   "permlevel": 1,
-   "read": 1,
-   "role": "Security"
   }
  ],
  "row_format": "Dynamic",

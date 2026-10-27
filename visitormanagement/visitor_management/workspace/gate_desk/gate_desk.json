@@ -1,0 +1,104 @@
+{
+ "app": "visitormanagement",
+ "charts": [],
+ "content": "[{\"id\": \"gate-h-actions\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Quick Actions</b></span>\", \"col\": 12}}, {\"id\": \"gate-s-0\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"New Walk-In\", \"col\": 4}}, {\"id\": \"gate-s-1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Gate Check-In / Check-Out\", \"col\": 4}}, {\"id\": \"gate-s-2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Waiting for Approval\", \"col\": 4}}, {\"id\": \"gate-s-3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Expected Today\", \"col\": 4}}, {\"id\": \"gate-s-4\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Inside Now\", \"col\": 4}}, {\"id\": \"gate-s-5\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Evacuation Roll Call\", \"col\": 4}}, {\"id\": \"gate-h-now\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Right Now</b></span>\", \"col\": 12}}, {\"id\": \"gate-c-0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"On Site Now\", \"col\": 3}}, {\"id\": \"gate-c-1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Today's Visitors\", \"col\": 3}}, {\"id\": \"gate-c-2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Pending Approvals\", \"col\": 3}}, {\"id\": \"gate-c-3\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Alerts This Week\", \"col\": 3}}]",
+ "creation": "2026-10-16 12:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 1,
+ "icon": "shield",
+ "idx": 0,
+ "is_hidden": 0,
+ "label": "Gate Desk",
+ "links": [],
+ "modified": "2026-10-16 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Gate Desk",
+ "number_cards": [
+  {
+   "label": "On Site Now",
+   "number_card_name": "Checked-In Visitors"
+  },
+  {
+   "label": "Today's Visitors",
+   "number_card_name": "Today's Visitors"
+  },
+  {
+   "label": "Pending Approvals",
+   "number_card_name": "Pending Visitor Approvals"
+  },
+  {
+   "label": "Alerts This Week",
+   "number_card_name": "Security Alerts"
+  }
+ ],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "restrict_to_domain": "",
+ "roles": [
+  {
+   "role": "Security"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
+ "sequence_id": 24.5,
+ "shortcuts": [
+  {
+   "color": "Green",
+   "doc_view": "",
+   "label": "New Walk-In",
+   "type": "URL",
+   "url": "/desk/visitor-pass?walk_in=1"
+  },
+  {
+   "color": "Blue",
+   "doc_view": "New",
+   "label": "Gate Check-In / Check-Out",
+   "link_to": "Security Log",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "format": "{} Waiting",
+   "label": "Waiting for Approval",
+   "link_to": "Visitor Pass",
+   "stats_filter": "[[\"Visitor Pass\",\"workflow_state\",\"like\",\"Pending%\"],[\"Visitor Pass\",\"docstatus\",\"<\",2]]",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "format": "{} Expected",
+   "label": "Expected Today",
+   "link_to": "Visitor Pass",
+   "stats_filter": "[[\"Visitor Pass\",\"status\",\"in\",[\"Approved\",\"Items Verified\"]],[\"Visitor Pass\",\"docstatus\",\"=\",1],[\"Visitor Pass\",\"no_show\",\"=\",0],[\"Visitor Pass\",\"visit_date\",\"<=\",frappe.datetime.get_today()]]",
+   "type": "DocType"
+  },
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "format": "{} Inside",
+   "label": "Inside Now",
+   "link_to": "Visitor Pass",
+   "stats_filter": "[[\"Visitor Pass\",\"status\",\"=\",\"Checked-In\"]]",
+   "type": "DocType"
+  },
+  {
+   "color": "Red",
+   "doc_view": "",
+   "label": "Evacuation Roll Call",
+   "link_to": "Evacuation Roll Call",
+   "type": "Report"
+  }
+ ],
+ "title": "Gate Desk",
+ "type": "Workspace"
+}

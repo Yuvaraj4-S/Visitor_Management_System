@@ -34,10 +34,12 @@ _Changes on the `version-16` branch that are not yet in a tagged release._
   record: bank account, salary, PAN, date of birth, health details. Earlier versions granted
   EXPORT too. A bug in the permission helper also gave hosts and reception READ on Job
   Applicant (candidates' CVs), Supplier and Maintenance Visit where only "select" was meant.
-  These roles now get SELECT only, and the few fields a pass copies from the picked record
-  (host name, department and email; candidate or supplier name, phone and email) come from
-  a narrow endpoint. Existing sites are narrowed once on migrate; roles HRMS or ERPNext grant
-  themselves are not touched.
+  The app no longer grants anything on these DocTypes: link fields search through a
+  dedicated endpoint, and the few fields a pass copies from the picked record (host name,
+  department and email; candidate or supplier name, phone and email) come from a narrow
+  endpoint. Existing sites have the app's old rows removed once on migrate (rows an
+  administrator has since changed are kept); roles HRMS or ERPNext grant themselves are not
+  touched.
 - **A draft pass's status can no longer be set by hand.** `status` is read-only on the form,
   but the API does not honour read-only, so the owner of a draft could mark it "Checked-In".
   The Active Visitors and Daily Visitor Log reports then showed a visitor on site who was
@@ -58,6 +60,27 @@ _Changes on the `version-16` branch that are not yet in a tagged release._
   same invitation. Confirmed against a live site. The column is moved to a byte-comparison
   collation on migrate, which restores the entropy the token was minted with. Existing tokens
   keep working.
+
+- **Every approval level is enforced on the server.** A first-level approver could submit a
+  pass straight through the API and land it on Approved, skipping the second approver and
+  the rule that a host cannot approve their own visitor. A submit now needs a real Approve
+  transition for the person doing it.
+- **What the approver saw is what gets approved.** While a pass waits for approval, nobody but
+  a System Manager can change the visitor's name, ID, mobile, host or visit dates; send it
+  back to Draft to change them.
+- **A pass QR code can no longer be forged.** The QR carried only the sequential pass number,
+  so anyone could print one for someone else's pass. Each approved pass now gets a random
+  token in its QR, and the gate checks it. Passes approved before this release keep working
+  with their old QR.
+- **The gate records the server's time, not the one typed in.** A back-dated check-in let an
+  expired pass in and hid overstays. Only a System Manager can record another time, and then
+  a reason is required.
+- **An invitation can no longer be pointed at another visitor's pass.** Its tracking fields
+  (status, linked pass, candidate) are kept by the server, and the portal only reuses a pass
+  that belongs to that invitation. A used or expired link is wiped and cannot be revived.
+- **One visitor can no longer lock everyone out of pre-registration.** Rate limits are now per
+  site and per invitation (or per real visitor address), counted after the link is checked,
+  and opening the page no longer counts. See "Running behind a proxy" in the README.
 
 ### Fixed
 
@@ -109,6 +132,45 @@ _Changes on the `version-16` branch that are not yet in a tagged release._
 - **Alerts no longer leak an email-server error to the person at the gate.** When the site
   has no outgoing email account, a check-in or a blacklist warning popped a "setup Email
   Account" message at the officer even though the gate event itself had saved correctly.
+
+- **The gate is simpler for the guard.** The time and gate are filled in automatically, item
+  rows come from the pass and cannot be deleted away, and "All Items Going Out" ticks them in
+  one tap. A missing item no longer traps the visitor: the guard gives a short reason, the
+  pass is marked "Discrepancy", and the Security Alert Roles are told. The photo and ID ticks
+  are only required when VMS Settings asks for them.
+- **A multi-day visitor who forgot to check out can come back in.** The open stay is closed as
+  a "Missed Check-Out" alert instead of pushing the guard to record a fake check-out.
+- **Two terminals can no longer check in the same pass at once.**
+- **Night shifts (for example 22:00 to 06:00) can be registered**, and are not flagged as no-show
+  or overstaying early.
+- **Walk-ins without an email address can be registered.**
+- **Pass rules match real visits.** A second visit the same day after the first has ended is
+  allowed; an overlapping multi-day pass for the same ID is refused however the ID is typed;
+  every group member needs an ID (VMS Settings, on by default); a multi-day pass is capped at
+  30 days (configurable); passes still waiting for approval after their visit date are moved to
+  Rejected hourly.
+- **The blacklist setting "Alert Only" now applies to passes**, not just the gate.
+- **Emails are complete and sent once.** The "pass rejected" email had an empty body; approval
+  alerts had no visitor name; the thank-you mail went out on every exit of a multi-day visit;
+  the "pass expires soon" alert rarely fired. Cancelling a visit now tells the kitchen, the
+  Hospitality Managers and the assigned staff. Bookers and requesters hear when their room or
+  hospitality request is approved or rejected.
+- **Invitation emails are readable and the links work from outside the office.** They show the
+  host's name and times like "10:00 AM", and the link always uses the site's public address.
+- **Conference rooms:** a forgotten draft no longer holds a room; inactive rooms cannot be
+  booked; dragging a booking in the calendar now really moves it; the Daily Booking Schedule no
+  longer shows rejected bookings.
+- **Hospitality staff can open what they are sent.** Transport, tour and greeting staff see the
+  requests for their service; costs and counts cannot be negative; buggy runs 30 minutes apart
+  no longer clash silently.
+- **Reports:** Active Visitors follows gate transfers; the Daily Visitor Log includes multi-day
+  visitors on later days and no longer counts drafts or rejected passes.
+- **Upgrades keep your changes.** Customize Form changes on Visitor Pass and recipients an
+  administrator added to approval alerts are no longer reset on migrate. Uninstall keeps roles
+  that other workflows, reports or pages still use.
+- **The data purge never erases a pass that is still valid.** It now waits for the last day of a
+  multi-day pass.
+- **Voter ID (EPIC) is a built-in ID type**, and driving licences typed with hyphens are accepted.
 
 ## [2.0.0] - 2026-09-03
 

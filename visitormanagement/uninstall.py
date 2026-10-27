@@ -10,6 +10,8 @@ stayed behind:
   - the three workflows and two untagged notifications, pointing at DocTypes
     that no longer exist;
   - the roles it created;
+  - the permission rows earlier versions wrote on Employee, Supplier, Job
+    Applicant, Maintenance Visit and Page;
   - visitors' ID scans, photos and visa copies: the File rows and the bytes on
     disk, orphaned once their passes were dropped — personal documents with no
     record left to govern who may read them;
@@ -29,6 +31,7 @@ from visitormanagement.setup import (
 	_CREATED_MARKER,
 	_PORTAL_UPLOADS_SELF_ENABLED_MARKER,
 	_shared_records,
+	release_legacy_core_grants,
 )
 
 APP_MODULES = ("Visitor Management", "Conference Room")
@@ -63,6 +66,9 @@ def before_uninstall():
 
 	_revert_portal_uploads_setting()
 	_remove_customisations()
+	# Permission rows earlier versions wrote on Employee, Supplier, Job Applicant,
+	# Maintenance Visit and Page — only the ones this app could have written.
+	release_legacy_core_grants(force=True)
 	_remove_workflows_and_alerts(app_doctypes)
 	_remove_referencing_rows(app_doctypes)
 	_remove_created_shared_records(app_doctypes)
@@ -190,14 +196,12 @@ def _remove_created_shared_records(app_doctypes):
 	then only while nothing outside this app still uses it. A site installed by a
 	version that did not record this keeps them all.
 	"""
-	elsewhere = {"parent": ("not in", app_doctypes or [""])}
 	for role in _shared_records()["Role"]:
 		if not (frappe.db.exists("Role", role) and _created_by_app("Role", role)):
 			continue
-		if frappe.db.exists("DocPerm", {"role": role, **elsewhere}) or frappe.db.exists(
-			"Custom DocPerm", {"role": role, **elsewhere}
-		):
-			print(f"  kept Role {role}: another app's DocType grants it permissions")
+		used_by = _role_used_elsewhere(role, app_doctypes)
+		if used_by:
+			print(f"  kept Role {role}: {used_by} still uses it")
 			continue
 		frappe.db.delete("Has Role", {"role": role})
 		frappe.delete_doc("Role", role, ignore_permissions=True, force=True)
@@ -226,6 +230,54 @@ def _remove_created_shared_records(app_doctypes):
 			continue
 		frappe.delete_doc("Workflow Action Master", action, ignore_permissions=True, force=True)
 		print(f"  removed Workflow Action {action}")
+
+
+def _role_used_elsewhere(role, app_doctypes):
+	"""What outside this app still names `role`, or None.
+
+	Asking only about DocPerm rows deleted a role that another app's workflow
+	lets approve, or that a report, page or workspace is shown to — those then
+	pointed at a role that no longer existed. A user holding the role is not a
+	use: that assignment goes with the role.
+	"""
+	elsewhere = {"parent": ("not in", app_doctypes or [""])}
+	if frappe.db.exists("DocPerm", {"role": role, **elsewhere}) or frappe.db.exists(
+		"Custom DocPerm", {"role": role, **elsewhere}
+	):
+		return "another app's DocType permissions"
+
+	# This app's own workflows and notifications are removed before this runs.
+	not_ours = {"parent": ("not in", WORKFLOWS)}
+	if frappe.db.exists("Workflow Transition", {"allowed": role, **not_ours}) or frappe.db.exists(
+		"Workflow Document State", {"allow_edit": role, **not_ours}
+	):
+		return "another workflow"
+	if frappe.db.table_exists("Notification Recipient") and frappe.db.exists(
+		"Notification Recipient", {"receiver_by_role": role}
+	):
+		return "another Notification"
+
+	# Reports, pages, workspaces, role profiles ...: a row on one of this app's
+	# own records goes with that record when the app's modules are removed.
+	for row in frappe.get_all(
+		"Has Role",
+		filters={"role": role, "parenttype": ("!=", "User")},
+		fields=["parenttype", "parent"],
+		distinct=True,
+	):
+		meta = frappe.get_meta(row.parenttype)
+		if (
+			meta.has_field("module")
+			and frappe.db.get_value(row.parenttype, row.parent, "module") in APP_MODULES
+		):
+			continue
+		if (
+			meta.has_field("app")
+			and frappe.db.get_value(row.parenttype, row.parent, "app") == "visitormanagement"
+		):
+			continue
+		return f"{row.parenttype} {row.parent}"
+	return None
 
 
 def _created_lane_states():

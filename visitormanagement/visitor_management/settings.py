@@ -20,12 +20,14 @@ DEFAULT_MEAL_WINDOWS = (
 	("Dinner", "20:00:00", "21:30:00"),
 )
 DEFAULT_MAX_ADVANCE_DAYS = 90
+DEFAULT_MAX_PASS_VALIDITY_DAYS = 30
 DEFAULT_INVITATION_EXPIRY_DAYS = 7
 DEFAULT_NO_SHOW_GRACE_HOURS = 4
 DEFAULT_COUNTRY_CODE = "91"
 DEFAULT_HOME_COUNTRY = "India"
 DEFAULT_FEVER_THRESHOLD_C = 37.5
 DEFAULT_MAX_PORTAL_SUBMISSIONS_PER_HOUR = 20
+DEFAULT_APPROVAL_REMINDER_HOURS = 24
 # The most the setting can mean. `portal.submit_pre_registration` carries a fixed
 # `@rate_limit(limit=20)` that no setting can raise (a decorator argument is read
 # at import, before there is a site to read a setting from), so a larger number
@@ -111,6 +113,102 @@ def max_advance_booking_days():
 	if raw is None or raw == "":
 		return DEFAULT_MAX_ADVANCE_DAYS
 	return cint(raw)
+
+
+def max_pass_validity_days():
+	"""Longest a multi-day pass may run past its visit date, in days."""
+	return _int("max_pass_validity_days", DEFAULT_MAX_PASS_VALIDITY_DAYS)
+
+
+def require_group_member_id():
+	"""Must every accompanying visitor on a group pass give an ID proof?
+
+	On unless an administrator unticks it. A site that has not saved VMS Settings
+	since the field was added has no stored value, which reads as on (a Single
+	loads a missing Check as 0, so the stored row is what tells the two apart).
+	"""
+	doc = _settings()
+	if not doc or cint(doc.get("require_group_member_id")):
+		return True
+	return not is_stored("require_group_member_id")
+
+
+def is_stored(fieldname):
+	"""Whether VMS Settings has a saved value for `fieldname` at all."""
+	# Not frappe.db.exists: tabSingles has no name column, so it always said no.
+	return bool(
+		frappe.db.sql(
+			"select 1 from `tabSingles` where doctype = 'VMS Settings' and field = %s limit 1",
+			fieldname,
+		)
+	)
+
+
+def approval_reminder_hours():
+	"""Hours a pass may wait in an approval lane before its approvers are reminded; 0 = never.
+
+	0 is an administrator's "off", so it is not read as unset the way `_int`
+	reads it. Nothing stored (a site not migrated since the field arrived) reads
+	as the default.
+	"""
+	doc = _settings()
+	if not doc or not is_stored("approval_reminder_hours"):
+		return DEFAULT_APPROVAL_REMINDER_HOURS
+	return max(cint(doc.get("approval_reminder_hours")), 0)
+
+
+def stored_flag(fieldname, default):
+	"""A Check setting that reads as `default` until a value has been saved.
+
+	A Single loads a tick nobody has saved as 0, which for a default-on setting
+	(track_badge_return) would mean "off" on every site that has not opened the
+	settings page since the field arrived.
+	"""
+	if not is_stored(fieldname):
+		return cint(default)
+	return flag(fieldname, default)
+
+
+# Optional features an administrator may switch off in VMS Settings > Optional
+# Features. Each is on until someone unticks it: a site that has not saved the
+# settings since a switch arrived keeps the behaviour it had. `setup` stores the
+# explicit 1 on migrate (patch v2_1.seed_feature_switches), so a later save of
+# the whole Single cannot quietly turn an unsaved tick into 0.
+FEATURE_SWITCHES = (
+	"enable_walk_in_registration",
+	"warn_outside_booked_time",
+	"alert_host_on_no_show",
+	"send_thank_you_email",
+	"email_visitor_about_bookings",
+	"require_rejection_reason",
+)
+
+
+# Stored with the switches: a Single loads an unsaved Int as 0, and a 0 here is
+# an administrator's "warn at once" (gate_timing.tolerance).
+DEFAULT_GATE_TIME_TOLERANCE_MINUTES = 30
+
+
+def feature_on(name):
+	"""Is the optional feature `name` (one of FEATURE_SWITCHES) switched on?"""
+	if name not in FEATURE_SWITCHES:
+		raise ValueError(f"Unknown VMS feature switch: {name}")
+	return bool(stored_flag(name, 1))
+
+
+def route_approval_to_manager():
+	"""Do passes go to the host's own manager first? Off unless switched on."""
+	return bool(stored_flag("route_approval_to_manager", 0))
+
+
+def restrict_security_to_assigned_gate():
+	"""May Security log only at the gates they are assigned to? Off unless switched on."""
+	return bool(stored_flag("restrict_security_to_assigned_gate", 0))
+
+
+def track_badge_return():
+	"""Is the badge asked back at check-out? On unless switched off."""
+	return bool(stored_flag("track_badge_return", 1))
 
 
 def invitation_expiry_days():

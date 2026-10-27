@@ -4,9 +4,13 @@
 // "Approved" throughout, which is what the list showed for a visitor who was
 // inside the building, and for one who had already left.
 frappe.listview_settings["Visitor Pass"] = {
-	add_fields: ["status"],
+	add_fields: ["status", "workflow_state"],
 
 	get_indicator(doc) {
+		// Withdrawn by the host before anyone decided it; `status` reads Cancelled.
+		if (doc.workflow_state === "Withdrawn") {
+			return [__("Withdrawn"), "gray", "workflow_state,=,Withdrawn"];
+		}
 		// Same colours as the form's own stage (visitor_pass.js: get_pass_stage_color).
 		const colours = {
 			Draft: "gray",

@@ -96,9 +96,7 @@ function get_vms_home_country() {
 // list. This file used to hardcode a 5-entry map keyed on Visitor Type name
 // (Contractor/Supplier/Customer/Candidate/VIP); any type routed to another
 // approver role -- e.g. "Auditor" -> Facility Manager -- showed no approver
-// name here, and the same hardcoded list in show_web_submissions_dialog's
-// filter meant passes sitting in that lane never appeared in the Pending Web
-// Submissions dialog at all. Fetched once and cached for the desk session,
+// name here. Fetched once and cached for the desk session,
 // same pattern as get_vms_home_country above -- a Visitor Type's approver
 // role changes rarely, and a normal page reload after such a change is
 // expected (same as any other masters-driven Desk vocabulary).
@@ -173,6 +171,22 @@ const VISIT_ONLY_FIELDS = [
 	"food_dept_staff_assigned",
 ];
 
+// Mirrors VisitorPass.LOCKED_WHILE_PENDING (plus the masked ID field people type into).
+const LOCKED_WHILE_PENDING = [
+	"visitor_full_name",
+	"id_proof_type",
+	"id_proof_masked",
+	"mobile_number",
+	"email_id",
+	"person_to_visit",
+	"visit_date",
+	"pass_valid_until",
+	"multi_day_pass",
+	"visitor_type",
+	"is_group_visit",
+	"group_members",
+];
+
 frappe.ui.form.on("Visitor Pass", {
 	setup(frm) {
 		CORE_LINK_FIELDS.forEach((fieldname) => {
@@ -192,12 +206,9 @@ frappe.ui.form.on("Visitor Pass", {
 	},
 
 	refresh(frm) {
-		// The full ID number reaches this browser only for Security / System Manager;
-		// everyone else would just see XXXXXXXX, so show them "ID Proof Number" alone.
-		const masked = (frappe.get_meta("Visitor Pass").masked_fields || []).includes(
-			"id_proof_number"
-		);
-		frm.toggle_display("id_proof_number", !masked);
+		// The full ID number never reaches this form (it is hidden and at a level no
+		// role reads): "ID Proof Number" shows the masked copy, and Security and System
+		// Manager use "Reveal Full ID" (public/js/reveal_id.js) to see the whole number.
 		// A saved pass is shown as it is stored: opening it must not change it.
 		// The CRM default used to be applied on every refresh, so a Customer pass
 		// raised by a host who cannot read Leads (no CRM Reference Type) turned
@@ -211,6 +222,7 @@ frappe.ui.form.on("Visitor Pass", {
 		add_action_buttons(frm);
 		add_hospitality_buttons(frm);
 		add_gate_buttons(frm);
+		render_hospitality_progress(frm);
 	},
 
 	visitor_type(frm) {
@@ -317,9 +329,10 @@ frappe.ui.form.on("Visitor Pass", {
 
 	person_to_visit(frm) {
 		// Was `fetch_from` on the three host fields, which needs READ on the whole
-		// Employee record; this returns only these three (see link_details.py).
+		// Employee record; this returns only the name and department (see
+		// link_details.py). The host's email is filled in by the server on save.
+		frm.set_value({ host_name: "", host_department: "", host_email: "" });
 		if (!frm.doc.person_to_visit) {
-			frm.set_value({ host_name: "", host_department: "", host_email: "" });
 			return;
 		}
 		frappe.call({
@@ -334,7 +347,6 @@ frappe.ui.form.on("Visitor Pass", {
 				frm.set_value({
 					host_name: d.employee_name || "",
 					host_department: d.department || "",
-					host_email: d.user_id || "",
 				});
 			},
 		});
@@ -444,7 +456,73 @@ frappe.ui.form.on("Visitor Pass", {
 	workflow_state(frm) {
 		apply_visitor_pass_ui(frm);
 	},
+
+	// Reject asks for the reason the host will be shown; Withdraw, which cannot
+	// be undone, asks once. Frappe freezes the page before this runs, so it is
+	// unfrozen for the dialog. Resolving lets Frappe apply the action; a promise
+	// that never settles stops it.
+	before_workflow_action(frm) {
+		const action = frm.selected_workflow_action;
+		if (action === "Reject") {
+			frappe.dom.unfreeze();
+			ask_rejection_reason(frm);
+			return new Promise(() => {});
+		}
+		if (action === "Withdraw") {
+			frappe.dom.unfreeze();
+			return new Promise((resolve) => {
+				frappe.confirm(
+					__(
+						"Withdraw this pass? The visit is called off and the pass cannot be used again."
+					),
+					() => {
+						frappe.dom.freeze();
+						resolve();
+					},
+					() => {
+						frm.selected_workflow_action = null;
+					}
+				);
+			});
+		}
+	},
 });
+
+function ask_rejection_reason(frm) {
+	// Saved and rejected in one server call (visitor_pass.reject_with_reason), so a
+	// refused Reject leaves no reason behind on the pass. VMS Settings may make the
+	// reason optional (VisitorPass.onload: require_rejection_reason); the server
+	// applies the same switch.
+	const required = (frm.doc.__onload || {}).require_rejection_reason !== false;
+	const dialog = new frappe.ui.Dialog({
+		title: __("Reject Visitor Pass"),
+		fields: [
+			{
+				fieldname: "reason",
+				fieldtype: "Small Text",
+				label: required ? __("Reason") : __("Reason (optional)"),
+				description: __("The host will see this."),
+				reqd: required ? 1 : 0,
+			},
+		],
+		primary_action_label: __("Reject"),
+		primary_action({ reason }) {
+			dialog.hide();
+			frappe
+				.xcall(
+					"visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.reject_with_reason",
+					{ name: frm.doc.name, reason },
+					"POST",
+					{ freeze: true }
+				)
+				.then(() => frm.reload_doc());
+		},
+	});
+	dialog.onhide = () => {
+		frm.selected_workflow_action = null;
+	};
+	dialog.show();
+}
 
 function preview_normalised_mobile(frm) {
 	// Show reception what the number they typed will be saved as — or that it
@@ -705,6 +783,16 @@ function apply_visitor_pass_field_rules(frm) {
 	frm.toggle_display("pass_valid_until", is_multi_day_contractor);
 	frm.toggle_reqd("pass_valid_until", is_multi_day_contractor);
 
+	// While the pass awaits approval only a System Manager may change who is coming
+	// and when; the server refuses it for everyone else (_lock_details_while_pending).
+	const locked =
+		frm.doc.docstatus === 0 &&
+		String(frm.doc.workflow_state || "").startsWith("Pending") &&
+		!frappe.user.has_role("System Manager");
+	LOCKED_WHILE_PENDING.forEach((fieldname) =>
+		frm.set_df_property(fieldname, "read_only", locked ? 1 : 0)
+	);
+
 	// Hospitality field visibility is now DocType-driven:
 	//   - assigned_meal_slots, hospitality_type, food_dept_staff_assigned,
 	//     food_status, service_time, refreshments_required → hidden:1 in JSON
@@ -815,6 +903,17 @@ function set_visitor_pass_intro(frm) {
 		);
 		render_approver_context_card(frm);
 
+		// A pass routed to the host's manager names them (approval_tasks); say who.
+		if (frm.doc.routed_approver) {
+			frm.set_intro(
+				__("Awaiting approval from {0}, the host's manager.", [
+					frappe.utils.escape_html(frappe.user.full_name(frm.doc.routed_approver)),
+				]),
+				"orange"
+			);
+			return;
+		}
+
 		get_visitor_type_approvers().then((approvers) => {
 			// The form may have moved on (record switched, or no longer
 			// pending) while this call was in flight -- don't stomp its intro.
@@ -871,12 +970,20 @@ function set_visitor_pass_intro(frm) {
 	}
 
 	if (stage === "Rejected") {
+		const reason = frm.doc.rejection_reason
+			? " " + __("Reason: {0}", [frappe.utils.escape_html(frm.doc.rejection_reason)])
+			: "";
 		frm.set_intro(
 			__(
 				"Request rejected. Update the details and reapply if the visit still needs to happen."
-			),
+			) + reason,
 			"red"
 		);
+		return;
+	}
+
+	if (stage === "Withdrawn") {
+		frm.set_intro(__("Withdrawn. This visit was called off before it was decided."), "gray");
 		return;
 	}
 
@@ -988,159 +1095,9 @@ function get_pass_stage_color(stage) {
 	// stopped matching the moment a Visitor Type routed to a role outside it.
 	if (["Approved", "Checked-In"].includes(stage)) return "green";
 	if (String(stage || "").startsWith("Pending")) return "orange";
-	if (["Rejected", "Cancelled"].includes(stage)) return "red";
+	if (["Rejected", "Cancelled", "Withdrawn"].includes(stage)) return "red";
 	if (["Items Verified", "Checked-Out"].includes(stage)) return "blue";
 	return "gray";
-}
-
-function show_web_submissions_dialog(frm) {
-	frappe.call({
-		method: "frappe.client.get_list",
-		args: {
-			doctype: "Visitor Pass",
-			filters: [["request_channel", "=", "Portal"]],
-			// Was `['workflow_state', 'in', [<6 hardcoded lane names>, 'Draft']]`.
-			// That list mirrored only the 5 approver roles the old hardcoded
-			// workflow vocabulary knew about (see the removed get_approval_lane
-			// above) -- a portal submission routed to any other approver role
-			// (e.g. "Auditor" -> Facility Manager, "Researcher" -> Hospitality
-			// Manager) silently never appeared in this dialog, with no error
-			// anywhere. Every pending lane is named `Pending <role>`
-			// (workflow_builder.lane_for_role), so matching the prefix covers
-			// every lane the current Visitor Type configuration can produce,
-			// present or future, with no list to keep in sync.
-			or_filters: [
-				["workflow_state", "like", "Pending%"],
-				["workflow_state", "=", "Draft"],
-			],
-			fields: [
-				"name",
-				"visitor_full_name",
-				"visitor_type",
-				"mobile_number",
-				"email_id",
-				"visit_date",
-			],
-		},
-		callback: function (r) {
-			if (r.message && r.message.length > 0) {
-				let dialog = new frappe.ui.Dialog({
-					title: __("Pending Web Submissions"),
-					fields: [
-						{
-							fieldtype: "HTML",
-							fieldname: "submissions",
-							options: generate_submissions_html(r.message, frm),
-						},
-					],
-					size: "large",
-				});
-				dialog.show();
-			} else {
-				frappe.msgprint(__("No pending web visitor pass submissions found."));
-			}
-		},
-	});
-}
-
-function generate_submissions_html(submissions, frm) {
-	// These rows come from guest-submitted Visitor Passes (visitor_full_name,
-	// mobile_number, email_id are free text). Escape every value before it enters
-	// the dialog HTML, or a crafted name/email runs script in the staff session.
-	const esc = (v) => frappe.utils.escape_html(v == null ? "" : String(v));
-	let html = '<div class="row">';
-	submissions.forEach((sub) => {
-		html += `
-			<div class="col-md-6 mb-3">
-				<div class="card">
-					<div class="card-body">
-						<h5 class="card-title">${esc(sub.visitor_full_name)} (${esc(sub.visitor_type)})</h5>
-						<p class="card-text">
-							Phone: ${esc(sub.mobile_number)}<br>
-							Email: ${esc(sub.email_id)}<br>
-							Date: ${esc(sub.visit_date)}
-						</p>
-						<button class="btn btn-primary btn-sm" onclick="select_submission('${esc(sub.name)}', '${esc(
-			frm.doc.name
-		)}')">Select & Auto-Fetch</button>
-					</div>
-				</div>
-			</div>
-		`;
-	});
-	html += "</div>";
-	return html;
-}
-
-window.select_submission = function (submission_name, frm_name) {
-	frappe.call({
-		method: "frappe.client.get",
-		args: { doctype: "Visitor Pass", name: submission_name },
-		callback: function (r) {
-			if (r.message) {
-				let data = r.message;
-				// Set values in Visitor Pass
-				frappe.set_route("Form", "Visitor Pass", frm_name);
-				setTimeout(() => {
-					let formview = frappe.views.formview["Visitor Pass"];
-					let frm = formview && formview.frm;
-					if (!frm) {
-						return;
-					}
-					frm.set_value("visitor_type", data.visitor_type);
-					frm.set_value("visitor_full_name", data.visitor_full_name);
-					frm.set_value("mobile_number", data.mobile_number);
-					frm.set_value("email_id", data.email_id);
-					frm.set_value("company__organisation", data.company__organisation);
-					frm.set_value("visit_date", data.visit_date);
-					frm.set_value("expected_checkin", data.expected_checkin);
-					frm.set_value("expected_checkout", data.expected_checkout);
-					frm.set_value("purpose_of_visit", resolve_purpose_of_visit(data));
-					frm.set_value("person_to_visit", data.person_to_visit);
-					frm.set_value("id_proof_type", data.id_proof_type);
-					frm.set_value("id_proof_number", data.id_proof_number);
-					frm.set_value("id_proof_masked", data.id_proof_masked);
-					// Masked (last four only): the server copies the real number from here.
-					frm.set_value("id_proof_source", data.name);
-					frm.set_value("id_proof_scan", data.id_proof_scan);
-					frm.set_value("visitor_photo", data.visitor_photo);
-					frm.set_value("request_channel", "Portal");
-					frm.save();
-				}, 500);
-			}
-		},
-	});
-};
-
-function resolve_purpose_of_visit(data) {
-	const explicit = (data.purpose_of_visit || "").trim();
-	if (explicit) {
-		return explicit;
-	}
-
-	// Derived from the type's layout, so a custom type reusing e.g. the Supplier
-	// layout gets the same default purpose wording.
-	const layout = data.visitor_type_layout || "";
-
-	if (layout === "Supplier") {
-		if ((data.supplier_visit_mode || "") === "Delivery") {
-			return __("Supplier Delivery");
-		}
-		return __("Supplier Meeting");
-	}
-	if (layout === "Customer") {
-		return __("Customer Meeting");
-	}
-	if (layout === "Contractor") {
-		return __("Contract Work Visit");
-	}
-	if (layout === "Candidate") {
-		return __("Interview Visit");
-	}
-	if (layout === "VIP") {
-		return __("VIP Visit");
-	}
-	return "";
 }
 
 function apply_existing_pass_data(frm, data) {
@@ -1154,12 +1111,8 @@ function apply_existing_pass_data(frm, data) {
 		"id_proof_masked",
 		"id_proof_scan",
 		"visitor_photo",
-		"purpose_of_visit",
-		"person_to_visit",
-		"host_department",
-		"visit_date",
-		"expected_checkin",
-		"expected_checkout",
+		// Not the visit itself: the old pass's date, times, host and purpose used to
+		// overwrite what reception had just typed for this one.
 		"supplier_visit_mode",
 		"supplier_link",
 		"meeting_subject",
@@ -1172,13 +1125,10 @@ function apply_existing_pass_data(frm, data) {
 		"sales_executive",
 		"products_discussed",
 		"meeting_outcome",
-		"followup_date",
 		"meeting_minutes",
 		"contractor_link",
 		"work_order_ref",
 		"tools_list",
-		"multi_day_pass",
-		"pass_valid_until",
 		"job_applicant_link",
 		"position_applied",
 		"candidate_interview_type",
@@ -1318,16 +1268,29 @@ function call_gate_endpoint(frm, method) {
 // Same window as visitor_gate._valid_today: the visit date, or visit_date ..
 // pass_valid_until for a multi-day pass. Checking out does not end it.
 function pass_valid_today(frm) {
-	const { visit_date, multi_day_pass, pass_valid_until } = frm.doc;
+	const { visit_date, multi_day_pass, pass_valid_until, expected_checkin, expected_checkout } =
+		frm.doc;
 	if (!visit_date) return false;
 	const today = frappe.datetime.get_today();
 	const last_day = multi_day_pass && pass_valid_until ? pass_valid_until : visit_date;
-	return visit_date <= today && today <= last_day;
+	if (visit_date <= today && today <= last_day) return true;
+	// An overnight visit (check-out at or before check-in, 22:00 to 06:00) runs past
+	// midnight: the last day's visit still counts the next morning, until check-out.
+	const overnight =
+		expected_checkin && expected_checkout && expected_checkout <= expected_checkin;
+	return Boolean(
+		overnight &&
+			today === frappe.datetime.add_days(last_day, 1) &&
+			frappe.datetime.now_time() < expected_checkout
+	);
 }
 
 function add_gate_buttons(frm) {
 	// Only a submitted (approved) pass reaches the gate — never a draft or a cancelled one.
 	if (frm.is_new() || frm.doc.docstatus !== 1) return;
+	// Only the gate records movements; for anyone else the button only led to
+	// "Security role required".
+	if (!frappe.user.has_role(["Security", "System Manager"])) return;
 
 	const stage = frm.doc.status;
 	// A visitor who stepped out comes back in on the same pass.
@@ -1340,4 +1303,83 @@ function add_gate_buttons(frm) {
 	if (stage === "Checked-In") {
 		frm.add_custom_button(__("Check Out"), () => call_gate_endpoint(frm, "visitor_checkout"));
 	}
+}
+
+// The host's answer to "is it arranged?": each service asked for, how far it has
+// got, and the details they need (driver, hotel, guide). Read from the request
+// by get_hospitality_progress, which answers only somebody who may read both the
+// pass and its request. Added as a dashboard section: Frappe removes "custom"
+// sections itself on the next refresh, so the card never lingers on another pass.
+const HOSPITALITY_CARD_CLASS = "vm-hospitality-progress";
+const HOSPITALITY_STATUS_COLOURS = {
+	Pending: ["#fff4e5", "#9a5b00"],
+	Booked: ["#e0f2fe", "#075985"],
+	Done: ["#d9f3e4", "#0d6b3e"],
+	Cancelled: ["#f1f5f9", "#475569"],
+};
+
+function render_hospitality_progress(frm) {
+	if (
+		frm.is_new() ||
+		!frm.doc.hospitality_request ||
+		!frm.dashboard ||
+		!frm.dashboard.add_section
+	)
+		return;
+	const docname = frm.doc.name;
+	frappe
+		.xcall(
+			"visitormanagement.visitor_management.doctype.hospitality_request.hospitality_request.get_hospitality_progress",
+			{ visitor_pass: docname }
+		)
+		.then((data) => {
+			const request = data && data.request;
+			if (!request || frm.doc.name !== docname || !(request.services || []).length) return;
+			const esc = (v) => frappe.utils.escape_html(v == null ? "" : String(v));
+			const state = request.workflow_state || "Draft";
+			let heading = __("Hospitality: being arranged");
+			if (request.status === "Cancelled" || ["Rejected", "Cancelled"].includes(state)) {
+				heading = __("Hospitality: called off");
+			} else if (state === "Draft") {
+				heading = __("Hospitality: waiting for this pass to be approved");
+			} else if (state === "Pending Approval") {
+				heading = __("Hospitality: waiting for the Hospitality Manager");
+			} else if (request.status === "Completed") {
+				heading = __("Hospitality: completed");
+			}
+			const rows = request.services.map((service) => {
+				const [bg, fg] =
+					HOSPITALITY_STATUS_COLOURS[service.status] ||
+					HOSPITALITY_STATUS_COLOURS.Pending;
+				const details = (service.details || [])
+					.map(([label, value]) => `${esc(label)}: <b>${esc(value)}</b>`)
+					.join(" · ");
+				return `
+					<div style="display:flex; gap:10px; align-items:baseline; padding:4px 0; border-top:1px solid var(--border-color); flex-wrap:wrap;">
+						<span style="min-width:110px; font-weight:600;">${esc(service.label)}</span>
+						<span style="padding:1px 8px; border-radius:999px; font-size:11px; font-weight:700; background:${bg}; color:${fg};">${esc(
+					__(service.status)
+				)}</span>
+						<span style="font-size:12px; overflow-wrap:anywhere;">${details}</span>
+					</div>`;
+			});
+			const html = `
+				<div style="width:100%;">
+					<div style="display:flex; justify-content:space-between; gap:10px; margin-bottom:6px; flex-wrap:wrap;">
+						<div style="font-size:13px; font-weight:700;">${esc(heading)}</div>
+						<a href="${frappe.utils.get_form_link(
+							"Hospitality Request",
+							request.name
+						)}" style="font-size:12px;">${esc(request.name)}</a>
+					</div>
+					${rows.join("")}
+				</div>`;
+			frm.dashboard.parent &&
+				frm.dashboard.parent.find(`.${HOSPITALITY_CARD_CLASS}`).remove();
+			frm.dashboard.add_section(html, null, `custom ${HOSPITALITY_CARD_CLASS}`);
+			frm.dashboard.show();
+		})
+		.catch(() => {
+			// No access to the request, or it was removed: the pass shows nothing extra.
+		});
 }

@@ -1,0 +1,65 @@
+{%
+	var esc = frappe.utils.escape_html;
+	var rows = original_data || [];
+	var by_location = {};
+	var order = [];
+	for (var i = 0; i < rows.length; i++) {
+		var loc = rows[i].location || "—";
+		if (!by_location[loc]) { by_location[loc] = []; order.push(loc); }
+		by_location[loc].push(rows[i]);
+	}
+%}
+<style>
+	.vm-roll { font-size: 11px; }
+	.vm-roll h2 { margin: 0 0 4px 0; }
+	.vm-roll .vm-total { font-size: 16px; font-weight: 700; margin: 6px 0 10px 0; }
+	.vm-roll h4 { margin: 14px 0 4px 0; page-break-after: avoid; }
+	.vm-roll table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
+	.vm-roll th, .vm-roll td { border: 1px solid #999; padding: 4px 5px; vertical-align: top; }
+	.vm-roll th { background: #eee; text-align: left; }
+	.vm-roll tr { page-break-inside: avoid; }
+	.vm-roll .vm-box { width: 16px; height: 16px; border: 1.5px solid #000; display: inline-block; }
+</style>
+<div class="vm-roll">
+	<h2>{%= __("Evacuation Roll Call") %}</h2>
+	<div>{%= __("Printed") %}: {%= frappe.datetime.str_to_user(frappe.datetime.now_datetime()) %}</div>
+	<div class="vm-total">{%= __("People on site") %}: {%= rows.length %}</div>
+	{% for (var l = 0; l < order.length; l++) { var group = by_location[order[l]]; %}
+	<h4>{%= esc(order[l]) %} ({%= group.length %})</h4>
+	<table>
+		<thead>
+			<tr>
+				<th style="width: 60px;">{%= __("Present") %}</th>
+				<th>{%= __("Name") %}</th>
+				<th>{%= __("On Pass As") %}</th>
+				<th>{%= __("Company") %}</th>
+				<th>{%= __("Mobile") %}</th>
+				<th>{%= __("Host") %}</th>
+				<th>{%= __("Host Mobile") %}</th>
+				<th>{%= __("Checked In") %}</th>
+				<th>{%= __("Badge") %}</th>
+				<th>{%= __("VIP") %}</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for (var j = 0; j < group.length; j++) { var r = group[j]; %}
+			<tr>
+				<td style="text-align: center;"><span class="vm-box"></span></td>
+				<td><b>{%= esc(r.visitor_name || "") %}</b></td>
+				<td>{%= esc(r.role || "") %}</td>
+				<td>{%= esc(r.company || "") %}</td>
+				<td>{%= esc(r.mobile_number || "") %}</td>
+				<td>{%= esc(r.host_name || "") %}</td>
+				<td>{%= esc(r.host_mobile || "") %}</td>
+				<td>{%= r.checkin_time ? frappe.datetime.str_to_user(r.checkin_time) : "" %}</td>
+				<td>{%= esc(r.badge_number || "") %}</td>
+				<td>{%= r.vip ? __("VIP") : "" %}</td>
+			</tr>
+			{% } %}
+		</tbody>
+	</table>
+	{% } %}
+	{% if (!rows.length) { %}
+	<p>{%= __("Nobody is recorded as on site.") %}</p>
+	{% } %}
+</div>

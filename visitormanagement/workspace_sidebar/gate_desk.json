@@ -1,0 +1,88 @@
+{
+ "app": "visitormanagement",
+ "creation": "2026-10-16 12:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Workspace Sidebar",
+ "for_user": "",
+ "header_icon": "shield",
+ "idx": 0,
+ "items": [
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "home",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Home",
+   "link_to": "Gate Desk",
+   "link_type": "Workspace",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "shield",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Security Log",
+   "link_to": "Security Log",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "badge",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Visitor Pass",
+   "link_to": "Visitor Pass",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "reports",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Active Visitors",
+   "link_to": "Active Visitors",
+   "link_type": "Report",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "reports",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Evacuation Roll Call",
+   "link_to": "Evacuation Roll Call",
+   "link_type": "Report",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "reports",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Daily Visitor Log",
+   "link_to": "Daily Visitor Log",
+   "link_type": "Report",
+   "show_arrow": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-10-16 12:00:00.000000",
+ "modified_by": "Administrator",
+ "name": "Gate Desk",
+ "owner": "Administrator",
+ "standard": 1
+}

@@ -17,6 +17,9 @@ by what the user may do in VMS instead:
   actually links to it (`LINK_CONTEXTS`);
 - the user must be able to read that VMS DocType;
 - the user's own User Permissions on the target (and on its Company) still apply;
+- a Job Applicant is a candidate's personal record: it is offered only to those
+  who may read Job Applicants, or to the host of an invitation raised for that
+  candidate (`job_applicant_scope`);
 - only the record name and its title are returned — never the master itself.
 """
 
@@ -88,7 +91,10 @@ def search(doctype, txt, searchfield, start, page_len, filters=None, **kwargs):
 	authorize(doctype, kwargs.get("reference_doctype"))
 
 	title_field = TITLE_FIELDS[doctype]
-	conditions = _filters(doctype, filters) + _user_permission_filters(doctype)
+	scope = _scope_filters(doctype)
+	if scope is None:
+		return []
+	conditions = _filters(doctype, filters) + _user_permission_filters(doctype) + scope
 	or_filters = []
 	if txt:
 		or_filters = [[doctype, "name", "like", f"%{txt}%"], [doctype, title_field, "like", f"%{txt}%"]]
@@ -107,8 +113,43 @@ def search(doctype, txt, searchfield, start, page_len, filters=None, **kwargs):
 
 def is_visible(doctype: str, name: str) -> bool:
 	"""Whether `name` is among the records `search` would offer this user."""
-	conditions = [[doctype, "name", "=", name], *_user_permission_filters(doctype)]
+	scope = _scope_filters(doctype)
+	if scope is None:
+		return False
+	conditions = [[doctype, "name", "=", name], *_user_permission_filters(doctype), *scope]
 	return bool(frappe.get_all(doctype, filters=conditions, limit=1, pluck="name"))
+
+
+def job_applicant_scope():
+	"""None when the user may read Job Applicants; else the ones they may pick.
+
+	Any Visitor Pass reader could list every candidate here, and read each one's
+	phone and email through link_details. Someone without Job Applicant access
+	is offered only the candidates invited to visit them (Visitor Invitation →
+	reference_job_applicant, with them as host).
+	"""
+	if frappe.has_permission("Job Applicant", "read"):
+		return None
+	employees = frappe.get_all("Employee", filters={"user_id": frappe.session.user}, pluck="name")
+	if not employees:
+		return []
+	return frappe.get_all(
+		"Visitor Invitation",
+		filters={"host_employee": ("in", employees), "reference_job_applicant": ("is", "set")},
+		pluck="reference_job_applicant",
+		distinct=True,
+		order_by=None,
+	)
+
+
+def _scope_filters(doctype):
+	"""Conditions limiting `doctype` to what this user may pick; None when nothing."""
+	if doctype != "Job Applicant":
+		return []
+	allowed = job_applicant_scope()
+	if allowed is None:
+		return []
+	return [[doctype, "name", "in", allowed]] if allowed else None
 
 
 def _filters(doctype, filters):

@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-    name: Install and uninstall on a fresh site
+    name: Install, test and uninstall on a fresh site
 
     services:
       redis-cache:
@@ -93,6 +93,16 @@ jobs:
           bench --site test_site install-app hrms
           bench --site test_site install-app visitormanagement
           bench build
+        env:
+          CI: 'Yes'
+
+      # erpnext and hrms are required_apps, installed above. The suite builds its own
+      # data and rolls every test back, so the steps below still run on a clean site.
+      - name: Run tests
+        working-directory: /home/runner/frappe-bench
+        run: |
+          bench --site test_site set-config allow_tests true
+          bench --site test_site run-tests --app visitormanagement
         env:
           CI: 'Yes'
 

@@ -19,6 +19,7 @@ EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 POSITIVE_SETTINGS = (
 	("max_visit_duration_hrs", "Max Visit Duration (hrs)"),
 	("max_advance_booking_days", "Max Advance Booking Days"),
+	("max_pass_validity_days", "Longest Multi-Day Pass Allowed (days)"),
 	("invitation_expiry_days", "Invitation Expiry Days"),
 	("no_show_grace_hours", "No-Show Grace Hours"),
 	# A 0 here is not "no retention floor" the way 0 means "no limit" elsewhere in
@@ -30,13 +31,44 @@ POSITIVE_SETTINGS = (
 )
 
 
+# Fields added after a site first saved VMS Settings have no stored value, and a
+# Single does not take a field's default on migrate: the form showed them blank
+# (an unticked box), and the next save stored that as the administrator's choice.
+UNSTORED_DEFAULTS = {
+	"require_group_member_id": 1,
+	"max_pass_validity_days": 30,
+	"track_badge_return": 1,
+	"approval_reminder_hours": vms_settings.DEFAULT_APPROVAL_REMINDER_HOURS,
+	# Optional features are on until an administrator unticks one.
+	**dict.fromkeys(vms_settings.FEATURE_SWITCHES, 1),
+	"gate_time_tolerance_minutes": vms_settings.DEFAULT_GATE_TIME_TOLERANCE_MINUTES,
+}
+
+
 class VMSSettings(Document):
+	def onload(self):
+		for fieldname, default in UNSTORED_DEFAULTS.items():
+			if not vms_settings.is_stored(fieldname):
+				self.set(fieldname, default)
+
 	def validate(self):
 		self._validate_emails()
 		self._validate_policy_numbers()
 		self._validate_country_code()
 		self._validate_meal_windows()
 		self._publish_portal_logo()
+
+	def on_change(self):
+		# Switching the routing changes who may decide every pass already waiting,
+		# but saves none of them: their stored routed_approver / current_approvers,
+		# which the workflow's conditions read, kept the old answer until the hourly
+		# refresh — the Sales Manager had no Approve on a pass still routed to the
+		# host's manager. on_change, not on_update: the cached Settings the resolver
+		# reads is cleared only after on_update.
+		if self.has_value_changed("route_approval_to_manager"):
+			from visitormanagement.visitor_management import approval_tasks
+
+			approval_tasks.refresh_pending_assignments()
 
 	def _publish_portal_logo(self):
 		"""Keep `portal_logo` on a URL a logged-out visitor can actually load.
@@ -119,6 +151,12 @@ class VMSSettings(Document):
 					title=_("Invalid Policy Value"),
 				)
 		self._validate_portal_submission_limit()
+		# 0 is this setting's "off", so only a negative number is refused.
+		if cint(self.get("approval_reminder_hours")) < 0:
+			frappe.throw(
+				_("Remind approvers after (hours) cannot be negative. Use 0 to switch reminders off."),
+				title=_("Invalid Policy Value"),
+			)
 
 	def _validate_portal_submission_limit(self):
 		"""Max Portal Submissions per Hour is 1 to the portal's fixed ceiling; 0 means default.

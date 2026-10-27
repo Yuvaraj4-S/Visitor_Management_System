@@ -314,8 +314,13 @@ def _has_transition_from(pass_name, state, modified, user):
 	if not get_workflow_name(VISITOR_PASS):
 		return False
 	roles = set(frappe.get_roles(user))
+	# Only a decision opens the visitor's ID documents. The host's own Withdraw
+	# is a transition from the same pending lane, and counting it let the host
+	# read the ID scan of a pass they could not approve.
 	transitions = [
-		t for t in get_workflow(VISITOR_PASS).transitions if t.state == state and t.allowed in roles
+		t
+		for t in get_workflow(VISITOR_PASS).transitions
+		if t.state == state and t.allowed in roles and t.action in ("Approve", "Reject")
 	]
 	if not transitions:
 		return False
@@ -597,23 +602,91 @@ def share_files_from_source_pass(doc):
 			copy_file_row(original, doc, fieldname)
 
 
-def saved_record_using(doctype, file_url):
-	"""(name, fieldname) of a saved `doctype` record that uses file_url, or None.
+def records_with_own_row(doctypes, file_urls):
+	"""{file_url: (doctype, name, fieldname)} for the URLs a saved record holds its own File row for.
 
-	Looks in the record's own Attach fields and in its child tables' (a Security
-	Log's item photos), so a file still in use is never mistaken for a stray one.
+	Frappe gives a saved record a File row of its own for every URL in its Attach
+	fields, on every save (attach_files_to_document); this app first moves the
+	creator's own stray onto the record (adopt_stray_uploads). So a URL a saved
+	record uses has a row attached to that record, found through File's indexes
+	(file_url, attached_to_doctype + attached_to_name) instead of reading every
+	record's Attach columns, which have no index (a full scan of Visitor Pass and
+	Security Log per file). A row still on an unsaved form's "new-..." name is
+	not a saved record's.
 	"""
-	if not file_url:
-		return None
-	for fieldname in _attach_fieldnames(doctype):
-		name = frappe.db.get_value(doctype, {fieldname: file_url}, "name")
-		if name:
-			return name, fieldname
-	for table in frappe.get_meta(doctype).get_table_fields():
-		for fieldname in _attach_fieldnames(table.options):
-			parent = frappe.db.get_value(
-				table.options, {fieldname: file_url, "parenttype": doctype}, "parent"
-			)
-			if parent:
-				return parent, None
-	return None
+	file_urls = sorted({url for url in file_urls or () if url})
+	if not file_urls:
+		return {}
+	found = {}
+	for row in frappe.get_all(
+		"File",
+		filters={
+			"file_url": ("in", file_urls),
+			"attached_to_doctype": ("in", list(doctypes)),
+			"attached_to_name": ("not like", "new-%"),
+		},
+		fields=["file_url", "attached_to_doctype", "attached_to_name", "attached_to_field"],
+		order_by=None,
+	):
+		found.setdefault(row.file_url, (row.attached_to_doctype, row.attached_to_name, row.attached_to_field))
+	return found
+
+
+def records_holding(doctype, file_urls, created_since):
+	"""{file_url: (name, fieldname, owner)} for `doctype` records created since `created_since`
+	whose Attach fields, or their child tables' (a Security Log's item photos), hold a URL.
+
+	For the record that holds a URL without a File row of its own (saved before
+	adopt_stray_uploads, or written without a save). A stray on an unsaved form's
+	"new-..." name, like a portal upload, can only be used by a record saved after
+	it was uploaded, so only records created since then are read: through the
+	`creation` index, a day or two of rows, not the whole table. A child-table
+	match has no fieldname, as Frappe files item photos against the parent.
+	"""
+	file_urls = sorted({url for url in file_urls or () if url})
+	if not file_urls or not created_since:
+		return {}
+	wanted = set(file_urls)
+	found = {}
+	fieldnames = _attach_fieldnames(doctype)
+	if fieldnames:
+		table = frappe.qb.DocType(doctype)
+		condition = None
+		for fieldname in fieldnames:
+			term = table[fieldname].isin(file_urls)
+			condition = term if condition is None else condition | term
+		for row in (
+			frappe.qb.from_(table)
+			.select(table.name, table.owner, *(table[f] for f in fieldnames))
+			.where(table.creation >= created_since)
+			.where(condition)
+			.orderby(table.creation)
+			.run(as_dict=True)
+		):
+			for fieldname in fieldnames:
+				if row.get(fieldname) in wanted:
+					found.setdefault(row[fieldname], (row.name, fieldname, row.owner))
+	for table_field in frappe.get_meta(doctype).get_table_fields():
+		child_fieldnames = _attach_fieldnames(table_field.options)
+		if not child_fieldnames:
+			continue
+		parent = frappe.qb.DocType(doctype)
+		child = frappe.qb.DocType(table_field.options)
+		condition = None
+		for fieldname in child_fieldnames:
+			term = child[fieldname].isin(file_urls)
+			condition = term if condition is None else condition | term
+		for row in (
+			frappe.qb.from_(child)
+			.inner_join(parent)
+			.on(parent.name == child.parent)
+			.select(parent.name, parent.owner, *(child[f] for f in child_fieldnames))
+			.where(child.parenttype == doctype)
+			.where(parent.creation >= created_since)
+			.where(condition)
+			.run(as_dict=True)
+		):
+			for fieldname in child_fieldnames:
+				if row.get(fieldname) in wanted:
+					found.setdefault(row[fieldname], (row.name, None, row.owner))
+	return found

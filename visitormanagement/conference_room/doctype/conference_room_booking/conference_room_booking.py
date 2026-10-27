@@ -6,7 +6,17 @@ import frappe
 from frappe import _
 from frappe.model import default_fields
 from frappe.model.document import Document
-from frappe.utils import cint, flt, get_datetime, get_time, getdate, time_diff_in_hours, today
+from frappe.utils import (
+	add_to_date,
+	cint,
+	flt,
+	get_datetime,
+	get_time,
+	getdate,
+	now_datetime,
+	time_diff_in_hours,
+	today,
+)
 
 from visitormanagement.permissions import get_conference_room_booking_permission_query_conditions
 from visitormanagement.visitor_management.lifecycle import assert_submitted_through_approval
@@ -29,6 +39,41 @@ BUSY_SHOWN_FIELDS = frozenset(
 # the status of every booking that was otherwise only "Busy" to them.
 CALENDAR_OPEN_FILTER_FIELDS = ("conference_room", "booking_date")
 
+# How far into the past a booking for today may start. A room booked "for now"
+# is typed a minute or two after the hour, and a walk-in's pass books the room
+# for the arrival time reception just entered; refusing those as "in the past"
+# would only make people type a later time than the real one.
+START_GRACE_MINUTES = 15
+
+
+def holds_slot_condition(table="`tabConference Room Booking`"):
+	"""SQL: does this booking hold its room for its slot?
+
+	Only a booking that is on its way does: one waiting for the Facility
+	Manager, or one approved. A Draft that was never sent in used to hold the
+	room for good — a booking started and abandoned blocked the slot for
+	everyone else, and the calendar showed it as "Busy" forever.
+
+	The one exception is the Draft a Visitor Pass raises for itself while the
+	pass is going through approval: it is sent to the Facility Manager the
+	moment the pass is approved (lifecycle.ensure_conference_room_booking), and
+	a visit waiting for its approver must not lose its room to whoever books it
+	first in the meantime. Once that pass is Rejected or Cancelled the Draft
+	holds nothing.
+	"""
+	return f"""(
+		{table}.docstatus = 1
+		OR ({table}.docstatus = 0 AND (
+			{table}.status = 'Pending Approval'
+			OR (IFNULL({table}.status, 'Draft') = 'Draft' AND EXISTS (
+				SELECT 1 FROM `tabVisitor Pass` slot_vp
+				WHERE slot_vp.name = {table}.visitor_pass
+				  AND slot_vp.docstatus < 2
+				  AND slot_vp.status NOT IN ('Rejected', 'Cancelled')
+			))
+		))
+	)"""
+
 
 class ConferenceRoomBooking(Document):
 	def validate(self):
@@ -37,6 +82,7 @@ class ConferenceRoomBooking(Document):
 		self.validate_schedule()
 		self.calculate_duration()
 		if self._asks_for_the_room():
+			self.validate_room_active()
 			self.validate_past_date()
 			self.validate_room_limits()
 			self.validate_capacity()
@@ -84,10 +130,9 @@ class ConferenceRoomBooking(Document):
 		on_cancel ever wrote `status` — leaving "Pending Approval" and "Rejected"
 		unreachable even though both are declared options on the field.
 
-		That is not cosmetic. validate_overlap excludes
-		`status NOT IN ('Cancelled', 'Rejected')`, so a rejected booking whose
-		status stayed "Draft" went on holding its room slot forever and the
-		exclusion was dead code. `status` is also in_list_view and
+		That is not cosmetic. Whether a booking holds its slot is read from
+		`status` (`holds_slot_condition`), so a rejected booking whose status
+		stayed "Draft" went on holding its room slot. `status` is also in_list_view and
 		in_standard_filter, so the list showed a booking awaiting approval as
 		"Draft".
 		"""
@@ -151,6 +196,7 @@ class ConferenceRoomBooking(Document):
 		is not choosing a date, and refusing those froze old bookings.
 		"""
 		if getdate(self.booking_date) >= getdate(today()):
+			self._validate_start_not_passed()
 			return
 		if self.docstatus == 1:
 			frappe.throw(
@@ -162,6 +208,44 @@ class ConferenceRoomBooking(Document):
 			)
 		if self.is_new() or self._slot_changed():
 			frappe.throw(_("Cannot book a room for a past date."))
+
+	def _validate_start_not_passed(self):
+		"""A booking for today cannot start at a time that has already gone by.
+
+		Only the date was compared, so at 16:00 a room could still be booked for
+		09:00 the same day — a slot nobody can use, which then showed as taken.
+		Checked when the slot is asked for, like the date (see validate_past_date).
+		"""
+		if getdate(self.booking_date) != getdate(today()):
+			return
+		if not (self.is_new() or self._slot_changed()):
+			return
+		start = get_datetime(f"{self.booking_date} {self.start_time}")
+		if start < add_to_date(now_datetime(), minutes=-START_GRACE_MINUTES):
+			frappe.throw(
+				_("The start time {0} has already passed today. Choose a later time.").format(
+					_clock(self.start_time)
+				),
+				title=_("Start Time Passed"),
+			)
+
+	def validate_room_active(self):
+		"""A room that has been taken out of use cannot be booked.
+
+		Find Available Rooms already left inactive rooms out, but a room typed
+		into the field, picked on a Visitor Pass, or kept on a booking moved to a
+		new slot was booked all the same. Existing bookings on a room that is
+		later switched off are left alone until someone asks for the slot again.
+		"""
+		if not self.conference_room or not (self.is_new() or self._slot_changed()):
+			return
+		if not cint(frappe.db.get_value("Conference Room", self.conference_room, "is_active")):
+			frappe.throw(
+				_("Conference Room {0} is not active and cannot be booked.").format(
+					frappe.bold(self.conference_room)
+				),
+				title=_("Room Not Available"),
+			)
 
 	def _slot_changed(self):
 		before = self.get_doc_before_save()
@@ -199,7 +283,9 @@ class ConferenceRoomBooking(Document):
 	# -- Capacity Validation ---
 
 	def validate_capacity(self):
-		if not self.expected_attendees or not self.conference_room:
+		if cint(self.expected_attendees) < 1:
+			frappe.throw(_("Expected Attendees must be at least 1."), title=_("Invalid Attendees"))
+		if not self.conference_room:
 			return
 
 		room_capacity = frappe.db.get_value("Conference Room", self.conference_room, "capacity")
@@ -349,6 +435,12 @@ def get_available_rooms(
 		frappe.throw(_("Enter a valid date, start time and end time."))
 	if booking_day < getdate(today()):
 		frappe.throw(_("Cannot book a room for a past date."))
+	if booking_day == getdate(today()) and get_datetime(f"{booking_day} {start}") < add_to_date(
+		now_datetime(), minutes=-START_GRACE_MINUTES
+	):
+		frappe.throw(
+			_("The start time {0} has already passed today. Choose a later time.").format(_clock(start))
+		)
 	if start >= end:
 		frappe.throw(_("Start Time must be before End Time."))
 
@@ -396,8 +488,9 @@ def get_available_rooms(
 		SELECT DISTINCT conference_room
 		FROM `tabConference Room Booking`
 		WHERE booking_date = %(date)s
-		  AND docstatus < 2
-		  AND status NOT IN ('Cancelled', 'Rejected')
+		  AND """
+		+ holds_slot_condition()
+		+ """
 		  AND (start_time < %(end_time)s AND end_time > %(start_time)s)
 		"""
 		+ exclude_clause,
@@ -441,8 +534,9 @@ def get_room_schedule(conference_room: str, booking_date: str):
 		FROM `tabConference Room Booking`
 		WHERE conference_room = %(room)s
 		  AND booking_date = %(date)s
-		  AND docstatus < 2
-		  AND status NOT IN ('Cancelled', 'Rejected')
+		  AND """
+		+ holds_slot_condition()
+		+ """
 		ORDER BY start_time ASC
 		""",
 		{"room": conference_room, "date": booking_date},
@@ -533,11 +627,14 @@ def get_booking_events(start: str, end: str, filters: str | dict | list | None =
 			name, meeting_title,
 			TIMESTAMP(booking_date, start_time) AS `start`,
 			TIMESTAMP(booking_date, end_time) AS `end`,
-			conference_room, meeting_type, status,
+			conference_room, meeting_type, status, docstatus,
 			0 AS allDay,
 			("""
 		+ (scope or "1")
-		+ """) AS is_visible
+		+ """) AS is_visible,
+			"""
+		+ holds_slot_condition()
+		+ """ AS holds_slot
 		FROM `tabConference Room Booking`
 		WHERE docstatus < 2
 		  AND status NOT IN ('Cancelled')
@@ -553,11 +650,13 @@ def get_booking_events(start: str, end: str, filters: str | dict | list | None =
 
 	events = []
 	for row in rows:
+		holds_slot = row.pop("holds_slot")
 		if not row.pop("is_visible"):
-			# "Busy" says the slot is taken, and a rejected booking takes none
-			# (`find_conflicting_booking`). Its status is no longer sent, so it
-			# could not be told apart from a slot that really is taken.
-			if row.status == "Rejected":
+			# "Busy" says the slot is taken, and a rejected booking, or a Draft
+			# nobody sent in, takes none (`holds_slot_condition`). Its status is
+			# no longer sent, so it could not be told apart from a slot that
+			# really is taken.
+			if not holds_slot:
 				continue
 			_show_as_busy(row)
 		# `title` names the room: with several rooms on one calendar, "10:00 Busy"
@@ -566,6 +665,76 @@ def get_booking_events(start: str, end: str, filters: str | dict | list | None =
 		row.title = " · ".join(part for part in (row.conference_room, row.meeting_title) if part)
 		events.append(row)
 	return events
+
+
+@frappe.whitelist(methods=["POST"])
+def update_booking_slot(args: str | dict, field_map: str | dict | None = None):
+	"""Calendar drag and resize: move a booking to the slot it was dropped on.
+
+	The calendar's stock handler (`frappe.desk.calendar.update_event`) sets the
+	fields its `field_map` names — `start` and `end`, which are columns of the
+	event feed, not fields of the booking. So a drag reported success and
+	changed nothing. Here the dropped datetimes become the booking's own date
+	and times, and the booking is saved the normal way, so a drag answers to the
+	same rules as the form: write permission on this booking, a slot that has
+	not passed, an active room, its hours and capacity, and no overlap.
+	"""
+	args = frappe._dict(frappe.parse_json(args) or {})
+	name = args.get("name")
+	if not name or not frappe.db.exists("Conference Room Booking", name):
+		frappe.throw(_("This booking no longer exists."))
+
+	try:
+		start = get_datetime(args.get("start"))
+		end = get_datetime(args.get("end")) if args.get("end") else None
+	except Exception:
+		start = end = None
+	if not start or not end:
+		frappe.throw(_("Drop the booking on a time slot, with a start and an end."))
+	if cint(args.get("allDay")) or getdate(start) != getdate(end):
+		frappe.throw(_("A booking starts and ends on the same day. Drop it on a time slot instead."))
+
+	doc = frappe.get_doc("Conference Room Booking", name)
+	doc.check_permission("write")
+	if doc.docstatus != 0:
+		frappe.throw(
+			_("Booking {0} is {1} and cannot be moved. Cancel and amend it to change the slot.").format(
+				frappe.bold(doc.name), _(doc.status or "Approved")
+			),
+			title=_("Cannot Move Booking"),
+		)
+	_assert_state_editable(doc)
+
+	doc.booking_date = getdate(start)
+	doc.start_time = start.strftime("%H:%M:%S")
+	doc.end_time = end.strftime("%H:%M:%S")
+	doc.save()
+	return {"name": doc.name, "booking_date": doc.booking_date, "start_time": doc.start_time}
+
+
+def _assert_state_editable(doc):
+	"""Who may edit a booking in its current workflow state, as the form decides it.
+
+	The form turns read-only for anyone outside the state's `allow_edit` role —
+	a booking waiting for approval is the Facility Manager's — but a save from
+	anywhere else is not held to that, so the calendar has to ask.
+	"""
+	from frappe.model.workflow import get_workflow_name
+
+	workflow_name = get_workflow_name(doc.doctype)
+	if not workflow_name or frappe.session.user == "Administrator":
+		return
+	workflow = frappe.get_cached_doc("Workflow", workflow_name)
+	state = doc.get(workflow.workflow_state_field) or "Draft"
+	allowed = [row.allow_edit for row in workflow.states if row.state == state and row.allow_edit]
+	if allowed and not set(allowed) & set(frappe.get_roles()):
+		frappe.throw(
+			_("Booking {0} is {1}; only {2} can change it now.").format(
+				frappe.bold(doc.name), _(state), ", ".join(_(role) for role in allowed)
+			),
+			frappe.PermissionError,
+			title=_("Cannot Move Booking"),
+		)
 
 
 def find_conflicting_booking(room, booking_date, start_time, end_time, exclude=None, for_update=False):
@@ -578,7 +747,8 @@ def find_conflicting_booking(room, booking_date, start_time, end_time, exclude=N
 	chose the room, long after they could easily change it.
 
 	Times compare strictly (`<` / `>`), so back-to-back bookings (10-11 then
-	11-12) do not collide — a rule a real office depends on.
+	11-12) do not collide — a rule a real office depends on. Only bookings that
+	hold their slot count (`holds_slot_condition`).
 
 	`for_update` is used by the booking's own validation, where the locking read
 	closes a time-of-check/time-of-use race between two simultaneous bookings.
@@ -593,8 +763,9 @@ def find_conflicting_booking(room, booking_date, start_time, end_time, exclude=N
 		WHERE conference_room = %(room)s
 		  AND booking_date = %(date)s
 		  AND name != %(self_name)s
-		  AND docstatus < 2
-		  AND status NOT IN ('Cancelled', 'Rejected')
+		  AND """
+		+ holds_slot_condition()
+		+ """
 		  AND (start_time < %(end_time)s AND end_time > %(start_time)s)
 		LIMIT 1
 		"""

@@ -9,6 +9,7 @@
   "sec_identity",
   "visitor_name",
   "id_proof_type",
+  "id_proof_masked",
   "id_proof_number",
   "mobile_number",
   "col_identity",
@@ -38,10 +39,21 @@
    "options": "ID Proof Type"
   },
   {
-   "fieldname": "id_proof_number",
+   "fieldname": "id_proof_masked",
    "fieldtype": "Data",
    "label": "ID Proof Number",
+   "description": "Type the person's full ID number. Once saved, only the last four characters are shown. The full number is kept for matching at the gate: Security and System Manager can reveal it with Reveal Full ID, and every reveal is recorded.",
    "in_list_view": 1
+  },
+  {
+   "fieldname": "id_proof_number",
+   "fieldtype": "Data",
+   "label": "ID Proof Number (Full)",
+   "description": "The full ID number, kept for matching. Nobody is shown it; Security and System Manager can reveal it with Reveal Full ID.",
+   "hidden": 1,
+   "mask": 1,
+   "permlevel": 1,
+   "read_only": 1
   },
   {
    "fieldname": "mobile_number",
@@ -87,7 +99,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-08 13:31:16.088560",
+ "modified": "2026-10-16 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Blacklist",

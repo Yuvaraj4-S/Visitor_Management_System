@@ -40,7 +40,7 @@ frappe.query_reports["Active Visitors"] = {
 		}
 		if (column.fieldname === "item_verification_status" && data) {
 			const colour =
-				{ "All Verified": "green", Partial: "orange", Pending: "red" }[
+				{ "All Verified": "green", Partial: "orange", Pending: "red", Discrepancy: "red" }[
 					data.item_verification_status
 				] || "grey";
 			return `<span class="indicator-pill ${colour}">${value || ""}</span>`;

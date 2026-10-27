@@ -13,7 +13,9 @@ Job Applicant is every candidate's CV, while these roles only ever need to pick 
 record and copy three fields from it.
 
 This endpoint returns exactly those fields, to anyone the link picker would
-offer the record to (link_queries.authorize + is_visible).
+offer the record to (link_queries.authorize + is_visible). Job Applicants are
+offered only to those who may read them, or to the host of the candidate's
+invitation (link_queries.job_applicant_scope).
 """
 
 import frappe
@@ -21,9 +23,12 @@ from frappe import _
 
 from visitormanagement.visitor_management.link_queries import authorize, is_visible
 
-# doctype -> the fields a pass may copy from it. Nothing else is ever returned.
+# doctype -> the fields a form copies from it. Nothing else is ever returned.
+# An Employee's login email is not among them: any Visitor Pass reader could
+# look up every employee's address one ID at a time. The pass copies it to
+# host_email on save (fill_from_link), where only the host's own appears.
 LINK_DETAIL_FIELDS = {
-	"Employee": ("employee_name", "department", "user_id"),
+	"Employee": ("employee_name", "department"),
 	"Job Applicant": ("applicant_name", "phone_number", "email_id", "job_title"),
 	"Supplier": ("supplier_name", "mobile_no", "email_id"),
 }

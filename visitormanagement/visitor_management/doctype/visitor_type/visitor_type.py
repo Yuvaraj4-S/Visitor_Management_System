@@ -56,6 +56,16 @@ class VisitorType(Document):
 				).format(self.visitor_type_name),
 				title=_("Approver Role Required"),
 			)
+		# The same role twice is not two approvals: the second lane would be the
+		# first one again, and its Approve could never reach Approved.
+		if self.secondary_approver_role and self.secondary_approver_role == self.approver_role:
+			frappe.throw(
+				_(
+					"Secondary Approver Role must be a different role from the Approver Role ({0}). "
+					"Leave it empty for a single approval."
+				).format(self.approver_role),
+				title=_("Same Approver Twice"),
+			)
 
 	def _guard_approver_role_changes(self):
 		"""Only a System Manager may decide who approves a visitor type.

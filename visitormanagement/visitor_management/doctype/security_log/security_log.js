@@ -25,11 +25,26 @@ frappe.ui.form.on("Security Log", {
 		// server also rejects one on save (security_log.py before_save), since
 		// this filter is only a picker convenience, not enforcement.
 		frm.set_query("gate_name", () => {
-			return { filters: { is_active: 1 } };
+			// Where VMS Settings restricts Security to their own gates, offer only
+			// those (the server refuses any other, security_log._keep_to_assigned_gate).
+			const allowed = (frm.__gate_policy || {}).allowed_gates || [];
+			const filters = { is_active: 1 };
+			if (allowed.length) filters.name = ["in", allowed];
+			return { filters };
 		});
 	},
 
 	onload(frm) {
+		// A token that arrived with the form (the gate API's prefilled route)
+		// belongs to the pass it came with; see the visitor_pass handler.
+		if (frm.is_new() && frm.doc.scanned_qr_token) frm.__scanned_pass = frm.doc.visitor_pass;
+		load_gate_policy(frm).then((policy) => {
+			// A guard restricted to their own gates starts on theirs.
+			if (frm.is_new() && !frm.doc.gate_name && (policy.allowed_gates || []).length) {
+				frm.set_value("gate_name", policy.default_gate || policy.allowed_gates[0]);
+			}
+		});
+
 		if (frm.is_new() && !frm.doc.security_officer) {
 			// Not frappe.db.get_value("Employee", ...): that needs READ on Employee.
 			frappe
@@ -79,12 +94,29 @@ frappe.ui.form.on("Security Log", {
 			frm.set_value("verification_started_on", frappe.datetime.now_datetime());
 		}
 		sync_event_fields(frm);
+		load_item_rows(frm);
+		load_member_rows(frm);
+		// The booked-time warning depends on the movement (load_gate_policy).
+		if (frm.doc.visitor_pass) load_gate_policy(frm);
 		apply_security_log_ui(frm);
 	},
 
 	gate_name(frm) {
+		// The server decides this on save; shown here so the tick matches.
+		const default_gate = (frm.__gate_policy || {}).default_gate;
+		if (frm.is_new() && default_gate) {
+			frm.set_value("gate_auto_assigned", frm.doc.gate_name === default_gate ? 1 : 0);
+		}
 		sync_event_fields(frm);
 		apply_security_log_ui(frm);
+	},
+
+	check_in_date_time(frm) {
+		apply_exception_reason_ui(frm);
+	},
+
+	check_out_date_time(frm) {
+		apply_exception_reason_ui(frm);
 	},
 
 	symptoms_flag(frm) {
@@ -230,6 +262,8 @@ frappe.ui.form.on("Security Log", {
 			`);
 
 			let html5QrCode;
+			let closed = false;
+			let handled = false;
 
 			function stop_scanner() {
 				if (html5QrCode && html5QrCode.isScanning) {
@@ -239,24 +273,28 @@ frappe.ui.form.on("Security Log", {
 				}
 			}
 
-			setTimeout(() => {
+			// The camera starts a moment after the dialog opens. Closed before
+			// then, it used to start anyway, in a dialog nobody could see, and
+			// keep the camera busy until the page was reloaded.
+			const start_timer = setTimeout(() => {
+				if (closed || !scanner_dialog.display) return;
 				try {
 					html5QrCode = new Html5Qrcode(scanner_id);
 
 					const qrCodeSuccessCallback = (decodedText) => {
-						let visitor_pass = decodedText;
-						if (decodedText.includes("|") && decodedText.includes(":")) {
-							for (const part of decodedText.split("|")) {
-								if (part.startsWith("PASS:")) {
-									visitor_pass = part.split(":")[1].trim();
-									break;
-								}
-							}
-						}
+						// The library reports the same code several times a second.
+						if (handled) return;
+						handled = true;
+						const { visitor_pass, token } = parse_pass_qr(decodedText);
 
+						// Only the pass and the token it carries go to the server,
+						// which decides whether this was a real scan of this pass
+						// (qr_code_scanned) — the form no longer ticks that itself.
 						frm.__scanned = true;
-						frm.set_value("visitor_pass", visitor_pass);
-						frm.set_value("qr_code_scanned", 1);
+						frm.__scanned_pass = visitor_pass;
+						frm.set_value("scanned_qr_token", token || QR_SCAN_WITHOUT_TOKEN).then(
+							() => frm.set_value("visitor_pass", visitor_pass)
+						);
 						frappe.show_alert({
 							message: __("QR Code scanned: {0}", [visitor_pass]),
 							indicator: "green",
@@ -279,6 +317,10 @@ frappe.ui.form.on("Security Log", {
 								qrCodeSuccessCallback
 							)
 						)
+						.then(() => {
+							// Closed while the browser was still asking for the camera.
+							if (closed) stop_scanner();
+						})
 						.catch((err) => {
 							frappe.msgprint({
 								title: __("Camera Error"),
@@ -292,14 +334,26 @@ frappe.ui.form.on("Security Log", {
 				}
 			}, 500);
 
-			scanner_dialog.on_hide = () => stop_scanner();
+			scanner_dialog.on_hide = () => {
+				closed = true;
+				clearTimeout(start_timer);
+				stop_scanner();
+			};
 		});
 	},
 
 	visitor_pass(frm) {
+		// A scanned token proves the QR of the pass it was read from. Picking or
+		// typing another pass afterwards must not carry it over: the server
+		// would rightly call that a copied QR.
+		if (frm.doc.scanned_qr_token && frm.doc.visitor_pass !== frm.__scanned_pass) {
+			frm.set_value("scanned_qr_token", "");
+		}
+
 		if (!frm.doc.visitor_pass) {
 			delete frm.__visitor_type;
 			delete frm.__visitor_type_layout;
+			show_timing_warning(frm, "");
 			apply_security_log_ui(frm);
 			return;
 		}
@@ -328,6 +382,8 @@ frappe.ui.form.on("Security Log", {
 				"multi_day_pass",
 				"pass_valid_until",
 				"visit_date",
+				"expected_checkin",
+				"expected_checkout",
 			],
 			(r) => {
 				if (!r) {
@@ -377,8 +433,21 @@ frappe.ui.form.on("Security Log", {
 							r.multi_day_pass && r.pass_valid_until
 								? r.pass_valid_until
 								: r.visit_date;
+						// After midnight on an overnight visit (check-out time at or
+						// before check-in) the night began yesterday (gate_timing).
+						const now_time = time_seconds(frappe.datetime.now_time());
+						const overnight =
+							r.expected_checkin &&
+							r.expected_checkout &&
+							time_seconds(r.expected_checkout) <=
+								time_seconds(r.expected_checkin) &&
+							now_time < time_seconds(r.expected_checkout);
+						const days = overnight
+							? [today, frappe.datetime.add_days(today, -1)]
+							: [today];
 						const reentry_open =
-							r.visit_date && r.visit_date <= today && today <= last_day;
+							r.visit_date &&
+							days.some((day) => r.visit_date <= day && day <= last_day);
 						if (reentry_open) {
 							event_type = "Check-In";
 						} else {
@@ -405,70 +474,41 @@ frappe.ui.form.on("Security Log", {
 					}
 
 					frm.set_value("event_type", event_type);
-
-					if (!frm.doc.gate_name) {
-						const gate_rules = {
-							VIP: "VIP Entrance",
-							Supplier: "Loading Dock",
-							Contractor: "Back Gate",
-							Candidate: "Main Gate",
-							Customer: "Main Gate",
-						};
-						frm.set_value("gate_name", gate_rules[r.visitor_type] || "Main Gate");
-					}
 					// Also when the event was already the right one and no handler ran.
 					sync_event_fields(frm);
+					load_item_rows(frm);
+					load_member_rows(frm);
 				}
 
-				if (frm.__scanned) {
+				const scanned = frm.__scanned;
+				delete frm.__scanned;
+
+				// The gate the server would assign (Visitor Type default, else the
+				// first active gate), pre-selected so the guard does not pick it.
+				// It used to come from a hardcoded map of type names to gate names
+				// that existed on no real site.
+				load_gate_policy(frm).then((policy) => {
+					if (frm.is_new() && !frm.doc.gate_name && policy.default_gate) {
+						frm.set_value("gate_name", policy.default_gate);
+					}
+					// Straight to the camera after a scan only where a photo is
+					// required — and only where the browser has a camera API (a
+					// gate PC on plain HTTP has none, and got an error per scan).
 					if (
+						scanned &&
+						policy.photo_required &&
 						["Check-In", "Check-Out"].includes(frm.doc.event_type) &&
-						!frm.doc.photo_at_gate
+						!frm.doc.photo_at_gate &&
+						navigator.mediaDevices &&
+						navigator.mediaDevices.getUserMedia
 					) {
 						setTimeout(() => frm.trigger("capture_photo"), 500);
 					}
-					delete frm.__scanned;
-				}
+				});
 
 				apply_security_log_ui(frm);
 			}
 		);
-
-		if (
-			frm.is_new() &&
-			(!frm.doc.items_verification || frm.doc.items_verification.length === 0)
-		) {
-			frappe.model.with_doc("Visitor Pass", frm.doc.visitor_pass, () => {
-				// The pass may be gone by the time this resolves: picking a pass
-				// that is already checked out shows "Already Scanned" and clears
-				// the field, and that clear can land first. Reading
-				// `vp.visitor_items` off the resulting undefined threw a
-				// TypeError into the console on every such re-selection.
-				if (!frm.doc.visitor_pass) {
-					return;
-				}
-				const vp = frappe.model.get_doc("Visitor Pass", frm.doc.visitor_pass);
-				if (!vp) {
-					return;
-				}
-				if (vp.visitor_items && vp.visitor_items.length > 0) {
-					frm.clear_table("items_verification");
-					vp.visitor_items.forEach((item) => {
-						const row = frm.add_child("items_verification");
-						row.item_name = item.item_name;
-						row.item_category = item.item_category;
-						row.quantity_declared = item.quantity;
-						row.uom = item.unit_of_measure;
-						row.serial__asset_number = item.serial_number;
-						row.quantity_found = item.quantity;
-						row.item_verified = 0;
-						row.visitor_item_row_name = item.name;
-					});
-					frm.refresh_field("items_verification");
-				}
-				apply_security_log_ui(frm);
-			});
-		}
 	},
 
 	capture_photo(frm) {
@@ -581,7 +621,32 @@ function dialog_video(dialog) {
 	return dialog.get_field("camera_html").$wrapper.find("video").get(0);
 }
 
+frappe.ui.form.on("Security Log Member", {
+	present(frm) {
+		render_group_summary(frm);
+		apply_badge_returned_ui(frm);
+	},
+});
+
 frappe.ui.form.on("Security Item Verify", {
+	quantity_found(frm, cdt, cdn) {
+		// Shown straight away; the server works it out again on save.
+		const row = locals[cdt][cdn];
+		if (!row) return;
+		const discrepancy =
+			row.quantity_found != null &&
+			row.quantity_declared != null &&
+			flt(row.quantity_found) !== flt(row.quantity_declared)
+				? 1
+				: 0;
+		if (cint(row.discrepancy) !== discrepancy) {
+			frappe.model.set_value(cdt, cdn, "discrepancy", discrepancy);
+		}
+		recompute_all_items_confirmed(frm);
+		render_items_progress_summary(frm);
+		apply_exception_reason_ui(frm);
+	},
+
 	item_verified(frm, cdt, cdn) {
 		const row = locals[cdt][cdn];
 		if (!row) return;
@@ -599,6 +664,7 @@ frappe.ui.form.on("Security Item Verify", {
 
 		recompute_all_items_confirmed(frm);
 		render_items_progress_summary(frm);
+		apply_exception_reason_ui(frm);
 	},
 
 	capture_item_image(frm, cdt, cdn) {
@@ -750,9 +816,10 @@ function upload_captured_image({ file, doctype, docname, fieldname }) {
 // On an unsaved log, keep the fields that follow from the event and the gate in
 // step with them. The hidden Visited Area is the gate of the event: it was filled
 // once, from the first gate chosen, so a Gate Transfer kept the visitor at the old
-// gate. The check-in / check-out time is stamped when a pass is picked: changing
-// the event afterwards left that time on a record it does not describe. The
-// server applies the same two rules on save (security_log.py).
+// gate. A check-in / check-out time that does not belong to the event is cleared.
+// The times themselves are stamped by the server on save — the form used to fill
+// them from the browser's clock, which a wrong PC clock got wrong for every
+// visitor. The server applies the same rules on save (security_log.py).
 function sync_event_fields(frm) {
 	if (!frm.is_new()) return;
 
@@ -763,12 +830,211 @@ function sync_event_fields(frm) {
 
 	const times = { "Check-In": "check_in_date_time", "Check-Out": "check_out_date_time" };
 	Object.entries(times).forEach(([event_type, fieldname]) => {
-		if (frm.doc.event_type === event_type) {
-			if (!frm.doc[fieldname]) frm.set_value(fieldname, frappe.datetime.now_datetime());
-		} else if (frm.doc[fieldname]) {
+		if (frm.doc.event_type !== event_type && frm.doc[fieldname]) {
 			frm.set_value(fieldname, null);
 		}
 	});
+}
+
+// What security_log.py stores in scanned_qr_token for a QR with no TOKEN part
+// (QR_SCAN_WITHOUT_TOKEN there): a pass issued before passes had tokens.
+const QR_SCAN_WITHOUT_TOKEN = "NO-TOKEN";
+
+// "PASS:<name>|TOKEN:<token>|VISITOR:...|VISIT_DATE:..." — or, on the oldest
+// passes, the bare pass name.
+function parse_pass_qr(text) {
+	const parts = {};
+	if (text.includes("|") || text.includes(":")) {
+		for (const part of text.split("|")) {
+			const at = part.indexOf(":");
+			if (at > 0) parts[part.slice(0, at).trim()] = part.slice(at + 1).trim();
+		}
+	}
+	return { visitor_pass: parts.PASS || text.trim(), token: parts.TOKEN || "" };
+}
+
+// What this site requires at the gate, and (for the pass on the form) the gate
+// the server assigns. Asked once per pass and movement; the fields' mandatory
+// marks follow it, so the form asks for what the server enforces and nothing more.
+function load_gate_policy(frm) {
+	const visitor_pass = frm.doc.visitor_pass || null;
+	const event_type = frm.doc.event_type || null;
+	const key = `${visitor_pass}|${event_type}`;
+	if (frm.__gate_policy && frm.__gate_policy_for === key) {
+		return Promise.resolve(frm.__gate_policy);
+	}
+	// Picking a pass sets the movement too, and both ask: one request, one warning.
+	if (frm.__gate_policy_pending && frm.__gate_policy_pending_for === key) {
+		return frm.__gate_policy_pending;
+	}
+	frm.__gate_policy_pending_for = key;
+	frm.__gate_policy_pending = frappe
+		.xcall(
+			"visitormanagement.visitor_management.doctype.security_log.security_log.get_gate_policy",
+			{ visitor_pass, event_type }
+		)
+		.then((policy) => {
+			frm.__gate_policy = policy || {};
+			frm.__gate_policy_for = key;
+			show_timing_warning(frm, frm.__gate_policy.timing_warning);
+			apply_security_log_ui(frm);
+			return frm.__gate_policy;
+		})
+		.finally(() => {
+			if (frm.__gate_policy_pending_for === key) frm.__gate_policy_pending = null;
+		});
+	return frm.__gate_policy_pending;
+}
+
+// "9:00:00" (a Time as the server sends it) or "21:30" -> seconds since midnight.
+function time_seconds(value) {
+	const [h = 0, m = 0, sec = 0] = String(value)
+		.split(":")
+		.map((part) => parseFloat(part) || 0);
+	return h * 3600 + m * 60 + sec;
+}
+
+// Outside the booked time (gate_timing): told when the pass is picked, on the
+// server's clock — a short toast, never a refusal, so the queue keeps moving.
+// The save records the same note on the log, worked out again by the server.
+function show_timing_warning(frm, warning) {
+	if (!frm.is_new()) return;
+	frm.doc.timing_note = warning || "";
+	frm.refresh_field("timing_note");
+	if (!warning) return;
+	frappe.show_alert(
+		{
+			message: __("Outside booked time: {0} You can still record it.", [
+				frappe.utils.escape_html(warning),
+			]),
+			indicator: "orange",
+		},
+		10
+	);
+}
+
+// The item rows, from the server — the same code that rebuilds them on save, so
+// what the officer ticks is what gets recorded. At check-out they start from what
+// was found at check-in.
+function load_item_rows(frm) {
+	if (!frm.is_new() || !frm.doc.visitor_pass) return;
+	const visitor_pass = frm.doc.visitor_pass;
+	const event_type = frm.doc.event_type;
+	if (!["Check-In", "Check-Out"].includes(event_type)) return;
+	frappe
+		.xcall(
+			"visitormanagement.visitor_management.doctype.security_log.security_log.get_item_rows",
+			{ visitor_pass, event_type }
+		)
+		.then((rows) => {
+			// The pass may have been cleared or changed while this was loading
+			// (an "Already Scanned" pass is cleared straight away).
+			if (frm.doc.visitor_pass !== visitor_pass || frm.doc.event_type !== event_type) return;
+			frm.clear_table("items_verification");
+			(rows || []).forEach((values) => {
+				const row = frm.add_child("items_verification");
+				Object.assign(row, values);
+			});
+			frm.refresh_field("items_verification");
+			apply_security_log_ui(frm);
+		});
+}
+
+// The group members this log moves, from the server — the code that rebuilds them
+// on save. Everyone starts ticked; the guard unticks whoever is not at the gate.
+function load_member_rows(frm) {
+	if (!frm.is_new() || !frm.doc.visitor_pass) return;
+	const visitor_pass = frm.doc.visitor_pass;
+	const event_type = frm.doc.event_type;
+	if (!["Check-In", "Check-Out"].includes(event_type)) {
+		frm.__group = null;
+		if ((frm.doc.group_attendance || []).length) {
+			frm.clear_table("group_attendance");
+			frm.refresh_field("group_attendance");
+		}
+		apply_security_log_ui(frm);
+		return;
+	}
+	frappe
+		.xcall(
+			"visitormanagement.visitor_management.doctype.security_log.security_log.get_member_rows",
+			{ visitor_pass, event_type }
+		)
+		.then((result) => {
+			if (frm.doc.visitor_pass !== visitor_pass || frm.doc.event_type !== event_type) return;
+			frm.__group = result || {};
+			frm.clear_table("group_attendance");
+			(frm.__group.rows || []).forEach((values) => {
+				const row = frm.add_child("group_attendance");
+				Object.assign(row, values);
+			});
+			frm.set_value("group_members_only", cint(frm.__group.group_members_only));
+			frm.refresh_field("group_attendance");
+			apply_security_log_ui(frm);
+		});
+}
+
+// "4 of 5 arriving" above the member grid, with one tap to tick everyone again.
+function render_group_summary(frm) {
+	const field = frm.fields_dict && frm.fields_dict.group_attendance;
+	if (!field || !field.$wrapper) return;
+	field.$wrapper.find(".vm-group-summary").remove();
+	const rows = frm.doc.group_attendance || [];
+	if (!rows.length) return;
+
+	const present = rows.filter((r) => cint(r.present)).length;
+	const leaving = frm.doc.event_type === "Check-Out";
+	const lead = cint(frm.doc.group_members_only) ? 0 : 1;
+	const label = leaving
+		? __("Leaving now: {0} of {1} group members", [present, rows.length])
+		: __("Arriving now: {0} of {1} group members", [present, rows.length]);
+	const people = lead
+		? __("{0} people on this log, with the lead visitor", [present + lead])
+		: __("Group members only — the lead visitor is not moving");
+	const can_tick = frm.is_new() && present < rows.length;
+	field.$wrapper.prepend(`
+		<div class="vm-group-summary" style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; margin: 0 0 8px 0; border-radius: 8px; background: ${
+			present === rows.length ? "#d9f3e4" : "#fff4d6"
+		}; color: ${
+		present === rows.length ? "#0d6b3e" : "#8d5d00"
+	}; font-size: 12px; font-weight: 600;">
+			<span>${frappe.utils.escape_html(label)}</span>
+			<span style="font-weight: 400;">${frappe.utils.escape_html(people)}</span>
+			${
+				can_tick
+					? `<button type="button" class="btn btn-xs btn-default vm-all-present" style="margin-left: auto;">${__(
+							"All present"
+					  )}</button>`
+					: ""
+			}
+		</div>
+	`);
+	if (can_tick) {
+		field.$wrapper.find(".vm-all-present").on("click", () => {
+			(frm.doc.group_attendance || []).forEach((row) => {
+				if (!cint(row.present))
+					frappe.model.set_value(row.doctype, row.name, "present", 1);
+			});
+			frm.refresh_field("group_attendance");
+			render_group_summary(frm);
+		});
+	}
+}
+
+// "Badge Returned" is shown on a check-out that has a badge to hand back, ticked:
+// handing it back is what nearly everyone does, so the guard taps only when not.
+function apply_badge_returned_ui(frm) {
+	const policy = frm.__gate_policy || {};
+	const member_badges = (frm.doc.group_attendance || []).some(
+		(r) => cint(r.present) && r.badge_number
+	);
+	const lead_badge = !cint(frm.doc.group_members_only) && !!frm.doc.badge_number;
+	frm.toggle_display(
+		"badge_returned",
+		frm.doc.event_type === "Check-Out" &&
+			policy.track_badge_return !== false &&
+			(lead_badge || member_badges)
+	);
 }
 
 function is_security_admin() {
@@ -829,18 +1095,31 @@ function apply_security_log_ui(frm) {
 		"Gate Transfer",
 		"Badge Collected",
 	].includes(frm.doc.event_type);
-	const show_exception_reason = !frm.is_new() && !!frm.doc.exception_reason;
-
+	// Times are stamped by the server on save. Only a System Manager sees them
+	// on a new log, to record a different time (with a reason); a guard has
+	// nothing to type.
+	const can_backdate = frm.is_new() && is_security_admin();
 	frm.toggle_display(
 		"check_in_date_time",
-		is_check_in || (!frm.is_new() && !!frm.doc.check_in_date_time)
+		(is_check_in && can_backdate) || (!frm.is_new() && !!frm.doc.check_in_date_time)
 	);
 	frm.toggle_display(
 		"check_out_date_time",
-		is_check_out || (!frm.is_new() && !!frm.doc.check_out_date_time)
+		(is_check_out && can_backdate) || (!frm.is_new() && !!frm.doc.check_out_date_time)
 	);
-	frm.toggle_reqd("check_in_date_time", is_check_in);
-	frm.toggle_reqd("check_out_date_time", is_check_out);
+	["check_in_date_time", "check_out_date_time"].forEach((fieldname) => {
+		frm.set_df_property(fieldname, "read_only", can_backdate ? 0 : 1);
+		frm.set_df_property(
+			fieldname,
+			"description",
+			can_backdate
+				? __(
+						"Leave empty to record the time of saving. A different time needs an Exception Reason."
+				  )
+				: __("Stamped by the server when the log is saved.")
+		);
+	});
+	frm.toggle_reqd(["check_in_date_time", "check_out_date_time"], false);
 
 	frm.toggle_display("visitor_photo", false);
 	frm.toggle_display("id_proof_scan", false);
@@ -853,12 +1132,18 @@ function apply_security_log_ui(frm) {
 		["id_proof_match", "pass_photo_match", "verification_notes"],
 		is_check_in || is_check_out
 	);
-	frm.toggle_display("exception_reason", show_exception_reason);
 	frm.toggle_display(["section_break_items", "all_items_confirmed"], show_items && has_pass);
-	frm.toggle_reqd("photo_at_gate", is_check_in || is_check_out);
-	frm.toggle_reqd("id_proof_match", is_check_in || is_check_out);
-	frm.toggle_reqd("pass_photo_match", is_check_in || is_check_out);
-	frm.toggle_reqd("exception_reason", false);
+	// Mandatory exactly where VMS Settings makes the server insist (get_gate_policy).
+	// These used to be mandatory on every check-in and check-out, so a site that
+	// requires no gate photo still could not save from a PC without a camera.
+	const policy = frm.__gate_policy || {};
+	const movement = is_check_in || is_check_out;
+	frm.toggle_reqd("photo_at_gate", movement && !!policy.photo_required);
+	frm.toggle_reqd(
+		["id_proof_match", "pass_photo_match"],
+		movement && !!policy.identity_match_required
+	);
+	apply_exception_reason_ui(frm);
 	frm.toggle_display(
 		["mdceo_notified", "vip_meeting_room", "vip_protocol_notes"],
 		has_pass && is_vip
@@ -866,6 +1151,8 @@ function apply_security_log_ui(frm) {
 
 	render_identity_comparison(frm);
 	render_items_progress_summary(frm);
+	render_group_summary(frm);
+	apply_badge_returned_ui(frm);
 	set_security_log_intro(frm, is_check_in, is_check_out);
 	if (frm.dashboard) frm.dashboard.clear_headline();
 	apply_badge_visibility_sl(frm);
@@ -887,6 +1174,7 @@ function render_items_progress_summary(frm) {
 	if (!total) return;
 
 	const all_verified = verified === total;
+	const is_check_out = frm.doc.event_type === "Check-Out";
 	// Only offer the bulk action when there is something left to tick and the
 	// form can actually be written to (a submitted or locked log must not).
 	const can_verify_all = !all_verified && !frm.doc.docstatus && !frm.is_dirty_disabled;
@@ -897,7 +1185,11 @@ function render_items_progress_summary(frm) {
 	const summary = `
 		<div class="vm-items-progress" style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; margin: 0 0 8px 0; border-radius: 8px; background: ${bg}; color: ${fg}; font-size: 12px; font-weight: 600;">
 			<span style="font-size: 14px;">${icon}</span>
-			<span>${__("Items: {0} / {1} verified", [verified, total])}</span>
+			<span>${
+				is_check_out
+					? __("Items: {0} / {1} going out", [verified, total])
+					: __("Items: {0} / {1} verified", [verified, total])
+			}</span>
 			${
 				discrepancies
 					? `<span style="margin-left: auto;">${__("{0} discrepancy", [discrepancies])}${
@@ -909,7 +1201,7 @@ function render_items_progress_summary(frm) {
 				can_verify_all
 					? `<button type="button" class="btn btn-xs btn-default vm-verify-all" style="margin-left: ${
 							discrepancies ? "10px" : "auto"
-					  };">${__("Verify All")}</button>`
+					  };">${is_check_out ? __("All Items Going Out") : __("Verify All")}</button>`
 					: ""
 			}
 		</div>
@@ -941,8 +1233,47 @@ function render_items_progress_summary(frm) {
 			frm.refresh_field("items_verification");
 			recompute_all_items_confirmed(frm);
 			render_items_progress_summary(frm);
+			apply_exception_reason_ui(frm);
 		});
 	}
+}
+
+// Exception Reason is asked for only when it is needed, and then marked
+// mandatory with a line saying what to write. Two cases, both enforced again on
+// save: a check-out where a declared item is not going out (the visitor still
+// leaves; the supervisor is alerted), and a System Manager recording a time
+// other than now.
+function apply_exception_reason_ui(frm) {
+	if (!frm.is_new()) {
+		frm.toggle_display("exception_reason", !!frm.doc.exception_reason);
+		frm.toggle_reqd("exception_reason", false);
+		return;
+	}
+	const items_optional = !!(frm.__gate_policy || {}).items_optional;
+	const items_short =
+		frm.doc.event_type === "Check-Out" &&
+		(frm.doc.items_verification || []).some(
+			(r) => r.discrepancy || (!r.item_verified && !items_optional)
+		);
+	const backdated =
+		is_security_admin() &&
+		((frm.doc.event_type === "Check-In" && !!frm.doc.check_in_date_time) ||
+			(frm.doc.event_type === "Check-Out" && !!frm.doc.check_out_date_time));
+	const needed = items_short || backdated;
+
+	frm.toggle_display("exception_reason", needed || !!frm.doc.exception_reason);
+	frm.toggle_reqd("exception_reason", needed);
+	frm.set_df_property(
+		"exception_reason",
+		"description",
+		items_short
+			? __(
+					"Some items are not going out. Write a few words on why — the visitor can still leave, and the supervisor will be alerted."
+			  )
+			: backdated
+			? __("Say why this is being recorded at a time other than now.")
+			: ""
+	);
 }
 
 function lock_all_items_confirmed(frm) {
@@ -967,7 +1298,13 @@ function lock_all_items_confirmed(frm) {
 
 function recompute_all_items_confirmed(frm) {
 	const rows = frm.doc.items_verification || [];
-	const expected = rows.length === 0 || rows.every((r) => !!r.item_verified) ? 1 : 0;
+	const is_check_out = frm.doc.event_type === "Check-Out";
+	// Same rule as the server: at check-out a short count is not confirmed.
+	const expected =
+		rows.length === 0 ||
+		rows.every((r) => !!r.item_verified && !(is_check_out && r.discrepancy))
+			? 1
+			: 0;
 	if (Number(frm.doc.all_items_confirmed || 0) !== expected) {
 		frm.set_value("all_items_confirmed", expected);
 	}
@@ -1067,6 +1404,63 @@ function get_identity_status_html(frm) {
 }
 
 function set_security_log_intro(frm, is_check_in, is_check_out) {
+	// The event's own line, with a hint line under it where one applies: the form
+	// has one intro box, and a second set_intro would replace the first.
+	let intro = null;
+	const set_intro = frm.set_intro;
+	frm.set_intro = (txt, color) => (intro = { txt, color });
+	try {
+		set_event_intro(frm, is_check_in, is_check_out);
+	} finally {
+		frm.set_intro = set_intro;
+	}
+	const hints = frm.is_new() ? get_gate_hints(frm) : [];
+	if (!intro && !hints.length) return;
+	const lines = [intro && intro.txt, ...hints.map((h) => frappe.utils.escape_html(h))].filter(
+		Boolean
+	);
+	frm.set_intro(lines.join("<br>"), intro && !hints.length ? intro.color : "yellow");
+}
+
+function get_gate_hints(frm) {
+	// One line each, only when it applies.
+	const hints = [];
+	if ((frm.__gate_policy || {}).no_gate_assigned) {
+		hints.push(
+			__(
+				"You are not assigned to a gate yet, so every gate is open to you. Ask an administrator to add you to your gate."
+			)
+		);
+	}
+	const group = frm.__group || {};
+	if (
+		frm.doc.event_type === "Check-Out" &&
+		!cint(frm.doc.group_members_only) &&
+		group.members_outside
+	) {
+		hints.push(
+			__(
+				"{0} group member(s) have not arrived yet. To let them in, change Event Type to Check-In.",
+				[group.members_outside]
+			)
+		);
+	}
+	if (
+		frm.doc.event_type === "Check-In" &&
+		!cint(frm.doc.group_members_only) &&
+		group.members_inside
+	) {
+		hints.push(
+			__(
+				"{0} group member(s) are still inside. To let them out, change Event Type to Check-Out.",
+				[group.members_inside]
+			)
+		);
+	}
+	return hints;
+}
+
+function set_event_intro(frm, is_check_in, is_check_out) {
 	if (!frm.doc.visitor_pass) {
 		frm.set_intro(
 			__(
@@ -1194,7 +1588,9 @@ function render_vip_queue_preview(dialog, vip_queue) {
 				<div><strong>${__("Visit Window")}:</strong> ${esc(selected.visit_date || "-")} | ${esc(
 		selected.expected_checkin || "-"
 	)} - ${esc(selected.expected_checkout || "-")}</div>
-				<div><strong>${__("Host")}:</strong> ${esc(selected.person_to_visit || "-")}</div>
+				<div><strong>${__("Host")}:</strong> ${esc(
+		selected.host_name || selected.person_to_visit || "-"
+	)}</div>
 				<div><strong>${__("Purpose")}:</strong> ${esc(selected.purpose_of_visit || "-")}</div>
 				<div><strong>${__("Meeting Room")}:</strong> ${esc(selected.conference_room || "-")}</div>
 				<div><strong>${__("MD/CEO Notified")}:</strong> ${

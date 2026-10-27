@@ -2,7 +2,9 @@
 
 import frappe
 from frappe import _
-from frappe.utils import today
+from frappe.utils import cint, today
+
+from visitormanagement.visitor_management.report.on_site import members_on_site
 
 
 def execute(filters=None):
@@ -58,8 +60,8 @@ def get_data(filters):
 		"""
         SELECT
             sl.gate_name,
-            SUM(CASE WHEN sl.event_type='Check-In' THEN 1 ELSE 0 END) AS checkins,
-            SUM(CASE WHEN sl.event_type='Check-Out' THEN 1 ELSE 0 END) AS checkouts,
+            SUM(CASE WHEN sl.event_type='Check-In' AND sl.group_members_only=0 THEN 1 ELSE 0 END) AS checkins,
+            SUM(CASE WHEN sl.event_type='Check-Out' AND sl.group_members_only=0 THEN 1 ELSE 0 END) AS checkouts,
             SUM(CASE WHEN sl.event_type='Check-In' AND sl.all_items_confirmed=0
                 THEN 1 ELSE 0 END) AS pending_verify
         FROM `tabSecurity Log` sl
@@ -80,14 +82,44 @@ def get_data(filters):
 	)
 	counts_by_gate = {r.gate_name: r for r in count_rows}
 
+	# People, not passes: the group members ticked present on each log go
+	# through the gate too. A log for members only counts just them (above, its
+	# lead is not counted).
+	member_rows = frappe.db.sql(
+		"""
+        SELECT
+            sl.gate_name,
+            SUM(CASE WHEN sl.event_type='Check-In' THEN 1 ELSE 0 END) AS checkins,
+            SUM(CASE WHEN sl.event_type='Check-Out' THEN 1 ELSE 0 END) AS checkouts
+        FROM `tabSecurity Log Member` slm
+        INNER JOIN `tabSecurity Log` sl ON sl.name = slm.parent AND slm.parenttype = 'Security Log'
+        WHERE slm.present = 1
+            AND sl.gate_name IS NOT NULL AND sl.gate_name != ''
+            AND (
+                (sl.event_type = 'Check-In'
+                    AND sl.check_in_date_time >= %(d)s
+                    AND sl.check_in_date_time < %(d)s + INTERVAL 1 DAY)
+                OR
+                (sl.event_type = 'Check-Out'
+                    AND sl.check_out_date_time >= %(d)s
+                    AND sl.check_out_date_time < %(d)s + INTERVAL 1 DAY)
+            )
+        GROUP BY sl.gate_name
+        """,
+		{"d": date_val},
+		as_dict=True,
+	)
+	members_by_gate = {r.gate_name: r for r in member_rows}
+
 	rows = []
 	for gate in gates:
 		c = counts_by_gate.get(gate)
+		m = members_by_gate.get(gate)
 		rows.append(
 			{
 				"gate_name": gate,
-				"checkins": c.checkins if c else 0,
-				"checkouts": c.checkouts if c else 0,
+				"checkins": (c.checkins if c else 0) + cint(m.checkins if m else 0),
+				"checkouts": (c.checkouts if c else 0) + cint(m.checkouts if m else 0),
 				"pending_verify": c.pending_verify if c else 0,
 			}
 		)
@@ -106,9 +138,12 @@ def get_data(filters):
 	# Log). It is now a derived table that computes the latest Check-In per
 	# visitor_pass in a single grouped pass, then joins back once — Security
 	# Log is scanned a constant number of times regardless of row count.
+	#
+	# Counted at the gate the visitor is at now — `current_location`, which a
+	# Gate Transfer moves — as Active Visitors shows it, else their check-in gate.
 	inside_rows = frappe.db.sql(
 		"""
-        SELECT sl.gate_name, COUNT(*) AS inside
+        SELECT COALESCE(NULLIF(vp.current_location, ''), sl.gate_name) AS gate_name, COUNT(*) AS inside
         FROM `tabVisitor Pass` vp
         INNER JOIN (
             SELECT visitor_pass, MAX(check_in_date_time) AS latest_checkin
@@ -122,11 +157,15 @@ def get_data(filters):
             AND sl.check_in_date_time = latest.latest_checkin
         WHERE vp.status = 'Checked-In'
             AND sl.gate_name IS NOT NULL AND sl.gate_name != ''
-        GROUP BY sl.gate_name
+        GROUP BY COALESCE(NULLIF(vp.current_location, ''), sl.gate_name)
         """,
 		as_dict=True,
 	)
 	inside_by_gate = {r.gate_name: r.inside for r in inside_rows}
+	# Each accompanying visitor inside, at the gate they are at now.
+	for member in members_on_site():
+		if member.gate_name:
+			inside_by_gate[member.gate_name] = inside_by_gate.get(member.gate_name, 0) + 1
 
 	for r in rows:
 		r["inside"] = inside_by_gate.get(r["gate_name"], 0)

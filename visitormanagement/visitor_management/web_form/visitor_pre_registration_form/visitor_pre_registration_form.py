@@ -4,7 +4,7 @@ from frappe.utils import escape_html, format_date, format_time
 
 from visitormanagement.visitor_management import settings as vms_settings
 from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation import (
-	get_web_form_context,
+	web_form_context,
 )
 from visitormanagement.visitor_management.portal import invitation_required_message
 
@@ -298,7 +298,9 @@ def get_context(context):
 		context.introduction_text = theme + (context.introduction_text or "") + trailing
 		return
 
-	invitation_context = get_web_form_context(token)
+	# Not the rate-limited API: a page load is not a token-guessing attempt, and
+	# visitors sharing an office address would be refused the page itself.
+	invitation_context = web_form_context(token)
 	context.invitation_context = invitation_context
 	values = invitation_context.get("values") or {}
 	boot = _boot_script(invitation_context, values)

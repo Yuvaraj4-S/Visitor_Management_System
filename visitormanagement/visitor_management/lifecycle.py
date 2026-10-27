@@ -17,6 +17,7 @@ from frappe.utils import (
 )
 
 from visitormanagement.visitor_management import settings as vms_settings
+from visitormanagement.visitor_management.mail import esc, send_after_commit
 
 # The Hospitality Request owns its fulfilment status; the pass only mirrors it
 # (as `food_status`). There is deliberately no map in the other direction: the
@@ -323,6 +324,11 @@ def call_off_pass_arrangements(visitor_pass):
 	it), so the approved ones are cancelled directly with permissions ignored.
 	Whatever has already happened — a meal served, a booking on an earlier day —
 	is history and left alone.
+
+	The people preparing a request that had been sent in are told
+	(`_tell_hospitality_called_off`): calling it off only changed records, so
+	the kitchen still cooked, the cab still came and the hotel room stayed
+	booked for a visitor who was not coming.
 	"""
 	today_date = getdate(nowdate())
 	for doctype, name in [
@@ -351,7 +357,131 @@ def call_off_pass_arrangements(visitor_pass):
 			)
 		),
 	]:
-		_call_off(frappe.get_doc(doctype, name))
+		doc = frappe.get_doc(doctype, name)
+		# A Draft was never sent in, so nobody is preparing anything for it.
+		was_live = doc.docstatus == 1 or doc.get("workflow_state") == "Pending Approval"
+		_call_off(doc)
+		if doctype == "Hospitality Request" and was_live:
+			_tell_hospitality_called_off(doc, visitor_pass)
+
+
+# What a Hospitality Request asks for, as the call-off message lists it.
+_CALLED_OFF_SERVICES = (
+	("meal_required", "Meal"),
+	("snacks_required", "Snacks"),
+	("tea_coffee_required", "Tea / Coffee"),
+	("cab_required", "Cab"),
+	("hotel_required", "Hotel"),
+	("factory_tour_required", "Factory Tour"),
+	("buggy_required", "Buggy"),
+	("greeting_required", "Greeting"),
+)
+_KITCHEN_FLAGS = ("meal_required", "snacks_required", "tea_coffee_required")
+_SERVICE_STAFF_FIELDS = ("assigned_staff", "tour_guide", "buggy_driver", "greeting_assigned_to")
+
+
+def _tell_hospitality_called_off(request, visitor_pass):
+	"""One short mail, and a bell entry, to the people preparing a cancelled visit.
+
+	The kitchen (VMS Settings' Food Department email) when food was ordered, the
+	Hospitality Managers — who booked the cab and the hotel and have to cancel
+	them with the vendor — and the staff assigned to the request. A failure to
+	send is logged; the pass is cancelled either way.
+	"""
+	services = [_(label) for flag, label in _CALLED_OFF_SERVICES if cint(request.get(flag))]
+	visitor = visitor_pass.visitor_full_name or visitor_pass.name
+
+	staff = [e for e in dict.fromkeys(request.get(f) for f in _SERVICE_STAFF_FIELDS) if e]
+	staff_rows = (
+		frappe.get_all(
+			"Employee",
+			filters={"name": ("in", staff)},
+			fields=["user_id", "company_email", "personal_email"],
+		)
+		if staff
+		else []
+	)
+	managers = [
+		user
+		for user in frappe.get_all(
+			"Has Role",
+			filters={"role": "Hospitality Manager", "parenttype": "User"},
+			pluck="parent",
+			distinct=True,
+		)
+		if user not in ("Administrator", "Guest") and frappe.db.get_value("User", user, "enabled")
+	]
+
+	# Whoever cancelled the pass knows already.
+	me = frappe.session.user
+	users = sorted({*managers, *(row.user_id for row in staff_rows if row.user_id)} - {me})
+	emails = {frappe.db.get_value("User", user, "email") for user in managers if user != me}
+	emails.update(
+		row.company_email or row.personal_email or row.user_id for row in staff_rows if row.user_id != me
+	)
+	food_email = frappe.db.get_single_value("VMS Settings", "food_dept_email")
+	if food_email and any(cint(request.get(flag)) for flag in _KITCHEN_FLAGS):
+		emails.add(food_email)
+	emails = sorted(e for e in emails if e)
+
+	subject = _("Called off: {0} on {1}").format(visitor, frappe.format(visitor_pass.visit_date, "Date"))
+	url = frappe.utils.get_url_to_form(request.doctype, request.name)
+	rows = [
+		(_("Visitor"), visitor),
+		(_("Visit"), visitor_pass.visit_date),
+		(_("Was arranged"), ", ".join(services) or "-"),
+		(_("Hospitality Request"), request.name),
+		(_("Visitor Pass"), visitor_pass.name),
+	]
+	message = (
+		"<div style='font-family:Arial,sans-serif;font-size:13px;color:#1f2933;"
+		"background-color:#ffffff;padding:14px;border-radius:6px;max-width:420px;'>"
+		"<p style='margin:0 0 8px;color:#b42318;font-size:14px;font-weight:bold;'>"
+		+ esc(_("This visit has been cancelled. Please stop preparing for it."))
+		+ "</p><p style='margin:0 0 10px;line-height:1.7;'>"
+		+ "<br>".join(
+			f"<b style='color:#5b6b7b;'>{esc(label)}:</b> {esc(value, '-')}" for label, value in rows
+		)
+		+ "</p>"
+		+ (
+			"<p style='margin:0 0 10px;font-size:12px;'>"
+			+ esc(_("Cancel the cab and the hotel with the vendor if they were booked."))
+			+ "</p>"
+			if cint(request.cab_required) or cint(request.hotel_required)
+			else ""
+		)
+		+ f"<p style='margin:12px 0 0;'><a href='{esc(url)}' style='color:#2563eb;'>"
+		+ esc(_("Open Hospitality Request"))
+		+ "</a></p></div>"
+	)
+
+	if emails:
+		messages_before = list(frappe.message_log)
+		try:
+			send_after_commit(
+				recipients=emails,
+				subject=subject,
+				message=message,
+				reference_doctype=request.doctype,
+				reference_name=request.name,
+			)
+		except Exception:
+			# No outgoing Email Account: the bell entries below still go out.
+			frappe.local.message_log = messages_before
+			frappe.log_error(title=f"Call-off mail for {request.name} not sent")
+
+	for user in users:
+		frappe.get_doc(
+			{
+				"doctype": "Notification Log",
+				"for_user": user,
+				"type": "Alert",
+				"document_type": request.doctype,
+				"document_name": request.name,
+				"subject": esc(subject),
+				"email_content": message,
+			}
+		).insert(ignore_permissions=True)
 
 
 def _call_off(doc):

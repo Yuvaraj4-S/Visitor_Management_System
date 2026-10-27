@@ -8,9 +8,9 @@ imports `frappe`.
 
 Canonical ID type labels mirror the Select options on Visitor Pass and the
 Visitor Pre-Registration web form:
-    "Aadhaar", "PAN Card", "Passport", "Driving License"
+    "Aadhaar", "PAN Card", "Passport", "Driving License", "Voter ID"
 
-Short aliases ("PAN", "DL") are accepted by `validate_id` / `id_proof_error_message`.
+Short aliases ("PAN", "DL", "EPIC") are accepted by `validate_id` / `id_proof_error_message`.
 """
 
 import re
@@ -62,6 +62,8 @@ _AADHAAR_RE = re.compile(r"^\d{12}$")
 _PAN_RE = re.compile(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$")
 _DL_RE = re.compile(r"^[A-Z]{2}[0-9]{2}\s?[0-9]{11}$")
 _PASSPORT_RE = re.compile(r"^[A-Z]{1}[0-9]{7}$")
+# Voter ID (EPIC): 3 letters + 7 digits, e.g. ABC1234567.
+_EPIC_RE = re.compile(r"^[A-Z]{3}[0-9]{7}$")
 
 
 def _strip(number):
@@ -87,17 +89,24 @@ def validate_pan(number):
 	return bool(_PAN_RE.match(clean))
 
 
+def normalise_driving_license(number):
+	"""A licence number as printed carries hyphens and spaces ("MH-12-2011-0012345");
+	the number itself is the 15 letters and digits."""
+	return _strip_hyphens(str(number or "")).upper()
+
+
 def validate_driving_license(number):
-	# Preserve an internal space if present; only strip leading/trailing whitespace.
-	clean = str(number or "").strip().upper()
-	# Collapse multi-space runs to a single space (users often type "TN05  ...").
-	clean = re.sub(r"\s+", " ", clean)
-	return bool(_DL_RE.match(clean))
+	return bool(_DL_RE.match(normalise_driving_license(number)))
 
 
 def validate_passport(number):
 	clean = _strip(str(number or "")).upper()
 	return bool(_PASSPORT_RE.match(clean))
+
+
+def validate_voter_id(number):
+	clean = _strip_hyphens(str(number or "")).upper()
+	return bool(_EPIC_RE.match(clean))
 
 
 # ─────────────────────────────────────────────────────────────
@@ -114,6 +123,10 @@ _CANONICAL = {
 	"driving license": "Driving License",
 	"driving licence": "Driving License",
 	"passport": "Passport",
+	"voter id": "Voter ID",
+	"voter": "Voter ID",
+	"epic": "Voter ID",
+	"voter id card": "Voter ID",
 }
 
 _VALIDATORS = {
@@ -121,6 +134,15 @@ _VALIDATORS = {
 	"PAN Card": validate_pan,
 	"Driving License": validate_driving_license,
 	"Passport": validate_passport,
+	"Voter ID": validate_voter_id,
+}
+
+# Applied before the ID Proof Type master's own normalisation, for the built-in
+# types whose printed form carries separators that are not part of the number.
+# A licence typed as printed, "MH-12-2011-0012345", was refused: the master's
+# "Collapse spaces" keeps the hyphens, and its pattern allows none.
+_PRE_NORMALISERS = {
+	"Driving License": normalise_driving_license,
 }
 
 
@@ -244,7 +266,7 @@ def _canonical_type(id_type):
 
 def _validate_with_master(canonical, number, cfg):
 	normalise = _NORMALISERS.get(cfg["normalisation"], _NORMALISERS["Uppercase and strip spaces"])
-	clean = normalise(str(number or ""))
+	clean = normalise(_pre_normalise(canonical, number))
 
 	method = cfg["method"]
 	if method == "None":
@@ -306,10 +328,15 @@ def normalise_id_number(id_type, number):
 
 	cfg = _load_master().get(canonical)
 	if not cfg:
-		return number
+		return _pre_normalise(canonical, number) if canonical in _PRE_NORMALISERS else number
 
 	normalise = _NORMALISERS.get(cfg["normalisation"], _NORMALISERS["Uppercase and strip spaces"])
-	return normalise(str(number or ""))
+	return normalise(_pre_normalise(canonical, number))
+
+
+def _pre_normalise(canonical, number):
+	pre = _PRE_NORMALISERS.get(canonical)
+	return pre(number) if pre else str(number or "")
 
 
 def is_valid_for_foreign_nationals(id_type):
@@ -370,6 +397,7 @@ _ERROR_MESSAGES = {
 		"(2 letters + 2 digits + optional space + 11 digits)."
 	),
 	"Passport": ("Passport must be in the format A1234567 (1 uppercase letter followed by 7 digits)."),
+	"Voter ID": ("Voter ID (EPIC) must be in the format ABC1234567 (3 letters followed by 7 digits)."),
 }
 
 
@@ -385,7 +413,7 @@ def id_proof_error_message(id_type):
 
 	return _ERROR_MESSAGES.get(
 		canonical,
-		f"Unsupported ID Proof Type: {id_type!r}. Use Aadhaar, PAN Card, Driving License, or Passport.",
+		f"Unsupported ID Proof Type: {id_type!r}. Use Aadhaar, PAN Card, Driving License, Passport, or Voter ID.",
 	)
 
 

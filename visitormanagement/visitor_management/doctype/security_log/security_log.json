@@ -10,12 +10,16 @@
   "visitor_pass",
   "event_type",
   "gate_name",
+  "check_in_gate",
+  "left_by_other_gate",
   "column_break_werm",
   "badge_number",
+  "badge_returned",
   "security_officer",
   "verification_started_on",
   "verification_duration",
   "qr_code_scanned",
+  "scanned_qr_token",
   "gate_auto_assigned",
   "mdceo_notified",
   "vip_meeting_room",
@@ -26,6 +30,7 @@
   "visitor_company",
   "mobile_number",
   "person_to_visit",
+  "host_name",
   "purpose_of_visit",
   "id_proof_type_verified",
   "id_proof_number",
@@ -36,12 +41,17 @@
   "vehicle_number",
   "check_in_date_time",
   "check_out_date_time",
+  "outside_booked_time",
+  "timing_note",
   "id_proof_scan",
   "visitor_photo",
   "section_break_special_arrangements",
   "buggy_required",
   "greeting_required",
   "factory_tour_required",
+  "section_break_group",
+  "group_attendance",
+  "group_members_only",
   "section_break_identity_comparison",
   "identity_comparison_html",
   "section_break_gate_capture",
@@ -112,9 +122,9 @@
   {
    "fieldname": "security_officer",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Security Officer",
-   "options": "Employee",
-   "ignore_user_permissions": 1
+   "options": "Employee"
   },
   {
    "fieldname": "verification_started_on",
@@ -134,6 +144,15 @@
    "fieldname": "qr_code_scanned",
    "fieldtype": "Check",
    "label": "QR Code Scanned",
+   "read_only": 1
+  },
+  {
+   "description": "The TOKEN read from the QR code by the scanner. The server checks it against the pass and sets QR Code Scanned; it is not kept after the save.",
+   "fieldname": "scanned_qr_token",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Scanned QR Token",
+   "no_copy": 1,
    "read_only": 1
   },
   {
@@ -202,10 +221,19 @@
    "fetch_from": "visitor_pass.person_to_visit",
    "fieldname": "person_to_visit",
    "fieldtype": "Link",
+   "hidden": 1,
+   "ignore_user_permissions": 1,
    "label": "Person to Visit",
    "options": "Employee",
-   "read_only": 1,
-   "ignore_user_permissions": 1
+   "read_only": 1
+  },
+  {
+   "description": "Copied from the visitor pass.",
+   "fetch_from": "visitor_pass.host_name",
+   "fieldname": "host_name",
+   "fieldtype": "Data",
+   "label": "Host",
+   "read_only": 1
   },
   {
    "fetch_from": "visitor_pass.purpose_of_visit",
@@ -261,14 +289,35 @@
    "read_only": 1
   },
   {
+   "description": "Stamped by the server when the log is saved.",
    "fieldname": "check_in_date_time",
    "fieldtype": "Datetime",
-   "label": "Check In Date Time"
+   "label": "Check In Date Time",
+   "read_only": 1
   },
   {
+   "description": "Stamped by the server when the log is saved.",
    "fieldname": "check_out_date_time",
    "fieldtype": "Datetime",
-   "label": "Check Out Date Time"
+   "label": "Check Out Date Time",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.outside_booked_time",
+   "description": "Set by the system when the visitor arrived or left outside their booked time. Never stops the movement.",
+   "fieldname": "outside_booked_time",
+   "fieldtype": "Check",
+   "in_standard_filter": 1,
+   "label": "Outside Booked Time",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.timing_note",
+   "fieldname": "timing_note",
+   "fieldtype": "Small Text",
+   "label": "Timing Note",
+   "read_only": 1
   },
   {
    "fetch_from": "visitor_pass.id_proof_scan",
@@ -363,11 +412,10 @@
    "options": "Security notes"
   },
   {
-   "description": "Capture a live photo of the visitor at the gate. Required for Check-In and Check-Out.",
+   "description": "Capture a live photo of the visitor at the gate. Required when VMS Settings asks for a gate photo.",
    "fieldname": "photo_at_gate",
    "fieldtype": "Attach Image",
-   "label": "Photo at Gate",
-   "mandatory_depends_on": "eval:doc.event_type in ['Check-In', 'Check-Out']"
+   "label": "Photo at Gate"
   },
   {
    "fieldname": "capture_photo",
@@ -383,18 +431,17 @@
    "description": "Tick after confirming the visitor matches the ID proof shown.",
    "fieldname": "id_proof_match",
    "fieldtype": "Check",
-   "label": "Matches ID Proof",
-   "mandatory_depends_on": "eval:doc.event_type in ['Check-In', 'Check-Out']"
+   "label": "Matches ID Proof"
   },
   {
    "default": "0",
    "description": "Tick after confirming the visitor matches the photo on the approved pass.",
    "fieldname": "pass_photo_match",
    "fieldtype": "Check",
-   "label": "Matches Pass Photo",
-   "mandatory_depends_on": "eval:doc.event_type in ['Check-In', 'Check-Out']"
+   "label": "Matches Pass Photo"
   },
   {
+   "description": "Needed when a declared item is not going out at check-out, or when a System Manager records a time other than now.",
    "fieldname": "exception_reason",
    "fieldtype": "Small Text",
    "label": "Exception Reason"
@@ -438,15 +485,62 @@
    "fieldtype": "Table",
    "label": "Items Verification",
    "options": "Security Item Verify"
+  },
+  {
+   "depends_on": "eval:doc.event_type == 'Check-Out' && doc.check_in_gate",
+   "description": "Where the visitor came in. Leaving by another gate is allowed; it is recorded here and in the Daily Visitor Log.",
+   "fieldname": "check_in_gate",
+   "fieldtype": "Data",
+   "label": "Checked In At",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.left_by_other_gate",
+   "fieldname": "left_by_other_gate",
+   "fieldtype": "Check",
+   "label": "Left by a Different Gate",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.event_type == 'Check-Out'",
+   "description": "Untick only if the visitor did not hand the badge back. The check-out still goes ahead and the security supervisor is alerted.",
+   "fieldname": "badge_returned",
+   "fieldtype": "Check",
+   "label": "Badge Returned"
+  },
+  {
+   "depends_on": "eval:(doc.group_attendance || []).length",
+   "fieldname": "section_break_group",
+   "fieldtype": "Section Break",
+   "label": "Group Members"
+  },
+  {
+   "description": "Everyone is ticked as present. Untick anyone who is not at the gate with this log; they can be checked in or out on a later log.",
+   "fieldname": "group_attendance",
+   "fieldtype": "Table",
+   "label": "Group Members at the Gate",
+   "options": "Security Log Member"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.group_members_only",
+   "description": "This log moved only the group members ticked above. The lead visitor did not pass the gate on it.",
+   "fieldname": "group_members_only",
+   "fieldtype": "Check",
+   "label": "Group Members Only",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-06 04:10:00.000000",
+ "modified": "2026-10-19 23:40:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Security Log",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {
@@ -479,6 +573,5 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "track_changes": 1,
- "naming_rule": "Expression (old style)"
+ "track_changes": 1
 }

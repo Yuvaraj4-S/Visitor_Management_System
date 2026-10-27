@@ -15,11 +15,26 @@ role and the lane, the states and both transitions appear automatically.
 
 Shape of the generated workflow
 -------------------------------
-    Draft ──Submit──▶ Pending <primary role>          (one per distinct role)
+    Draft ──Submit──▶ Pending <primary role>          (one per distinct role; Security: own walk-ins)
     Pending <primary> ──Approve──▶ Pending <secondary>  (types with 2 approvers)
     Pending <role>    ──Approve──▶ Approved             (when <role> is the last)
     Pending <role>    ──Reject───▶ Rejected
     Rejected          ──Reapply──▶ Draft
+    Draft / Pending   ──Withdraw─▶ Withdrawn          (the host or whoever raised it)
+    Approved          ──Cancel───▶ Cancelled          (approvers; host/owner before check-in)
+
+Who may act in a lane
+---------------------
+A lane belongs to its role, unless the pass names its approvers. With VMS
+Settings -> "Send approvals to the host's own manager" the first lane goes to
+the host's `reports_to` alone (`routed_approver`), and an approver on leave can
+hand their approvals to a stand-in (VMS Approval Delegation). Both arrive as
+`current_approvers` on the pass, computed by the server on every save
+(approval_tasks.resolve_approvers). The lane role's own transitions honour a
+routed pass, and a second set of transitions, held by ASSIGNED_APPROVER_ROLE,
+lets a named approver act without holding the lane role. The workflow can only
+read what is stored, so the server checks the live answer again on the action
+itself (VisitorPass._assert_decided_by_current_approver).
 
 Conditions are evaluated against the *live* Visitor Type row. A Visitor Type
 refuses to be re-pointed at a different approver, or switched off, while passes
@@ -38,6 +53,9 @@ DRAFT = "Draft"
 APPROVED = "Approved"
 REJECTED = "Rejected"
 CANCELLED = "Cancelled"
+# Called off by the host or whoever raised the pass before it was decided. A
+# final state at docstatus 0: there is nothing to cancel, and nothing comes back.
+WITHDRAWN = "Withdrawn"
 
 # Canonical tuple form for callers that gate on "is this pass genuinely
 # approved" (visitor_gate.py's check-in/check-out guard, visitor_pass.py's
@@ -54,15 +72,38 @@ ACTION_APPROVE = "Approve"
 ACTION_REJECT = "Reject"
 ACTION_REAPPLY = "Reapply"
 ACTION_CANCEL = "Cancel"
+ACTION_WITHDRAW = "Withdraw"
 
 # The role a plain host/reception user has when raising a pass.
 REQUESTOR_ROLE = "Employee"
+# Reception raises passes for any host, and often has no Employee record — and
+# ERPNext takes the Employee role away from a user with none. So the front desk
+# gets the requestor's transitions in its own right, on the passes it raised.
+FRONT_DESK_ROLE = "Front Office Executive"
+REQUESTOR_ROLES = (REQUESTOR_ROLE, FRONT_DESK_ROLE)
+
+# The gate registers a visitor who arrives without a pass (walk_in.py), and a
+# guard is often a contract worker with no Employee record, so no Employee role.
+# Security edits only the passes it raised (permissions.py) and sends for
+# approval only walk-ins it raised; deciding them stays with the lanes below.
+GATE_ROLE = "Security"
+# request_channel of a pass raised by the New Walk-In form. Only that form sets
+# it (VisitorPass._keep_request_channel), so the condition below can trust it.
+WALK_IN_CHANNEL = "Walk-In"
+
+# Held by the people a pass can name as its approvers — the host's manager, and
+# stand-ins for an approver on leave — so they can act without holding the lane
+# role. The role on its own opens nothing: every transition it carries, and
+# every row permissions.py lets it see, requires the user to be named on that
+# pass. approval_tasks gives it out when a user is named and takes it back once
+# they no longer are.
+ASSIGNED_APPROVER_ROLE = "Assigned Visitor Approver"
 
 # Cancelling an Approved pass is the approval authority exercised in reverse, so
 # the Cancel transitions are generated for the approver roles themselves (see
-# `build_workflow`). Security is deliberately not among them: it is read-only on
-# Visitor Pass by design — the gate acts through Security Log — and offering it
-# an action it cannot execute produces a button that only ever errors.
+# `build_workflow`). Security is deliberately not among them: it raises walk-ins
+# but decides nothing — the gate acts through Security Log — and offering it an
+# action it cannot execute produces a button that only ever errors.
 CANCEL_ROLE = None
 
 STATE_STYLES = {
@@ -70,6 +111,7 @@ STATE_STYLES = {
 	APPROVED: "Success",
 	REJECTED: "Danger",
 	CANCELLED: "Danger",
+	WITHDRAWN: "Inverse",
 }
 PENDING_STYLE = "Warning"
 
@@ -225,6 +267,38 @@ def _by_someone_other_than_the_host(condition):
 	return f"({condition}) and {_NOT_THE_HOST}"
 
 
+# Whoever sent the pass for approval decides neither way: Frappe's self-approval
+# rule knows only the owner, and a user holding the requester's role and the
+# approver's could send someone else's draft and then approve it. The server
+# refuses it too (VisitorPass._assert_decided_by_current_approver).
+_NOT_THE_SUBMITTER = (
+	'(frappe.session.user == "Administrator" or frappe.session.user != doc.submitted_for_approval_by)'
+)
+_IS_WALK_IN = f"doc.request_channel == {WALK_IN_CHANNEL!r}"
+
+
+# The approvers this pass names (approval_tasks.resolve_approvers), as stored by
+# the server. `frappe.session` is the whole session object in a workflow
+# condition, so `.user` is the user taking the action.
+_IS_NAMED = 'frappe.session.user in (doc.current_approvers or "").split(",")'
+# A pass routed to one person is theirs (and their stand-in's) alone; any other
+# pass stays with everyone holding the lane role, exactly as before.
+_ROUTING_RESPECTED = f"(not doc.routed_approver or {_IS_NAMED})"
+
+_IS_OWNER = "doc.owner == frappe.session.user"
+_IS_HOST_OR_OWNER = (
+	f"({_IS_OWNER} or (doc.person_to_visit"
+	' and frappe.db.get_value("Employee", doc.person_to_visit, "user_id") == frappe.session.user))'
+)
+# A visit that has started is not cancelled from the host's side: before_cancel
+# refuses it anyway, so the button would only ever error.
+_BEFORE_CHECK_IN = "(doc.status in ('Approved', 'Items Verified') and not doc.actual_checkin)"
+
+
+def _and(*conditions):
+	return " and ".join(f"({c})" for c in conditions if c)
+
+
 # ─────────────────────────────────────────────────────────
 # Builder
 # ─────────────────────────────────────────────────────────
@@ -261,17 +335,27 @@ def build_workflow(commit=False):
 	roles = approver_roles()
 
 	# --- dependencies -------------------------------------------------
-	for action in (ACTION_SUBMIT, ACTION_APPROVE, ACTION_REJECT, ACTION_REAPPLY, ACTION_CANCEL):
+	for action in (
+		ACTION_SUBMIT,
+		ACTION_APPROVE,
+		ACTION_REJECT,
+		ACTION_REAPPLY,
+		ACTION_CANCEL,
+		ACTION_WITHDRAW,
+	):
 		_ensure_workflow_action(action)
 	for state, style in STATE_STYLES.items():
 		_ensure_workflow_state(state, style)
 	for role in roles:
 		_ensure_role(role)
 		_ensure_workflow_state(lane_for_role(role), PENDING_STYLE)
-	_ensure_role(REQUESTOR_ROLE)
+	for role in (*REQUESTOR_ROLES, GATE_ROLE, ASSIGNED_APPROVER_ROLE):
+		_ensure_role(role)
 
 	# --- states -------------------------------------------------------
-	states = [{"state": DRAFT, "doc_status": "0", "allow_edit": REQUESTOR_ROLE}]
+	# A state may be listed once per role that edits it: the Desk opens the form
+	# for editing to whoever holds any of them (frappe.workflow.is_read_only).
+	states = [{"state": DRAFT, "doc_status": "0", "allow_edit": r} for r in (*REQUESTOR_ROLES, GATE_ROLE)]
 	for role in roles:
 		states.append({"state": lane_for_role(role), "doc_status": "0", "allow_edit": role})
 	# The gate moves an approved pass on (Items Verified, Checked-In, Checked-Out)
@@ -279,8 +363,10 @@ def build_workflow(commit=False):
 	states.append(
 		{"state": APPROVED, "doc_status": "1", "allow_edit": "System Manager", "avoid_status_override": 1}
 	)
-	states.append({"state": REJECTED, "doc_status": "0", "allow_edit": REQUESTOR_ROLE})
+	states.extend({"state": REJECTED, "doc_status": "0", "allow_edit": r} for r in REQUESTOR_ROLES)
 	states.append({"state": CANCELLED, "doc_status": "2", "allow_edit": "System Manager"})
+	# Read-only for everyone else; VisitorPass refuses any later save of one.
+	states.append({"state": WITHDRAWN, "doc_status": "0", "allow_edit": "System Manager"})
 
 	# --- transitions --------------------------------------------------
 	transitions = []
@@ -288,6 +374,8 @@ def build_workflow(commit=False):
 	# Draft -> the lane owned by each type's primary approver.
 	# Sorted: a set's order changes between processes, and the fingerprint below
 	# must be the same for the same routing.
+	# The front desk acts on the passes it raised; an employee on any pass they
+	# may write (their own, or one they host — permissions.py decides that).
 	for role in sorted({r.approver_role for r in rows if r.approver_role}):
 		transitions.append(
 			{
@@ -298,6 +386,25 @@ def build_workflow(commit=False):
 				"condition": _routes_to(role),
 			}
 		)
+		transitions.append(
+			{
+				"state": DRAFT,
+				"action": ACTION_SUBMIT,
+				"next_state": lane_for_role(role),
+				"allowed": FRONT_DESK_ROLE,
+				"condition": _and(_routes_to(role), _IS_OWNER),
+			}
+		)
+		# The gate sends the walk-ins it raised, into the same lane as anyone's.
+		transitions.append(
+			{
+				"state": DRAFT,
+				"action": ACTION_SUBMIT,
+				"next_state": lane_for_role(role),
+				"allowed": GATE_ROLE,
+				"condition": _and(_routes_to(role), _IS_OWNER, _IS_WALK_IN),
+			}
+		)
 
 	# Primary -> secondary, for every (primary, secondary) pair in use.
 	pairs = {
@@ -305,42 +412,49 @@ def build_workflow(commit=False):
 		for r in rows
 		if r.approver_role and r.secondary_approver_role
 	}
-	for primary, secondary in sorted(pairs):
-		transitions.append(
-			{
-				"state": lane_for_role(primary),
-				"action": ACTION_APPROVE,
-				"next_state": lane_for_role(secondary),
-				"allowed": primary,
-				"condition": _by_someone_other_than_the_host(_has_secondary(primary, secondary)),
-				# An approver must not also be the requester who raised this pass —
-				# see frappe/model/workflow.py:has_approval_access — nor its host
-				# (the condition above). Submit/Reject/Reapply stay self-approvable:
-				# those are the requester's own moves.
-				"allow_self_approval": 0,
+
+	# Each decision exists twice: once for the lane role, which also has to be
+	# named when the pass is routed to a person, and once for a named approver
+	# who does not hold the lane role. Someone holding both sees one button: the
+	# Actions menu lists an action once, and both rows lead to the same state.
+	def decision(state, action, next_state, condition=None, self_approval=True):
+		for allowed, who in ((state_role[state], _ROUTING_RESPECTED), (ASSIGNED_APPROVER_ROLE, _IS_NAMED)):
+			row = {
+				"state": state,
+				"action": action,
+				"next_state": next_state,
+				"allowed": allowed,
+				"condition": _and(condition, who, _NOT_THE_SUBMITTER),
 			}
+			if not self_approval:
+				row["allow_self_approval"] = 0
+			transitions.append(row)
+
+	state_role = {lane_for_role(role): role for role in roles}
+
+	for primary, secondary in sorted(pairs):
+		# An approver must not also be the requester who raised this pass —
+		# see frappe/model/workflow.py:has_approval_access — nor its host
+		# (the condition). Submit/Reject/Reapply stay self-approvable:
+		# those are the requester's own moves.
+		decision(
+			lane_for_role(primary),
+			ACTION_APPROVE,
+			lane_for_role(secondary),
+			_by_someone_other_than_the_host(_has_secondary(primary, secondary)),
+			self_approval=False,
 		)
 
 	# Any lane -> Approved when that role is the final approver, and -> Rejected.
 	for role in roles:
-		transitions.append(
-			{
-				"state": lane_for_role(role),
-				"action": ACTION_APPROVE,
-				"next_state": APPROVED,
-				"allowed": role,
-				"condition": _by_someone_other_than_the_host(_is_final_approver(role)),
-				"allow_self_approval": 0,
-			}
+		decision(
+			lane_for_role(role),
+			ACTION_APPROVE,
+			APPROVED,
+			_by_someone_other_than_the_host(_is_final_approver(role)),
+			self_approval=False,
 		)
-		transitions.append(
-			{
-				"state": lane_for_role(role),
-				"action": ACTION_REJECT,
-				"next_state": REJECTED,
-				"allowed": role,
-			}
-		)
+		decision(lane_for_role(role), ACTION_REJECT, REJECTED)
 
 	transitions.append(
 		{
@@ -350,6 +464,29 @@ def build_workflow(commit=False):
 			"allowed": REQUESTOR_ROLE,
 		}
 	)
+	transitions.append(
+		{
+			"state": REJECTED,
+			"action": ACTION_REAPPLY,
+			"next_state": DRAFT,
+			"allowed": FRONT_DESK_ROLE,
+			"condition": _IS_OWNER,
+		}
+	)
+
+	# Draft or waiting -> Withdrawn: the visit is off before anyone decided it.
+	# Only the people the pass belongs to; an approver says no with Reject.
+	for state in (DRAFT, *(lane_for_role(role) for role in roles)):
+		for allowed, condition in ((REQUESTOR_ROLE, _IS_HOST_OR_OWNER), (FRONT_DESK_ROLE, _IS_OWNER)):
+			transitions.append(
+				{
+					"state": state,
+					"action": ACTION_WITHDRAW,
+					"next_state": WITHDRAWN,
+					"allowed": allowed,
+					"condition": condition,
+				}
+			)
 
 	# Approved -> Cancelled: a visitor who cancels, or someone barred after
 	# approval, must not keep a gate-valid pass forever. Open to every role
@@ -364,6 +501,19 @@ def build_workflow(commit=False):
 				"action": ACTION_CANCEL,
 				"next_state": CANCELLED,
 				"allowed": role,
+			}
+		)
+	# The visit's own people may call off an approved visit too, until the
+	# visitor arrives. `setup._ensure_permissions` grants these roles `cancel`,
+	# and permissions.py allows it only on their own passes.
+	for allowed, condition in ((REQUESTOR_ROLE, _IS_HOST_OR_OWNER), (FRONT_DESK_ROLE, _IS_OWNER)):
+		transitions.append(
+			{
+				"state": APPROVED,
+				"action": ACTION_CANCEL,
+				"next_state": CANCELLED,
+				"allowed": allowed,
+				"condition": _and(condition, _BEFORE_CHECK_IN),
 			}
 		)
 

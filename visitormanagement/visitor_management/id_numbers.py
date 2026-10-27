@@ -1,21 +1,27 @@
 """A visitor's ID proof number: kept whole in the database, shown masked.
 
 `id_proof_number` holds the real Aadhaar / PAN / passport number, unchanged —
-the blacklist, the duplicate-pass check and the returning-visitor lookup all
-compare it. Only Security, who check the card at the gate, and System Manager
-can see it (FULL_ID_READERS). Two things keep it from everyone else:
+the blacklist, the duplicate-pass check, the returning-visitor lookup and the
+gate all compare it, reading it with get_doc or a raw query. Nobody is shown it
+by default, Security and System Manager included:
 
-- It sits at permission level 1 (FULL_ID_PERMLEVEL), and only those two roles
-  hold a level-1 rule on Visitor Pass. Frappe drops a field outside the user's
-  levels from every read that reaches a browser — the form, REST, list and
-  report views, exports — and refuses to filter, sort or group by it. Masking
-  alone hid the value but still let any reader search on it, so a run of
-  "starts with" filters rebuilt the number one character at a time.
-- It is a masked field (DocField.mask) and the level-1 rules carry the unmask
-  permission, so a role later given level-1 read without it still sees XXXXXXXX.
+- It sits at permission level 1 (FULL_ID_PERMLEVEL) and no role holds a
+  level-1 rule, on Visitor Pass or on Visitor Blacklist. Frappe drops a field
+  outside the user's levels from every read that reaches a browser — the form,
+  REST, list and report views, exports — and refuses to filter, sort or group
+  by it. Masking alone hid the value but still let any reader search on it, so
+  a run of "starts with" filters rebuilt the number one character at a time.
+- It is a masked field (DocField.mask) and hidden on the form, so a role later
+  given level-1 read still sees XXXXXXXX, and Administrator, whom Frappe never
+  restricts, does not see it on screen either.
 
-The change history is kept masked as well (mask_version): Frappe's Version
-stores the old and new value of every field as plain text.
+Security and System Manager (REVEAL_ROLES) can read one number back when they
+need it, with the "Reveal Full ID" button (reveal_id). Every reveal is recorded,
+who and when but never the number, in Activity Log and on the record's timeline
+(log_reveal).
+
+The change history is kept masked as well (mask_version, save_masked_version):
+Frappe's Version stores the old and new value of every field as plain text.
 
 A user without level-1 write cannot set the field, so people do not type into
 it. They type into `id_proof_masked` ("ID Proof Number"), which after
@@ -25,31 +31,49 @@ is keeps the real one.
 
 Custom endpoints that return the number to the browser must pass it through
 `shown_id`; Frappe's masking cannot reach a raw SQL result or a hand-built dict.
-The same applies to accompanying visitors (Visitor Group Member).
+The same applies to accompanying visitors (Visitor Group Member) and to
+Visitor Blacklist entries.
 """
+
+import re
 
 import frappe
 from frappe import _
+from frappe.utils import escape_html, format_datetime, get_fullname, now_datetime, strip_html
 
 from visitormanagement.visitor_management.validators import is_masked_id, mask_id_number
 
 ID_FIELD = "id_proof_number"
-# Visitor Pass and Visitor Group Member both keep the field at this level.
+# The same number upper-cased and without separators, kept beside it on Visitor
+# Pass and Visitor Group Member for the duplicate-pass check (VisitorPass._set_id_proof_keys).
+# It is the number, so it is kept and masked exactly like it.
+ID_KEY_FIELD = "id_proof_key"
+ID_FIELDS = (ID_FIELD, ID_KEY_FIELD)
+# Visitor Pass, Visitor Group Member and Visitor Blacklist keep the field at this
+# level, and no role is given a rule on it.
 FULL_ID_PERMLEVEL = 1
-FULL_ID_READERS = ("Security", "System Manager")
-
-
-def can_see_full_id():
-	"""Whether the current user may see full ID numbers (holds the unmask permission)."""
-	masked = frappe.get_meta("Visitor Pass").get_masked_fields()
-	return not any(df.fieldname == "id_proof_number" for df in masked)
+# Who may read one number back through reveal_id: the guard checking the card at
+# the gate, and the administrator.
+REVEAL_ROLES = ("Security", "System Manager")
+# The records reveal_id answers for. A group member is reached through its pass.
+REVEAL_DOCTYPES = ("Visitor Pass", "Visitor Blacklist")
+# Reveals per user per rolling hour (portal_upload._count_or_throw's window).
+REVEAL_LIMIT_PER_HOUR = 30
+# `subject` of the timeline note log_reveal leaves, to tell it from other Info notes.
+REVEAL_COMMENT_SUBJECT = "VMS full ID number revealed"
+# Longest reason kept with a reveal.
+REVEAL_REASON_LENGTH = 140
 
 
 def shown_id(real):
-	"""What a custom endpoint may return for an ID number to the current user."""
+	"""What a custom endpoint may return for an ID number: always the masked form.
+
+	Nobody is shown a full number by default; it is read back only through
+	reveal_id, which records it.
+	"""
 	if not real:
 		return real
-	return real if can_see_full_id() else mask_id_number(real)
+	return mask_id_number(real)
 
 
 def take_typed_id(row, source_full=None):
@@ -102,7 +126,7 @@ def mask_version(version):
 	`version.data` is what Version.update_version_info() built: "changed" holds
 	[fieldname, old, new]; "row_changed" holds [table, idx, row name, changes];
 	"added" and "removed" hold [table, row]. The pass's own number and its group
-	members' are all `id_proof_number`.
+	members' are all `id_proof_number`, and their match keys `id_proof_key`.
 	"""
 	data = frappe.parse_json(version.data or "{}")
 
@@ -111,7 +135,7 @@ def mask_version(version):
 
 	def mask_changes(changes):
 		return [
-			[change[0], mask(change[1]), mask(change[2])] if change[0] == ID_FIELD else change
+			[change[0], mask(change[1]), mask(change[2])] if change[0] in ID_FIELDS else change
 			for change in changes or []
 		]
 
@@ -124,48 +148,201 @@ def mask_version(version):
 		]
 	for key in ("added", "removed"):
 		for _table, row in data.get(key) or []:
-			if row.get(ID_FIELD):
-				row[ID_FIELD] = mask(row[ID_FIELD])
+			for fieldname in ID_FIELDS:
+				if row.get(fieldname):
+					row[fieldname] = mask(row[fieldname])
 
 	version.data = frappe.as_json(data, indent=None, separators=(",", ":"))
 
 
-def grant_full_id_level():
-	"""Give FULL_ID_READERS their level-1 rule on a site that keeps its own rules.
+def save_masked_version(doc, drop_fields=()):
+	"""Document.save_version, with every ID number in the diff masked.
 
-	visitor_pass.json ships the level-1 rules, and a site reads them — until the
-	first change made through the Role Permission Manager or by setup._grant,
-	which copies the shipped rules into Custom DocPerm; from then on only Custom
-	DocPerm is read. A site whose copy was taken before the field moved to level
-	1 has no level-1 rule in it, so nobody there could see a full number.
-
-	Adds the missing rules to such a copy and nothing else: a rule that exists is
-	left as the site set it, and a site with no copy is left reading the shipped
-	rules. Safe to call on every migrate.
+	For a DocType that keeps `id_proof_number` (Visitor Pass, Visitor Blacklist):
+	call it from the controller's own save_version. The steps are Frappe's own;
+	mask_version() is the one addition, between building the diff and storing it.
+	`drop_fields` are left out of the history altogether.
 	"""
-	if not frappe.db.exists("Custom DocPerm", {"parent": "Visitor Pass"}):
+	doc_before_save = doc.get_doc_before_save()
+	if (
+		not getattr(doc.meta, "track_changes", False)
+		or doc.flags.ignore_version
+		or frappe.flags.in_install
+		or (not doc_before_save and frappe.flags.in_patch)
+	):
 		return
-	added = False
-	for role in FULL_ID_READERS:
-		if not frappe.db.exists("Role", role) or frappe.db.exists(
-			"Custom DocPerm", {"parent": "Visitor Pass", "role": role, "permlevel": FULL_ID_PERMLEVEL}
-		):
+
+	doc_to_compare = doc_before_save
+	if not doc_to_compare and (amended_from := doc.get("amended_from")):
+		doc_to_compare = frappe.get_doc(doc.doctype, amended_from)
+	if not doc_to_compare and not doc.flags.updater_reference:
+		return
+
+	version = frappe.new_doc("Version")
+	if version.update_version_info(doc_to_compare, doc):
+		mask_version(version)
+		if drop_fields:
+			data = frappe.parse_json(version.data)
+			data["changed"] = [change for change in data.get("changed") or [] if change[0] not in drop_fields]
+			version.data = frappe.as_json(data, indent=None, separators=(",", ":"))
+		version.insert(ignore_permissions=True)
+
+
+def scrub_versions(doctype):
+	"""Mask the ID numbers already stored in `doctype`'s change history.
+
+	For records whose history was kept before save_masked_version covered them.
+	Rewrites only rows that mention the field, and only when masking changes
+	them; a masked value masks to itself, so a second run changes nothing.
+	Returns how many Version rows were rewritten.
+	"""
+	scrubbed = 0
+	for row in frappe.get_all(
+		"Version",
+		filters={"ref_doctype": doctype, "data": ("like", f'%"{ID_FIELD}"%')},
+		fields=["name", "data"],
+		order_by=None,
+	):
+		try:
+			before = frappe.parse_json(row.data)
+		except ValueError:
+			continue  # not JSON; leave it alone
+		if not isinstance(before, dict):
 			continue
-		frappe.get_doc(
-			{
-				"doctype": "Custom DocPerm",
-				"parent": "Visitor Pass",
-				"parenttype": "DocType",
-				"parentfield": "permissions",
-				"role": role,
-				"permlevel": FULL_ID_PERMLEVEL,
-				"read": 1,
-				"mask": 1,
-				# As shipped: an administrator's import or integration may set
-				# the number directly; Security only reads it.
-				"write": int(role == "System Manager"),
-			}
-		).insert(ignore_permissions=True)
-		added = True
-	if added:
-		frappe.clear_cache(doctype="Visitor Pass")
+		version = frappe._dict(data=row.data)
+		mask_version(version)
+		if frappe.parse_json(version.data) != before:
+			frappe.db.set_value("Version", row.name, "data", version.data, update_modified=False)
+			scrubbed += 1
+	return scrubbed
+
+
+# ─────────────────────────────────────────────────────────────
+# REVEAL — the one way to read a full number back, recorded
+# ─────────────────────────────────────────────────────────────
+
+
+def can_reveal_full_id(user=None):
+	"""Whether `user` (default: the current user) holds a role that may reveal."""
+	user = user or frappe.session.user
+	if not user or user == "Guest":
+		return False
+	return bool(set(REVEAL_ROLES) & set(frappe.get_roles(user)))
+
+
+@frappe.whitelist(methods=["POST"])
+def reveal_id(doctype: str, name: str, row: str | None = None, reason: str | None = None) -> str:
+	"""The full ID number on one record, for Security or System Manager, recorded each time.
+
+	`doctype`/`name` is a Visitor Pass or a Visitor Blacklist entry; `row` picks
+	an accompanying visitor (Visitor Group Member) on a pass. The caller must
+	hold one of REVEAL_ROLES and be able to read the record. Who revealed it and
+	when is written down before the number is returned (log_reveal), in the
+	same transaction: if the record cannot be written, nothing is returned.
+	`reason` is optional, so a guard with a queue is not slowed down.
+	"""
+	if doctype not in REVEAL_DOCTYPES:
+		frappe.throw(
+			_("A full ID number can only be revealed on a Visitor Pass or a Visitor Blacklist entry."),
+			frappe.PermissionError,
+		)
+	if not can_reveal_full_id():
+		frappe.throw(
+			_("Only Security and System Manager can reveal a full ID number."),
+			frappe.PermissionError,
+		)
+
+	from visitormanagement.visitor_management.portal_upload import _count_or_throw
+
+	# Counted before the record is looked up, so trying many names counts too.
+	_count_or_throw(
+		f"vms:reveal-id:{frappe.session.user}",
+		REVEAL_LIMIT_PER_HOUR,
+		_("You have revealed too many ID numbers in the last hour. Please wait a while and try again."),
+	)
+
+	doc = frappe.get_doc(doctype, name)
+	doc.check_permission("read")
+
+	member = None
+	if row:
+		member = next((m for m in doc.get("group_members") or [] if m.name == row), None)
+		if not member:
+			frappe.throw(
+				_("That accompanying visitor is not on {0}.").format(doc.name),
+				frappe.DoesNotExistError,
+			)
+
+	# get_doc reads the stored value; Frappe's masking applies only to what is sent out.
+	number = ((member or doc).get(ID_FIELD) or "").strip()
+	if not number:
+		frappe.throw(_("No ID number is on record for this person."), title=_("No ID Number"))
+
+	log_reveal(doc, member=member, reason=_clean_reason(reason, number))
+	return number
+
+
+def _clean_reason(reason, number):
+	"""The reason as it may be kept: plain text, short, and never holding the number."""
+	reason = re.sub(r"\s+", " ", strip_html(reason or "")).strip()[:REVEAL_REASON_LENGTH]
+	if not reason:
+		return ""
+
+	def key(value):
+		return re.sub(r"[^0-9A-Z]", "", value.upper())
+
+	# The reason box is free text: a number typed or pasted into it would be
+	# written into the log the reveal exists to keep it out of.
+	if key(number) and key(number) in key(reason):
+		return _("(reason not kept: it contained the ID number)")
+	return reason
+
+
+def log_reveal(doc, member=None, reason="", user=None):
+	"""Record that `user` revealed a full ID number on `doc`: who, when, and whose.
+
+	Written twice, and neither holds the number:
+
+	- an Activity Log row. System Manager can read Activity Log but has no write
+	  or delete right on it, so the person who looked cannot remove the record of
+	  having looked. Frappe clears Activity Log after the period set in Log
+	  Settings;
+	- an Info comment on the record's timeline, which stays as long as the record
+	  and is seen by everyone who can open it.
+	"""
+	user = user or frappe.session.user
+	who = get_fullname(user)
+	when = format_datetime(now_datetime())
+	if member:
+		text = _("{0} revealed the full ID number of accompanying visitor {1} (row {2}) at {3}").format(
+			who, member.visitor_name or "", member.idx, when
+		)
+	else:
+		text = _("{0} revealed the full ID number at {1}").format(who, when)
+	if reason:
+		text = _("{0}. Reason: {1}").format(text, reason)
+
+	frappe.get_doc(
+		{
+			"doctype": "Activity Log",
+			"subject": _("Full ID number revealed: {0} {1}").format(_(doc.doctype), doc.name),
+			"content": escape_html(f"{text} ({user})"),
+			"reference_doctype": doc.doctype,
+			"reference_name": doc.name,
+			"user": user,
+			"ip_address": getattr(frappe.local, "request_ip", None),
+		}
+	).insert(ignore_permissions=True)
+
+	frappe.get_doc(
+		{
+			"doctype": "Comment",
+			"comment_type": "Info",
+			"subject": REVEAL_COMMENT_SUBJECT,
+			"reference_doctype": doc.doctype,
+			"reference_name": doc.name,
+			"comment_email": user,
+			"comment_by": who,
+			"content": escape_html(text),
+		}
+	).insert(ignore_permissions=True)

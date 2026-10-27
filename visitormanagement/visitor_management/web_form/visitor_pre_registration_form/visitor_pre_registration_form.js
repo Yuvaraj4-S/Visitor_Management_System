@@ -76,6 +76,10 @@ let hospitalityWatchState = {
 let genericFormState = {
 	bound: false,
 };
+let invitationOpenState = {
+	listening: false,
+	recorded: false,
+};
 
 function escapeHtml(value) {
 	return frappe.utils.escape_html(value == null ? "" : String(value));
@@ -684,6 +688,39 @@ function getBootInvitationContext() {
 	};
 }
 
+// The host sees "Opened" once the visitor has opened the link. That used to be
+// recorded on the page load, which mail link scanners (Outlook Safe Links and
+// the like) perform for every link in a message — so invitations read "Opened"
+// before the visitor had seen the mail. It is recorded on the visitor's first
+// tap or keystroke instead. Fire and forget: nothing the visitor does waits on
+// it, and a failure is no business of theirs.
+function recordInvitationOpenOnFirstUse(token) {
+	if (invitationOpenState.listening || !token) {
+		return;
+	}
+	invitationOpenState.listening = true;
+
+	const events = ["pointerdown", "keydown", "touchstart"];
+	const record = () => {
+		events.forEach((name) => document.removeEventListener(name, record, true));
+		if (invitationOpenState.recorded) {
+			return;
+		}
+		invitationOpenState.recorded = true;
+		const headers = { "Content-Type": "application/json", Accept: "application/json" };
+		if (frappe.csrf_token && frappe.csrf_token !== "None") {
+			headers["X-Frappe-CSRF-Token"] = frappe.csrf_token;
+		}
+		fetch(
+			"/api/method/visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation.mark_invitation_opened",
+			{ method: "POST", headers, body: JSON.stringify({ token }) }
+		).catch(() => {});
+	};
+	events.forEach((name) =>
+		document.addEventListener(name, record, { capture: true, passive: true })
+	);
+}
+
 function setSubmitDisabled(disabled) {
 	$(".submit-btn").prop("disabled", disabled);
 }
@@ -1001,6 +1038,7 @@ async function handleInvitationAfterLoad() {
 		await syncHospitalityFieldsFromMealToggle();
 		renderVisitorItems(getVisitorItemsFromContext());
 		attachMobileValidator();
+		recordInvitationOpenOnFirstUse(token);
 		setFormVisibility(true);
 		setSubmitDisabled(false);
 	} catch (error) {

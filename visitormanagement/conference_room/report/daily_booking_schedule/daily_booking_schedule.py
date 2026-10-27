@@ -4,6 +4,10 @@ import frappe
 from frappe import _
 from frappe.utils import escape_html
 
+from visitormanagement.conference_room.doctype.conference_room_booking.conference_room_booking import (
+	holds_slot_condition,
+)
+
 
 def execute(filters=None):
 	columns = [
@@ -76,7 +80,9 @@ def execute(filters=None):
 		},
 	]
 
-	conditions = "WHERE crb.docstatus < 2 AND crb.status NOT IN ('Cancelled')"
+	# A rejected booking holds no slot, so it is not on the day's schedule —
+	# shown as "Busy" it told everyone else the room was taken when it was free.
+	conditions = "WHERE crb.docstatus < 2 AND crb.status NOT IN ('Cancelled', 'Rejected')"
 	values = {}
 
 	if filters.get("date"):
@@ -101,7 +107,10 @@ def execute(filters=None):
 			crb.booked_by, emp.employee_name AS booked_by_name, crb.status,
 			("""
 		+ _booking_scope("crb")
-		+ """) AS is_visible
+		+ """) AS is_visible,
+			"""
+		+ holds_slot_condition("crb")
+		+ """ AS holds_slot
 		FROM `tabConference Room Booking` crb
 		LEFT JOIN `tabEmployee` emp ON emp.name = crb.booked_by
 		"""
@@ -112,8 +121,14 @@ def execute(filters=None):
 		values,
 		as_dict=True,
 	)
+	shown = []
 	for row in data:
+		holds_slot = row.pop("holds_slot")
 		if not row.pop("is_visible"):
+			# Someone else's Draft that was never sent in holds no slot either
+			# (`holds_slot_condition`); "Busy" would claim it does.
+			if not holds_slot:
+				continue
 			row.update(
 				name=None,
 				meeting_title=_("Busy"),
@@ -129,7 +144,8 @@ def execute(filters=None):
 		for fieldname in ("meeting_title", "booked_by_name"):
 			if row.get(fieldname):
 				row[fieldname] = escape_html(row[fieldname])
-	return columns, data
+		shown.append(row)
+	return columns, shown
 
 
 def _booking_scope(alias):

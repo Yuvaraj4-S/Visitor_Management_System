@@ -1,11 +1,11 @@
 {
  "app": "visitormanagement",
+ "creation": "2026-08-05 15:00:00.000000",
+ "docstatus": 0,
  "doctype": "Workspace Sidebar",
  "for_user": "",
  "header_icon": "users",
  "idx": 0,
- "name": "VMS",
- "standard": 1,
  "items": [
   {
    "child": 0,
@@ -39,6 +39,18 @@
    "keep_closed": 0,
    "label": "Visitor Pass",
    "link_to": "Visitor Pass",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "users",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Approval Delegation",
+   "link_to": "VMS Approval Delegation",
    "link_type": "DocType",
    "show_arrow": 0,
    "type": "Link"
@@ -142,6 +154,18 @@
   {
    "child": 0,
    "collapsible": 1,
+   "icon": "shield-alert",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Evacuation Roll Call",
+   "link_to": "Evacuation Roll Call",
+   "link_type": "Report",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
    "icon": "reports",
    "indent": 0,
    "keep_closed": 0,
@@ -188,9 +212,9 @@
    "type": "Link"
   }
  ],
- "creation": "2026-08-05 15:00:00.000000",
- "modified": "2026-08-05 18:00:00.000000",
+ "modified": "2026-10-16 10:40:00.000000",
  "modified_by": "Administrator",
+ "name": "VMS",
  "owner": "Administrator",
- "docstatus": 0
+ "standard": 1
 }

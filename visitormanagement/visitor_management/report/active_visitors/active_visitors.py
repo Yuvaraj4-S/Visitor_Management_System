@@ -4,6 +4,8 @@ import frappe
 from frappe import _
 from frappe.utils import get_datetime, now_datetime
 
+from visitormanagement.visitor_management.report.on_site import member_location_sql, members_on_site
+
 # Indicator colours come from Visitor Type.badge_colour so a custom type is
 # coloured by its own configuration instead of falling back to grey.
 _SWATCH_TO_INDICATOR = {
@@ -42,6 +44,9 @@ def get_columns():
 			"width": 140,
 		},
 		{"label": _("Visitor"), "fieldname": "visitor_name", "fieldtype": "Data", "width": 180},
+		# Set on the rows for a group's accompanying visitors: one row per person,
+		# so "Currently Inside" counts people, not passes.
+		{"label": _("With"), "fieldname": "group_lead", "fieldtype": "Data", "width": 140},
 		{"label": _("Type"), "fieldname": "visitor_type", "fieldtype": "Data", "width": 100},
 		{"label": _("Company"), "fieldname": "company", "fieldtype": "Data", "width": 170},
 		# The host's name as text, not a Link to Employee. Frappe drops every report
@@ -65,6 +70,13 @@ def get_columns():
 	]
 
 
+# Where the visitor is now: the pass's `current_location`, which every Check-In and
+# Gate Transfer moves (lifecycle.sync_contact_trace), else the gate of the latest
+# check-in. The gate column and filter read the check-in alone, so a muster list
+# taken after a transfer sent the roll-call to the gate the visitor had left.
+_CURRENT_GATE = "COALESCE(NULLIF(vp.current_location, ''), sl.gate_name)"
+
+
 def get_data(filters):
 	conditions = ["vp.status = 'Checked-In'"]
 	values = {}
@@ -74,7 +86,7 @@ def get_data(filters):
 		values["visitor_type"] = filters["visitor_type"]
 
 	if filters.get("gate_name"):
-		conditions.append("sl.gate_name = %(gate_name)s")
+		conditions.append(f"{_CURRENT_GATE} = %(gate_name)s")
 		values["gate_name"] = filters["gate_name"]
 
 	if filters.get("host"):
@@ -86,6 +98,12 @@ def get_data(filters):
 		conditions.append(scope)
 
 	where = " AND ".join(conditions)
+	member_conditions = [c for c in conditions if c != "vp.status = 'Checked-In'"]
+	if filters.get("gate_name"):
+		member_conditions = [
+			c.replace(_CURRENT_GATE, member_location_sql()) if _CURRENT_GATE in c else c
+			for c in member_conditions
+		]
 
 	# One row per visitor: the pass joined to its LATEST Check-In only. Joining
 	# every Check-In log listed a visitor once per entry, so someone who stepped
@@ -102,7 +120,9 @@ def get_data(filters):
             vp.host_name,
             vp.item_verification_status,
             vp.expected_checkout,
-            sl.gate_name,
+            """
+		+ _CURRENT_GATE
+		+ """ AS gate_name,
             sl.check_in_date_time AS checkin_time
         FROM `tabVisitor Pass` vp
         LEFT JOIN `tabSecurity Log` sl
@@ -121,6 +141,33 @@ def get_data(filters):
 		values,
 		as_dict=True,
 	)
+
+	# The people with a group's lead visitor, each a row of their own.
+	for member in members_on_site(
+		member_conditions,
+		values,
+		extra_fields="""
+            , vp.visitor_type
+            , vp.company__organisation AS company
+            , vp.host_name
+            , vp.expected_checkout
+        """,
+	):
+		rows.append(
+			frappe._dict(
+				visitor_pass=member.visitor_pass,
+				badge_number=member.badge_number,
+				visitor_name=member.visitor_name,
+				group_lead=member.lead_name,
+				visitor_type=member.visitor_type,
+				company=member.company,
+				host_name=member.host_name,
+				expected_checkout=member.expected_checkout,
+				gate_name=member.gate_name,
+				checkin_time=member.checkin_time,
+			)
+		)
+	rows.sort(key=lambda r: get_datetime(r.get("checkin_time") or "1900-01-01"))
 
 	# Measured against the site's clock in Python. `check_in_date_time` is stored
 	# in site time, while SQL NOW() is the database server's clock: on a server in
@@ -159,7 +206,14 @@ def get_summary(data):
 	# named VIP — so a site's own executive type is counted here too.
 	vip_types = set(frappe.get_all("Visitor Type", filters={"detail_layout": "VIP"}, pluck="name"))
 	vip_count = sum(count for vt, count in by_type.items() if vt in vip_types)
-	pending_items = sum(1 for r in data if r.item_verification_status in ("Pending", "Partial"))
+	# Items belong to the pass, so a pass is counted once however many people are on it.
+	pending_items = len(
+		{
+			r.visitor_pass
+			for r in data
+			if r.get("item_verification_status") in ("Pending", "Partial", "Discrepancy")
+		}
+	)
 
 	return [
 		{"value": total, "label": _("Currently Inside"), "indicator": "Green"},

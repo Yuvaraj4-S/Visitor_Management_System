@@ -11,7 +11,9 @@ why this card has a method.
 It also counted every request with a cab ticked, whatever had become of it: a
 draft nobody submitted, a request the Hospitality Manager rejected. Only the
 states the daily digest lists are counted here (tasks.LIVE_HOSPITALITY_STATES),
-so the card and the 07:00 mail agree on how many cabs today has.
+so the card and the 07:00 mail agree on how many cabs today has. A cab called
+off on its own (`cab_status` Cancelled — the visitor drives in after all) is
+not a cab today either, though the rest of its request goes ahead.
 
 The requests are read through `frappe.get_list`, so the count follows the same
 row scope as the Hospitality Request list: the people who run hospitality see
@@ -32,7 +34,11 @@ def get_data(filters: str | dict | list | None = None, **kwargs) -> dict:
 	day = [f"{today} 00:00:00", f"{today} 23:59:59"]
 	trips_today = frappe.get_list(
 		"Hospitality Request",
-		filters={"cab_required": 1, "workflow_state": ("in", LIVE_HOSPITALITY_STATES)},
+		filters={
+			"cab_required": 1,
+			"cab_status": ("!=", "Cancelled"),
+			"workflow_state": ("in", LIVE_HOSPITALITY_STATES),
+		},
 		or_filters=[["pickup_datetime", "between", day], ["drop_datetime", "between", day]],
 		fields=["name", "pickup_datetime"],
 		order_by=None,
@@ -67,6 +73,7 @@ def _list_filters(trips_today, today):
 
 	return {
 		"cab_required": 1,
+		"cab_status": ["!=", "Cancelled"],
 		"workflow_state": ["in", list(LIVE_HOSPITALITY_STATES)],
 		"pickup_datetime": ["between", [today, today]],
 	}

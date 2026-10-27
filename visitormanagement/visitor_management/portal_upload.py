@@ -37,8 +37,8 @@ SIGNATURES = (
 # A visitor uploads two files, and may redo them a few times. Frappe's
 # `upload_file` has no rate limit of its own, so without this an anonymous
 # caller can write files until the disk fills — the size cap only bounds one
-# request. Counted per IP over a rolling hour, matching the 20/hour already
-# applied to portal.submit_pre_registration.
+# request. Counted over a rolling hour per invitation, or per client address for
+# a walk-in (rate_limit_bucket), like portal.submit_pre_registration.
 MAX_GUEST_UPLOADS_PER_HOUR = 30
 _RATE_WINDOW_SECONDS = 60 * 60
 
@@ -73,8 +73,10 @@ def guard_guest_upload(doc, method=None):
 			_("File uploads are only accepted from the visitor pre-registration form."),
 			frappe.PermissionError,
 		)
-	_enforce_rate_limit()
-	_refuse_without_invitation()
+	# The token is checked before anything is counted, so the count lands on the
+	# caller's own invitation and not on a bucket other visitors share.
+	invitation = _refuse_without_invitation()
+	_enforce_rate_limit(invitation)
 	_reject_foreign_attachment_target(doc)
 
 	extension = os.path.splitext(doc.file_name or "")[1].lower()
@@ -176,19 +178,18 @@ def _refuse_without_invitation():
 	a stranger could still store identity documents on the server through the form, so
 	the same rule is applied here: a valid invitation token, or the VMS Settings box
 	"Allow Pre-Registration Without Invitation".
+
+	Returns the invitation the upload belongs to, or None for a walk-in.
 	"""
 	from visitormanagement.visitor_management import settings as vms_settings
-
-	if vms_settings.pre_registration_without_invitation_allowed():
-		return
-
 	from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation import (
 		get_valid_invitation_by_token,
 	)
 
 	token = frappe.form_dict.get(INVITATION_TOKEN_FIELD)
-	if isinstance(token, str) and get_valid_invitation_by_token(token):
-		return
+	invitation = get_valid_invitation_by_token(token) if isinstance(token, str) else None
+	if invitation or vms_settings.pre_registration_without_invitation_allowed():
+		return invitation
 
 	from visitormanagement.visitor_management.portal import invitation_required_message
 
@@ -241,19 +242,23 @@ def _reject_foreign_attachment_target(doc):
 
 
 def _rate_limit_identity():
-	"""The part of the request that identifies the caller for rate limiting.
+	"""The client address a walk-in's requests are counted against.
 
 	`frappe.local.request_ip` is read straight from `X-Forwarded-For` with no
 	trusted-proxy validation (frappe/auth.py), so on a directly-exposed site it
 	is simply whatever the client typed — rotating it defeated this limit
 	entirely. A forwarded-for header is only meaningful when something we trust
 	put it there, so it is honoured only when the socket peer is a proxy the site
-	has declared:
+	has declared, or the same machine (bench's own nginx, which sets the header
+	to the client's address):
 
 	    # site_config.json
 	    "trusted_proxy_ips": ["10.0.0.4"]
 
-	Otherwise the socket peer is used, which the caller cannot rewrite.
+	Otherwise the socket peer is used, which the caller cannot rewrite. Behind
+	a proxy that is not declared, every visitor has the proxy's address, and one
+	busy caller used up the walk-in allowance for all of them — see README,
+	"Running behind a proxy".
 	"""
 	peer_ip = getattr(frappe.request, "remote_addr", None) if frappe.request else None
 	if not peer_ip:
@@ -262,16 +267,37 @@ def _rate_limit_identity():
 		return getattr(frappe.local, "request_ip", None) or "unknown"
 
 	trusted = frappe.conf.get("trusted_proxy_ips") or []
-	if peer_ip in trusted:
+	if peer_ip in trusted or _is_loopback(peer_ip):
 		return getattr(frappe.local, "request_ip", None) or peer_ip
 
 	return peer_ip
 
 
-def _enforce_rate_limit():
+def _is_loopback(ip):
+	import ipaddress
+
+	try:
+		return ipaddress.ip_address(ip).is_loopback
+	except ValueError:
+		return False
+
+
+def rate_limit_bucket(invitation=None):
+	"""Whose hourly allowance a portal request is counted against.
+
+	An invited visitor's own invitation: they cannot be refused because someone
+	else on the same office network, or the same proxy, was busy. A walk-in has
+	no invitation, so the client's address (_rate_limit_identity).
+	"""
+	if invitation:
+		return f"invitation:{invitation.name}"
+	return f"ip:{_rate_limit_identity()}"
+
+
+def _enforce_rate_limit(invitation=None):
 	"""Cap how many files one anonymous caller may upload per hour."""
 	_count_or_throw(
-		f"vms:guest-upload:{_rate_limit_identity()}",
+		f"vms:guest-upload:{rate_limit_bucket(invitation)}",
 		MAX_GUEST_UPLOADS_PER_HOUR,
 		_("Too many uploads from this connection. Please wait a while and try again."),
 	)
@@ -285,7 +311,10 @@ def _count_or_throw(key, ceiling, message=None):
 	was being told they had made "too many uploads" — which is not what they
 	did, and sends them looking in the wrong place.
 	"""
-	cache = frappe.cache()
+	cache = frappe.cache
+	# incrby / expire are raw Redis calls: without make_key every site on the
+	# bench counted in one shared key.
+	key = cache.make_key(key)
 	count = cache.incrby(key, 1)
 	if count == 1:
 		# Start the clock on the first increment only, so a burst cannot keep

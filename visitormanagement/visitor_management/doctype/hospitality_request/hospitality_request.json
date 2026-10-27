@@ -15,6 +15,16 @@
   "factory_tour_required",
   "buggy_required",
   "greeting_required",
+  "section_break_services",
+  "services_summary",
+  "meal_status",
+  "refreshments_status",
+  "cab_status",
+  "col_break_services",
+  "hotel_status",
+  "tour_status",
+  "buggy_status",
+  "greeting_status",
   "section_break_visit_info",
   "visit_start_time",
   "col_break_visit_info",
@@ -169,6 +179,95 @@
    "fieldname": "greeting_required",
    "fieldtype": "Check",
    "label": "Greeting Required",
+   "read_only": 1
+  },
+  {
+   "description": "Each service has its own progress: Pending, Booked (arranged — the host is told), Done (delivered) or Cancelled. The people who deliver a service update it with the buttons at the top of the form once the request is Approved.",
+   "fieldname": "section_break_services",
+   "fieldtype": "Section Break",
+   "label": "Service Progress"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Each service asked for and how far it has got. Kept up to date on every save.",
+   "fieldname": "services_summary",
+   "fieldtype": "Small Text",
+   "label": "Services",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.meal_required",
+   "fieldname": "meal_status",
+   "fieldtype": "Select",
+   "label": "Meal Status",
+   "options": "Pending\nBooked\nDone\nCancelled",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.snacks_required || doc.tea_coffee_required",
+   "fieldname": "refreshments_status",
+   "fieldtype": "Select",
+   "label": "Refreshments Status",
+   "options": "Pending\nBooked\nDone\nCancelled",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "cab_status",
+   "fieldtype": "Select",
+   "label": "Cab Status",
+   "options": "Pending\nBooked\nDone\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_services",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.hotel_required",
+   "fieldname": "hotel_status",
+   "fieldtype": "Select",
+   "label": "Hotel Status",
+   "options": "Pending\nBooked\nDone\nCancelled",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.factory_tour_required",
+   "fieldname": "tour_status",
+   "fieldtype": "Select",
+   "label": "Factory Tour Status",
+   "options": "Pending\nBooked\nDone\nCancelled",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.buggy_required",
+   "fieldname": "buggy_status",
+   "fieldtype": "Select",
+   "label": "Buggy Status",
+   "options": "Pending\nBooked\nDone\nCancelled",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.greeting_required",
+   "fieldname": "greeting_status",
+   "fieldtype": "Select",
+   "label": "Greeting Status",
+   "options": "Pending\nBooked\nDone\nCancelled",
    "read_only": 1
   },
   {
@@ -418,14 +517,16 @@
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "no_of_rooms",
    "fieldtype": "Int",
-   "label": "No of Rooms"
+   "label": "No of Rooms",
+   "non_negative": 1
   },
   {
    "default": "1",
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "no_of_guests",
    "fieldtype": "Int",
-   "label": "No of Guests"
+   "label": "No of Guests",
+   "non_negative": 1
   },
   {
    "allow_on_submit": 1,
@@ -447,7 +548,8 @@
    "description": "No automation fills this field — the Hospitality Manager records actual cost once booked. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "hotel_cost",
    "fieldtype": "Currency",
-   "label": "Hotel Cost"
+   "label": "Hotel Cost",
+   "non_negative": 1
   },
   {
    "collapsible": 1,
@@ -588,7 +690,8 @@
    "description": "No automation fills this field — the Hospitality Manager records actual cost once arranged. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "greeting_cost",
    "fieldtype": "Currency",
-   "label": "Greeting Cost"
+   "label": "Greeting Cost",
+   "non_negative": 1
   },
   {
    "fieldname": "section_break_status",
@@ -598,12 +701,13 @@
   {
    "allow_on_submit": 1,
    "default": "Pending",
-   "description": "Set by the Hospitality Manager once the request is approved: Pending, Confirmed, Served, Completed.",
+   "description": "Follows the services above once the request is Approved: Confirmed when any service is Booked, Completed when every service is Done, Cancelled when all are called off. Until approval it follows the workflow. Nobody sets it by hand.",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Pending\nConfirmed\nServed\nCompleted\nCancelled"
+   "options": "Pending\nConfirmed\nServed\nCompleted\nCancelled",
+   "read_only": 1
   },
   {
    "allow_on_submit": 1,
@@ -648,7 +752,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-06 12:00:00.000000",
+ "modified": "2026-10-16 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Hospitality Request",

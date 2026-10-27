@@ -1,4 +1,11 @@
 import frappe
+from frappe.utils import cint, getdate, nowdate
+
+from visitormanagement.visitor_management.workflow_builder import (
+	ASSIGNED_APPROVER_ROLE,
+	FRONT_DESK_ROLE,
+	pending_lanes,
+)
 
 
 def _has_any_role(user_roles, roles):
@@ -67,11 +74,115 @@ def get_visitor_pass_permission_query_conditions(user=None):
 			f"`{table}`.`status` in ('Approved', 'Items Verified', 'Checked-In', 'Checked-Out')"
 		)
 
+	# Named approver scope — the passes that name this user (the host's manager,
+	# or a stand-in for an approver). An exact match within the list: LIKE would
+	# treat the `_` common in user ids as a wildcard. has_visitor_pass_permission
+	# decides what they may do with each one.
+	if ASSIGNED_APPROVER_ROLE in roles:
+		escaped = frappe.db.escape(f",{user},")
+		conditions.append(
+			f"locate({escaped}, concat(',', ifnull(`{table}`.`current_approvers`, ''), ',')) > 0"
+		)
+
+	# Reception works from today's visitors, whoever raised them.
+	if FRONT_DESK_ROLE in roles:
+		conditions.append(_visiting_today_condition(table))
+
 	# Parenthesised: Frappe ANDs this fragment with its own clauses (User
 	# Permissions, share filters). Unbracketed, `AND` binds tighter than `OR`, so
 	# a User Permission would constrain only the first disjunct and every other
 	# branch would widen the result set past it.
 	return "(" + " or ".join(conditions) + ")" if conditions else "1=0"
+
+
+def _visiting_today_condition(table):
+	today = frappe.db.escape(str(getdate(nowdate())))
+	return (
+		f"(`{table}`.`visit_date` = {today} or (`{table}`.`multi_day_pass` = 1"
+		f" and `{table}`.`visit_date` <= {today} and `{table}`.`pass_valid_until` >= {today}))"
+	)
+
+
+def _is_visiting_today(doc):
+	today = getdate(nowdate())
+	if not doc.get("visit_date"):
+		return False
+	visit_date = getdate(doc.visit_date)
+	if visit_date == today:
+		return True
+	return bool(
+		cint(doc.get("multi_day_pass"))
+		and doc.get("pass_valid_until")
+		and visit_date <= today <= getdate(doc.pass_valid_until)
+	)
+
+
+# What the people a visit belongs to may do with an approved pass: call it off,
+# until the visitor arrives (VisitorPass.before_cancel refuses it after that too).
+_CANCELLABLE_STATUSES = ("Approved", "Items Verified")
+
+
+def _host_may_cancel(doc, ptype):
+	# `status` and not the workflow state: the workflow has already moved the
+	# state to Cancelled by the time the cancel is permission-checked, while
+	# `status` changes only in on_cancel.
+	return ptype == "cancel" and doc.get("status") in _CANCELLABLE_STATUSES and not doc.get("actual_checkin")
+
+
+def _named_approver_permission(doc, user, ptype):
+	"""What a pass's named approver may do with it: None when the pass does not name them.
+
+	While the pass waits, they may work it as its approver, judged on who may
+	decide it today (approval_tasks.may_decide) rather than the stored list — a
+	stand-in whose delegation has ended gets nothing. Once it is decided they keep
+	sight of it, as the lane roles keep sight of the passes they decided.
+	"""
+	from visitormanagement.visitor_management import approval_tasks
+
+	if not approval_tasks.is_named(doc, user):
+		# A decision moves `current_approvers` on — to the next lane's stand-ins,
+		# or to nothing once the pass is decided — so the pass stops naming whoever
+		# decided it: a stand-in got "Not permitted" the moment their Approve went
+		# through, and could not open the pass again. Frappe records every workflow
+		# action as a "Workflow" comment by its actor (a row only System Manager may
+		# write by hand), which is what keeps their sight of it.
+		if ptype in _READ_LIKE_PTYPES and _acted_on_in_workflow(doc, user):
+			return True
+		return None
+	# Judged on the pass as stored: during an Approve the workflow has already
+	# moved the document being saved to its next state.
+	stored = (
+		frappe.db.get_value(
+			"Visitor Pass",
+			doc.name,
+			["name", "docstatus", "workflow_state", "visitor_type", "person_to_visit", "owner"],
+			as_dict=True,
+		)
+		if doc.get("name")
+		else None
+	) or doc
+	if stored.get("docstatus") == 0 and stored.get("workflow_state") in pending_lanes():
+		if ptype in _NAMED_APPROVER_PTYPES and approval_tasks.may_decide(stored, user):
+			return True
+		return None
+	return True if ptype in _READ_LIKE_PTYPES else None
+
+
+def _acted_on_in_workflow(doc, user):
+	"""Whether `user` moved this pass through its workflow (Approve, Reject, ...)."""
+	if not doc.get("name"):
+		return False
+	return bool(
+		frappe.db.exists(
+			"Comment",
+			{
+				"reference_doctype": "Visitor Pass",
+				"reference_name": doc.name,
+				"comment_type": "Workflow",
+				"owner": user,
+			},
+		)
+	)
 
 
 def get_visitor_invitation_permission_query_conditions(user=None):
@@ -170,6 +281,10 @@ _READ_LIKE_PTYPES = {"read", "select", "print", "email", "report", "export"}
 # downstream control — badge minting, the gate — correctly trusts it.
 _OWNER_PTYPES = _READ_LIKE_PTYPES | {"write", "create", "delete"}
 
+# A named approver acts on a waiting pass through the workflow: Approve submits
+# it on the last step.
+_NAMED_APPROVER_PTYPES = _READ_LIKE_PTYPES | {"write", "submit"}
+
 
 def has_visitor_pass_permission(doc, user=None, ptype=None, debug=False):
 	user = user or frappe.session.user
@@ -180,15 +295,26 @@ def has_visitor_pass_permission(doc, user=None, ptype=None, debug=False):
 	# for anything outside _OWNER_PTYPES — a Sales Manager who happens to own a
 	# Customer pass is still that pass's configured approver, and the approver
 	# branch further down is what should decide that, not an early denial here.
-	if doc.owner == user and ptype in _OWNER_PTYPES:
+	if doc.owner == user and (ptype in _OWNER_PTYPES or _host_may_cancel(doc, ptype)):
 		return True
 
 	# Host scope — user is the person the visitor is meeting
 	employee = _employee_for_user(user)
-	if employee and doc.person_to_visit == employee and ptype in _OWNER_PTYPES:
+	if (
+		employee
+		and doc.person_to_visit == employee
+		and (ptype in _OWNER_PTYPES or _host_may_cancel(doc, ptype))
+	):
+		return True
+
+	if _named_approver_permission(doc, user, ptype):
 		return True
 
 	roles = set(frappe.get_roles(user))
+
+	# Reception reads today's visitors, whoever raised them; it writes only its own.
+	if FRONT_DESK_ROLE in roles and ptype in _READ_LIKE_PTYPES and _is_visiting_today(doc):
+		return True
 
 	# System Manager administers the site, so it gets the same reach here that it
 	# has in the query conditions — but deliberately not `submit`/`cancel`/
@@ -220,11 +346,10 @@ def has_visitor_pass_permission(doc, user=None, ptype=None, debug=False):
 		or (visitor_type_doc.secondary_approver_role and visitor_type_doc.secondary_approver_role in roles)
 	):
 		return True
-	# Security role is read-only on Visitor Pass — gate workflow happens through
-	# Security role is read-only on Visitor Pass. Gate workflow happens through
-	# Security Log (where they have write). Without this guard, has_permission
-	# would short-circuit `True` for every ptype and let Security write/submit
-	# any approved pass.
+	# Security reads approved passes and works the gate through Security Log. It
+	# writes only the walk-ins it raised itself, through the owner scope above
+	# (walk_in.py). Without this guard, has_permission would short-circuit `True`
+	# for every ptype and let Security write/submit any approved pass.
 	if "Security" in roles and doc.status in {
 		"Approved",
 		"Items Verified",
@@ -251,6 +376,57 @@ def has_visitor_pass_permission(doc, user=None, ptype=None, debug=False):
 # them, assigned to them, or belonging to a visitor they are hosting.
 HOSPITALITY_OVERSEERS = ("System Manager", "Hospitality Manager")
 
+# The service teams the 07:00 hospitality digest goes to
+# (settings.DEFAULT_DIGEST_ROLES), each with the services it delivers — None for
+# all of them. They hold read on the doctype (setup.HOSPITALITY_DIGEST_READERS),
+# but the row scope above let only the overseers see other people's requests, so
+# a cab coordinator opened a request from the digest or the Daily Hospitality
+# Schedule and got "Not permitted", and the schedule came up empty for them.
+#
+# Read only: delivering a service is recorded by the Hospitality Manager, and
+# write stays with the owner, the host and the assigned staff member. Only
+# requests that were sent in count — a Draft is the host's own business until
+# then — and an approved request stays readable once it is cancelled, so a
+# coordinator who was told it was called off can still open it.
+HOSPITALITY_SERVICE_ROLES = {
+	"Hospitality User": None,
+	"Front Office Executive": None,
+	"Transport Coordinator": ("cab_required", "buggy_required"),
+	"Factory Tour Coordinator": ("factory_tour_required",),
+	"Greeting Staff": ("greeting_required",),
+}
+
+
+def _hospitality_service_flags(roles):
+	"""The service flags whose requests `roles` may read: a tuple, None for every service, or False."""
+	flags = set()
+	for role, services in HOSPITALITY_SERVICE_ROLES.items():
+		if role in roles:
+			if services is None:
+				return None
+			flags.update(services)
+	return tuple(sorted(flags)) if flags else False
+
+
+def _hospitality_service_condition(table, roles):
+	flags = _hospitality_service_flags(roles)
+	if flags is False:
+		return None
+	sent_in = f"(`{table}`.`docstatus` > 0 or `{table}`.`workflow_state` = 'Pending Approval')"
+	if flags is None:
+		return sent_in
+	services = " or ".join(f"`{table}`.`{flag}` = 1" for flag in flags)
+	return f"({sent_in} and ({services}))"
+
+
+def _is_hospitality_service_reader(doc, roles):
+	flags = _hospitality_service_flags(roles)
+	if flags is False:
+		return False
+	if not (doc.docstatus > 0 or doc.get("workflow_state") == "Pending Approval"):
+		return False
+	return flags is None or any(cint(doc.get(flag)) for flag in flags)
+
 
 def get_hospitality_request_permission_query_conditions(user=None):
 	user = user or frappe.session.user
@@ -269,12 +445,21 @@ def get_hospitality_request_permission_query_conditions(user=None):
 		escaped = frappe.db.escape(employee)
 		# Assigned to them to deliver.
 		conditions.append(f"`{table}`.`assigned_staff` = {escaped}")
+		# Or named on it to deliver one service: the guide, the buggy driver, the greeter.
+		conditions.append(
+			f"{escaped} in (`{table}`.`tour_guide`, `{table}`.`buggy_driver`, `{table}`.`greeting_assigned_to`)"
+		)
 		# Or raised for a visitor they are hosting. The host is on the pass, not
 		# on the request, so this has to go through the link.
 		conditions.append(
 			f"`{table}`.`visitor_pass` in "
 			f"(select `name` from `tabVisitor Pass` where `person_to_visit` = {escaped})"
 		)
+
+	# Or a service their team delivers (see HOSPITALITY_SERVICE_ROLES).
+	service = _hospitality_service_condition(table, roles)
+	if service:
+		conditions.append(service)
 
 	# Parenthesised for the same reason as Visitor Pass: Frappe ANDs this with
 	# its own clauses, and unbracketed `AND` would bind tighter than `OR`.
@@ -297,11 +482,20 @@ def has_hospitality_request_permission(doc, user=None, ptype=None, debug=False):
 	if employee:
 		if doc.get("assigned_staff") == employee:
 			return True
+		if ptype in _READ_LIKE_PTYPES and employee in (
+			doc.get("tour_guide"),
+			doc.get("buggy_driver"),
+			doc.get("greeting_assigned_to"),
+		):
+			return True
 		if (
 			doc.get("visitor_pass")
 			and frappe.db.get_value("Visitor Pass", doc.visitor_pass, "person_to_visit") == employee
 		):
 			return True
+
+	if ptype in _READ_LIKE_PTYPES and _is_hospitality_service_reader(doc, roles):
+		return True
 
 	# The people a visit belongs to may see what was arranged for it: whoever
 	# raised the pass, and the approvers of its Visitor Type. The approvers are not
@@ -321,11 +515,17 @@ def has_hospitality_request_permission(doc, user=None, ptype=None, debug=False):
 		# An orphaned request — one whose pass was deleted — has nobody left to
 		# inherit from. A permission question about a record that is not there is "no".
 		visitor_pass = frappe.db.get_value(
-			"Visitor Pass", doc.visitor_pass, ["owner", "visitor_type"], as_dict=True
+			"Visitor Pass", doc.visitor_pass, ["owner", "visitor_type", "current_approvers"], as_dict=True
 		)
 		if not visitor_pass:
 			return False
 		if visitor_pass.owner == user:
+			return True
+		# Named approvers too (the host's manager, a stand-in): the request is
+		# brought in line inside their own Approve, which needs read on it.
+		from visitormanagement.visitor_management.approval_tasks import is_named
+
+		if is_named(visitor_pass, user):
 			return True
 		return bool(visitor_pass.visitor_type and visitor_pass.visitor_type in _approver_visitor_types(roles))
 
@@ -350,19 +550,9 @@ def has_hospitality_request_permission(doc, user=None, ptype=None, debug=False):
 # and no read-only role like Security to carve an exception for — a booking
 # is either yours to run or it isn't.
 #
-# This does NOT close every leak on this doctype. `get_booking_events` (the
-# calendar view in conference_room_booking.py, a file this fix does not own)
-# calls `frappe.has_permission("Conference Room Booking", "read", throw=True)`
-# with no `doc` — a blanket, doctype-level check that does not invoke this
-# module's has_permission hook at all — and then runs a raw `frappe.db.sql`
-# that selects every booking's `meeting_title` company-wide with no row
-# filtering whatsoever. That endpoint's own comment says as much: "so the
-# check has to be explicit — otherwise a future decision to scope bookings
-# would be silently undone by this one endpoint." This IS that future
-# decision, and it does get silently undone by that endpoint. Whoever owns
-# conference_room_booking.py needs to either scope that raw SQL with the same
-# owner/booked_by/overseer condition, or stop returning `meeting_title` from
-# it for callers who are not an overseer.
+# The calendar, the room schedule and the Daily Booking Schedule read bookings
+# with raw SQL so every taken slot shows, and apply this same condition to mask
+# everyone else's booking as "Busy" (conference_room_booking._show_as_busy).
 CONFERENCE_ROOM_BOOKING_OVERSEERS = ("System Manager", "Facility Manager")
 
 

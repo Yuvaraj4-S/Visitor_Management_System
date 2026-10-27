@@ -5,8 +5,8 @@
  * Exposed as `window.VMS_IDValidators` so any Frappe web form / desk form /
  * custom page script can call it. Pure JS — no jQuery, no Frappe deps.
  *
- * Canonical labels: "Aadhaar", "PAN Card", "Driving License", "Passport".
- * Aliases ("PAN", "DL") are accepted by validateID / idProofErrorMessage.
+ * Canonical labels: "Aadhaar", "PAN Card", "Driving License", "Passport", "Voter ID".
+ * Aliases ("PAN", "DL", "EPIC") are accepted by validateID / idProofErrorMessage.
  */
 (function (global) {
 	"use strict";
@@ -49,6 +49,8 @@
 	const PAN_RE = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
 	const DL_RE = /^[A-Z]{2}[0-9]{2}\s?[0-9]{11}$/;
 	const PASSPORT_RE = /^[A-Z]{1}[0-9]{7}$/;
+	// Voter ID (EPIC): 3 letters + 7 digits.
+	const EPIC_RE = /^[A-Z]{3}[0-9]{7}$/;
 
 	function strip(v) {
 		return String(v == null ? "" : v).replace(/\s+/g, "");
@@ -68,16 +70,18 @@
 		return PAN_RE.test(strip(number).toUpperCase());
 	}
 
+	// A licence typed as printed ("MH-12-2011-0012345") carries hyphens and
+	// spaces that are not part of the number.
 	function validateDrivingLicense(number) {
-		const clean = String(number == null ? "" : number)
-			.trim()
-			.toUpperCase()
-			.replace(/\s+/g, " ");
-		return DL_RE.test(clean);
+		return DL_RE.test(stripHyphens(number).toUpperCase());
 	}
 
 	function validatePassport(number) {
 		return PASSPORT_RE.test(strip(number).toUpperCase());
+	}
+
+	function validateVoterID(number) {
+		return EPIC_RE.test(stripHyphens(number).toUpperCase());
 	}
 
 	// ── Type dispatch ──────────────────────────────────────────
@@ -91,12 +95,17 @@
 		"driving license": "Driving License",
 		"driving licence": "Driving License",
 		passport: "Passport",
+		"voter id": "Voter ID",
+		voter: "Voter ID",
+		epic: "Voter ID",
+		"voter id card": "Voter ID",
 	};
 	const VALIDATORS = {
 		Aadhaar: validateAadhaar,
 		"PAN Card": validatePAN,
 		"Driving License": validateDrivingLicense,
 		Passport: validatePassport,
+		"Voter ID": validateVoterID,
 	};
 
 	function canonicalType(idType) {
@@ -121,7 +130,7 @@
 	}
 
 	function detectIDType(number) {
-		const order = ["Aadhaar", "PAN Card", "Driving License", "Passport"];
+		const order = ["Aadhaar", "PAN Card", "Driving License", "Passport", "Voter ID"];
 		for (let i = 0; i < order.length; i++) {
 			if (VALIDATORS[order[i]](number)) return order[i];
 		}
@@ -141,6 +150,9 @@
 		Passport:
 			"Passport must be in the format A1234567 " +
 			"(1 uppercase letter followed by 7 digits).",
+		"Voter ID":
+			"Voter ID (EPIC) must be in the format ABC1234567 " +
+			"(3 letters followed by 7 digits).",
 	};
 
 	function idProofErrorMessage(idType) {
@@ -153,7 +165,7 @@
 		return (
 			"Unsupported ID Proof Type: " +
 			JSON.stringify(idType) +
-			". Use Aadhaar, PAN Card, Driving License, or Passport."
+			". Use Aadhaar, PAN Card, Driving License, Passport, or Voter ID."
 		);
 	}
 
@@ -162,6 +174,7 @@
 		validatePAN,
 		validateDrivingLicense,
 		validatePassport,
+		validateVoterID,
 		detectIDType,
 		validateID,
 		idProofErrorMessage,

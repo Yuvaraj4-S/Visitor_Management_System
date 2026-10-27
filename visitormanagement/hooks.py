@@ -57,8 +57,18 @@ webform_include_js = {
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-doctype_js = {"Job Applicant": "public/js/job_applicant.js"}
-# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
+# walk_in.js: the gate's short "New Walk-In" form (VMS Settings > Optional Features).
+doctype_js = {
+	"Job Applicant": "public/js/job_applicant.js",
+	"Security Log": "public/js/walk_in.js",
+	# The "Reveal Full ID" button (visitor_management/id_numbers.py: reveal_id).
+	"Visitor Pass": "public/js/reveal_id.js",
+	"Visitor Blacklist": "public/js/reveal_id.js",
+}
+doctype_list_js = {
+	"Visitor Pass": "public/js/walk_in.js",
+	"Security Log": "public/js/walk_in.js",
+}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
@@ -235,7 +245,9 @@ scheduler_events = {
 		# OFF in effect on every site until an administrator turns on VMS Settings ->
 		# Enable Data Retention Purge: the function re-checks that flag first and
 		# returns immediately when it is unset, so scheduling it here cannot delete
-		# anything on a site that has not explicitly opted in.
+		# anything on a site that has not explicitly opted in. Both clean-ups below
+		# only queue their work on the long queue (default-queue jobs are stopped at
+		# 300 s), where it goes in committed chunks.
 		"0 3 * * *": ["visitormanagement.visitor_management.tasks.purge_expired_visitor_data"],
 		# Always on: these files are attached to nothing and can never be (see the
 		# function). Unlike the retention purge it touches no saved record, and of
@@ -251,6 +263,13 @@ scheduler_events = {
 		# An invitation used to become "Expired" only when somebody opened its link,
 		# so the Pending Invitations card kept counting links nobody would open again.
 		"visitormanagement.visitor_management.tasks.expire_stale_invitations",
+		# A pass nobody approved before its last valid day stayed in the approver's
+		# queue for good; it is moved to Rejected with a note saying why.
+		"visitormanagement.visitor_management.tasks.expire_unapproved_passes",
+		# Reminds the approvers of a pass that has waited too long at their step.
+		# Each scheduled method is its own Scheduled Job Type, run and logged on
+		# its own, so a failure here cannot stop the jobs above.
+		"visitormanagement.visitor_management.approval_tasks.remind_pending_approvers",
 	],
 }
 

@@ -22,6 +22,12 @@ INVITATION_SCHEDULE_FIELDS = {
 }
 PASS_SCHEDULE_FIELDS = {**INVITATION_SCHEDULE_FIELDS, "custom_interview_host": "person_to_visit"}
 
+# Followed onto the invitation along with the schedule. HR correcting the
+# candidate's address on the applicant used to leave the invitation — and its
+# live link — on the old one; once copied, the invitation withdraws that link
+# (_withdraw_link_if_email_changed) and the send below mails a new one.
+INVITATION_CONTACT_FIELDS = {"email_id": "visitor_email"}
+
 # Invitations HR's reschedule can no longer be applied to.
 CLOSED_STATUSES = ("Submitted", "Cancelled")
 
@@ -148,7 +154,7 @@ def _follow_reschedule(doc, inv):
 		_warn_schedule_not_applied(doc, inv)
 		return
 
-	changes = _schedule_changes(doc, inv, INVITATION_SCHEDULE_FIELDS)
+	changes = _schedule_changes(doc, inv, {**INVITATION_SCHEDULE_FIELDS, **INVITATION_CONTACT_FIELDS})
 	if not changes:
 		return
 

@@ -28,6 +28,9 @@ app. The Security Log existence check that follows is a plain, parameterised
 caller — it only confirms a Check-In event happened for a pass the caller can
 already see, so it does not leak any Security Log content and needs no
 `ignore_permissions` justification beyond that.
+
+Group passes add their accompanying visitors who are inside (`_members_inside`),
+so the card counts people on site, as the Evacuation Roll Call does.
 """
 
 import frappe
@@ -35,10 +38,14 @@ import frappe
 
 @frappe.whitelist()
 def get_data(filters: str | dict | list | None = None, **kwargs) -> dict:
+	return {"value": _leads_inside() + _members_inside()}
+
+
+def _leads_inside():
 	checked_in_names = frappe.get_list("Visitor Pass", filters={"status": "Checked-In"}, pluck="name")
 
 	if not checked_in_names:
-		return {"value": 0}
+		return 0
 
 	count = frappe.db.sql(
 		"""
@@ -49,5 +56,23 @@ def get_data(filters: str | dict | list | None = None, **kwargs) -> dict:
 		""",
 		{"names": checked_in_names},
 	)[0][0]
+	return count or 0
 
-	return {"value": count or 0}
+
+def _members_inside():
+	"""The accompanying visitors on group passes the caller can see, as the gate recorded them.
+
+	The card counts people, not passes: a delegation of twelve on one pass is
+	twelve on site. A member left inside after the lead checked out still counts.
+	"""
+	group_passes = frappe.get_list(
+		"Visitor Pass",
+		filters={"status": ["in", ["Checked-In", "Checked-Out"]], "is_group_visit": 1},
+		pluck="name",
+	)
+	if not group_passes:
+		return 0
+	return frappe.db.count(
+		"Visitor Group Member",
+		{"parenttype": "Visitor Pass", "parent": ["in", group_passes], "checked_in": 1},
+	)

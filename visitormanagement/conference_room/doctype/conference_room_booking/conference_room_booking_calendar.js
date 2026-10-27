@@ -19,6 +19,14 @@ frappe.views.calendar["Conference Room Booking"] = {
 	},
 	get_events_method:
 		"visitormanagement.conference_room.doctype.conference_room_booking.conference_room_booking.get_booking_events",
+	// Drag and resize. The stock handler sets the fields `field_map` names, and
+	// `start`/`end` are columns of the event feed, not fields of the booking — a
+	// drag reported success and changed nothing. This one turns the dropped slot
+	// into booking_date/start_time/end_time and saves the booking with all its
+	// checks (permission, past slot, room hours, capacity, overlap); a refusal
+	// puts the event back where it was.
+	update_event_method:
+		"visitormanagement.conference_room.doctype.conference_room_booking.conference_room_booking.update_booking_slot",
 	filters: [
 		{
 			fieldtype: "Link",

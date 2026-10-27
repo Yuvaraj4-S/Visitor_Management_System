@@ -3,16 +3,64 @@
 import functools
 import re
 import secrets
+from datetime import date, datetime, timedelta
 
 import frappe
 from frappe import _
+from frappe.model import no_value_fields
 from frappe.model.document import Document
 from frappe.rate_limiter import rate_limit
-from frappe.utils import add_days, date_diff, get_datetime, get_time, get_url, getdate, now_datetime, today
+from frappe.utils import (
+	add_days,
+	cint,
+	date_diff,
+	format_date,
+	format_time,
+	get_datetime,
+	get_link_to_form,
+	get_time,
+	get_timedelta,
+	get_url,
+	getdate,
+	now_datetime,
+	today,
+)
 
 from visitormanagement.visitor_management import settings as vms_settings
 from visitormanagement.visitor_management.lifecycle import derive_hospitality_meal_plan
-from visitormanagement.visitor_management.mail import send_checked
+from visitormanagement.visitor_management.mail import esc, send_checked
+
+# Statuses in which the invitation's link can still be used by the visitor.
+OPEN_STATUSES = ("Draft", "Sent", "Opened", "Saved")
+
+# A host invites their own visitors. These roles may also raise an invitation
+# with somebody else as the host (reception does it all day; so does whoever
+# administers the site). Mirrored in visitor_invitation.js for the host picker.
+HOST_ON_BEHALF_ROLES = {"System Manager", "Front Office Executive"}
+
+# Fields only the app itself writes: how far the link has got, and the records
+# the invitation is tied to. Read-only on the form is only a hint to the form —
+# through the API an employee could set them on their own invitation, name
+# another visitor's pass as `visitor_pass` and read or overwrite it through the
+# portal, or set a used invitation back to "Sent". The app writes them with
+# db_set / SQL, which never reaches validate, or with ignore_permissions; a
+# System Manager may still correct them by hand. The token and its URL are
+# permlevel 1, which Frappe already resets for everyone without write there.
+TRACKING_FIELDS = (
+	"invitation_status",
+	"invitation_sent_on",
+	"link_opened_on",
+	"form_saved_on",
+	"form_submitted_on",
+	"created_by_user",
+	"visitor_pass",
+	"reference_job_applicant",
+)
+
+# Every send mails the visitor from the company's own server. Without a ceiling
+# one account — or a script using it — could mail an address as often as it
+# liked. Counted per user, so reception sending a day's invitations is unaffected.
+MAX_INVITATION_SENDS_PER_HOUR = 30
 
 
 def _coerce_datetime(value):
@@ -22,24 +70,52 @@ def _coerce_datetime(value):
 	return get_datetime(value)
 
 
+def _end_of_day(day):
+	return get_datetime(f"{getdate(day)} 23:59:59")
+
+
+def own_employee(user=None):
+	"""The user's own active Employee record, if they have one."""
+	user = user or frappe.session.user
+	if user in ("Administrator", "Guest"):
+		return None
+	return frappe.db.get_value("Employee", {"user_id": user, "status": "Active"}, "name")
+
+
+def may_invite_on_behalf(user=None):
+	user = user or frappe.session.user
+	return user == "Administrator" or bool(HOST_ON_BEHALF_ROLES.intersection(frappe.get_roles(user)))
+
+
+def _may_correct_tracking(user=None):
+	user = user or frappe.session.user
+	return user == "Administrator" or "System Manager" in frappe.get_roles(user)
+
+
+def values_differ(stored_value, value):
+	"""Whether a posted value is a real change from the stored one."""
+	if stored_value in (None, "") and value in (None, ""):
+		return False
+	if isinstance(stored_value, datetime):
+		value = get_datetime(value) if value else None
+	elif isinstance(stored_value, date):
+		value = getdate(value) if value else None
+	elif isinstance(stored_value, timedelta):
+		value = get_timedelta(value) if value else None
+	elif isinstance(stored_value, int):
+		value = cint(value)
+	return stored_value != value
+
+
 def build_invitation_link(token):
-	"""Build invitation URL using the current request's host so the link works
-	dynamically across localhost / ngrok / production domains — no need to
-	hard-code `host_name` in site_config.
+	"""The visitor's link, on the site's public address.
+
+	It used to take the host of the request it was sent from, so a host working
+	on the office LAN mailed out a LAN IP the visitor's phone could never open.
+	`get_url` uses `host_name` from site_config when it is set (see README,
+	"Running behind a proxy"), and only falls back to the request otherwise.
 	"""
-	path = f"/visitor-pre-registration-form/new?token={token}"
-	base = None
-	# Prefer current request's host (request-context send)
-	try:
-		req = getattr(frappe.local, "request", None)
-		if req is not None and getattr(req, "host_url", None):
-			base = req.host_url.rstrip("/")
-	except Exception:
-		base = None
-	# Fallback to Frappe's get_url (respects host_name, else infers)
-	if not base:
-		return get_url(path)
-	return f"{base}{path}"
+	return get_url(f"/visitor-pre-registration-form/new?token={token}")
 
 
 def get_valid_invitation_by_token(token):
@@ -61,10 +137,27 @@ def get_valid_invitation_by_token(token):
 
 	expires_on = _coerce_datetime(doc.invitation_expires_on)
 	if expires_on and expires_on < now_datetime():
-		doc.db_set("invitation_status", "Expired", update_modified=False)
+		# The token goes with the status, as on cancel: a dead link must not come
+		# back to life because something later moved the status again.
+		doc.db_set(
+			{"invitation_status": "Expired", "invitation_token": None, "portal_submission_url": None},
+			update_modified=False,
+		)
+		_keep_tracking_write()
 		return None
 
 	return doc
+
+
+def _keep_tracking_write():
+	"""Make a tracking write survive the request it happens in.
+
+	The visitor opens the link with a plain page GET, and Frappe rolls a GET back
+	unless it is told otherwise (frappe/app.py sync_database). "Opened" and
+	"Expired" were therefore written and thrown away every time, and the host's
+	invitation stayed at "Sent" whatever the visitor did.
+	"""
+	frappe.local.flags.commit = True
 
 
 def _format_time_for_web_form(value):
@@ -92,28 +185,48 @@ def _format_datetime_for_web_form(value):
 # hour. 30/hour matches the order of magnitude of this app's other portal
 # limits (submit_pre_registration's 20, portal_upload's 30 file uploads) while
 # comfortably covering a real visitor reopening their own link a few times.
+# The page itself does not come through here (see web_form_context): a page
+# load is not an API call, and an office behind one NAT address opening its
+# links would otherwise be refused the page from the 31st visitor on.
 @rate_limit(limit=30, seconds=60 * 60)
 def get_web_form_context(token: str | None):
+	return web_form_context(token)
+
+
+def existing_pass_for(invitation):
+	"""The Visitor Pass this invitation already produced, if it really is its own.
+
+	`visitor_pass` is only a pointer; the pass must point back. Without that, an
+	invitation pointing at somebody else's pass handed that pass to whoever held
+	this invitation's link — to read through the form, and to overwrite.
+	"""
+	if not invitation.visitor_pass:
+		return None
+	owner = frappe.db.get_value("Visitor Pass", invitation.visitor_pass, "visitor_invitation")
+	if not owner or owner != invitation.name:
+		return None
+	return frappe.get_doc("Visitor Pass", invitation.visitor_pass)
+
+
+def web_form_context(token):
+	"""What the pre-registration form shows for a link.
+
+	The page load used to mark the invitation "Opened" here. Mail link scanners
+	(Outlook Safe Links and the like) fetch every link in a message, so the host
+	was told the visitor had opened it before the visitor had seen the mail. The
+	page now records the open itself, on the visitor's first touch of the form
+	(mark_invitation_opened).
+	"""
 	invitation = get_valid_invitation_by_token(token)
 	if not invitation:
 		return {
 			"valid": False,
-			"message": "This invitation link is invalid, expired, or already used.",
+			"message": _("This invitation link is invalid, expired, or already used."),
 		}
 
-	if invitation.invitation_status == "Sent":
-		invitation.db_set(
-			{
-				"invitation_status": "Opened",
-				"link_opened_on": now_datetime(),
-			},
-			update_modified=False,
-		)
-
 	meal_plan = derive_hospitality_meal_plan(invitation)
-	existing_pass = None
-	if invitation.visitor_pass and frappe.db.exists("Visitor Pass", invitation.visitor_pass):
-		existing_pass = frappe.get_doc("Visitor Pass", invitation.visitor_pass)
+	existing_pass = existing_pass_for(invitation)
+	host_name = frappe.db.get_value("Employee", invitation.host_employee, "employee_name")
 
 	values = {
 		"entry_type": "New",
@@ -126,13 +239,13 @@ def get_web_form_context(token: str | None):
 		"visit_date": str(invitation.visit_date) if invitation.visit_date else "",
 		"expected_checkin": _format_time_for_web_form(invitation.expected_checkin),
 		"expected_checkout": _format_time_for_web_form(invitation.expected_checkout),
-		"person_to_visit": invitation.host_employee,
 		# The pass stores the Employee id, and the public form showed the visitor
 		# exactly that — "HR-EMP-00057". She has no idea whether that is the person
 		# she came to see, and nothing on the page tells her, so she rings
-		# reception to ask. Send the name too and show her that instead.
-		"person_to_visit_display": frappe.db.get_value("Employee", invitation.host_employee, "employee_name")
-		or invitation.host_employee,
+		# reception to ask. She is sent the name only: the field is locked, and the
+		# submission takes the host from the invitation, never from the form.
+		"person_to_visit": host_name or "",
+		"person_to_visit_display": host_name or "",
 		"purpose_of_visit": invitation.purpose_of_visit,
 		"meal_required": invitation.meal_required,
 		"meal_type": meal_plan["meal_type"] if invitation.meal_required else "",
@@ -207,6 +320,41 @@ def get_web_form_context(token: str | None):
 	}
 
 
+# nosemgrep: guest-whitelisted-method - records the visitor's first touch of the form; rate-limited, says nothing back
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+@rate_limit(limit=60, seconds=60 * 60)
+def mark_invitation_opened(token: str | None = None):
+	"""Record that the visitor opened their link: "Sent" becomes "Opened".
+
+	Called by the form's script on the visitor's first tap or keystroke, not on
+	the page load — a mail scanner fetches the page, it does not use it. Answers
+	nothing either way, so it tells a caller nothing about the token.
+	"""
+	invitation = get_valid_invitation_by_token(token)
+	if invitation and invitation.invitation_status == "Sent":
+		invitation.db_set(
+			{"invitation_status": "Opened", "link_opened_on": now_datetime()},
+			update_modified=False,
+		)
+
+
+def _mail_time(value):
+	"""A time (or the time of a datetime) as the visitor reads it: "10:00 AM"."""
+	if not value:
+		return None
+	return format_time(value, "h:mm a")
+
+
+def _count_invitation_send():
+	from visitormanagement.visitor_management.portal_upload import _count_or_throw
+
+	_count_or_throw(
+		f"vms:invitation-send:{frappe.session.user}",
+		MAX_INVITATION_SENDS_PER_HOUR,
+		_("You have sent too many invitations in the last hour. Please wait a while and try again."),
+	)
+
+
 def _report_undelivered_invitation(invitation, visitor_email, user, error):
 	"""The host was told the invitation went; the send after commit then failed.
 
@@ -243,16 +391,41 @@ def _report_undelivered_invitation(invitation, visitor_email, user, error):
 class VisitorInvitation(Document):
 	def onload(self):
 		# Default Host Employee to the current user's Employee record (if any)
-		if self.is_new() and not self.host_employee and frappe.session.user not in ("Administrator", "Guest"):
-			emp = frappe.db.get_value(
-				"Employee",
-				{"user_id": frappe.session.user, "status": "Active"},
-				"name",
-			)
-			if emp:
-				self.host_employee = emp
+		if self.is_new():
+			if not self.host_employee:
+				self.host_employee = own_employee()
+			return
+
+		# The link is a bearer credential, so the form's link actions are decided
+		# here and not by the browser: reading an invitation (an approver's
+		# oversight) is not custody of it. The role permissions alone cannot say
+		# this — they do not know about permissions.has_visitor_invitation_permission.
+		can_manage = bool(self.has_permission("write"))
+		self.set_onload("can_manage", can_manage)
+		self.set_onload("has_link", can_manage and self.has_live_link())
+		self.set_onload("is_expired", self.is_expired())
+
+	def is_expired(self):
+		"""Expired in fact, whether or not anything has recorded it yet.
+
+		The status only turns "Expired" when somebody opens the dead link (or the
+		scheduler gets to it); until then an invitation past its expiry still reads
+		"Sent" and must not be offered for sending.
+		"""
+		if self.invitation_status == "Expired":
+			return True
+		expires_on = _coerce_datetime(self.invitation_expires_on)
+		return bool(self.invitation_status in OPEN_STATUSES and expires_on and expires_on < now_datetime())
+
+	def has_live_link(self):
+		return bool(
+			self.invitation_token and self.invitation_status in OPEN_STATUSES and not self.is_expired()
+		)
 
 	def validate(self):
+		# First, so the rules below work on the values the app recorded.
+		self._keep_tracking_fields()
+
 		if not self.created_by_user:
 			self.created_by_user = frappe.session.user
 
@@ -265,16 +438,117 @@ class VisitorInvitation(Document):
 		self._validate_mobile()
 		self._validate_time_range()
 		self._validate_host_active()
+		self._validate_host_rule()
+		self._withdraw_link_if_email_changed()
+		self._move_expiry_with_visit_date()
 
 		if not self.invitation_expires_on and self.visit_date:
-			self.invitation_expires_on = get_datetime(f"{self.visit_date} 23:59:59")
+			self.invitation_expires_on = _end_of_day(self.visit_date)
 
 		self.invitation_expires_on = _coerce_datetime(self.invitation_expires_on)
 
 		if self.invitation_expires_on and self.invitation_expires_on < now_datetime():
 			frappe.throw(_("Invitation Expiry must be a future date and time."))
 
+		if self.invitation_status == "Expired":
+			# Saved with an expiry that is in the future again (checked just above):
+			# the host has extended it, so it is no longer expired.
+			self.invitation_status = "Sent" if self.invitation_token and self.invitation_sent_on else "Draft"
+
 		self._apply_hospitality_defaults()
+
+	def _keep_tracking_fields(self):
+		"""Keep TRACKING_FIELDS as the app recorded them, whatever was posted.
+
+		Restored rather than refused, the way Frappe treats a permlevel field: a
+		host's form still carries the status it loaded, and the visitor may have
+		opened the link since — an error would turn away an honest save. That also
+		stops such a save from putting "Opened" back to "Sent".
+		"""
+		if self.flags.ignore_permissions or _may_correct_tracking():
+			return
+		if self.is_new():
+			# validate fills created_by_user and the status in just below.
+			for fieldname in TRACKING_FIELDS:
+				self.set(fieldname, None)
+			return
+		previous = self.get_doc_before_save()
+		if not previous:
+			return
+		for fieldname in TRACKING_FIELDS:
+			self.set(fieldname, previous.get(fieldname))
+
+	def _validate_host_rule(self):
+		"""A host invites their own visitors; only reception and administrators
+		invite on somebody else's behalf.
+
+		The form's host picker already offered a host only their own record, but
+		that was the whole rule: through the API any employee could name any
+		colleague as the host of a visitor that colleague knew nothing about.
+		Checked when the host is set or changed, so an invitation reception raised
+		for a host stays editable by that host. Server-side callers that already
+		act with `ignore_permissions` (the Job Applicant flow) are not a user
+		choosing a host and are not bound by it.
+		"""
+		if not self.host_employee or self.flags.ignore_permissions:
+			return
+		if not (self.is_new() or self.has_value_changed("host_employee")):
+			return
+		if may_invite_on_behalf() or self.host_employee == own_employee():
+			return
+		frappe.throw(
+			_(
+				"You can only invite a visitor with yourself as the host. "
+				"Ask reception to raise an invitation on someone else's behalf."
+			),
+			frappe.PermissionError,
+			title=_("Host Not Allowed"),
+		)
+
+	def _withdraw_link_if_email_changed(self):
+		"""A link belongs to the address it was sent to.
+
+		Correcting a mistyped Visitor Email used to leave the first link alive — and
+		the next send re-used the same token — so whoever received the first mail
+		could still register as the visitor. Changing the address now withdraws the
+		link; the next send issues a new one.
+		"""
+		if self.is_new() or not self.invitation_token or self.invitation_status not in OPEN_STATUSES:
+			return
+		previous = self.get_doc_before_save()
+		if not previous:
+			return
+		if (previous.visitor_email or "").strip().lower() == (self.visitor_email or "").strip().lower():
+			return
+
+		self.invitation_token = None
+		self.portal_submission_url = None
+		self.invitation_sent_on = None
+		self.link_opened_on = None
+		self.invitation_status = "Draft"
+		frappe.msgprint(
+			_(
+				"The visitor's email has changed, so the link sent earlier no longer works. "
+				"Send the invitation again to issue a new link."
+			),
+			alert=True,
+			indicator="orange",
+		)
+
+	def _move_expiry_with_visit_date(self):
+		"""Keep the default expiry (end of the visit day) on the visit day.
+
+		It is filled in once, when the invitation is first saved. Moving the visit
+		to a later date left the link expiring on the old one — before the visit.
+		An expiry the host chose themselves is left alone.
+		"""
+		previous = self.get_doc_before_save()
+		if self.is_new() or not previous or not previous.visit_date or not self.visit_date:
+			return
+		if getdate(previous.visit_date) == getdate(self.visit_date):
+			return
+		if _coerce_datetime(self.invitation_expires_on) == _end_of_day(previous.visit_date):
+			self.invitation_expires_on = _end_of_day(self.visit_date)
 
 	def _validate_visitor_type(self):
 		"""Reject a Visitor Type that has been deactivated. `is_active` was
@@ -353,20 +627,112 @@ class VisitorInvitation(Document):
 		self.assigned_meal_slots = meal_plan["assigned_meal_slots"] if self.meal_required else None
 		self.hospitality_type = meal_plan["hospitality_type"] if self.meal_required else None
 
+	def _stored_for_write(self):
+		"""The saved invitation, once the caller is known to be allowed to change it.
+
+		A whitelisted document method runs on whatever the browser posted:
+		Frappe builds the document from the request and only checks it can be
+		read (frappe/handler.py run_doc_method). So `self` here may carry an
+		owner, a host or a Visitor Email that nobody ever saved. The link actions
+		therefore work on the stored record, and check write on that record — an
+		approver's read-only oversight is not enough to send, copy or cancel a
+		bearer link.
+		"""
+		if self.is_new():
+			frappe.throw(_("Save the Visitor Invitation first."))
+		stored = frappe.get_doc(self.doctype, self.name)
+		stored.check_permission("write")
+		return stored
+
+	def _refuse_unsaved_changes(self, stored):
+		"""Stop a send that was asked for with values that are not the saved ones."""
+		changed = [
+			_(df.label)
+			for df in self.meta.fields
+			if df.fieldtype not in no_value_fields
+			and not df.permlevel
+			and values_differ(stored.get(df.fieldname), self.get(df.fieldname))
+		]
+		if changed:
+			frappe.throw(
+				_("Save your changes before sending the invitation. Not saved: {0}").format(
+					", ".join(changed)
+				),
+				title=_("Unsaved Changes"),
+			)
+
 	@frappe.whitelist()
 	def send_invitation(self):
+		"""Desk action: issue the visitor's link and mail it to them."""
+		stored = self._stored_for_write()
+		self._refuse_unsaved_changes(stored)
+		result = stored.issue_link_and_send()
+		self.reload()
+		return result
+
+	@frappe.whitelist()
+	def get_invitation_link(self):
+		"""The live link, for the people who may pass it on by hand.
+
+		The token and the URL are not readable on the document itself (permlevel
+		1): anyone who could read an invitation could otherwise take its link.
+		"""
+		stored = self._stored_for_write()
+		if not stored.has_live_link():
+			return None
+		return build_invitation_link(stored.invitation_token)
+
+	@frappe.whitelist()
+	def cancel_invitation(self):
+		"""Withdraw the invitation: its link stops working at once."""
+		stored = self._stored_for_write()
+		if stored.invitation_status == "Submitted":
+			message = _("The visitor has already registered with this invitation, so it cannot be cancelled.")
+			if stored.visitor_pass:
+				message += " " + _("Cancel or reject Visitor Pass {0} instead.").format(
+					get_link_to_form("Visitor Pass", stored.visitor_pass)
+				)
+			frappe.throw(message, title=_("Already Used"))
+
+		if stored.invitation_status != "Cancelled":
+			# get_valid_invitation_by_token refuses a Cancelled invitation; the token
+			# goes as well so nothing that only looks at the token can revive it.
+			stored.db_set(
+				{"invitation_status": "Cancelled", "invitation_token": None, "portal_submission_url": None}
+			)
+			stored.add_comment("Info", _("cancelled this invitation. Its link no longer works."))
+		self.reload()
+
+	def issue_link_and_send(self):
+		"""Issue the link if there is none yet, and mail it to the visitor.
+
+		No permission check: this is what the desk action calls after its own
+		checks, and what server-side flows (the Job Applicant hook) call directly.
+		"""
 		if self.is_new():
 			frappe.throw(_("Save the Visitor Invitation before sending the invitation mail."))
 
+		if self.invitation_status in ("Submitted", "Cancelled"):
+			frappe.throw(
+				_("This invitation is {0} and cannot be sent again. Raise a new invitation.").format(
+					_(self.invitation_status)
+				)
+			)
+
 		if not self.visitor_email:
 			frappe.throw(_("Visitor Email is required before sending invitation."))
+
+		_count_invitation_send()
 
 		# Reuse a token that is already live. Minting a fresh one on every send
 		# silently invalidates the link the visitor may already be holding — and
 		# because the record stays Draft when delivery fails, the button keeps
 		# reading "Send Invitation", so a second click is the natural thing for a
 		# host to do. An expired invitation cannot reach here anyway: the expiry
-		# check below throws before any token is used.
+		# check below throws before any token is used. A link sent to an address
+		# that has since been corrected is not reused: saving the new address
+		# withdrew it (_withdraw_link_if_email_changed).
+		reused_link = bool(self.invitation_token)
 		token = self.invitation_token or secrets.token_urlsafe(24)
 		sent_on = now_datetime()
 		expires_on = _coerce_datetime(self.invitation_expires_on) or add_days(
@@ -391,32 +757,45 @@ class VisitorInvitation(Document):
 		# the invitation email is the visitor's first touchpoint and should not
 		# read as generic where the customer has already configured an identity.
 		branding = vms_settings.portal_branding()
-		organisation = branding["organisation"] or "our company"
+		organisation = branding["organisation"] or _("our company")
+		# The visitor reads the host's name, not "HR-EMP-00057", and a time as
+		# "10:00 AM", not "10:00:00". Every value goes through esc(): a purpose or
+		# a name typed with markup must not become markup in the visitor's mail.
+		host_name = self.host_employee and frappe.db.get_value(
+			"Employee", self.host_employee, "employee_name"
+		)
 
 		message = [
-			"Dear Visitor,",
+			_("Dear Visitor,"),
 			"",
-			f"You have received a visitor pre-registration invitation from {organisation}.",
-			f"Visitor Type: {self.visitor_type or '-'}",
-			f"Host: {self.host_employee or '-'}",
-			f"Visit Date: {self.visit_date or '-'}",
-			f"Expected Check-In: {self.expected_checkin or '-'}",
-			f"Expected Check-Out: {self.expected_checkout or '-'}",
-			f"Purpose: {self.purpose_of_visit or '-'}",
+			_("You have received a visitor pre-registration invitation from {0}.").format(esc(organisation)),
+			_("Visitor Type: {0}").format(esc(self.visitor_type, "-")),
+			_("Host: {0}").format(esc(host_name or self.host_employee, "-")),
+			_("Visit Date: {0}").format(esc(self.visit_date and format_date(self.visit_date), "-")),
+			_("Expected Check-In: {0}").format(esc(_mail_time(self.expected_checkin), "-")),
+			_("Expected Check-Out: {0}").format(esc(_mail_time(self.expected_checkout), "-")),
+			_("Purpose: {0}").format(esc(self.purpose_of_visit, "-")),
 			"",
-			"Please use the secure link below to fill your information before arrival:",
-			f'<a href="{link}">{link}</a>',
+			_("Please use the secure link below to fill your information before arrival:"),
+			f'<a href="{esc(link)}">{esc(link)}</a>',
 			"",
-			f"This invitation expires on {expires_on}.",
+			_("This invitation expires on {0}.").format(
+				esc(f"{format_date(expires_on)} {_mail_time(expires_on)}")
+			),
 		]
 		if branding["footer_note"]:
-			message += ["", branding["footer_note"]]
+			message += ["", esc(branding["footer_note"])]
 		# A failed send must not roll back the token and the Sent status — the host
 		# would be left with no link at all. Mint the link regardless and report
 		# delivery separately, so it can still be copied and shared by hand.
 		delivered, error = self._deliver_invitation_mail(message)
 		if delivered:
-			self.db_set({"invitation_sent_on": sent_on, "invitation_status": "Sent"})
+			# A resend of the same link must not walk the status back: the host
+			# would read "Sent" for a visitor who has already opened it.
+			status = "Sent"
+			if reused_link and self.invitation_status in ("Opened", "Saved"):
+				status = self.invitation_status
+			self.db_set({"invitation_sent_on": sent_on, "invitation_status": status})
 
 		return {"link": link, "delivered": delivered, "error": error}
 

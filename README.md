@@ -107,11 +107,12 @@ checks look the number up directly, and an encrypted column cannot be searched t
   and then belongs to your Role Permission Manager — the app will not re-open a permission an
   administrator has tightened.
 - On other apps' records — **Employee, Job Applicant, Supplier, Maintenance Visit** — the app
-  grants its roles **select** only: enough to pick a host, candidate or supplier in a link
-  field, not to open the record. (Earlier versions granted read, which on Employee is the
-  whole HR record — bank account, salary, PAN, date of birth. Migrating narrows those grants
-  once; roles HRMS or ERPNext grant themselves are not touched.) The few fields a pass copies
-  from the picked record come from a dedicated endpoint that returns only those fields.
+  grants its roles nothing: link fields search through a dedicated endpoint, and the few
+  fields a pass copies from the picked record come from one that returns only those fields.
+  (Earlier versions granted read, which on Employee is the whole HR record — bank account,
+  salary, PAN, date of birth — or select. Migrating removes those rows once: only rows with
+  exactly the rights the app wrote, for the roles it wrote them for. Rows an administrator
+  has since changed, and roles HRMS or ERPNext grant themselves, are not touched.)
   Note that HRMS's own **Employee** role reads Employee records: give each employee user a
   User Permission to their own Employee (HRMS does this when "Create User Permission" is
   ticked on the Employee) or every employee can read every colleague's record.
@@ -207,7 +208,7 @@ bench --site your-site uninstall-app visitormanagement
 
 Besides the app's own DocTypes and records, the uninstall removes what the app added
 elsewhere: the Job Applicant interview fields, its three workflows and notifications, its
-permission rows on Employee / Supplier / Job Applicant / Maintenance Visit (restoring those
+permission rows on Employee / Supplier / Job Applicant / Maintenance Visit / Page (restoring those
 DocTypes' standard permissions when nothing else was customised), the roles it created, its
 scheduled jobs, and every visitor's ID scan, photo and visa copy on disk. It switches **Allow
 Guests to Upload Files** back off if the app switched it on. Roles or settings that existed
@@ -218,6 +219,37 @@ before the app are left alone. `--dry-run` changes nothing.
 Open **`/app/visitor-management`** — the Visitor Management workspace. On Frappe v16 the desk
 is served at `/desk`, and `/app` redirects there. The app also appears as a tile on the
 `/apps` screen.
+
+### Running behind a proxy
+
+Visitors open their invitation link from outside the office, so two site settings matter
+in production.
+
+**`host_name`** — the address invitation links are built on. Without it the link uses the
+address the host happened to send from, which on an office LAN can be an IP the visitor's
+phone cannot reach:
+
+```bash
+bench --site <your-site> set-config host_name "https://visitors.example.com"
+```
+
+**`trusted_proxy_ips`** — which proxies may tell the app the visitor's address. The public
+pre-registration form limits how often one visitor may submit and upload files. An invited
+visitor is counted against their own invitation, so nobody else's traffic can use up their
+allowance. A walk-in visitor (only when **Allow Pre-Registration Without Invitation** is on)
+is counted against their address, taken from `X-Forwarded-For` only when the request came
+from a trusted proxy. A proxy on the same machine (bench's own nginx) is trusted
+automatically. A proxy or load balancer on another machine must be listed. If it is not,
+every walk-in seems to come from the proxy's address, and they all share one allowance:
+
+```bash
+bench --site <your-site> set-config --parse trusted_proxy_ips '["10.0.0.4"]'
+```
+
+The proxy must **overwrite** `X-Forwarded-For` with the client's address, not append to
+it. Bench's nginx template already does this (`proxy_set_header X-Forwarded-For
+$remote_addr;`). With `$proxy_add_x_forwarded_for`, a visitor could choose their own
+address and get past the limit.
 
 This README is the authoritative installation reference for v16. `docs/README.pdf` is a
 printable copy generated from it; regenerate it whenever this file changes.
@@ -304,6 +336,11 @@ Two standard ERPNext roles are used as shipped approvers and are **not** created
 7. On **Approve** → pass becomes Approved + Submitted, QR code is generated, notification is sent, hospitality request + room booking auto-create if flags are set.
 
 End-to-end takes ~1 minute for the host, ~3 minutes for the visitor.
+
+The link works once. It stops working when the visitor submits the form, when the invitation
+expires, or when it is cancelled. The invitation shows **Opened** when the visitor first uses
+the form. A mail scanner that only fetches the link does not count. One user can send up to
+30 invitation emails an hour.
 
 ## Walk-in Visitor — visitor is at reception
 

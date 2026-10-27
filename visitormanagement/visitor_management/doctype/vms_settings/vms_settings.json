@@ -16,22 +16,40 @@
   "require_visitor_photo",
   "qr_scan_required_at_gate",
   "require_item_declaration",
+  "require_group_member_id",
   "block_check_in_without_verification",
   "allow_gate_without_item_verification",
   "column_break_gate",
   "blacklist_action",
+  "restrict_security_to_assigned_gate",
+  "track_badge_return",
   "section_badge",
   "enable_badge",
   "badge_required_for",
   "section_policy",
   "max_advance_booking_days",
+  "max_pass_validity_days",
   "invitation_expiry_days",
   "column_break_policy",
   "no_show_grace_hours",
   "default_country_code",
   "fever_threshold_c",
+  "allow_pre_registration_without_invitation",
   "max_portal_submissions_per_hour",
   "guest_upload_other_routes",
+  "section_approvals",
+  "route_approval_to_manager",
+  "column_break_approvals",
+  "approval_reminder_hours",
+  "section_optional_features",
+  "enable_walk_in_registration",
+  "warn_outside_booked_time",
+  "gate_time_tolerance_minutes",
+  "alert_host_on_no_show",
+  "column_break_optional_features",
+  "send_thank_you_email",
+  "email_visitor_about_bookings",
+  "require_rejection_reason",
   "section_meals",
   "meal_windows",
   "section_notify",
@@ -116,6 +134,13 @@
    "label": "Require Item Declaration"
   },
   {
+   "default": "1",
+   "description": "Each accompanying visitor on a group pass needs an ID Proof Type and number, so every person is screened against the blacklist by ID.",
+   "fieldname": "require_group_member_id",
+   "fieldtype": "Check",
+   "label": "Require ID for Every Group Member"
+  },
+  {
    "default": "0",
    "fieldname": "block_check_in_without_verification",
    "fieldtype": "Check",
@@ -174,6 +199,13 @@
    "label": "Max Advance Booking (days)"
   },
   {
+   "default": "30",
+   "description": "Longest multi-day pass allowed: Pass Valid Until may be at most this many days after the visit date.",
+   "fieldname": "max_pass_validity_days",
+   "fieldtype": "Int",
+   "label": "Longest Multi-Day Pass Allowed (days)"
+  },
+  {
    "default": "7",
    "fieldname": "invitation_expiry_days",
    "fieldtype": "Int",
@@ -202,6 +234,13 @@
    "fieldname": "fever_threshold_c",
    "fieldtype": "Float",
    "label": "Fever Threshold (°C)"
+  },
+  {
+   "default": "0",
+   "description": "Leave OFF (the default) so that only visitors who hold an invitation link can use the public pre-registration form; without one the form shows a message and the server refuses the submission and its uploads. Tick to let anyone who has the form's address register a visit to any employee without an invitation.",
+   "fieldname": "allow_pre_registration_without_invitation",
+   "fieldtype": "Check",
+   "label": "Allow Pre-Registration Without Invitation"
   },
   {
    "default": "20",
@@ -311,13 +350,112 @@
    "fieldname": "portal_footer_note",
    "fieldtype": "Small Text",
    "label": "Footer Note"
+  },
+  {
+   "default": "0",
+   "description": "Each Security user then records gate events only at the gates that list them under Assigned Security Users. A Security user listed on no gate can still use every gate.",
+   "fieldname": "restrict_security_to_assigned_gate",
+   "fieldtype": "Check",
+   "label": "Security can only log at their assigned gates"
+  },
+  {
+   "default": "1",
+   "description": "Check-out asks the guard to confirm the visitor handed back their badge.",
+   "fieldname": "track_badge_return",
+   "fieldtype": "Check",
+   "label": "Ask for the badge back at check-out"
+  },
+  {
+   "fieldname": "section_approvals",
+   "fieldtype": "Section Break",
+   "label": "Approvals"
+  },
+  {
+   "default": "0",
+   "description": "The first approval step goes to the host's Reports To manager instead of everyone with the approver role. A host with no manager (or a manager with no user) stays with the approver role. A second step, such as CEO, always stays with its role.",
+   "fieldname": "route_approval_to_manager",
+   "fieldtype": "Check",
+   "label": "Send approvals to the host's own manager"
+  },
+  {
+   "fieldname": "column_break_approvals",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "24",
+   "description": "A pass still waiting this long is sent to its approvers again, in the bell and by email, at most once per this many hours.",
+   "fieldname": "approval_reminder_hours",
+   "fieldtype": "Int",
+   "label": "Remind approvers after (hours, 0 = off)",
+   "non_negative": 1
+  },
+  {
+   "description": "Each of these is on unless you untick it.",
+   "fieldname": "section_optional_features",
+   "fieldtype": "Section Break",
+   "label": "Optional Features"
+  },
+  {
+   "default": "1",
+   "description": "Security can open a short New Walk-In form for a visitor who arrives without a pass. The pass still goes through the normal approvals.",
+   "fieldname": "enable_walk_in_registration",
+   "fieldtype": "Check",
+   "label": "Let Security register walk-in visitors"
+  },
+  {
+   "default": "1",
+   "description": "The gate warns the guard when a visitor checks in before or after the time booked on their pass.",
+   "fieldname": "warn_outside_booked_time",
+   "fieldtype": "Check",
+   "label": "Warn at the gate outside the booked time"
+  },
+  {
+   "default": "1",
+   "description": "The host gets an email when their visitor is marked a no-show.",
+   "fieldname": "alert_host_on_no_show",
+   "fieldtype": "Check",
+   "label": "Tell the host when a visitor does not show up"
+  },
+  {
+   "fieldname": "column_break_optional_features",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "The visitor gets a thank-you email after they check out.",
+   "fieldname": "send_thank_you_email",
+   "fieldtype": "Check",
+   "label": "Send the visitor a thank-you email"
+  },
+  {
+   "default": "1",
+   "description": "The visitor is emailed when their meal, cab or room booking is confirmed.",
+   "fieldname": "email_visitor_about_bookings",
+   "fieldtype": "Check",
+   "label": "Email the visitor about their bookings"
+  },
+  {
+   "default": "1",
+   "description": "An approver who rejects a pass must type a reason. Untick to make the reason optional.",
+   "fieldname": "require_rejection_reason",
+   "fieldtype": "Check",
+   "label": "Ask for a reason when a pass is rejected"
+  },
+  {
+   "default": "30",
+   "depends_on": "eval:doc.warn_outside_booked_time",
+   "description": "Minutes before the booked check-in or after the booked check-out a visitor may arrive or leave before the guard is warned. 0 warns at once.",
+   "fieldname": "gate_time_tolerance_minutes",
+   "fieldtype": "Int",
+   "label": "Gate Time Tolerance (minutes)",
+   "non_negative": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-25 18:00:00.000000",
+ "modified": "2026-10-16 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS Settings",

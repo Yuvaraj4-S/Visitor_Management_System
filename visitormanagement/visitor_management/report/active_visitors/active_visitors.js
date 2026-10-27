@@ -19,6 +19,10 @@ frappe.query_reports["Active Visitors"] = {
 			label: __("Host"),
 			fieldtype: "Link",
 			options: "Employee",
+			// App query: no role needs a permission on Employee (see link_queries.py).
+			get_query: () => ({
+				query: "visitormanagement.visitor_management.link_queries.search",
+			}),
 		},
 	],
 	formatter(value, row, column, data, default_formatter) {
@@ -36,7 +40,7 @@ frappe.query_reports["Active Visitors"] = {
 		}
 		if (column.fieldname === "item_verification_status" && data) {
 			const colour =
-				{ "All Verified": "green", Partial: "orange", Pending: "red" }[
+				{ "All Verified": "green", Partial: "orange", Pending: "red", Discrepancy: "red" }[
 					data.item_verification_status
 				] || "grey";
 			return `<span class="indicator-pill ${colour}">${value || ""}</span>`;

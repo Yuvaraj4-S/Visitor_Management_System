@@ -20,12 +20,19 @@ DEFAULT_MEAL_WINDOWS = (
 	("Dinner", "20:00:00", "21:30:00"),
 )
 DEFAULT_MAX_ADVANCE_DAYS = 90
+DEFAULT_MAX_PASS_VALIDITY_DAYS = 30
 DEFAULT_INVITATION_EXPIRY_DAYS = 7
 DEFAULT_NO_SHOW_GRACE_HOURS = 4
 DEFAULT_COUNTRY_CODE = "91"
 DEFAULT_HOME_COUNTRY = "India"
 DEFAULT_FEVER_THRESHOLD_C = 37.5
 DEFAULT_MAX_PORTAL_SUBMISSIONS_PER_HOUR = 20
+DEFAULT_APPROVAL_REMINDER_HOURS = 24
+# The most the setting can mean. `portal.submit_pre_registration` carries a fixed
+# `@rate_limit(limit=20)` that no setting can raise (a decorator argument is read
+# at import, before there is a site to read a setting from), so a larger number
+# in VMS Settings would promise a limit the portal does not apply.
+MAX_PORTAL_SUBMISSIONS_PER_HOUR_CEILING = 20
 
 
 def _settings():
@@ -52,14 +59,47 @@ def _float(fieldname, fallback):
 	return value if value else fallback
 
 
+# The documents a derived meal is written to. Both carry `meal_type` as a Select.
+MEAL_TYPE_DOCTYPES = ("Visitor Pass", "Hospitality Request")
+
+
+def meal_type_options():
+	"""The meal names a meal window may carry: the Meal Type options both documents accept.
+
+	A window's label is not only a caption. When a visit overlaps exactly one
+	window, `lifecycle.derive_hospitality_meal_plan` writes that label into
+	`meal_type` on the Visitor Pass and on its Hospitality Request, and Frappe
+	refuses to save a Select holding a value outside its options. So the list of
+	valid labels is those options, read from the fields themselves rather than
+	repeated here, where it would drift the day an option is added.
+
+	Empty when the DocTypes are not there to ask (early install).
+	"""
+	try:
+		per_doctype = []
+		for doctype in MEAL_TYPE_DOCTYPES:
+			field = frappe.get_meta(doctype).get_field("meal_type")
+			per_doctype.append([o.strip() for o in (field.options or "").split("\n") if o.strip()])
+	except Exception:
+		return []
+	first, *others = per_doctype
+	return [option for option in first if all(option in other for other in others)]
+
+
 def meal_windows():
-	"""[(label, start, end)] — configured windows, else the built-in three."""
+	"""[(label, start, end)] — configured windows, else the built-in three.
+
+	A row whose label is not a Meal Type option is skipped. VMS Settings refuses
+	to save one, but a row saved before that check existed (or written past it)
+	must not go on making every pass that overlaps it unsaveable.
+	"""
 	doc = _settings()
 	rows = list(getattr(doc, "meal_windows", None) or []) if doc else []
+	allowed = meal_type_options()
 	windows = [
 		(r.meal_label, str(r.start_time), str(r.end_time))
 		for r in rows
-		if r.meal_label and r.start_time and r.end_time
+		if r.meal_label and r.start_time and r.end_time and (not allowed or r.meal_label in allowed)
 	]
 	return windows or list(DEFAULT_MEAL_WINDOWS)
 
@@ -73,6 +113,102 @@ def max_advance_booking_days():
 	if raw is None or raw == "":
 		return DEFAULT_MAX_ADVANCE_DAYS
 	return cint(raw)
+
+
+def max_pass_validity_days():
+	"""Longest a multi-day pass may run past its visit date, in days."""
+	return _int("max_pass_validity_days", DEFAULT_MAX_PASS_VALIDITY_DAYS)
+
+
+def require_group_member_id():
+	"""Must every accompanying visitor on a group pass give an ID proof?
+
+	On unless an administrator unticks it. A site that has not saved VMS Settings
+	since the field was added has no stored value, which reads as on (a Single
+	loads a missing Check as 0, so the stored row is what tells the two apart).
+	"""
+	doc = _settings()
+	if not doc or cint(doc.get("require_group_member_id")):
+		return True
+	return not is_stored("require_group_member_id")
+
+
+def is_stored(fieldname):
+	"""Whether VMS Settings has a saved value for `fieldname` at all."""
+	# Not frappe.db.exists: tabSingles has no name column, so it always said no.
+	return bool(
+		frappe.db.sql(
+			"select 1 from `tabSingles` where doctype = 'VMS Settings' and field = %s limit 1",
+			fieldname,
+		)
+	)
+
+
+def approval_reminder_hours():
+	"""Hours a pass may wait in an approval lane before its approvers are reminded; 0 = never.
+
+	0 is an administrator's "off", so it is not read as unset the way `_int`
+	reads it. Nothing stored (a site not migrated since the field arrived) reads
+	as the default.
+	"""
+	doc = _settings()
+	if not doc or not is_stored("approval_reminder_hours"):
+		return DEFAULT_APPROVAL_REMINDER_HOURS
+	return max(cint(doc.get("approval_reminder_hours")), 0)
+
+
+def stored_flag(fieldname, default):
+	"""A Check setting that reads as `default` until a value has been saved.
+
+	A Single loads a tick nobody has saved as 0, which for a default-on setting
+	(track_badge_return) would mean "off" on every site that has not opened the
+	settings page since the field arrived.
+	"""
+	if not is_stored(fieldname):
+		return cint(default)
+	return flag(fieldname, default)
+
+
+# Optional features an administrator may switch off in VMS Settings > Optional
+# Features. Each is on until someone unticks it: a site that has not saved the
+# settings since a switch arrived keeps the behaviour it had. `setup` stores the
+# explicit 1 on migrate (patch v2_1.seed_feature_switches), so a later save of
+# the whole Single cannot quietly turn an unsaved tick into 0.
+FEATURE_SWITCHES = (
+	"enable_walk_in_registration",
+	"warn_outside_booked_time",
+	"alert_host_on_no_show",
+	"send_thank_you_email",
+	"email_visitor_about_bookings",
+	"require_rejection_reason",
+)
+
+
+# Stored with the switches: a Single loads an unsaved Int as 0, and a 0 here is
+# an administrator's "warn at once" (gate_timing.tolerance).
+DEFAULT_GATE_TIME_TOLERANCE_MINUTES = 30
+
+
+def feature_on(name):
+	"""Is the optional feature `name` (one of FEATURE_SWITCHES) switched on?"""
+	if name not in FEATURE_SWITCHES:
+		raise ValueError(f"Unknown VMS feature switch: {name}")
+	return bool(stored_flag(name, 1))
+
+
+def route_approval_to_manager():
+	"""Do passes go to the host's own manager first? Off unless switched on."""
+	return bool(stored_flag("route_approval_to_manager", 0))
+
+
+def restrict_security_to_assigned_gate():
+	"""May Security log only at the gates they are assigned to? Off unless switched on."""
+	return bool(stored_flag("restrict_security_to_assigned_gate", 0))
+
+
+def track_badge_return():
+	"""Is the badge asked back at check-out? On unless switched off."""
+	return bool(stored_flag("track_badge_return", 1))
 
 
 def invitation_expiry_days():
@@ -99,8 +235,29 @@ def max_portal_submissions_per_hour():
 	Used to be the literal 20 written independently in two places in portal.py
 	(a module constant and an `@rate_limit` decorator argument), which could
 	drift from each other. Both now read this one setting.
+
+	Always between 1 and the ceiling. VMS Settings refuses anything else, but a
+	negative number saved before that check existed would be a ceiling every
+	count exceeds: the limiter refused the first pre-registration of the hour,
+	and every one after it.
 	"""
-	return _int("max_portal_submissions_per_hour", DEFAULT_MAX_PORTAL_SUBMISSIONS_PER_HOUR)
+	value = _int("max_portal_submissions_per_hour", DEFAULT_MAX_PORTAL_SUBMISSIONS_PER_HOUR)
+	if value < 1:
+		return DEFAULT_MAX_PORTAL_SUBMISSIONS_PER_HOUR
+	return min(value, MAX_PORTAL_SUBMISSIONS_PER_HOUR_CEILING)
+
+
+def pre_registration_without_invitation_allowed():
+	"""May a visitor use the public pre-registration form without an invitation link?
+
+	Off unless an administrator ticks "Allow Pre-Registration Without Invitation".
+	The open form let anyone on the internet put a draft pass, with an ID scan and
+	a photo, in front of any employee they could name. A site that wants walk-in
+	pre-registration switches it on and gets exactly that behaviour back.
+
+	A site that has not yet migrated the field reads it as off, the safe side.
+	"""
+	return bool(flag("allow_pre_registration_without_invitation"))
 
 
 def guest_upload_other_routes():

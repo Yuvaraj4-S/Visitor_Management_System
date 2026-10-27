@@ -8,6 +8,12 @@ from frappe.model.document import Document
 from frappe.utils import now_datetime
 
 from visitormanagement.visitor_management import phone as vms_phone
+from visitormanagement.visitor_management.id_numbers import (
+	save_masked_version,
+	set_shown_id,
+	take_typed_id,
+)
+from visitormanagement.visitor_management.validators import normalise_id_number
 
 # Floor below which a digit tail is too short to trust as a subscriber-number
 # match — a bare 5-6 digit tail would collide across many unrelated numbers.
@@ -17,6 +23,15 @@ MIN_MOBILE_MATCH_DIGITS = 7
 
 
 class VisitorBlacklist(Document):
+	"""A person who must not be let in.
+
+	The ID number is kept whole in `id_proof_number`, because the gate matches on
+	it, and handled as on a Visitor Pass (visitor_management/id_numbers.py): the
+	field sits at permission level 1, which no role holds, people type into and
+	see `id_proof_masked` (XXXXXX234F), and Security and System Manager read the
+	full number back only through the recorded reveal.
+	"""
+
 	def validate(self):
 		# Reason is mandatory — can't blacklist someone without stating why (audit requirement).
 		if not (self.reason or "").strip():
@@ -24,6 +39,8 @@ class VisitorBlacklist(Document):
 				_("Reason is required for every blacklist entry (audit/compliance requirement)."),
 				title=_("Reason Required"),
 			)
+
+		self._take_typed_id_number()
 
 		# Either ID proof number or visitor name + mobile must be present for lookup.
 		if not self.id_proof_number and not (self.visitor_name and self.id_proof_type):
@@ -59,6 +76,25 @@ class VisitorBlacklist(Document):
 					),
 					title=_("Duplicate Blacklist"),
 				)
+
+		set_shown_id(self)
+
+	def _take_typed_id_number(self):
+		"""Move a full ID number typed into "ID Proof Number" onto the real field.
+
+		Frappe has already put the stored number back for anyone without level-1
+		write, so an unchanged masked value keeps it (id_numbers.take_typed_id).
+		A new number is stored normalised by its ID Proof Type's rule, as a pass
+		stores it; matching strips case and separators on both sides as well.
+		"""
+		number = (take_typed_id(self) or "").strip()
+		if number and self.id_proof_type:
+			number = normalise_id_number(self.id_proof_type, number) or number
+		self.id_proof_number = number or None
+
+	def save_version(self):
+		"""Keep the change history with the ID number masked (id_numbers.save_masked_version)."""
+		save_masked_version(self)
 
 	@staticmethod
 	def find_active_match(id_proof_number=None, visitor_name=None, id_proof_type=None, mobile_number=None):

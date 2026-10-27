@@ -9,9 +9,13 @@
   "visitor_name",
   "mobile_number",
   "id_proof_type",
+  "id_proof_masked",
   "id_proof_number",
+  "id_proof_key",
   "checked_in",
   "badge_number",
+  "checked_in_on",
+  "check_in_log",
   "remarks"
  ],
  "fields": [
@@ -40,23 +44,65 @@
   },
   {
    "columns": 2,
-   "fieldname": "id_proof_number",
+   "description": "Type the visitor's full ID number. Once saved, only the last four characters are shown. The full number is kept securely: Security and System Manager can reveal it with Reveal Full ID, and every reveal is recorded.",
+   "fieldname": "id_proof_masked",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "ID Proof Number"
   },
   {
+   "description": "The full ID number, kept for matching. Nobody is shown it; Security and System Manager can reveal it with Reveal Full ID.",
+   "fieldname": "id_proof_number",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "ID Proof Number (Full)",
+   "mask": 1,
+   "permlevel": 1,
+   "read_only": 1
+  },
+  {
+   "description": "The ID number as the duplicate-pass check compares it: upper case, without spaces, hyphens or slashes. Set on save; nobody is shown it.",
+   "fieldname": "id_proof_key",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "ID Proof Match Key",
+   "mask": 1,
+   "no_copy": 1,
+   "permlevel": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
    "columns": 1,
-   "description": "Ticked at the gate when this person actually arrives",
+   "description": "Set at the gate: ticked while this person is inside, cleared when they check out.",
    "fieldname": "checked_in",
    "fieldtype": "Check",
    "in_list_view": 1,
-   "label": "Checked In"
+   "label": "Checked In",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
+   "description": "Issued at the gate when this person first checks in, if the pass's visitor type gets badges.",
    "fieldname": "badge_number",
    "fieldtype": "Data",
    "label": "Badge Number",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "checked_in_on",
+   "fieldtype": "Datetime",
+   "label": "Checked In On",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "check_in_log",
+   "fieldtype": "Link",
+   "label": "Check-In Log",
+   "no_copy": 1,
+   "options": "Security Log",
    "read_only": 1
   },
   {
@@ -69,7 +115,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-09-07 17:00:00.000000",
+ "modified": "2026-10-17 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Visitor Group Member",

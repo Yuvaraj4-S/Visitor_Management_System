@@ -8,9 +8,9 @@ imports `frappe`.
 
 Canonical ID type labels mirror the Select options on Visitor Pass and the
 Visitor Pre-Registration web form:
-    "Aadhaar", "PAN Card", "Passport", "Driving License"
+    "Aadhaar", "PAN Card", "Passport", "Driving License", "Voter ID"
 
-Short aliases ("PAN", "DL") are accepted by `validate_id` / `id_proof_error_message`.
+Short aliases ("PAN", "DL", "EPIC") are accepted by `validate_id` / `id_proof_error_message`.
 """
 
 import re
@@ -62,6 +62,8 @@ _AADHAAR_RE = re.compile(r"^\d{12}$")
 _PAN_RE = re.compile(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$")
 _DL_RE = re.compile(r"^[A-Z]{2}[0-9]{2}\s?[0-9]{11}$")
 _PASSPORT_RE = re.compile(r"^[A-Z]{1}[0-9]{7}$")
+# Voter ID (EPIC): 3 letters + 7 digits, e.g. ABC1234567.
+_EPIC_RE = re.compile(r"^[A-Z]{3}[0-9]{7}$")
 
 
 def _strip(number):
@@ -87,17 +89,24 @@ def validate_pan(number):
 	return bool(_PAN_RE.match(clean))
 
 
+def normalise_driving_license(number):
+	"""A licence number as printed carries hyphens and spaces ("MH-12-2011-0012345");
+	the number itself is the 15 letters and digits."""
+	return _strip_hyphens(str(number or "")).upper()
+
+
 def validate_driving_license(number):
-	# Preserve an internal space if present; only strip leading/trailing whitespace.
-	clean = str(number or "").strip().upper()
-	# Collapse multi-space runs to a single space (users often type "TN05  ...").
-	clean = re.sub(r"\s+", " ", clean)
-	return bool(_DL_RE.match(clean))
+	return bool(_DL_RE.match(normalise_driving_license(number)))
 
 
 def validate_passport(number):
 	clean = _strip(str(number or "")).upper()
 	return bool(_PASSPORT_RE.match(clean))
+
+
+def validate_voter_id(number):
+	clean = _strip_hyphens(str(number or "")).upper()
+	return bool(_EPIC_RE.match(clean))
 
 
 # ─────────────────────────────────────────────────────────────
@@ -114,6 +123,10 @@ _CANONICAL = {
 	"driving license": "Driving License",
 	"driving licence": "Driving License",
 	"passport": "Passport",
+	"voter id": "Voter ID",
+	"voter": "Voter ID",
+	"epic": "Voter ID",
+	"voter id card": "Voter ID",
 }
 
 _VALIDATORS = {
@@ -121,6 +134,15 @@ _VALIDATORS = {
 	"PAN Card": validate_pan,
 	"Driving License": validate_driving_license,
 	"Passport": validate_passport,
+	"Voter ID": validate_voter_id,
+}
+
+# Applied before the ID Proof Type master's own normalisation, for the built-in
+# types whose printed form carries separators that are not part of the number.
+# A licence typed as printed, "MH-12-2011-0012345", was refused: the master's
+# "Collapse spaces" keeps the hyphens, and its pattern allows none.
+_PRE_NORMALISERS = {
+	"Driving License": normalise_driving_license,
 }
 
 
@@ -141,8 +163,31 @@ _NORMALISERS = {
 }
 
 
+_MASTER_FIELDS = [
+	"name",
+	"aliases",
+	"validation_method",
+	"validation_regex",
+	"normalisation",
+	"error_message",
+	"valid_for_foreign_nationals",
+]
+
+
+def _row_config(row):
+	"""One ID Proof Type master row as the config the functions below read."""
+	return {
+		"aliases": [a.strip().lower() for a in (row.get("aliases") or "").splitlines() if a.strip()],
+		"method": row.get("validation_method") or "Regex",
+		"regex": row.get("validation_regex") or "",
+		"normalisation": row.get("normalisation") or "Uppercase and strip spaces",
+		"error_message": row.get("error_message") or "",
+		"foreign_ok": bool(row.get("valid_for_foreign_nationals")),
+	}
+
+
 def _load_master():
-	"""Return {canonical_name: config} from the ID Proof Type master, or {}.
+	"""Return {canonical_name: config} for the ACTIVE ID Proof Type rows, or {}.
 
 	Frappe is imported lazily and every failure is swallowed: this module is
 	deliberately usable outside a Frappe request (portal helpers, plain-Python
@@ -165,35 +210,47 @@ def _load_master():
 			"ID Proof Type",
 			filters={"is_active": 1},
 			order_by="creation asc",
-			fields=[
-				"name",
-				"aliases",
-				"validation_method",
-				"validation_regex",
-				"normalisation",
-				"error_message",
-				"valid_for_foreign_nationals",
-			],
+			fields=_MASTER_FIELDS,
 		)
 	except Exception:
 		return {}
 
-	table = {}
-	for row in rows:
-		table[row["name"]] = {
-			"aliases": [a.strip().lower() for a in (row.get("aliases") or "").splitlines() if a.strip()],
-			"method": row.get("validation_method") or "Regex",
-			"regex": row.get("validation_regex") or "",
-			"normalisation": row.get("normalisation") or "Uppercase and strip spaces",
-			"error_message": row.get("error_message") or "",
-			"foreign_ok": bool(row.get("valid_for_foreign_nationals")),
-		}
+	table = {row["name"]: _row_config(row) for row in rows}
 
 	try:
 		frappe.cache.set_value("vms_id_proof_types", table)
 	except Exception:
 		pass
 	return table
+
+
+def _deactivated_master_row(id_type):
+	"""(name, config) of the type's master row when that row is switched off, else None.
+
+	_load_master() holds active rows only, so a deactivated type used to look the
+	same as a type the master never had — and the four built-in types then fell
+	back to their built-in validator: switching "Passport" off in the master left
+	it accepted on every new pass. Read straight from the table (not cached): it
+	is only reached for a type that is not in the active master.
+	"""
+	name = (id_type or "").strip()
+	if not name:
+		return None
+	name = _CANONICAL.get(name.lower(), name)
+	try:
+		import frappe
+
+		row = frappe.db.get_value("ID Proof Type", name, ["is_active", *_MASTER_FIELDS], as_dict=True)
+	except Exception:
+		return None  # no site, or no master table: the built-in types apply
+	if not row or row.get("is_active"):
+		return None
+	return row["name"], _row_config(row)
+
+
+def is_deactivated(id_type):
+	"""Whether the ID Proof Type master has this type but has it switched off."""
+	return _deactivated_master_row(id_type) is not None
 
 
 def _canonical_type(id_type):
@@ -209,7 +266,7 @@ def _canonical_type(id_type):
 
 def _validate_with_master(canonical, number, cfg):
 	normalise = _NORMALISERS.get(cfg["normalisation"], _NORMALISERS["Uppercase and strip spaces"])
-	clean = normalise(str(number or ""))
+	clean = normalise(_pre_normalise(canonical, number))
 
 	method = cfg["method"]
 	if method == "None":
@@ -224,16 +281,28 @@ def _validate_with_master(canonical, number, cfg):
 		return False
 
 
-def validate_id(id_type, number):
-	"""Validate a number against the given ID type. Unknown type → False."""
-	canonical = _canonical_type(id_type)
-	if not canonical:
-		return False
+def validate_id(id_type, number, allow_deactivated=False):
+	"""Validate a number against the given ID type. Unknown type → False.
 
-	cfg = _load_master().get(canonical)
+	A type switched off in the ID Proof Type master is not accepted for a new
+	number. `allow_deactivated` is for a number already on record that is being
+	saved again unchanged: it is still checked against the type's own rule, so a
+	pass raised before the type was switched off can go on being approved.
+	"""
+	canonical = _canonical_type(id_type)
+	cfg = _load_master().get(canonical) if canonical else None
 	if cfg:
 		return _validate_with_master(canonical, number, cfg)
 
+	deactivated = _deactivated_master_row(id_type)
+	if deactivated:
+		name, cfg = deactivated
+		return _validate_with_master(name, number, cfg) if allow_deactivated else False
+
+	if not canonical:
+		return False
+
+	# No master row for this type at all: the built-in rule.
 	validator = _VALIDATORS.get(canonical)
 	return validator(number) if validator else False
 
@@ -259,10 +328,15 @@ def normalise_id_number(id_type, number):
 
 	cfg = _load_master().get(canonical)
 	if not cfg:
-		return number
+		return _pre_normalise(canonical, number) if canonical in _PRE_NORMALISERS else number
 
 	normalise = _NORMALISERS.get(cfg["normalisation"], _NORMALISERS["Uppercase and strip spaces"])
-	return normalise(str(number or ""))
+	return normalise(_pre_normalise(canonical, number))
+
+
+def _pre_normalise(canonical, number):
+	pre = _PRE_NORMALISERS.get(canonical)
+	return pre(number) if pre else str(number or "")
 
 
 def is_valid_for_foreign_nationals(id_type):
@@ -272,11 +346,12 @@ def is_valid_for_foreign_nationals(id_type):
 	is unavailable.
 	"""
 	canonical = _canonical_type(id_type)
-	if not canonical:
-		return False
-	cfg = _load_master().get(canonical)
+	cfg = _load_master().get(canonical) if canonical else None
 	if cfg:
 		return cfg["foreign_ok"]
+	deactivated = _deactivated_master_row(id_type)
+	if deactivated:
+		return deactivated[1]["foreign_ok"]
 	return canonical == "Passport"
 
 
@@ -322,6 +397,7 @@ _ERROR_MESSAGES = {
 		"(2 letters + 2 digits + optional space + 11 digits)."
 	),
 	"Passport": ("Passport must be in the format A1234567 (1 uppercase letter followed by 7 digits)."),
+	"Voter ID": ("Voter ID (EPIC) must be in the format ABC1234567 (3 letters followed by 7 digits)."),
 }
 
 
@@ -332,10 +408,44 @@ def id_proof_error_message(id_type):
 	if cfg and cfg["error_message"]:
 		return cfg["error_message"]
 
+	if is_deactivated(id_type):
+		return f"{canonical} is not accepted as an ID proof at present. Choose another ID Proof Type."
+
 	return _ERROR_MESSAGES.get(
 		canonical,
-		f"Unsupported ID Proof Type: {id_type!r}. Use Aadhaar, PAN Card, Driving License, or Passport.",
+		f"Unsupported ID Proof Type: {id_type!r}. Use Aadhaar, PAN Card, Driving License, Passport, or Voter ID.",
 	)
+
+
+# ─────────────────────────────────────────────────────────────
+# MASKING — what people see in place of the real number
+# ─────────────────────────────────────────────────────────────
+
+
+def mask_id_number(raw):
+	"""Mask ID proof number, preserving separators and showing only last 4 characters.
+
+	Aadhaar  5001-5002-5003  →  XXXX-XXXX-5003
+	PAN      AABPR2345T     →  XXXXXX345T
+	Passport P1234567       →  XXXX4567
+	DL       DL-TN-05210099 →  XX-XX-XXXX0099
+	"""
+	chars = [(i, ch) for i, ch in enumerate(raw) if ch.isalnum()]
+	if len(chars) <= 4:
+		return raw
+
+	visible_positions = {pos for pos, _ in chars[-4:]}
+	return "".join(ch if not ch.isalnum() or i in visible_positions else "X" for i, ch in enumerate(raw))
+
+
+def is_masked_id(value):
+	"""Whether `value` is already the masked form rather than a real number.
+
+	A masked value is its own mask. A real number never is: Aadhaar is digits only,
+	and a PAN or passport that happens to contain an X still differs from its mask.
+	"""
+	value = (value or "").strip()
+	return bool(value) and "X" in value and mask_id_number(value) == value
 
 
 # ─────────────────────────────────────────────────────────────

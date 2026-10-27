@@ -15,6 +15,16 @@
   "factory_tour_required",
   "buggy_required",
   "greeting_required",
+  "section_break_services",
+  "services_summary",
+  "meal_status",
+  "refreshments_status",
+  "cab_status",
+  "col_break_services",
+  "hotel_status",
+  "tour_status",
+  "buggy_status",
+  "greeting_status",
   "section_break_visit_info",
   "visit_start_time",
   "col_break_visit_info",
@@ -29,7 +39,6 @@
   "meal_type",
   "col_break_meal",
   "service_time",
-  "assigned_staff",
   "conference_room",
   "assigned_meal_slots",
   "hospitality_type",
@@ -82,7 +91,9 @@
   "greeting_cost",
   "section_break_status",
   "status",
+  "assigned_staff",
   "workflow_state",
+  "col_break_status",
   "notes",
   "amended_from"
  ],
@@ -95,6 +106,7 @@
    "options": "Visitor Pass",
    "reqd": 1,
    "search_index": 1,
+   "set_only_once": 1,
    "description": "The visitor this request belongs to."
   },
   {
@@ -170,6 +182,95 @@
    "read_only": 1
   },
   {
+   "description": "Each service has its own progress: Pending, Booked (arranged — the host is told), Done (delivered) or Cancelled. The people who deliver a service update it with the buttons at the top of the form once the request is Approved.",
+   "fieldname": "section_break_services",
+   "fieldtype": "Section Break",
+   "label": "Service Progress"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Each service asked for and how far it has got. Kept up to date on every save.",
+   "fieldname": "services_summary",
+   "fieldtype": "Small Text",
+   "label": "Services",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.meal_required",
+   "fieldname": "meal_status",
+   "fieldtype": "Select",
+   "label": "Meal Status",
+   "options": "Pending\nBooked\nDone\nCancelled",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.snacks_required || doc.tea_coffee_required",
+   "fieldname": "refreshments_status",
+   "fieldtype": "Select",
+   "label": "Refreshments Status",
+   "options": "Pending\nBooked\nDone\nCancelled",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.cab_required",
+   "fieldname": "cab_status",
+   "fieldtype": "Select",
+   "label": "Cab Status",
+   "options": "Pending\nBooked\nDone\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_services",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.hotel_required",
+   "fieldname": "hotel_status",
+   "fieldtype": "Select",
+   "label": "Hotel Status",
+   "options": "Pending\nBooked\nDone\nCancelled",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.factory_tour_required",
+   "fieldname": "tour_status",
+   "fieldtype": "Select",
+   "label": "Factory Tour Status",
+   "options": "Pending\nBooked\nDone\nCancelled",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.buggy_required",
+   "fieldname": "buggy_status",
+   "fieldtype": "Select",
+   "label": "Buggy Status",
+   "options": "Pending\nBooked\nDone\nCancelled",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "depends_on": "eval:doc.greeting_required",
+   "fieldname": "greeting_status",
+   "fieldtype": "Select",
+   "label": "Greeting Status",
+   "options": "Pending\nBooked\nDone\nCancelled",
+   "read_only": 1
+  },
+  {
    "fieldname": "section_break_visit_info",
    "fieldtype": "Section Break",
    "label": "Visit Info"
@@ -241,15 +342,19 @@
   },
   {
    "default": "0",
+   "description": "Decided on the Visitor Pass. Change it there and it is updated here.",
    "fieldname": "meal_required",
    "fieldtype": "Check",
-   "label": "Meal Required"
+   "label": "Meal Required",
+   "read_only": 1
   },
   {
+   "description": "Decided on the Visitor Pass. Change it there and it is updated here.",
    "fieldname": "meal_type",
    "fieldtype": "Select",
    "label": "Meal Type",
-   "options": "Breakfast\nLunch\nDinner\nBreakfast + Lunch\nLunch + Dinner\nBreakfast + Dinner\nSnacks\nAll Day"
+   "options": "Breakfast\nLunch\nDinner\nBreakfast + Lunch\nLunch + Dinner\nBreakfast + Dinner\nSnacks\nAll Day",
+   "read_only": 1
   },
   {
    "fieldname": "col_break_meal",
@@ -287,14 +392,6 @@
    "fieldtype": "Datetime",
    "hidden": 1,
    "label": "Service Time"
-  },
-  {
-   "fieldname": "assigned_staff",
-   "fieldtype": "Link",
-   "hidden": 1,
-   "label": "Assigned Staff",
-   "options": "Employee",
-   "ignore_user_permissions": 1
   },
   {
    "collapsible": 1,
@@ -346,6 +443,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required",
    "description": "No automation fills this field — the Hospitality Manager records it once a vendor is booked. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "cab_vendor",
@@ -354,12 +452,14 @@
    "options": "Supplier"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required",
    "fieldname": "driver_name",
    "fieldtype": "Data",
    "label": "Driver Name"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.cab_required",
    "fieldname": "driver_phone",
    "fieldtype": "Data",
@@ -374,6 +474,7 @@
    "label": "Hotel Booking"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "description": "No automation fills this field — the Hospitality Manager records the hotel once booked. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "hotel_name",
@@ -416,16 +517,19 @@
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "no_of_rooms",
    "fieldtype": "Int",
-   "label": "No of Rooms"
+   "label": "No of Rooms",
+   "non_negative": 1
   },
   {
    "default": "1",
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "no_of_guests",
    "fieldtype": "Int",
-   "label": "No of Guests"
+   "label": "No of Guests",
+   "non_negative": 1
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "fieldname": "booking_reference",
    "fieldtype": "Data",
@@ -439,11 +543,13 @@
    "label": "Special Requests"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.hotel_required",
    "description": "No automation fills this field — the Hospitality Manager records actual cost once booked. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "hotel_cost",
    "fieldtype": "Currency",
-   "label": "Hotel Cost"
+   "label": "Hotel Cost",
+   "non_negative": 1
   },
   {
    "collapsible": 1,
@@ -473,6 +579,7 @@
    "label": "Tour End Time"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.factory_tour_required",
    "fieldname": "tour_guide",
    "fieldtype": "Link",
@@ -521,6 +628,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.buggy_required",
    "description": "Was hidden with no automation to fill it, which silently disabled hospitality_request.py's _validate_buggy_conflict double-booking check — that check only runs when buggy_number is set, and a hidden field is never set from the UI.",
    "fieldname": "buggy_number",
@@ -528,6 +636,7 @@
    "label": "Buggy Number"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.buggy_required",
    "fieldname": "buggy_driver",
    "fieldtype": "Link",
@@ -566,6 +675,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.greeting_required",
    "description": "No automation fills this field — the Hospitality Manager assigns the staff member arranging the greeting. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "greeting_assigned_to",
@@ -575,26 +685,38 @@
    "ignore_user_permissions": 1
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.greeting_required",
    "description": "No automation fills this field — the Hospitality Manager records actual cost once arranged. It was previously hidden, making it unreachable from the UI.",
    "fieldname": "greeting_cost",
    "fieldtype": "Currency",
-   "label": "Greeting Cost"
+   "label": "Greeting Cost",
+   "non_negative": 1
   },
   {
    "fieldname": "section_break_status",
    "fieldtype": "Section Break",
-   "hidden": 1,
    "label": "Status & Notes"
   },
   {
+   "allow_on_submit": 1,
    "default": "Pending",
+   "description": "Follows the services above once the request is Approved: Confirmed when any service is Booked, Completed when every service is Done, Cancelled when all are called off. Until approval it follows the workflow. Nobody sets it by hand.",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
    "options": "Pending\nConfirmed\nServed\nCompleted\nCancelled",
-   "allow_on_submit": 1
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "The staff member who delivers this request. They see it in their own list and are emailed when it is confirmed.",
+   "fieldname": "assigned_staff",
+   "fieldtype": "Link",
+   "ignore_user_permissions": 1,
+   "label": "Assigned Staff",
+   "options": "Employee"
   },
   {
    "fieldname": "workflow_state",
@@ -605,9 +727,14 @@
    "read_only": 1
   },
   {
+   "fieldname": "col_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Notes by the hospitality team. What the host asked for is under Hospitality Notes on the Visitor Pass.",
    "fieldname": "notes",
    "fieldtype": "Text Editor",
-   "hidden": 1,
    "label": "Notes"
   },
   {
@@ -625,7 +752,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-05 12:00:00.000000",
+ "modified": "2026-10-16 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "Hospitality Request",
@@ -666,7 +793,6 @@
    "report": 1,
    "role": "Host Employee",
    "share": 1,
-   "submit": 1,
    "write": 1
   },
   {

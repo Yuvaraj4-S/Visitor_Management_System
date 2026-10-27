@@ -1,6 +1,6 @@
 frappe.ui.form.on("Job Applicant", {
 	after_save(frm) {
-		if (frm.doc.interview_mode !== "Offline") {
+		if (frm.doc.custom_interview_mode !== "Offline") {
 			return;
 		}
 

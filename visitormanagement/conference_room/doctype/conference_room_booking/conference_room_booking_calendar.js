@@ -10,12 +10,23 @@ frappe.views.calendar["Conference Room Booking"] = {
 		start: "start",
 		end: "end",
 		id: "name",
-		title: "meeting_title",
+		// "title" is the room and the meeting ("Board Room · Busy"), built by
+		// get_booking_events: `meeting_title` alone did not say which room an
+		// event was in, so the calendar could not answer "is this room free?".
+		title: "title",
 		allDay: "allDay",
 		status: "status",
 	},
 	get_events_method:
 		"visitormanagement.conference_room.doctype.conference_room_booking.conference_room_booking.get_booking_events",
+	// Drag and resize. The stock handler sets the fields `field_map` names, and
+	// `start`/`end` are columns of the event feed, not fields of the booking — a
+	// drag reported success and changed nothing. This one turns the dropped slot
+	// into booking_date/start_time/end_time and saves the booking with all its
+	// checks (permission, past slot, room hours, capacity, overlap); a refusal
+	// puts the event back where it was.
+	update_event_method:
+		"visitormanagement.conference_room.doctype.conference_room_booking.conference_room_booking.update_booking_slot",
 	filters: [
 		{
 			fieldtype: "Link",
@@ -24,4 +35,41 @@ frappe.views.calendar["Conference Room Booking"] = {
 			label: __("Conference Room"),
 		},
 	],
+	// FullCalendar options, merged over the Frappe calendar's own.
+	//
+	// A booking the viewer may not read arrives as the room, the time and "Busy"
+	// — without its name (get_booking_events). There is no record for this viewer
+	// behind such an event, so it must not behave like one: the stock click
+	// handler opened the booking's form, which answered with a permission error,
+	// and a "Busy" event could be picked up and dropped on another time.
+	options: {
+		eventClick(info) {
+			if (!frappe.model.can_read("Conference Room Booking")) {
+				return;
+			}
+			const name = booking_name(info.event);
+			if (name) {
+				frappe.set_route("Form", "Conference Room Booking", name);
+				return;
+			}
+			frappe.show_alert({
+				message: __(
+					"This slot is taken by someone else's booking. Its details are not shown to you."
+				),
+				indicator: "blue",
+			});
+		},
+		// Asked for every drag and resize; false keeps the event where it is.
+		eventAllow(span, event) {
+			return Boolean(booking_name(event));
+		},
+	},
 };
+
+// The booking behind a calendar event, or null for one shown only as "Busy".
+// Read from the row itself (FullCalendar keeps its columns in `extendedProps`),
+// not from `event.id`: that is always a string, and reads "null" for a row
+// that has no name.
+function booking_name(event) {
+	return (event && event.extendedProps && event.extendedProps.name) || null;
+}

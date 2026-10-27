@@ -5,7 +5,10 @@ frappe.ui.form.on("Conference Room Booking", {
 		frm.set_query("conference_room", () => ({
 			filters: { is_active: 1 },
 		}));
+		// Searched through this app's query: no role needs a permission on the
+		// HRMS/ERPNext DocType (see link_queries.py).
 		frm.set_query("booked_by", () => ({
+			query: "visitormanagement.visitor_management.link_queries.search",
 			filters: { status: "Active" },
 		}));
 	},
@@ -17,7 +20,7 @@ frappe.ui.form.on("Conference Room Booking", {
 		}
 		frappe.call({
 			method: "visitormanagement.visitor_management.link_details.get_link_details",
-			args: { doctype: "Employee", name: frm.doc.booked_by },
+			args: { doctype: "Employee", name: frm.doc.booked_by, reference_doctype: frm.doctype },
 			callback: (r) => frm.set_value("department", (r.message || {}).department || ""),
 		});
 	},
@@ -123,6 +126,24 @@ function find_available_rooms(frm) {
 		],
 		primary_action_label: __("Search"),
 		primary_action(values) {
+			// The same two checks get_available_rooms makes, answered here so
+			// the person is told before a search that cannot return a room.
+			if (values.booking_date < frappe.datetime.get_today()) {
+				frappe.msgprint({
+					title: __("Invalid Date"),
+					message: __("Cannot book a room for a past date."),
+					indicator: "orange",
+				});
+				return;
+			}
+			if (values.start_time >= values.end_time) {
+				frappe.msgprint({
+					title: __("Invalid Time"),
+					message: __("Start Time must be before End Time."),
+					indicator: "orange",
+				});
+				return;
+			}
 			frappe.call({
 				method: "visitormanagement.conference_room.doctype.conference_room_booking.conference_room_booking.get_available_rooms",
 				args: {
@@ -211,16 +232,26 @@ function view_room_schedule(frm) {
 			const esc = (v) => frappe.utils.escape_html(v == null ? "" : String(v));
 			let html =
 				'<table class="table table-bordered"><thead><tr>' +
-				"<th>Booking</th><th>Meeting</th><th>Time</th><th>Type</th><th>Status</th>" +
-				"</tr></thead><tbody>";
+				"<th>" +
+				[__("Booking"), __("Meeting"), __("Time"), __("Type"), __("Status")].join(
+					"</th><th>"
+				) +
+				"</th></tr></thead><tbody>";
 			r.message.forEach((b) => {
+				// Someone else's booking comes back without its name or details:
+				// the slot is taken ("Busy"), and there is nothing to open.
+				const booking = b.name
+					? '<a href="/app/conference-room-booking/' +
+					  encodeURIComponent(b.name) +
+					  '">' +
+					  esc(b.name) +
+					  "</a>"
+					: "";
 				html +=
 					"<tr>" +
-					'<td><a href="/app/conference-room-booking/' +
-					esc(b.name) +
-					'">' +
-					esc(b.name) +
-					"</a></td>" +
+					"<td>" +
+					booking +
+					"</td>" +
 					"<td>" +
 					esc(b.meeting_title) +
 					"</td>" +
@@ -238,7 +269,10 @@ function view_room_schedule(frm) {
 			});
 			html += "</tbody></table>";
 			frappe.msgprint({
-				title: __(esc(frm.doc.conference_room) + " - " + esc(frm.doc.booking_date)),
+				title:
+					esc(frm.doc.conference_room) +
+					" - " +
+					esc(frappe.datetime.str_to_user(frm.doc.booking_date)),
 				message: html,
 				wide: true,
 			});

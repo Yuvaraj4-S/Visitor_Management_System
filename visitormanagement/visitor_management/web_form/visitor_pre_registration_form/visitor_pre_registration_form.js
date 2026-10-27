@@ -23,12 +23,16 @@ const VMS_UPLOAD_KEY = (() => {
 		return open.call(this, method, url, ...rest);
 	};
 	proto.send = function (body) {
-		if (
-			body instanceof FormData &&
-			this.vmsUploadUrl.includes("upload_file") &&
-			!body.has("vms_upload_key")
-		) {
-			body.append("vms_upload_key", VMS_UPLOAD_KEY);
+		if (body instanceof FormData && this.vmsUploadUrl.includes("upload_file")) {
+			if (!body.has("vms_upload_key")) {
+				body.append("vms_upload_key", VMS_UPLOAD_KEY);
+			}
+			// Unless the site allows walk-in pre-registration, the server only takes
+			// uploads from an invited visitor (portal_upload.INVITATION_TOKEN_FIELD).
+			const token = getInvitationToken();
+			if (token && !body.has("vms_invitation_token")) {
+				body.append("vms_invitation_token", token);
+			}
 		}
 		return send.call(this, body);
 	};
@@ -71,6 +75,10 @@ let hospitalityWatchState = {
 };
 let genericFormState = {
 	bound: false,
+};
+let invitationOpenState = {
+	listening: false,
+	recorded: false,
 };
 
 function escapeHtml(value) {
@@ -228,17 +236,28 @@ function renderSuccessPanel(reference) {
 			<div class="vm-success-next">
 				<strong>${__("What happens next")}</strong>
 				<ol>
-					<li>${__("A confirmation email is on its way to you.")}</li>
-					<li>${__("Your host will review and approve the request.")}</li>
-					<li>${__("Once approved, you'll get a final email with a QR pass — show it at the gate.")}</li>
+					<li>${__(
+						"Note the reference above. Quote it if you need to contact your host about this visit."
+					)}</li>
+					<li>${__("Your host will review the request.")}</li>
+					<li>${__("Once it is approved, you'll get an email with a QR pass — show it at the gate.")}</li>
 				</ol>
 			</div>
 		</div>
 	`;
-	const $target = $(".web-form-container").first();
-	if (!$target.length) return;
-	$target.find(".vm-success-panel").remove();
-	$target.prepend(html);
+	// Frappe hides .web-form-container the moment a submission succeeds and shows
+	// .success-page in its place (web_form.js handle_success). The panel used to
+	// be added to the container, so the visitor never saw their reference. It
+	// replaces the stock "Submitted" heading and message on the page that is shown.
+	const $page = $(".success-page").first();
+	if (!$page.length) return;
+	$page.find(".vm-success-panel").remove();
+	$page.find(".success-header, .success-body").addClass("vm-form-hidden");
+	$page.prepend(html);
+	if (getInvitationToken()) {
+		// An invitation link registers one visitor, once.
+		$page.find(".new-btn").remove();
+	}
 	window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -246,6 +265,26 @@ function setFormVisibility(visible) {
 	$(
 		".web-form .form-column, .web-form .section-body, .web-form .web-form-footer, .vm-custom-block"
 	).toggleClass("vm-form-hidden", !visible);
+}
+
+// Visitor Pass will not save without a Company / Organisation for contractor,
+// supplier and customer visits, so a visitor who skipped it here left their host
+// with a pass they could not save. The server names the Visitor Types concerned
+// (window.vmCompanyRequiredTypes, by each type's Detail Layout).
+function applyCompanyRequirement(visitorType) {
+	const field = frappe.web_form?.fields_dict?.company__organisation;
+	if (!field) {
+		return;
+	}
+	const required = (window.vmCompanyRequiredTypes || []).includes(visitorType) ? 1 : 0;
+	if (Number(field.df.reqd || 0) !== required) {
+		frappe.web_form.set_df_property("company__organisation", "reqd", required);
+	}
+}
+
+function applyVisitorType(visitorType) {
+	applyCompanyRequirement(visitorType);
+	applyVisitorTypeSections(visitorType);
 }
 
 function applyVisitorTypeSections(visitorType) {
@@ -649,6 +688,39 @@ function getBootInvitationContext() {
 	};
 }
 
+// The host sees "Opened" once the visitor has opened the link. That used to be
+// recorded on the page load, which mail link scanners (Outlook Safe Links and
+// the like) perform for every link in a message — so invitations read "Opened"
+// before the visitor had seen the mail. It is recorded on the visitor's first
+// tap or keystroke instead. Fire and forget: nothing the visitor does waits on
+// it, and a failure is no business of theirs.
+function recordInvitationOpenOnFirstUse(token) {
+	if (invitationOpenState.listening || !token) {
+		return;
+	}
+	invitationOpenState.listening = true;
+
+	const events = ["pointerdown", "keydown", "touchstart"];
+	const record = () => {
+		events.forEach((name) => document.removeEventListener(name, record, true));
+		if (invitationOpenState.recorded) {
+			return;
+		}
+		invitationOpenState.recorded = true;
+		const headers = { "Content-Type": "application/json", Accept: "application/json" };
+		if (frappe.csrf_token && frappe.csrf_token !== "None") {
+			headers["X-Frappe-CSRF-Token"] = frappe.csrf_token;
+		}
+		fetch(
+			"/api/method/visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation.mark_invitation_opened",
+			{ method: "POST", headers, body: JSON.stringify({ token }) }
+		).catch(() => {});
+	};
+	events.forEach((name) =>
+		document.addEventListener(name, record, { capture: true, passive: true })
+	);
+}
+
 function setSubmitDisabled(disabled) {
 	$(".submit-btn").prop("disabled", disabled);
 }
@@ -661,9 +733,9 @@ function bindGenericFormHandlers() {
 	genericFormState.bound = true;
 
 	const $visitorTypeInput = frappe.web_form.get_input("visitor_type");
-	$visitorTypeInput.on("change", () => {
+	$visitorTypeInput.on("change awesomplete-selectcomplete", () => {
 		setTimeout(() => {
-			applyVisitorTypeSections(getFieldValue("visitor_type"));
+			applyVisitorType(getFieldValue("visitor_type"));
 		}, 0);
 	});
 }
@@ -688,22 +760,44 @@ function unlockDirectAccessFields() {
 
 function enableDirectAccessMode() {
 	unlockDirectAccessFields();
+	// Without an invitation the visitor names their host themselves. The page
+	// carries no staff list to pick from, so say what to type.
+	if (frappe.web_form?.fields_dict?.person_to_visit) {
+		frappe.web_form.set_df_property(
+			"person_to_visit",
+			"description",
+			__("Type the full name or the Employee ID of the person you are visiting.")
+		);
+	}
 	bindGenericFormHandlers();
 	attachHospitalityHandlers();
 	startHospitalityWatcher();
 	renderVisitorItems();
-	applyVisitorTypeSections(getFieldValue("visitor_type"));
+	applyVisitorType(getFieldValue("visitor_type"));
 	attachMobileValidator();
 	setFormVisibility(true);
 	setSubmitDisabled(false);
 }
 
-function syncVisibleLockedField(fieldname, value) {
+// What a locked field shows. `person_to_visit` holds the Employee id, so the
+// visitor was being shown a staff number as the person she had come to see —
+// meaningless to her, and unverifiable, so she rings reception. The pass still
+// stores the id; she reads the host's name. Decided here, in the one place every
+// locked field is painted from, so no later repaint puts the id back.
+function lockedDisplayValue(fieldname, value) {
+	if (fieldname === "person_to_visit") {
+		return getInvitationBackedValue("person_to_visit_display") || value;
+	}
+	return value;
+}
+
+function syncVisibleLockedField(fieldname, storedValue) {
 	const $control = $(`.frappe-control[data-fieldname="${fieldname}"]`);
 	if (!$control.length) {
 		return;
 	}
 
+	const value = lockedDisplayValue(fieldname, storedValue);
 	const displayValue =
 		value === null || value === undefined || value === ""
 			? "-"
@@ -730,16 +824,7 @@ function renderLockedFieldValues(values = {}) {
 			return;
 		}
 
-		// Show a person's name where we have one. `person_to_visit` holds the
-		// Employee id, so the visitor was being shown "HR-EMP-00057" as the person
-		// she had come to see — meaningless to her, and unverifiable, so she rings
-		// reception. The pass still stores the id; only what she reads changes.
-		const display =
-			fieldname === "person_to_visit" && values.person_to_visit_display
-				? values.person_to_visit_display
-				: values[fieldname];
-
-		syncVisibleLockedField(fieldname, display);
+		syncVisibleLockedField(fieldname, values[fieldname]);
 	});
 }
 
@@ -769,7 +854,7 @@ async function applyInvitationValuesWithRetry(values) {
 		LOCKED_FIELDS.forEach((fieldname) =>
 			syncVisibleLockedField(fieldname, values?.[fieldname])
 		);
-		applyVisitorTypeSections(values?.visitor_type);
+		applyVisitorType(values?.visitor_type);
 	}, 300);
 }
 
@@ -865,24 +950,10 @@ function lockInvitationFields() {
 	});
 }
 
-// Only offer ID types that are switched on. A Link field lists every row unless
-// it is told otherwise, so an ID Proof Type an administrator had DEACTIVATED
-// stayed on the public form — decommissioned types and leftover test entries
-// ("C5 DL Probe 1786539733") were being offered to real visitors, who have no
-// way to know which are genuine. Reported twice from live walkthroughs.
-// Setting is_active = 0 now actually removes it from the visitor's choices.
-function restrictIdProofTypesToActive() {
-	const field = frappe.web_form?.fields_dict?.id_proof_type;
-	if (!field || field._vmActiveOnly) {
-		return;
-	}
-	field._vmActiveOnly = true;
-	field.get_query = () => ({ filters: { is_active: 1 } });
-	// The control caches its query on first render; clear anything already shown.
-	if (field.df) {
-		field.df.get_query = field.get_query;
-	}
-}
+// The ID Proof Type and Visitor Type lists hold active records only. That is
+// decided on the server (visitor_pre_registration_form.py PORTAL_PICK_LISTS):
+// the lists are written into the page before this script runs, so a filter set
+// from here never had any effect on them.
 
 async function handleInvitationAfterLoad() {
 	if (invitationContextState.afterLoadTriggered) {
@@ -895,7 +966,6 @@ async function handleInvitationAfterLoad() {
 	}
 
 	invitationContextState.afterLoadTriggered = true;
-	restrictIdProofTypesToActive();
 
 	const token = getInvitationToken();
 	invitationContextState = {
@@ -916,6 +986,12 @@ async function handleInvitationAfterLoad() {
 	renderLockedFieldValues(window.vmInvitationValues || {});
 
 	if (!token) {
+		// Walk-in pre-registration is off unless VMS Settings allows it. The page
+		// then shows "Invitation Required" in place of the form (set on the server,
+		// window.vmWalkInAllowed), so the form stays hidden and cannot be submitted.
+		if (!window.vmWalkInAllowed) {
+			return;
+		}
 		enableDirectAccessMode();
 		return;
 	}
@@ -956,12 +1032,13 @@ async function handleInvitationAfterLoad() {
 		await applyInvitationValuesWithRetry(context.values || {});
 		ensureInvitationBinding();
 		lockInvitationFields();
-		applyVisitorTypeSections(context.values?.visitor_type);
+		applyVisitorType(context.values?.visitor_type);
 		attachHospitalityHandlers();
 		startHospitalityWatcher();
 		await syncHospitalityFieldsFromMealToggle();
 		renderVisitorItems(getVisitorItemsFromContext());
 		attachMobileValidator();
+		recordInvitationOpenOnFirstUse(token);
 		setFormVisibility(true);
 		setSubmitDisabled(false);
 	} catch (error) {

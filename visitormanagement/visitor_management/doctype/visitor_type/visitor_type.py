@@ -6,6 +6,7 @@ from frappe.model.document import Document
 
 from visitormanagement.visitor_management.workflow_builder import (
 	rebuild_on_visitor_type_change,
+	types_with_pending_passes,
 )
 
 
@@ -21,6 +22,7 @@ class VisitorType(Document):
 
 		self._require_approver_role()
 		self._guard_approver_role_changes()
+		self._refuse_stranding_pending_passes()
 
 	def _require_approver_role(self):
 		"""A type with no approver role builds no workflow lane, so its passes
@@ -54,6 +56,16 @@ class VisitorType(Document):
 				).format(self.visitor_type_name),
 				title=_("Approver Role Required"),
 			)
+		# The same role twice is not two approvals: the second lane would be the
+		# first one again, and its Approve could never reach Approved.
+		if self.secondary_approver_role and self.secondary_approver_role == self.approver_role:
+			frappe.throw(
+				_(
+					"Secondary Approver Role must be a different role from the Approver Role ({0}). "
+					"Leave it empty for a single approval."
+				).format(self.approver_role),
+				title=_("Same Approver Twice"),
+			)
 
 	def _guard_approver_role_changes(self):
 		"""Only a System Manager may decide who approves a visitor type.
@@ -86,6 +98,37 @@ class VisitorType(Document):
 				),
 				frappe.PermissionError,
 			)
+
+	def _refuse_stranding_pending_passes(self):
+		"""Passes awaiting approval must be decided before their type changes under them.
+
+		A pending pass sits in the lane of the role that was to approve it, and the
+		workflow's conditions read this record live. Point the type at another
+		approver and the pass is in a lane whose Approve no longer applies to it —
+		or in a lane that is gone, if no other type uses that role. Switching the
+		type off takes it out of the picker while its passes still wait. Either way
+		the administrator is told how many passes are in the way, before the change
+		and not by a stuck pass afterwards.
+		"""
+		before = self.get_doc_before_save()
+		if not before:
+			return
+		deactivated = before.is_active and not self.is_active
+		rerouted = any(before.get(field) != self.get(field) for field in self.APPROVER_FIELDS)
+		if not (deactivated or rerouted) or not types_with_pending_passes([self.name]):
+			return
+
+		pending = frappe.db.count(
+			"Visitor Pass",
+			{"visitor_type": self.name, "docstatus": 0, "workflow_state": ("like", "Pending %")},
+		)
+		frappe.throw(
+			_(
+				"{0} pass(es) of type {1} are awaiting approval. Approve or reject them first, "
+				"then deactivate the type or change its approver roles."
+			).format(pending, frappe.bold(self.name)),
+			title=_("Passes Awaiting Approval"),
+		)
 
 	def on_update(self):
 		# The approval workflow's lanes are generated from this table, so adding a

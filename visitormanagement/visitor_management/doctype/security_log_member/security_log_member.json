@@ -1,0 +1,61 @@
+{
+ "actions": [],
+ "creation": "2026-10-15 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "group_member_row",
+  "visitor_name",
+  "present",
+  "badge_number"
+ ],
+ "fields": [
+  {
+   "description": "The Visitor Group Member row on the pass this line stands for.",
+   "fieldname": "group_member_row",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Group Member Row",
+   "read_only": 1
+  },
+  {
+   "columns": 5,
+   "fieldname": "visitor_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Visitor Name",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "default": "1",
+   "description": "Ticked: this person is at the gate now, arriving (check-in) or leaving (check-out). Untick anyone who is not.",
+   "fieldname": "present",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Present"
+  },
+  {
+   "columns": 3,
+   "fieldname": "badge_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Badge Number",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-15 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Visitor Management",
+ "name": "Security Log Member",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

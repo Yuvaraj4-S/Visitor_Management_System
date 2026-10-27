@@ -1,7 +1,7 @@
 {
  "attach_print": 0,
  "channel": "Email",
- "condition": "",
+ "condition": "doc.workflow_state == 'Pending Approval'",
  "condition_type": "Python",
  "creation": "2026-04-22 17:00:00.000000",
  "days_in_advance": 0,
@@ -9,12 +9,12 @@
  "doctype": "Notification",
  "document_type": "Hospitality Request",
  "enabled": 1,
- "event": "New",
+ "event": "Value Change",
  "idx": 0,
  "is_standard": 0,
- "message": "<div style=\"font-family:Arial,sans-serif;font-size:13px;color:#1f2933;background-color:#ffffff;padding:14px;border-radius:6px;max-width:420px;\">\n<p style=\"margin:0 0 8px;color:#102a43;font-size:14px;line-height:1.5;\"><b style=\"color:#102a43;\">New hospitality request <a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\" style=\"color:#2563eb;text-decoration:none;\">{{ doc.name }}</a></b> needs review.</p>\n<p style=\"margin:0 0 12px;color:#3e4c59;font-size:13px;line-height:1.7;word-break:break-word;\">\n<b style=\"color:#5b6b7b;\">Visitor:</b> <span style=\"color:#1f2933;\">{{ doc.visitor_name_display or '-' }}</span> &middot; <b style=\"color:#5b6b7b;\">Pass:</b> <span style=\"color:#1f2933;\">{{ doc.visitor_pass }}</span><br>\n<b style=\"color:#5b6b7b;\">Visit window:</b> <span style=\"color:#1f2933;\">{{ doc.visit_start_time or '-' }}&ndash;{{ doc.visit_end_time or '-' }}</span><br>\n<b style=\"color:#5b6b7b;\">Services:</b> <span style=\"color:#1f2933;\">{% set svc = [] %}{% if doc.meal_required %}{% set _ = svc.append('Meal') %}{% endif %}{% if doc.cab_required %}{% set _ = svc.append('Cab') %}{% endif %}{% if doc.hotel_required %}{% set _ = svc.append('Hotel') %}{% endif %}{% if doc.buggy_required %}{% set _ = svc.append('Buggy') %}{% endif %}{% if doc.factory_tour_required %}{% set _ = svc.append('Factory Tour') %}{% endif %}{% if doc.greeting_required %}{% set _ = svc.append('Greeting') %}{% endif %}{% if svc %}{{ svc | join(' &middot; ') }}{% else %}None{% endif %}</span>\n</p>\n<p style=\"margin:12px 0 0;\"><a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\" style=\"display:inline-block;background:#2563eb;color:#ffffff;padding:7px 14px;text-decoration:none;border-radius:4px;font-size:13px;font-weight:600;\">Open Request &rarr;</a></p>\n</div>",
+ "message": "<div style=\"font-family:Arial,sans-serif;font-size:13px;color:#1f2933;background-color:#ffffff;padding:14px;border-radius:6px;max-width:420px;\">\n<p style=\"margin:0 0 8px;color:#102a43;font-size:14px;line-height:1.5;\"><b style=\"color:#102a43;\">New hospitality request <a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\" style=\"color:#2563eb;text-decoration:none;\">{{ (doc.name) | e }}</a></b> needs review.</p>\n<p style=\"margin:0 0 12px;color:#3e4c59;font-size:13px;line-height:1.7;word-break:break-word;\">\n<b style=\"color:#5b6b7b;\">Visitor:</b> <span style=\"color:#1f2933;\">{{ (doc.visitor_name_display or '-') | e }}</span> &middot; <b style=\"color:#5b6b7b;\">Pass:</b> <span style=\"color:#1f2933;\">{{ (doc.visitor_pass) | e }}</span><br>\n<b style=\"color:#5b6b7b;\">Visit window:</b> <span style=\"color:#1f2933;\">{{ (doc.visit_start_time or '-') | e }}&ndash;{{ (doc.visit_end_time or '-') | e }}</span><br>\n<b style=\"color:#5b6b7b;\">Services:</b> <span style=\"color:#1f2933;\">{% set svc = [] %}{% if doc.meal_required %}{% set _ = svc.append('Meal') %}{% endif %}{% if doc.cab_required %}{% set _ = svc.append('Cab') %}{% endif %}{% if doc.hotel_required %}{% set _ = svc.append('Hotel') %}{% endif %}{% if doc.buggy_required %}{% set _ = svc.append('Buggy') %}{% endif %}{% if doc.factory_tour_required %}{% set _ = svc.append('Factory Tour') %}{% endif %}{% if doc.greeting_required %}{% set _ = svc.append('Greeting') %}{% endif %}{% if svc %}{{ svc | join(' &middot; ') }}{% else %}None{% endif %}</span>\n</p>\n<p style=\"margin:12px 0 0;\"><a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\" style=\"display:inline-block;background:#2563eb;color:#ffffff;padding:7px 14px;text-decoration:none;border-radius:4px;font-size:13px;font-weight:600;\">Open Request &rarr;</a></p>\n</div>",
  "message_type": "HTML",
- "modified": "2026-08-20 12:25:58.335714",
+ "modified": "2026-10-06 04:00:00.000000",
  "modified_by": "Administrator",
  "module": "Visitor Management",
  "name": "VMS Hospitality Request New",
@@ -24,7 +24,8 @@
    "receiver_by_role": "Hospitality Manager"
   }
  ],
- "send_system_notification": 1,
+ "send_system_notification": 0,
  "send_to_all_assignees": 0,
- "subject": "New hospitality request: {{ doc.name }}"
+ "subject": "New hospitality request: {{ doc.name }}",
+ "value_changed": "workflow_state"
 }

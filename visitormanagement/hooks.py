@@ -35,12 +35,10 @@ add_to_apps_screen = [
 # ------------------
 
 # include js, css files in header of desk.html
-# Desk CSS. Currently one rule: a chart legend variable Frappe leaves
-# undefined in dark mode, which made donut chart values invisible.
-app_include_css = "/assets/visitormanagement/css/visitormanagement.css"
-# Workarounds for two Frappe core desk bugs (Phone control race, app-switcher
-# dividers requesting /undefined). See the file for the traces.
-app_include_js = "/assets/visitormanagement/js/core_fixes.js"
+# Deliberately none: desk-wide JS/CSS from an app changes Frappe's own desk for
+# every app on the site. Core desk bugs are reported upstream, not patched here.
+# app_include_css = "/assets/visitormanagement/css/visitormanagement.css"
+# app_include_js = "/assets/visitormanagement/js/visitormanagement.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/visitormanagement/css/visitormanagement.css"
@@ -59,8 +57,18 @@ webform_include_js = {
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-doctype_js = {"Job Applicant": "public/js/job_applicant.js"}
-# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
+# walk_in.js: the gate's short "New Walk-In" form (VMS Settings > Optional Features).
+doctype_js = {
+	"Job Applicant": "public/js/job_applicant.js",
+	"Security Log": "public/js/walk_in.js",
+	# The "Reveal Full ID" button (visitor_management/id_numbers.py: reveal_id).
+	"Visitor Pass": "public/js/reveal_id.js",
+	"Visitor Blacklist": "public/js/reveal_id.js",
+}
+doctype_list_js = {
+	"Visitor Pass": "public/js/walk_in.js",
+	"Security Log": "public/js/walk_in.js",
+}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
@@ -172,6 +180,16 @@ has_permission = {
 	"Visitor Invitation": "visitormanagement.permissions.has_visitor_invitation_permission",
 	"Hospitality Request": "visitormanagement.permissions.has_hospitality_request_permission",
 	"Conference Room Booking": "visitormanagement.permissions.has_conference_room_booking_permission",
+	# Refuses only, and only for Files attached to a Visitor Pass or a Security Log;
+	# it answers True at once for every other File, so Frappe's own File rules
+	# decide those. (1) The documents of a pass that has left Draft, and of a gate
+	# log once it is recorded, cannot be deleted, edited or moved off the record.
+	# A permission hook rather than an on_trash event, which would run after Frappe
+	# has already removed the bytes from disk. (2) Owner decision D2: the visitor's
+	# ID scan, photo and visa copy are opened only by Security, System Manager and
+	# the approver of the step the pass is waiting at. The bytes themselves are
+	# guarded by the auth hook below. See uploads.has_file_permission.
+	"File": "visitormanagement.visitor_management.uploads.has_file_permission",
 }
 
 # DocType Class
@@ -202,7 +220,18 @@ doc_events = {
 	# site-wide switch. This keeps anonymous uploads to what the portal asks
 	# for; logged-in users of any app are untouched.
 	"File": {
-		"before_insert": "visitormanagement.visitor_management.portal_upload.guard_guest_upload",
+		"before_insert": [
+			"visitormanagement.visitor_management.portal_upload.guard_guest_upload",
+			# Owner decision D2: a visitor's identity file is not copied onto another
+			# record (an e-mail's attachment, say) by someone who may not open it.
+			# Copies onto a Visitor Pass / Security Log and unattached uploads return
+			# at once. See uploads.refuse_identity_file_copy.
+			"visitormanagement.visitor_management.uploads.refuse_identity_file_copy",
+		],
+		# Notes which files the portal accepted, so the nightly clean-up of abandoned
+		# uploads deletes those and never another guest page's files. Guest requests
+		# only; every other File insert returns at the first line.
+		"after_insert": "visitormanagement.visitor_management.tasks.note_portal_upload",
 	},
 }
 
@@ -216,10 +245,13 @@ scheduler_events = {
 		# OFF in effect on every site until an administrator turns on VMS Settings ->
 		# Enable Data Retention Purge: the function re-checks that flag first and
 		# returns immediately when it is unset, so scheduling it here cannot delete
-		# anything on a site that has not explicitly opted in.
+		# anything on a site that has not explicitly opted in. Both clean-ups below
+		# only queue their work on the long queue (default-queue jobs are stopped at
+		# 300 s), where it goes in committed chunks.
 		"0 3 * * *": ["visitormanagement.visitor_management.tasks.purge_expired_visitor_data"],
 		# Always on: these files are attached to nothing and can never be (see the
-		# function). Unlike the retention purge it touches no saved record.
+		# function). Unlike the retention purge it touches no saved record, and of
+		# guest uploads it only takes the ones the visitor portal itself accepted.
 		"30 3 * * *": ["visitormanagement.visitor_management.tasks.purge_abandoned_uploads"],
 	},
 	"hourly": [
@@ -228,6 +260,16 @@ scheduler_events = {
 		# arrived, this one the visitor who arrived and never left. Nothing chased
 		# the second case, so the building's own answer to "who is inside" drifted.
 		"visitormanagement.visitor_management.tasks.flag_overstaying_visitors",
+		# An invitation used to become "Expired" only when somebody opened its link,
+		# so the Pending Invitations card kept counting links nobody would open again.
+		"visitormanagement.visitor_management.tasks.expire_stale_invitations",
+		# A pass nobody approved before its last valid day stayed in the approver's
+		# queue for good; it is moved to Rejected with a note saying why.
+		"visitormanagement.visitor_management.tasks.expire_unapproved_passes",
+		# Reminds the approvers of a pass that has waited too long at their step.
+		# Each scheduled method is its own Scheduled Job Type, run and logged on
+		# its own, so a failure here cannot stop the jobs above.
+		"visitormanagement.visitor_management.approval_tasks.remind_pending_approvers",
 	],
 }
 
@@ -302,9 +344,17 @@ after_request = [
 # Authentication and authorization
 # --------------------------------
 
-# auth_hooks = [
-# 	"visitormanagement.auth.validate"
-# ]
+# Owner decision D2: the bytes of a visitor's ID scan, photo and visa copy go only
+# to Security, System Manager and the approver of the step the pass is waiting at.
+# Frappe serves a private file (/private/files/..., download_file, zip_files)
+# without asking any File has_permission hook — only whether the user can read the
+# record it is attached to, which every reader of the pass can. This is the one
+# hook that runs after the user is known and before the request is dispatched. It
+# only refuses, and every other request returns at its first lines. See
+# uploads.guard_identity_file_download.
+auth_hooks = [
+	"visitormanagement.visitor_management.uploads.guard_identity_file_download",
+]
 
 # Automatically update python controller files with type annotations for this app.
 # export_python_type_annotations = True

@@ -1,11 +1,12 @@
 {
+ "app": "visitormanagement",
  "charts": [
   {
    "chart_name": "Bookings by Room",
    "label": "Bookings by Room"
   }
  ],
- "content": "[{\"id\":\"fm-h-today\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Today's Room Operations</b></span>\",\"col\":12}},{\"id\":\"fm-c-today\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Today's Conference Bookings\",\"col\":4}},{\"id\":\"fm-c-pending\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending Room Approvals\",\"col\":4}},{\"id\":\"fm-c-total\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Total Conference Rooms\",\"col\":4}},{\"id\":\"fm-h-analytics\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Room Utilization</b></span>\",\"col\":12}},{\"id\":\"fm-ch-rooms\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Bookings by Room\",\"col\":12}},{\"id\":\"fm-sp-1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"fm-h-quick\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Access</b></span>\",\"col\":12}},{\"id\":\"fm-s-booking\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Conference Room Booking\",\"col\":3}},{\"id\":\"fm-s-room\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Conference Room\",\"col\":3}},{\"id\":\"fm-s-sched\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Daily Booking Schedule\",\"col\":3}},{\"id\":\"fm-s-util\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Room Utilization\",\"col\":3}},{\"id\":\"fm-sp-2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"fm-h-mods\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Manage</b></span>\",\"col\":12}},{\"id\":\"fm-link-1\",\"type\":\"card\",\"data\":{\"card_name\":\"Bookings\",\"col\":6}},{\"id\":\"fm-link-2\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":6}}]",
+ "content": "[{\"id\": \"crb-h-actions\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Quick Actions</b></span>\", \"col\": 12}}, {\"id\": \"crb-s-0\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"New Booking\", \"col\": 3}}, {\"id\": \"crb-s-1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Room Calendar\", \"col\": 3}}, {\"id\": \"crb-s-2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"All Bookings\", \"col\": 3}}, {\"id\": \"crb-s-3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Daily Booking Schedule\", \"col\": 3}}, {\"id\": \"crb-h-today\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Today</b></span>\", \"col\": 12}}, {\"id\": \"crb-c-0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Today's Conference Bookings\", \"col\": 4}}, {\"id\": \"crb-c-1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Pending Room Approvals\", \"col\": 4}}, {\"id\": \"crb-c-2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Total Conference Rooms\", \"col\": 4}}, {\"id\": \"crb-h-use\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Room Use</b></span>\", \"col\": 12}}, {\"id\": \"crb-ch-0\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Bookings by Room\", \"col\": 12}}, {\"id\": \"crb-h-browse\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Browse</b></span>\", \"col\": 12}}, {\"id\": \"crb-k-0\", \"type\": \"card\", \"data\": {\"card_name\": \"Rooms & Reports\", \"col\": 4}}]",
  "creation": "2026-05-13 00:00:00.000000",
  "custom_blocks": [],
  "docstatus": 0,
@@ -20,55 +21,20 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Bookings",
-   "link_count": 0,
-   "link_type": "DocType",
+   "label": "Rooms & Reports",
+   "link_count": 2,
    "onboard": 0,
    "type": "Card Break"
   },
   {
    "dependencies": "",
-   "description": "Manage meeting room bookings — approve, reject, reschedule.",
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Conference Room Booking",
-   "link_count": 0,
-   "link_to": "Conference Room Booking",
-   "link_type": "DocType",
-   "onboard": 1,
-   "type": "Link"
-  },
-  {
-   "dependencies": "",
-   "description": "Master list of meeting rooms — capacity, amenities, operating hours.",
    "hidden": 0,
    "is_query_report": 0,
    "label": "Conference Room",
    "link_count": 0,
    "link_to": "Conference Room",
    "link_type": "DocType",
-   "onboard": 1,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Reports",
-   "link_count": 0,
-   "link_type": "DocType",
    "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "dependencies": "",
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Daily Booking Schedule",
-   "link_count": 0,
-   "link_to": "Daily Booking Schedule",
-   "link_type": "Report",
-   "onboard": 1,
-   "report_ref_doctype": "Conference Room Booking",
    "type": "Link"
   },
   {
@@ -79,12 +45,11 @@
    "link_count": 0,
    "link_to": "Room Utilization",
    "link_type": "Report",
-   "onboard": 1,
-   "report_ref_doctype": "Conference Room Booking",
+   "onboard": 0,
    "type": "Link"
   }
  ],
- "modified": "2026-08-05 15:11:37.853504",
+ "modified": "2026-10-16 10:40:00.000000",
  "modified_by": "Administrator",
  "module": "Conference Room",
  "name": "Conference Rooms",
@@ -118,29 +83,34 @@
  "sequence_id": 30.0,
  "shortcuts": [
   {
-   "label": "Conference Room Booking",
+   "color": "Blue",
+   "doc_view": "New",
+   "label": "New Booking",
    "link_to": "Conference Room Booking",
    "type": "DocType"
   },
   {
-   "label": "Conference Room",
-   "link_to": "Conference Room",
+   "color": "Green",
+   "doc_view": "Calendar",
+   "label": "Room Calendar",
+   "link_to": "Conference Room Booking",
    "type": "DocType"
   },
   {
-   "label": "Daily Booking Schedule",
-   "link_to": "Daily Booking Schedule",
-   "report_ref_doctype": "Conference Room Booking",
-   "type": "Report"
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "All Bookings",
+   "link_to": "Conference Room Booking",
+   "type": "DocType"
   },
   {
-   "label": "Room Utilization",
-   "link_to": "Room Utilization",
-   "report_ref_doctype": "Conference Room Booking",
+   "color": "Grey",
+   "doc_view": "",
+   "label": "Daily Booking Schedule",
+   "link_to": "Daily Booking Schedule",
    "type": "Report"
   }
  ],
  "title": "Conference Rooms",
- "app": "visitormanagement",
  "type": "Workspace"
 }

@@ -6,7 +6,8 @@ GROUP BY over existing rows. A Visitor Type with no Visitor Pass rows can never
 produce a group, so it silently drops off the chart instead of showing a zero.
 This source starts from the Visitor Type master (not from Visitor Pass) and
 zero-fills, so every active type is represented — a true zero reads as a zero,
-not as "missing".
+not as "missing". That holds for a user who may read the master; anyone else
+gets the types of the passes they can see, and no more.
 
 `get_visitor_pass_counts_by_type()` is shared by this module and the sibling
 "Pending Visitor Passes by Type" source (visitor_passes_by_type_pending) so the
@@ -22,7 +23,7 @@ from frappe.utils.dashboard import cache_source
 def get_visitor_pass_counts_by_type(workflow_state_like: str | None = None) -> tuple[list[str], list[int]]:
 	"""Count Visitor Pass rows per active Visitor Type, zero-filled and sorted.
 
-	Both queries here go through `frappe.get_list` (never `frappe.get_all` or raw
+	The passes are counted through `frappe.get_list` (never `frappe.get_all` or raw
 	SQL), so this respects the same permissions every other Visitor Pass read in
 	this app does: the row-level scoping from
 	`visitormanagement.permissions.get_visitor_pass_permission_query_conditions`
@@ -30,6 +31,14 @@ def get_visitor_pass_counts_by_type(workflow_state_like: str | None = None) -> t
 	different counts — e.g. Security only sees passes in gate-relevant statuses,
 	so a role with nothing visible correctly gets all-zero counts here rather
 	than being special-cased.
+
+	The chart is about passes, so read on Visitor Pass is the permission it asks
+	for. It used to list the Visitor Type master as the user as well, and a guard
+	or a host-only login holds no permission on that master: both charts answered
+	403 on every load of the workspace. Such a user is not given the master
+	either — the labels come from the `visitor_type` of their own permitted
+	passes, which they can already see on each of them. The master is read here
+	only to keep inactive types off the chart.
 
 	:param workflow_state_like: optional `workflow_state` LIKE pattern to filter
 		on (e.g. "Pending%"). Omit for an all-state count. `workflow_state`, not
@@ -43,13 +52,17 @@ def get_visitor_pass_counts_by_type(workflow_state_like: str | None = None) -> t
 	:return: (labels, values) — active Visitor Type names and their matching
 		Visitor Pass counts, sorted by count descending, ties broken by name.
 	"""
-	visitor_types = frappe.get_list("Visitor Type", filters={"is_active": 1}, pluck="name")
+	frappe.has_permission("Visitor Pass", "read", throw=True)
+
+	active_types = frappe.get_all("Visitor Type", filters={"is_active": 1}, pluck="name")
+	if not active_types:
+		return [], []
 
 	# Exclude cancelled documents — the same convention the stock Dashboard Chart
 	# dispatcher (frappe.desk.doctype.dashboard_chart.dashboard_chart.get) applies
 	# to every chart via `filters.append([doctype, "docstatus", "<", 2])`. Visitor
 	# Pass is submittable (is_submittable=1), so this matters here too.
-	filters = [["visitor_type", "in", visitor_types], ["docstatus", "<", 2]]
+	filters = [["visitor_type", "in", active_types], ["docstatus", "<", 2]]
 	if workflow_state_like:
 		filters.append(["workflow_state", "like", workflow_state_like])
 
@@ -63,7 +76,12 @@ def get_visitor_pass_counts_by_type(workflow_state_like: str | None = None) -> t
 
 	# Zero-fill: every active Visitor Type appears even if it has no matching
 	# Visitor Pass rows (e.g. "Researcher" — this is the whole point of moving
-	# off "Group By", which cannot represent a zero-row group at all).
+	# off "Group By", which cannot represent a zero-row group at all). Only for a
+	# user who may read the master; see the docstring.
+	if frappe.has_permission("Visitor Type", "read"):
+		visitor_types = active_types
+	else:
+		visitor_types = list(count_by_type)
 	rows = [(visitor_type, count_by_type.get(visitor_type, 0)) for visitor_type in visitor_types]
 	rows.sort(key=lambda row: (-row[1], row[0]))
 

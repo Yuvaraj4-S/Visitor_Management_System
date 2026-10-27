@@ -38,15 +38,18 @@ def _validate_upload(filename, content):
 
 
 from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_invitation import (
+	OPEN_STATUSES,
+	existing_pass_for,
 	get_valid_invitation_by_token,
 )
 from visitormanagement.visitor_management.validators import (
 	id_proof_error_message,
+	is_masked_id,
 	validate_id,
 )
 
-# Ceiling for the identity-keyed limiter below (socket peer, unless a declared
-# proxy forwarded the request — see portal_upload._rate_limit_identity). This
+# Ceiling for the limiter below, counted per invitation for an invited visitor
+# and per client address for a walk-in (portal_upload.rate_limit_bucket). This
 # used to be an independent hardcoded 20 that only claimed to mirror the
 # @rate_limit decorator on submit_pre_registration; raising either one did
 # nothing to the other. It now reads vms_settings.max_portal_submissions_per_hour()
@@ -67,17 +70,41 @@ def _max_submissions_per_hour():
 	return value if value else DEFAULT_MAX_SUBMISSIONS_PER_HOUR
 
 
-def _enforce_submission_rate_limit():
+def _enforce_submission_rate_limit(invitation=None):
 	from visitormanagement.visitor_management.portal_upload import (
 		_count_or_throw,
-		_rate_limit_identity,
+		rate_limit_bucket,
 	)
 
 	_count_or_throw(
-		f"vms:portal-submit:{_rate_limit_identity()}",
+		f"vms:portal-submit:{rate_limit_bucket(invitation)}",
 		_max_submissions_per_hour(),
 		_("Too many pre-registrations from this connection. Please wait a while and try again."),
 	)
+
+
+def invitation_required_message():
+	"""What a visitor without an invitation link is told while walk-ins are off.
+
+	One wording for the page, the submission and the uploads, so a visitor who
+	meets the refusal in any of them reads the same instruction.
+	"""
+	return _(
+		"Pre-registration is by invitation only. Please ask the person you are visiting for an "
+		"invitation link."
+	)
+
+
+def _refuse_without_invitation(invitation):
+	"""Turn away a submission that holds no valid invitation, unless walk-ins are allowed.
+
+	Called before anything in the submission is read beyond its token: the host
+	is not looked up, no file is adopted or stored and no pass is built, so a
+	caller without an invitation learns nothing about who works here.
+	"""
+	if invitation or vms_settings.pre_registration_without_invitation_allowed():
+		return
+	frappe.throw(invitation_required_message(), frappe.PermissionError, title=_("Invitation Required"))
 
 
 def _looks_like_file_url(payload):
@@ -135,20 +162,32 @@ def _claim_invitation(invitation):
 	the database instead of racing between a read and a later write. `rowcount`
 	is the authority on who won: 0 rows means somebody else already submitted
 	this invitation.
+
+	The token goes in the same write. A used link that kept its token came back
+	to life the moment anything moved the status off "Submitted" again, and a
+	Cancelled or Expired one could still be claimed here (`!= 'Submitted'`).
 	"""
 	frappe.db.sql(
 		"""
 		UPDATE `tabVisitor Invitation`
-		SET invitation_status = 'Submitted', form_submitted_on = %(now)s
-		WHERE name = %(name)s AND invitation_status != 'Submitted'
+		SET invitation_status = 'Submitted', form_submitted_on = %(now)s,
+			invitation_token = NULL, portal_submission_url = NULL
+		WHERE name = %(name)s AND invitation_token = %(token)s
+			AND invitation_status IN %(open_statuses)s
 		""",
-		{"name": invitation.name, "now": now_datetime()},
+		{
+			"name": invitation.name,
+			"token": invitation.invitation_token,
+			"now": now_datetime(),
+			"open_statuses": OPEN_STATUSES,
+		},
 	)
 	if not frappe.db._cursor.rowcount:
 		frappe.throw(
 			_("This invitation has already been used. Please ask your host for a new link."),
 			frappe.ValidationError,
 		)
+	frappe.clear_document_cache("Visitor Invitation", invitation.name)
 
 
 # How long a File the portal itself created may sit unattached before it stops
@@ -360,27 +399,28 @@ def phonenumbers_region_for_code(calling_code):
 	return None if not region or region == "ZZ" else region
 
 
+def host_not_found_message():
+	return _("We couldn't find that host. Please check the name, or ask reception.")
+
+
 def _resolve_employee_link(value):
+	"""The active Employee a walk-in visitor named as their host, or a refusal.
+
+	The visitor is anonymous, so every miss reads the same — not found, not
+	active, not an employee — and the page never learns more than "found" about
+	anyone. It used to tell an ID that exists from one that does not, and an
+	inactive host from an unknown one.
+	"""
 	value = (value or "").strip()
 	if not value:
 		return value
 
-	if frappe.db.exists("Employee", value):
-		return value
+	for field in ("name", "employee_name", "user_id", "company_email"):
+		employee = frappe.db.get_value("Employee", {field: value, "status": "Active"}, "name")
+		if employee:
+			return employee
 
-	by_name = frappe.db.get_value("Employee", {"employee_name": value}, "name")
-	if by_name:
-		return by_name
-
-	by_user = frappe.db.get_value("Employee", {"user_id": value}, "name")
-	if by_user:
-		return by_user
-
-	by_email = frappe.db.get_value("Employee", {"company_email": value}, "name")
-	if by_email:
-		return by_email
-
-	return value
+	frappe.throw(host_not_found_message(), title=_("Host Not Found"))
 
 
 def _normalize_id_proof_type(id_proof_type):
@@ -518,7 +558,7 @@ def _build_visitor_pass_values(
 			return invitation.get(field)
 		return data.get(field)
 
-	return {
+	values = {
 		"entry_type": "New",
 		"visitor_full_name": (
 			data.get("visitor_full_name")
@@ -549,16 +589,15 @@ def _build_visitor_pass_values(
 		"purpose_of_visit": (invitation.purpose_of_visit if invitation else None)
 		or data.get("purpose_of_visit"),
 		"visitor_type": visitor_type,
-		"supplier_link": data.get("supplier_link"),
+		# supplier_link / contractor_link / work_order_ref / job_applicant_link
+		# are internal record IDs, and multi_day_pass / pass_valid_until decide
+		# how long the gate honours the pass; position_applied is read-only on
+		# the pass. None of them is the visitor's to state, so none is read from
+		# `data` — staff set them on the pass. Leaving the key out, rather than
+		# writing None, keeps what staff may already have set on a saved pass.
 		"supplier_visit_mode": data.get("supplier_visit_mode"),
 		"visit_category": data.get("visit_category"),
-		"contractor_link": data.get("contractor_link"),
-		"work_order_ref": data.get("work_order_ref"),
 		"tools_list": data.get("tools_list"),
-		"multi_day_pass": data.get("multi_day_pass"),
-		"pass_valid_until": data.get("pass_valid_until"),
-		"job_applicant_link": data.get("job_applicant_link"),
-		"position_applied": data.get("position_applied"),
 		"candidate_interview_type": data.get("candidate_interview_type"),
 		# interview_panel / vip_category / protocol_notes are deliberately NOT read
 		# from `data`. They were, and all three are staff decisions about a visitor
@@ -591,6 +630,10 @@ def _build_visitor_pass_values(
 		"custom_visa_copy": visa_url,
 		"id_proof_type": _normalize_id_proof_type(data.get("id_proof_type")),
 		"id_proof_number": data.get("id_proof_number"),
+		# Also through "ID Proof Number": on a saved draft Frappe restores the masked
+		# id_proof_number from the database for a Guest before validate, so a
+		# corrected number only takes effect from here (id_numbers.take_typed_id).
+		"id_proof_masked": None if is_masked_id(data.get("id_proof_number")) else data.get("id_proof_number"),
 		"id_proof_scan": id_proof_url,
 		"visitor_photo": visitor_photo_url,
 		# Host-set hospitality + venue intent — copied from the invitation so the
@@ -614,6 +657,11 @@ def _build_visitor_pass_values(
 		"request_channel": "Portal",
 		"visitor_invitation": invitation.name if invitation else None,
 	}
+	# A candidate invited from their Job Applicant is linked to it, so the pass
+	# shows the position they applied for (VisitorPass fills position_applied).
+	if invitation is not None and invitation.get("reference_job_applicant"):
+		values["job_applicant_link"] = invitation.reference_job_applicant
+	return values
 
 
 # Unauthenticated endpoint that inserts a Visitor Pass and stores up to two 5 MB
@@ -633,12 +681,6 @@ def _build_visitor_pass_values(
 @frappe.whitelist(allow_guest=True)
 @rate_limit(limit=20, seconds=60 * 60)
 def submit_pre_registration(payload: str | dict | None = None):
-	# Frappe's own @rate_limit keys on frappe.local.request_ip, which is read
-	# from X-Forwarded-For without trusted-proxy validation — so the decorator
-	# above is defeated by rotating that header. This second limit keys on the
-	# identity the caller cannot rewrite (see portal_upload._rate_limit_identity).
-	_enforce_submission_rate_limit()
-
 	data = payload or frappe.form_dict
 	if isinstance(data, str):
 		data = json.loads(data)
@@ -646,12 +688,24 @@ def submit_pre_registration(payload: str | dict | None = None):
 	invitation = get_valid_invitation_by_token(data.get("invitation_token"))
 	if data.get("invitation_token") and not invitation:
 		frappe.throw(_("The invitation link is invalid, expired, or already used."))
+	# Without an invitation the visitor names the host and the visit themselves.
+	# That is only open when VMS Settings allows walk-in pre-registration.
+	_refuse_without_invitation(invitation)
 
-	submission_action = (data.get("submission_action") or "submit").strip().lower()
-	if submission_action not in {"save", "submit"}:
-		submission_action = "submit"
+	# Frappe's own @rate_limit keys on frappe.local.request_ip, which is read
+	# from X-Forwarded-For without trusted-proxy validation — so the decorator
+	# above is defeated by rotating that header. This second limit is counted
+	# only once the token has been checked: against the invitation for an
+	# invited visitor, so nobody else's traffic can use up their allowance, and
+	# against the client's address for a walk-in (portal_upload.rate_limit_bucket).
+	_enforce_submission_rate_limit(invitation)
 
-	require_full_submission = submission_action == "submit" or not invitation
+	# There used to be a "save" action too: a draft that skipped the mandatory
+	# fields and the ID number check. No page offers it any more, and a
+	# guest-callable way round the validation is not worth keeping for nothing.
+	# Every call is a full submission.
+	submission_action = "submit"
+	require_full_submission = True
 
 	invitation_field_values = {}
 	if invitation:
@@ -693,9 +747,10 @@ def submit_pre_registration(payload: str | dict | None = None):
 	if require_full_submission and not data.get("visitor_photo"):
 		frappe.throw(_("Visitor Photo is required."))
 
-	existing_doc = None
-	if invitation and invitation.visitor_pass and frappe.db.exists("Visitor Pass", invitation.visitor_pass):
-		existing_doc = frappe.get_doc("Visitor Pass", invitation.visitor_pass)
+	# Only a pass this invitation itself produced (an invitation saved as a
+	# draft before the "save" action went); see existing_pass_for.
+	existing_doc = existing_pass_for(invitation) if invitation else None
+	if existing_doc:
 		# A guest may only re-edit their pass while it is still an unsubmitted
 		# Draft (the Save-Draft → come-back-and-Submit flow). Once staff have
 		# advanced it into any approval lane / Approved / Checked-In, the portal
@@ -729,11 +784,22 @@ def submit_pre_registration(payload: str | dict | None = None):
 	if require_full_submission:
 		canonical_type = _normalize_id_proof_type(data.get("id_proof_type"))
 		id_number = (data.get("id_proof_number") or "").strip()
-		if canonical_type and id_number and not validate_id(canonical_type, id_number):
+		# A masked value sent back for a saved draft means "keep the one on file"
+		# (Visitor Pass.validate keeps it), not a new number to check.
+		unchanged = bool(existing_doc) and is_masked_id(id_number)
+		if canonical_type and id_number and not unchanged and not validate_id(canonical_type, id_number):
 			frappe.throw(
 				id_proof_error_message(canonical_type),
 				title=_("Invalid ID Proof"),
 			)
+
+	# Before any file is stored: a walk-in naming a host nobody can find is told
+	# so without leaving their ID scan behind on the server.
+	person_to_visit = (
+		invitation.host_employee if invitation else _resolve_employee_link(data.get("person_to_visit"))
+	)
+	if person_to_visit and not frappe.db.exists("Employee", person_to_visit):
+		frappe.throw(host_not_found_message(), title=_("Host Not Found"))
 
 	def read_upload(fieldname, fallback_filename):
 		# Resubmitting a saved draft sends back the files already on it. Those are
@@ -751,13 +817,7 @@ def submit_pre_registration(payload: str | dict | None = None):
 	visitor_photo_upload = read_upload("visitor_photo", "visitor-photo.png")
 	# A home-country visitor has no use for a visa copy; one sent anyway is not stored.
 	visa_upload = read_upload("custom_visa_copy", "visitor-visa.pdf") if is_foreign else (None, None)
-	person_to_visit = _resolve_employee_link(
-		invitation.host_employee if invitation else data.get("person_to_visit")
-	)
 	visitor_items = _parse_visitor_items(data.get("visitor_items"))
-
-	if person_to_visit and not frappe.db.exists("Employee", person_to_visit):
-		frappe.throw(_("Person to Visit must be a valid Employee (Employee ID or exact Employee Name)."))
 
 	# Store any newly-uploaded files (validated + private) up front so their URLs
 	# are available for the mandatory id_proof_scan / visitor_photo fields at
@@ -800,13 +860,12 @@ def submit_pre_registration(payload: str | dict | None = None):
 	# a pass — a single-use link that is not single-use. Making the claim a
 	# conditional UPDATE means the database decides the winner: exactly one caller
 	# sees a row change, and the loser is turned away before any record exists.
-	if invitation and submission_action == "submit":
+	if invitation:
 		_claim_invitation(invitation)
 
 	if visitor_pass.is_new():
-		visitor_pass.insert(ignore_permissions=True, ignore_mandatory=not require_full_submission)
+		visitor_pass.insert(ignore_permissions=True)
 	else:
-		visitor_pass.flags.ignore_mandatory = not require_full_submission
 		visitor_pass.save(ignore_permissions=True)
 
 	# Link the private ID/photo files to the now-saved pass so staff who can read
@@ -817,15 +876,8 @@ def submit_pre_registration(payload: str | dict | None = None):
 
 	if invitation:
 		invitation_updates = {"visitor_pass": visitor_pass.name}
-		if submission_action == "save":
-			# A "save" is a draft, not a redemption, so it does not consume the
-			# token — only a real submission does, and _claim_invitation already
-			# recorded that above.
-			invitation_updates["invitation_status"] = "Saved"
 		if not invitation.link_opened_on:
 			invitation_updates["link_opened_on"] = now_datetime()
-		if submission_action == "save":
-			invitation_updates["form_saved_on"] = now_datetime()
 		invitation.db_set(invitation_updates, update_modified=False)
 
 	saved_values = frappe.db.get_value(

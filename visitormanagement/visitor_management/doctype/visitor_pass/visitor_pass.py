@@ -87,6 +87,7 @@ class VisitorPass(Document):
 
     def validate(self):
         strip_expected_time_seconds(self)
+        self._restore_masked_id_number()
 
         # Nationality is mandatory. It defaults to the configured home country so
         # that any creation path (portal, API, automation, import) that doesn't
@@ -239,6 +240,16 @@ class VisitorPass(Document):
                     ),
                     title=_("Invalid Time Range"),
                 )
+
+    def _restore_masked_id_number(self):
+        """The desk form shows saved ID numbers masked (XXXX4567) and the masked text is
+        what the browser posts back on Save / Submit. Keep the stored number instead of
+        validating (and overwriting it with) the mask."""
+        if self.is_new() or not self.id_proof_number:
+            return
+        stored = frappe.db.get_value("Visitor Pass", self.name, "id_proof_number")
+        if stored and self.id_proof_number != stored and self.id_proof_number == mask_id_number(stored):
+            self.id_proof_number = stored
 
     def _validate_formats(self):
         """Validate email and ID proof number format per type."""

@@ -36,7 +36,16 @@ function sync_mobile_country_with_nationality(frm) {
 	}
 	const control = frm.get_field("mobile_number");
 	if (control && control.country_codes && control.country_codes[country_name] && control.country_code_picker) {
+		// Already showing this country's code: nothing to do. Re-applying it re-sets the
+		// mobile value, which fires the mobile_number event and pops the "existing
+		// record found" prompt even though the user never touched the number.
+		const isd = (control.country_codes[country_name].isd || "").trim();
+		if (control.$isd && control.$isd.text().trim() === isd) {
+			return;
+		}
+		frm.__syncing_mobile_country = true;
 		control.country_code_picker.on_change(country_name, false);
+		setTimeout(() => (frm.__syncing_mobile_country = false), 1000);
 	}
 }
 
@@ -938,6 +947,10 @@ function apply_existing_pass_data(frm, data) {
 }
 
 function lookup_existing_visitor_match(frm, trigger_field) {
+	// Programmatic changes (phone country sync) are not the user editing the number.
+	if (frm.__syncing_mobile_country) {
+		return;
+	}
 	if (!frm.doc.visitor_type || !["Supplier", "Customer", "Contractor", "Candidate"].includes(frm.doc.visitor_type)) {
 		return;
 	}

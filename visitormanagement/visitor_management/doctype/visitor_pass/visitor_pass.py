@@ -19,6 +19,7 @@ from visitormanagement.visitor_management.lifecycle import (
     normalize_visitor_pass,
 )
 from visitormanagement.visitor_management.validators import (
+    foreign_document_errors,
     id_proof_error_message,
     mask_id_number,
     validate_id,
@@ -98,6 +99,7 @@ class VisitorPass(Document):
         validate_multi_day_range(self)
         self._validate_schedule()
         self._validate_formats()
+        self._validate_foreign_documents()
         self._validate_host_active()
         self._validate_witness_active()
         self._validate_duplicate_pass()
@@ -260,6 +262,28 @@ class VisitorPass(Document):
                     _("Foreign national visitors must use Passport as the ID Proof Type."),
                     title=_("Invalid ID Proof Type"),
                 )
+
+    def _validate_foreign_documents(self):
+        """Foreign nationals need passport + visa details valid through the visit.
+        Only enforced while the pass is new / Draft, so passes already in flight (or
+        portal drafts, which set ``flags.lenient_foreign_docs``) are never blocked."""
+        if self.flags.get("lenient_foreign_docs"):
+            return
+        if not self.custom_nationality or self.custom_nationality == _get_home_country():
+            return
+        if not self.is_new() and (self.workflow_state or "Draft") != "Draft":
+            return
+
+        errors = foreign_document_errors(
+            self.id_proof_number,
+            getdate(self.custom_passport_expiry) if self.custom_passport_expiry else None,
+            self.id_proof_scan,
+            getdate(self.custom_visa_expiry) if self.custom_visa_expiry else None,
+            self.custom_visa_copy,
+            get_visit_end_date(self),
+        )
+        if errors:
+            frappe.throw("<br>".join(_(e) for e in errors), title=_("Foreign National Details"))
 
     def _validate_host_active(self):
         """Host must be an Active employee."""

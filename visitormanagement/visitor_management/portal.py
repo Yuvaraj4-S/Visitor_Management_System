@@ -4,7 +4,7 @@ import json
 import os
 
 import frappe
-from frappe.utils import cint, flt, now_datetime
+from frappe.utils import cint, flt, getdate, now_datetime
 
 # Guests may only upload genuine images / PDFs for ID proof and photo. We trust
 # neither the file extension nor the client-sent MIME type alone — the decoded
@@ -34,7 +34,10 @@ from visitormanagement.visitor_management.doctype.visitor_invitation.visitor_inv
 	get_valid_invitation_by_token,
 	update_guest_row,
 )
+from visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass import _get_home_country
+from visitormanagement.visitor_management.multi_day import get_visit_end_date
 from visitormanagement.visitor_management.validators import (
+	foreign_document_errors,
 	id_proof_error_message,
 	validate_id,
 )
@@ -331,6 +334,8 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 		# to the home country, so the mandatory field never blocks the submission.
 		"custom_nationality": data.get("custom_nationality"),
 		"custom_visa_copy": data.get("custom_visa_copy"),
+		"custom_passport_expiry": data.get("custom_passport_expiry") or None,
+		"custom_visa_expiry": data.get("custom_visa_expiry") or None,
 		"id_proof_type": _normalize_id_proof_type(data.get("id_proof_type")),
 		"id_proof_number": data.get("id_proof_number"),
 		"id_proof_scan": id_proof_url,
@@ -362,6 +367,44 @@ def _build_visitor_pass_values(data, person_to_visit, id_proof_url, visitor_phot
 
 
 @frappe.whitelist(allow_guest=True)
+def get_home_country():
+	return _get_home_country()
+
+
+def _validate_foreign_visitor(data, invitation, has_passport_copy, has_visa_copy, existing=None):
+	"""Final submission only: a non-home-country visitor must supply valid passport and
+	visa details covering the whole visit. Drafts skip this. ``existing`` is the visitor's
+	saved draft pass, so values entered before the final submit still count."""
+	nationality = (data.get("custom_nationality") or "").strip()
+	if not nationality or nationality == _get_home_country():
+		return
+
+	existing = existing or frappe._dict()
+	source = invitation if invitation else data
+	visit = frappe._dict(
+		visit_date=source.get("visit_date"),
+		multi_day_pass=source.get("multi_day_pass"),
+		pass_valid_until=source.get("pass_valid_until"),
+	)
+	if data.get("id_proof_type") and _normalize_id_proof_type(data.get("id_proof_type")) != "Passport":
+		frappe.throw("Foreign national visitors must use Passport as the ID Proof Type.")
+	data["id_proof_type"] = "Passport"
+
+	passport_expiry = data.get("custom_passport_expiry") or existing.get("custom_passport_expiry")
+	visa_expiry = data.get("custom_visa_expiry") or existing.get("custom_visa_expiry")
+	errors = foreign_document_errors(
+		data.get("id_proof_number") or existing.get("id_proof_number"),
+		getdate(passport_expiry) if passport_expiry else None,
+		has_passport_copy,
+		getdate(visa_expiry) if visa_expiry else None,
+		has_visa_copy,
+		get_visit_end_date(visit),
+	)
+	if errors:
+		frappe.throw("<br>".join(errors), title="Foreign National Details")
+
+
+@frappe.whitelist(allow_guest=True)
 def submit_pre_registration(payload=None):
 	data = payload or frappe.form_dict
 	if isinstance(data, str):
@@ -374,6 +417,17 @@ def submit_pre_registration(payload=None):
 	submission_action = (data.get("submission_action") or "submit").strip().lower()
 	if submission_action not in {"save", "submit"}:
 		submission_action = "submit"
+
+	# One response per invitation link: lock the visitor's row and re-check, so a
+	# double-click or a second tab cannot get a duplicate past the token check.
+	locked_guest = get_guest_row(invitation)
+	if invitation and locked_guest:
+		locked_status = frappe.db.sql(
+			"select invitation_status from `tabVisitor Invitation Guest` where name=%s for update",
+			locked_guest.name,
+		)
+		if locked_status and locked_status[0][0] in ("Submitted", "Expired"):
+			frappe.throw("This invitation has already been submitted. Only one response is allowed per visitor.")
 
 	require_full_submission = submission_action == "submit" or not invitation
 
@@ -425,6 +479,13 @@ def submit_pre_registration(payload=None):
 		data.get("visitor_photo"),
 		data.get("visitor_photo_filename") or "visitor-photo.png",
 	)
+	visa_value = data.get("custom_visa_copy")
+	visa_is_existing = isinstance(visa_value, str) and visa_value.startswith(("/", "http"))
+	visa_filename, visa_content = (
+		(None, None)
+		if visa_is_existing
+		else _extract_file_payload(visa_value, data.get("custom_visa_copy_filename") or "visa-copy.png")
+	)
 	person_to_visit = _resolve_employee_link(invitation.host_employee if invitation else data.get("person_to_visit"))
 	visitor_items = _parse_visitor_items(data.get("visitor_items"))
 	guest_items = (guest.get("items_carried") or "").strip() if guest else ""
@@ -449,6 +510,15 @@ def submit_pre_registration(payload=None):
 				"edited from the invitation link. Please contact your host."
 			)
 
+	if require_full_submission:
+		_validate_foreign_visitor(
+			data,
+			invitation,
+			bool(id_proof_content or (existing_doc and existing_doc.id_proof_scan)),
+			bool(visa_content or visa_is_existing or (existing_doc and existing_doc.custom_visa_copy)),
+			existing_doc,
+		)
+
 	# Store any newly-uploaded files (validated + private) up front so their URLs
 	# are available for the id_proof_scan / visitor_photo fields at
 	# insert time. They are linked to the pass right after it is saved.
@@ -456,6 +526,10 @@ def submit_pre_registration(payload=None):
 	id_proof_url = id_proof_url or (existing_doc.id_proof_scan if existing_doc else None)
 	visitor_photo_url, visitor_photo_file = _store_file(visitor_photo_filename, visitor_photo_content)
 	visitor_photo_url = visitor_photo_url or (existing_doc.visitor_photo if existing_doc else None)
+	visa_url, visa_file = _store_file(visa_filename, visa_content)
+	visa_url = visa_url or (visa_value if visa_is_existing else None) or (
+		existing_doc.custom_visa_copy if existing_doc else None
+	)
 
 	doc_values = _build_visitor_pass_values(
 		data,
@@ -465,8 +539,15 @@ def submit_pre_registration(payload=None):
 		invitation=invitation,
 	)
 
+	doc_values["custom_visa_copy"] = visa_url
+	# Keep the previously saved expiry dates when a later draft save omits them.
+	for fieldname in ("custom_passport_expiry", "custom_visa_expiry"):
+		if not doc_values.get(fieldname) and existing_doc:
+			doc_values[fieldname] = existing_doc.get(fieldname)
+
 	visitor_pass = existing_doc or frappe.new_doc("Visitor Pass")
 	visitor_pass.update(doc_values)
+	visitor_pass.flags.lenient_foreign_docs = not require_full_submission
 	visitor_pass.set("visitor_items", [])
 	for item in visitor_items:
 		visitor_pass.append("visitor_items", item)
@@ -487,6 +568,7 @@ def submit_pre_registration(payload=None):
 	# the pass can view them, while they stay out of the public files directory.
 	_attach_file_to_pass(id_proof_file, visitor_pass.name, "id_proof_scan")
 	_attach_file_to_pass(visitor_photo_file, visitor_pass.name, "visitor_photo")
+	_attach_file_to_pass(visa_file, visitor_pass.name, "custom_visa_copy")
 
 	if invitation and guest:
 		guest_updates = {

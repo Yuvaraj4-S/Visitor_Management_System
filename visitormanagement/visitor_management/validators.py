@@ -103,6 +103,32 @@ def validate_passport(number):
     return bool(_PASSPORT_RE.match(clean))
 
 
+def foreign_document_errors(passport_number, passport_expiry, passport_copy, visa_expiry, visa_copy, visit_end):
+    """Problems with a foreign national's travel documents (empty list = fine).
+
+    ``passport_expiry`` / ``visa_expiry`` / ``visit_end`` are dates (or None). Both
+    documents must stay valid through the last day of the visit.
+    """
+    errors = []
+    if not str(passport_number or "").strip():
+        errors.append("Passport Number is required for foreign nationals.")
+    elif not validate_passport(passport_number):
+        errors.append(id_proof_error_message("Passport"))
+    if not passport_copy:
+        errors.append("Passport Copy is required for foreign nationals.")
+    if not passport_expiry:
+        errors.append("Passport Expiry is required for foreign nationals.")
+    elif visit_end and passport_expiry < visit_end:
+        errors.append("Passport expires before the end of the visit (%s)." % visit_end)
+    if not visa_copy:
+        errors.append("Visa Copy is required for foreign nationals.")
+    if not visa_expiry:
+        errors.append("Visa Expiry is required for foreign nationals.")
+    elif visit_end and visa_expiry < visit_end:
+        errors.append("Visa expires before the end of the visit (%s)." % visit_end)
+    return errors
+
+
 # ─────────────────────────────────────────────────────────────
 # TYPE DISPATCH
 # ─────────────────────────────────────────────────────────────

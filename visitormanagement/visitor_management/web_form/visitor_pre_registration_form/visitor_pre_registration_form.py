@@ -92,6 +92,10 @@ def _boot_script(invitation_context, values):
 			window.vmInvitationName = {frappe.as_json(invitation_context.get("invitation"))};
 			window.vmInvitationMessage = {frappe.as_json(invitation_context.get("message"))};
 		</script>
+		<style>
+			/* One response per invitation — no "Submit another response" on the success page */
+			.success-page .new-btn {{ display: none !important; }}
+		</style>
 	"""
 
 

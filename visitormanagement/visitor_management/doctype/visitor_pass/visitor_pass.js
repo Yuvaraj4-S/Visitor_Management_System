@@ -524,6 +524,10 @@ function apply_visitor_pass_field_rules(frm) {
 		const is_foreign_national = frm.doc.custom_nationality && frm.doc.custom_nationality !== home_country;
 		frm.toggle_display("custom_visa_copy", is_foreign_national);
 		frm.toggle_reqd("custom_visa_copy", is_foreign_national);
+		["custom_passport_expiry", "custom_visa_expiry"].forEach((fieldname) => {
+			frm.toggle_display(fieldname, is_foreign_national);
+			frm.toggle_reqd(fieldname, is_foreign_national);
+		});
 
 		if (_id_proof_type_full_options !== null) {
 			const restricted_options = is_foreign_national ? "Passport" : _id_proof_type_full_options;

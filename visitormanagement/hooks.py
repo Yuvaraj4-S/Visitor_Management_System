@@ -299,7 +299,7 @@ fixtures = [
     "Workflow Action",
     {
         "doctype": "Notification",
-        "filters": [["name", "in", ["Visitor Invitation Guest Email"]]],
+        "filters": [["name", "in", ["Visitor Invitation Guest Email", "Walk In Host Approval Email"]]],
     },
     # Role permissions for the VMS doctypes whose access we changed (VMS Manager /
     # VMS User). A Custom DocPerm replaces ALL standard perms of its doctype, so each

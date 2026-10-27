@@ -20,6 +20,18 @@ const CONDITIONALLY_LOCKED_FIELDS = [
 ];
 let LOCKED_FIELDS = [...ALWAYS_LOCKED_FIELDS];
 
+// Foreign nationals fill in passport + visa details first. The home country comes
+// from VMS Settings (portal.get_home_country), never hardcoded here.
+const FOREIGN_SECTION_LABEL = "Foreign National Details";
+const FOREIGN_REQUIRED_FIELDS = [
+	"id_proof_number",
+	"custom_passport_expiry",
+	"id_proof_scan",
+	"custom_visa_expiry",
+	"custom_visa_copy",
+];
+let foreignState = { homeCountry: null, bound: false, busy: false, lastNationality: null };
+
 const TYPE_SECTION_LABELS = {
 	Contractor: "Contractor Details",
 	Supplier: "Supplier Details",
@@ -60,12 +72,11 @@ function isValidMobile(value) {
 	return false;
 }
 
-function attachMobileValidator() {
+function attachMobileValidator(retries = 40) {
 	const field = frappe.web_form?.fields_dict?.mobile_number;
 	if (!field || field._vmMobileValidatorBound) {
 		return;
 	}
-	field._vmMobileValidatorBound = true;
 
 	const $wrap = $(field.wrapper);
 	let $err = $wrap.find(".vm-mobile-error");
@@ -81,8 +92,37 @@ function attachMobileValidator() {
 
 	const $input = frappe.web_form.get_input("mobile_number");
 	if (!$input || !$input.length) {
+		// The Phone control can finish rendering after the form loads — try again shortly.
+		if (retries > 0) {
+			setTimeout(() => attachMobileValidator(retries - 1), 150);
+		}
 		return;
 	}
+	// Mark as bound only once the input exists, so an early call can retry.
+	field._vmMobileValidatorBound = true;
+
+	// Frappe's Phone control joins "<isd>-<number>" with a dash; a dash typed or pasted
+	// into the number (e.g. 202-555-0123) sends it into an endless re-format loop that
+	// freezes the page. Keep only digits, "+" and spaces, before the control sees them.
+	const cleanMobile = (text) => String(text || "").replace(/[^\d+ ]/g, "");
+	const inputEl = $input.get(0);
+	inputEl.addEventListener(
+		"beforeinput",
+		(event) => {
+			if (event.inputType === "insertFromPaste" || event.inputType === "insertFromDrop") {
+				const pasted = event.dataTransfer ? event.dataTransfer.getData("text") : event.data;
+				event.preventDefault();
+				document.execCommand("insertText", false, cleanMobile(pasted));
+			} else if (event.data && cleanMobile(event.data) !== event.data) {
+				event.preventDefault();
+				const cleaned = cleanMobile(event.data);
+				if (cleaned) {
+					document.execCommand("insertText", false, cleaned);
+				}
+			}
+		},
+		true
+	);
 
 	const showError = () => {
 		$err.text(
@@ -539,6 +579,8 @@ function syncVisibleLockedField(fieldname, value) {
 				: TIME_FIELDS_WITHOUT_SECONDS.includes(fieldname)
 					? formatTimeWithoutSeconds(value)
 					: String(value);
+	const hostName = fieldname === "person_to_visit" ? invitationContextState.values?.person_to_visit_name : "";
+	const shownValue = hostName && displayValue !== "-" ? `${displayValue} - ${hostName}` : displayValue;
 	const $wrapper = $control.find(".control-input-wrapper");
 	$control.find(".control-input").hide();
 	let $display = $wrapper.find(".vm-locked-display");
@@ -546,8 +588,8 @@ function syncVisibleLockedField(fieldname, value) {
 		$display = $('<div class="vm-locked-display like-disabled-input"></div>');
 		$wrapper.append($display);
 	}
-	$display.text(displayValue).show();
-	$control.find(".control-value").text(displayValue).show();
+	$display.text(shownValue).show();
+	$control.find(".control-value").text(shownValue).show();
 	$control.addClass("vm-host-field");
 }
 
@@ -765,6 +807,102 @@ async function handleInvitationAfterLoad() {
 	}
 }
 
+// The Phone control opens on the site's default country; when the visitor picks a
+// nationality, move its flag / ISD prefix to that country. Only while the number is
+// still empty: re-setting a typed value makes the control rewrite itself on every
+// keystroke, which froze the page.
+function syncMobileCountryWithNationality(nationality) {
+	const control = frappe.web_form?.fields_dict?.mobile_number;
+	if (!nationality || !control?.country_codes?.[nationality] || !control.country_code_picker) {
+		return;
+	}
+	if (control.$input && control.$input.val()) {
+		return;
+	}
+	try {
+		control.country_code_picker.on_change(nationality, false);
+	} catch (error) {
+		console.warn("Could not sync mobile country with nationality", error);
+	}
+}
+
+function applyForeignSection() {
+	if (!frappe.web_form?.fields_dict?.custom_nationality) {
+		return;
+	}
+
+	const nationality = frappe.web_form.doc?.custom_nationality || getFieldValue("custom_nationality") || "";
+	// Setting properties / values below re-renders controls, which fire change events
+	// back into this function. Only act when the nationality really changed.
+	if (foreignState.busy || nationality === foreignState.lastNationality) {
+		return;
+	}
+	foreignState.busy = true;
+	foreignState.lastNationality = nationality;
+
+	try {
+		const isForeign = Boolean(nationality && foreignState.homeCountry && nationality !== foreignState.homeCountry);
+		syncMobileCountryWithNationality(nationality);
+
+		$(".web-form .row.form-section").each(function () {
+			const $head = $(this).find(".section-head");
+			if ($head.length && $head.text().trim() === FOREIGN_SECTION_LABEL) {
+				$(this).toggleClass("vm-form-hidden", !isForeign).toggle(isForeign);
+			}
+		});
+
+		FOREIGN_REQUIRED_FIELDS.forEach((fieldname) => {
+			const df = frappe.web_form.fields_dict[fieldname]?.df;
+			if (df && Number(df.reqd || 0) !== Number(isForeign)) {
+				df.reqd = isForeign ? 1 : 0;
+				frappe.web_form.fields_dict[fieldname].refresh();
+			}
+		});
+
+		// Foreign nationals can only identify with a passport.
+		const idType = frappe.web_form.fields_dict.id_proof_type;
+		if (idType) {
+			idType.df.read_only = isForeign ? 1 : 0;
+			if (isForeign && frappe.web_form.doc.id_proof_type !== "Passport") {
+				frappe.web_form.doc.id_proof_type = "Passport";
+			}
+			idType.refresh();
+		}
+	} finally {
+		foreignState.busy = false;
+	}
+}
+
+function setupForeignDetails(retries = 40) {
+	if (foreignState.bound) {
+		return;
+	}
+	if (!frappe.web_form?.fields_dict?.custom_nationality) {
+		if (retries > 0) {
+			setTimeout(() => setupForeignDetails(retries - 1), 100);
+		}
+		return;
+	}
+
+	foreignState.bound = true;
+	frappe.call({
+		method: "visitormanagement.visitor_management.portal.get_home_country",
+		callback: (r) => {
+			foreignState.homeCountry = r.message || null;
+			if (foreignState.homeCountry && !frappe.web_form.doc.custom_nationality) {
+				frappe.web_form.set_value("custom_nationality", foreignState.homeCountry);
+			}
+			applyForeignSection();
+		},
+	});
+
+	frappe.web_form.on("custom_nationality", () => applyForeignSection());
+	frappe.web_form.get_input("custom_nationality").on("change", () => {
+		setTimeout(applyForeignSection, 0);
+	});
+	applyForeignSection();
+}
+
 function setupInvitationHooks() {
 	if (!frappe.web_form || invitationContextState.hooksAttached) {
 		return;
@@ -772,6 +910,7 @@ function setupInvitationHooks() {
 
 	invitationContextState.hooksAttached = true;
 	frappe.web_form.after_load = handleInvitationAfterLoad;
+	setupForeignDetails();
 
 	frappe.web_form.validate = () => {
 		const token = getInvitationToken();
@@ -789,6 +928,9 @@ function setupInvitationHooks() {
 	};
 
 	frappe.web_form.save = function () {
+		if (window.saving || window.vmSubmitted) {
+			return false;
+		}
 		const valid = this.validate && this.validate();
 		if (!valid && valid !== undefined) {
 			frappe.msgprint(
@@ -829,6 +971,7 @@ function setupInvitationHooks() {
 
 		const sizeIssue =
 			checkAttachmentSize("id_proof_scan", "ID Proof Scan") ||
+			checkAttachmentSize("custom_visa_copy", "Visa Copy") ||
 			checkAttachmentSize("visitor_photo", "Visitor Photo");
 		if (sizeIssue) {
 			frappe.msgprint({
@@ -868,6 +1011,9 @@ function setupInvitationHooks() {
 			freeze: true,
 			callback: (response) => {
 				if (!response.exc) {
+					window.vmSubmitted = true;
+					$(".success-page .new-btn").remove();
+					setSubmitDisabled(true);
 					this.handle_success(response.message);
 					try {
 						renderSuccessPanel(response.message?.name);

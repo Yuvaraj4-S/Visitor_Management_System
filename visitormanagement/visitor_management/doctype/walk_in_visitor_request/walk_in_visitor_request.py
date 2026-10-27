@@ -24,6 +24,8 @@ MAIN_VISITOR_FIELDS = (
 )
 
 
+WALK_IN_HOST_NOTIFICATION = "Walk In Host Approval Email"
+
 class WalkInVisitorRequest(Document):
 
     def validate(self):
@@ -164,6 +166,31 @@ class WalkInVisitorRequest(Document):
                 "Employee", self.person_to_visit, "department"
             )
 
+    def _send_host_approval_email(self, host_user, host_name, link):
+        """Email the host through the "Walk In Host Approval Email" Notification (edit the
+        wording under Notification in the desk). The values the template needs are set on
+        the document for the duration of the send."""
+        try:
+            notification = frappe.get_doc("Notification", WALK_IN_HOST_NOTIFICATION)
+        except frappe.DoesNotExistError:
+            frappe.log_error(f"Notification {WALK_IN_HOST_NOTIFICATION} not found.", "WVR Notification")
+            return
+        if not notification.enabled:
+            return
+
+        others = [_guest_label(self, r) for r in self.additional_visitors[1:]]
+        self.host_name = host_name
+        # user_id can be a login name (e.g. "Administrator"); the mail goes to the user's email.
+        self.host_email = frappe.db.get_value("User", host_user, "email") or host_user
+        self.approval_link = link
+        self.also_visiting = ", ".join(others) if others else ""
+        self.visit_time_label = f"{format_time_hhmm(self.expected_checkin)} - {format_time_hhmm(self.expected_checkout)}"
+        try:
+            notification.send(self)
+        finally:
+            for attr in ("host_name", "host_email", "approval_link", "also_visiting", "visit_time_label"):
+                self.__dict__.pop(attr, None)
+
     def _notify_host_for_approval(self):
         """Send approval notification to the host employee (person_to_visit)."""
         if not self.person_to_visit:
@@ -180,30 +207,33 @@ class WalkInVisitorRequest(Document):
         host_name = frappe.db.get_value("Employee", self.person_to_visit, "employee_name")
         link = frappe.utils.get_url_to_form("Walk In Visitor Request", self.name)
 
-        frappe.sendmail(
-            recipients=[host_user],
-            subject=_("Walk-In Visitor Approval Required: {0}").format(self.visitor_full_name),
-            message=(
-                f"<p>Dear {host_name},</p>"
-                f"<p>A walk-in visitor is at the gate and requires your approval:</p>"
-                f"<ul>"
-                f"<li><b>Visitor:</b> {self.visitor_full_name}</li>"
-                + (
-                    f"<li><b>Also visiting:</b> {', '.join(_guest_label(self, r) for r in self.additional_visitors[1:])}"
-                    f" — each gets their own pass when you approve</li>"
-                    if len(self.additional_visitors or []) > 1
-                    else ""
-                )
-                + f"<li><b>Total visitors:</b> {self.number_of_visitors or 1}</li>"
-                f"<li><b>Type:</b> {self.visitor_type}</li>"
-                f"<li><b>Purpose:</b> {self.purpose_of_visit or '-'}</li>"
-                f"<li><b>Mobile:</b> {self.mobile_number or '-'}</li>"
-                f"<li><b>Date:</b> {self.visit_date}</li>"
-                f"<li><b>Time:</b> {format_time_hhmm(self.expected_checkin)} - {format_time_hhmm(self.expected_checkout)}</li>"
-                f"</ul>"
-                f"<p><a href='{link}'>Click here to Approve or Reject</a></p>"
-            ),
-        )
+        self._send_host_approval_email(host_user, host_name, link)
+
+        # ---- Previous hard-coded email (replaced by the Notification above) ----
+#        frappe.sendmail(
+#            recipients=[host_user],
+#            subject=_("Walk-In Visitor Approval Required: {0}").format(self.visitor_full_name),
+#            message=(
+#                f"<p>Dear {host_name},</p>"
+#                f"<p>A walk-in visitor is at the gate and requires your approval:</p>"
+#                f"<ul>"
+#                f"<li><b>Visitor:</b> {self.visitor_full_name}</li>"
+#                + (
+#                    f"<li><b>Also visiting:</b> {', '.join(_guest_label(self, r) for r in self.additional_visitors[1:])}"
+#                    f" — each gets their own pass when you approve</li>"
+#                    if len(self.additional_visitors or []) > 1
+#                    else ""
+#                )
+#                + f"<li><b>Total visitors:</b> {self.number_of_visitors or 1}</li>"
+#                f"<li><b>Type:</b> {self.visitor_type}</li>"
+#                f"<li><b>Purpose:</b> {self.purpose_of_visit or '-'}</li>"
+#                f"<li><b>Mobile:</b> {self.mobile_number or '-'}</li>"
+#                f"<li><b>Date:</b> {self.visit_date}</li>"
+#                f"<li><b>Time:</b> {format_time_hhmm(self.expected_checkin)} - {format_time_hhmm(self.expected_checkout)}</li>"
+#                f"</ul>"
+#                f"<p><a href='{link}'>Click here to Approve or Reject</a></p>"
+#            ),
+#        )
 
         # Also create a ToDo for the host so it appears in their desk
         frappe.get_doc({

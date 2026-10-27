@@ -194,6 +194,7 @@ def get_web_form_context(token):
 		"expected_checkin": _format_time_for_web_form(invitation.expected_checkin),
 		"expected_checkout": _format_time_for_web_form(invitation.expected_checkout),
 		"person_to_visit": invitation.host_employee,
+		"person_to_visit_name": frappe.db.get_value("Employee", invitation.host_employee, "employee_name") or "",
 		"purpose_of_visit": invitation.purpose_of_visit,
 		"meal_required": guest.meal_required,
 		"cab_required": guest.cab_required,

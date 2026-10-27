@@ -20,5 +20,27 @@
     "receiver_by_document_field": "guest_email"
    }
   ]
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Notification",
+  "name": "Walk In Host Approval Email",
+  "enabled": 1,
+  "channel": "Email",
+  "document_type": "Walk In Visitor Request",
+  "event": "Custom",
+  "message_type": "HTML",
+  "subject": "Walk-In Visitor Approval Required: {{ doc.visitor_full_name }}",
+  "message": "<p>Dear {{ doc.host_name }},</p>\n<p>A walk-in visitor is at the gate and requires your approval:</p>\n<ul>\n<li><b>Visitor:</b> {{ doc.visitor_full_name }}</li>\n{% if doc.also_visiting %}<li><b>Also visiting:</b> {{ doc.also_visiting }} — each gets their own pass when you approve</li>\n{% endif %}<li><b>Total visitors:</b> {{ doc.number_of_visitors or 1 }}</li>\n<li><b>Type:</b> {{ doc.visitor_type }}</li>\n<li><b>Purpose:</b> {{ doc.purpose_of_visit or '-' }}</li>\n<li><b>Mobile:</b> {{ doc.mobile_number or '-' }}</li>\n<li><b>Date:</b> {{ doc.visit_date }}</li>\n<li><b>Time:</b> {{ doc.visit_time_label }}</li>\n</ul>\n<p><a href=\"{{ doc.approval_link }}\">Click here to Approve or Reject</a></p>",
+  "modified": "2026-10-27 12:00:00.000000",
+  "recipients": [
+   {
+    "docstatus": 0,
+    "doctype": "Notification Recipient",
+    "parentfield": "recipients",
+    "parenttype": "Notification",
+    "receiver_by_document_field": "host_email"
+   }
+  ]
  }
 ]

@@ -303,9 +303,7 @@
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "Employee",
-   "share": 1,
-   "write": 1
+   "role": "Employee"
   }
  ],
  "search_fields": "visitor_full_name,mobile_number,person_to_visit",

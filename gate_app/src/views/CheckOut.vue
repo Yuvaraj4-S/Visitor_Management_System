@@ -3,7 +3,13 @@
 		<p v-if="loading" class="card text-center text-sm text-slate-400">Loading…</p>
 		<template v-else-if="visitor">
 			<VisitorSummary :visitor="visitor" />
-			<div v-if="visitor.next_action !== 'checkout'" class="card text-sm text-slate-600">
+			<div v-if="visitor.host_message" class="card border border-amber-200 bg-amber-50 text-sm text-amber-800">
+				<span class="font-semibold">Message from host:</span> {{ visitor.host_message }}
+			</div>
+			<div v-if="visitor.next_action !== 'checkout' && visitor.blocked_reason" class="card border border-rose-200 bg-rose-50 text-sm font-medium text-rose-700">
+				Do not let this visitor exit: {{ visitor.blocked_reason }}
+			</div>
+			<div v-else-if="visitor.next_action !== 'checkout'" class="card text-sm text-slate-600">
 				This visitor is not checked in ({{ visitor.status }}).
 			</div>
 			<template v-else>

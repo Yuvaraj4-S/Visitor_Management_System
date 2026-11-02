@@ -680,3 +680,38 @@ def get_last_known_location(visitor_pass_name):
 	return frappe.db.get_value("Visitor Pass", visitor_pass_name, "current_location")
 
 
+
+
+def security_users():
+	"""Enabled system users holding the Security role."""
+	holders = frappe.get_all(
+		"Has Role",
+		filters={"role": "Security", "parenttype": "User"},
+		pluck="parent",
+		distinct=True,
+	)
+	users = frappe.get_all(
+		"User",
+		filters={"name": ["in", holders or [""]], "enabled": 1, "user_type": "System User"},
+		pluck="name",
+	)
+	return [u for u in users if u not in ("Administrator", "Guest")]
+
+
+def notify_users(users, doc, subject, message):
+	"""Bell notification + email about a Visitor Pass."""
+	from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
+
+	if not users:
+		return
+	enqueue_create_notification(
+		users,
+		{
+			"type": "Alert",
+			"document_type": "Visitor Pass",
+			"document_name": doc.name,
+			"subject": subject,
+			"email_content": message,
+			"from_user": frappe.session.user,
+		},
+	)

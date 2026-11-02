@@ -18,6 +18,13 @@
 				<template v-else>Expected {{ time(visitor.expected_checkin) }}–{{ time(visitor.expected_checkout) }}</template>
 				<span v-if="visitor.request_channel === 'Walk-In'" class="ml-1 rounded bg-indigo-100 px-1 text-indigo-700">walk-in</span>
 			</p>
+			<p v-if="visitor.exit_control_status === 'Exit Overdue'" class="text-xs font-semibold text-rose-600">
+				Exit on hold · host must reconfirm
+			</p>
+			<p v-else-if="visitor.exit_control_status === 'Awaiting Exit'" class="text-xs font-semibold text-amber-600">
+				Leaving · due at the gate by {{ time(visitor.exit_deadline ? visitor.exit_deadline.slice(11, 16) : "") }}
+			</p>
+			<p v-if="visitor.host_message" class="text-xs text-slate-600">Host: “{{ visitor.host_message }}”</p>
 			<p v-if="visitor.overdue_minutes != null" class="text-xs font-semibold text-rose-600">
 				<template v-if="visitor.time_over_state === 'Inside'">Still inside · {{ minutes(visitor.overdue_minutes) }} past {{ time(visitor.expected_checkout) }}</template>
 				<template v-else>Left {{ minutes(visitor.overdue_minutes) }} late (due {{ time(visitor.expected_checkout) }})</template>

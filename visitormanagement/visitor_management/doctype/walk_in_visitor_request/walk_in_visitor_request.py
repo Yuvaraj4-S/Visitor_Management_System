@@ -1,3 +1,7 @@
+import base64
+import hashlib
+import hmac
+import time
 from contextlib import contextmanager
 
 import frappe
@@ -25,6 +29,9 @@ MAIN_VISITOR_FIELDS = (
 
 
 WALK_IN_HOST_NOTIFICATION = "Walk In Host Approval Email"
+# Links in the host's email stay valid for one day — the visitor is waiting at the gate.
+DECISION_LINK_TTL = 24 * 60 * 60
+DECISION_PAGE = "/walkin-decision"
 
 class WalkInVisitorRequest(Document):
 
@@ -37,6 +44,50 @@ class WalkInVisitorRequest(Document):
         self._validate_host_active()
         self._validate_mobile()
         self._set_host_department()
+        self._guard_decision_fields()
+
+    def _guard_decision_fields(self):
+        """The status changes only through Approve / Reject by the host, and the host only
+        gets corrected by gate staff while the request is still pending. Without this an
+        employee could set the status through the API, or make themselves the host."""
+        if self.is_new() or frappe.flags.in_patch or frappe.flags.in_install or frappe.flags.in_migrate:
+            return
+        before = self.get_doc_before_save()
+        if not before:
+            return
+
+        if self.status != before.status and not self.flags.walk_in_decision:
+            frappe.throw(
+                _("The status can only be changed by the host using Approve or Reject."),
+                frappe.PermissionError,
+            )
+
+        if (self.person_to_visit or "") == (before.person_to_visit or ""):
+            return
+        if before.status != "Pending Approval":
+            frappe.throw(
+                _("The host can no longer be changed: this request is already {0}.").format(before.status),
+                frappe.PermissionError,
+            )
+        user = frappe.session.user
+        if user != "Administrator" and not set(frappe.get_roles(user)) & {"Security", "System Manager"}:
+            frappe.throw(_("Only gate staff can change the host of a request."), frappe.PermissionError)
+        if frappe.db.get_value("Employee", self.person_to_visit, "user_id") == user:
+            frappe.throw(_("You cannot assign a request to yourself as the host."), frappe.PermissionError)
+
+    def on_update(self):
+        before = self.get_doc_before_save()
+        if (
+            before
+            and (before.person_to_visit or "") != (self.person_to_visit or "")
+            and self.status == "Pending Approval"
+        ):
+            # Host corrected: the old host's task goes away, the new host is asked to decide.
+            try:
+                _close_todo(self.name)
+                self._notify_host_for_approval()
+            except Exception:
+                frappe.log_error(frappe.get_traceback(), "WVR host reassignment notification")
 
     def _sync_main_visitor_row(self):
         """Every visitor is a row of the Visitors table (row 1 = main visitor).
@@ -183,12 +234,16 @@ class WalkInVisitorRequest(Document):
         # user_id can be a login name (e.g. "Administrator"); the mail goes to the user's email.
         self.host_email = frappe.db.get_value("User", host_user, "email") or host_user
         self.approval_link = link
+        token = make_decision_token(self)
+        base = frappe.utils.get_url()
+        self.approve_link = f"{base}{DECISION_PAGE}?token={token}&action=approve"
+        self.reject_link = f"{base}{DECISION_PAGE}?token={token}&action=reject"
         self.also_visiting = ", ".join(others) if others else ""
         self.visit_time_label = f"{format_time_hhmm(self.expected_checkin)} - {format_time_hhmm(self.expected_checkout)}"
         try:
             notification.send(self)
         finally:
-            for attr in ("host_name", "host_email", "approval_link", "also_visiting", "visit_time_label"):
+            for attr in ("host_name", "host_email", "approval_link", "approve_link", "reject_link", "also_visiting", "visit_time_label"):
                 self.__dict__.pop(attr, None)
 
     def _notify_host_for_approval(self):
@@ -283,7 +338,7 @@ def approve_request(request_name):
     if doc.status != "Pending Approval":
         frappe.throw(_("This request is already {0}.").format(doc.status))
 
-    # Verify the current user is the host or has System Manager role
+    # Verify the current user is the host
     _check_approval_permission(doc)
 
     # Check blacklist before approval — for the lead visitor and every additional one
@@ -305,6 +360,7 @@ def approve_request(request_name):
             )
 
     # Update the request status
+    doc.flags.walk_in_decision = True
     doc.status = "Approved"
     doc.approved_by = frappe.session.user
     doc.approval_date = now_datetime()
@@ -349,6 +405,7 @@ def reject_request(request_name, rejection_reason=None):
 
     _check_approval_permission(doc)
 
+    doc.flags.walk_in_decision = True
     doc.status = "Rejected"
     doc.rejection_reason = rejection_reason
     doc.save(ignore_permissions=True)
@@ -368,10 +425,74 @@ def reject_request(request_name, rejection_reason=None):
     return {"status": "Rejected"}
 
 
+def _decision_signature(payload):
+    from frappe.utils.password import get_encryption_key
+
+    key = get_encryption_key().encode()
+    return hmac.new(key, payload.encode(), hashlib.sha256).hexdigest()
+
+
+def make_decision_token(doc):
+    """Signed, expiring token that lets the host act on one request from the email.
+
+    The host and request are part of the signed payload, so reassigning the host
+    invalidates old links. A request can only be decided once (status check)."""
+    expires = int(time.time()) + DECISION_LINK_TTL
+    payload = f"{doc.name}|{doc.person_to_visit}|{expires}"
+    encoded = base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+    return f"{encoded}.{_decision_signature(payload)}"
+
+
+def verify_decision_token(token):
+    """Return the Walk In Visitor Request for a valid token, else throw."""
+    invalid = _("This link is invalid or has expired. Please open the request from your desk.")
+    try:
+        encoded, signature = (token or "").split(".", 1)
+        payload = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)).decode()
+        name, host, expires = payload.split("|")
+        expires = int(expires)
+    except Exception:
+        frappe.throw(invalid)
+
+    if not hmac.compare_digest(signature, _decision_signature(payload)) or expires < time.time():
+        frappe.throw(invalid)
+    if not frappe.db.exists("Walk In Visitor Request", name):
+        frappe.throw(invalid)
+
+    doc = frappe.get_doc("Walk In Visitor Request", name)
+    if (doc.person_to_visit or "") != host:
+        frappe.throw(invalid)
+    return doc
+
+
+@frappe.whitelist(allow_guest=True)
+def decide_by_token(token, action, rejection_reason=None):
+    """Approve / reject straight from the host's email (no login).
+
+    Runs the normal approve/reject logic as the host's own user, so the same
+    permission, blacklist and pass-creation rules apply."""
+    doc = verify_decision_token(token)
+    if action not in ("approve", "reject"):
+        frappe.throw(_("Invalid action."))
+
+    host_user = frappe.db.get_value("Employee", doc.person_to_visit, "user_id")
+    if not host_user:
+        frappe.throw(_("No user is linked to the host. Please open the request from your desk."))
+
+    frappe.set_user(host_user)
+    if action == "approve":
+        return approve_request(doc.name)
+    if action == "reject":
+        reason = (rejection_reason or "").strip()
+        if not reason:
+            frappe.throw(_("Please give a reason for rejection."))
+        return reject_request(doc.name, reason)
+
+
 @frappe.whitelist()
 def can_current_user_approve(request_name):
-    """Approve / Reject buttons: same rule as approve_request — the host
-    (user linked to Person to Visit) or a System Manager."""
+    """Approve / Reject buttons: same rule as approve_request — only the host
+    (user linked to Person to Visit)."""
     doc = frappe.get_doc("Walk In Visitor Request", request_name)
     doc.check_permission("read")
     try:
@@ -383,23 +504,13 @@ def can_current_user_approve(request_name):
 
 
 def _check_approval_permission(doc):
-    """Only the host (person_to_visit) or System Manager can approve/reject."""
-    user = frappe.session.user
-    if user == "Administrator":
-        return
-
-    roles = set(frappe.get_roles(user))
-    if "System Manager" in roles:
-        return
-
-    employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+    """Only the host (person_to_visit) can approve/reject."""
+    employee = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
     if employee and employee == doc.person_to_visit:
         return
 
     frappe.throw(
-        _("Only the host ({0}) or a System Manager can approve/reject this request.").format(
-            doc.person_to_visit
-        ),
+        _("Only the host ({0}) can approve/reject this request.").format(doc.person_to_visit),
         title=_("Permission Denied"),
     )
 

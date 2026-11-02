@@ -1,0 +1,72 @@
+{% extends "templates/web.html" %}
+
+{% block page_content %}
+<div style="max-width:520px; margin:40px auto; padding:0 16px;">
+	<h3 style="margin-bottom:16px;">{{ _("Walk-in Visitor Approval") }}</h3>
+
+	{% if err_msg %}
+		<div class="alert alert-danger">{{ err_msg }}</div>
+	{% elif req_status != "Pending Approval" %}
+		<div class="alert alert-info">
+			{{ _("This request has already been {0}.").format(req_status) }}
+		</div>
+	{% else %}
+		<table class="table table-bordered" style="background:#fff;">
+			{% for label, value in rows %}
+			<tr><td style="width:40%;"><b>{{ label }}</b></td><td>{{ value }}</td></tr>
+			{% endfor %}
+		</table>
+
+		<div id="vm-decision">
+			{% if decision == "reject" %}
+			<div class="form-group">
+				<label>{{ _("Reason for rejection") }}</label>
+				<textarea id="vm-reason" class="form-control" rows="3"></textarea>
+			</div>
+			<button id="vm-confirm" class="btn btn-danger btn-block">{{ _("Confirm Reject") }}</button>
+			{% else %}
+			<button id="vm-confirm" class="btn btn-success btn-block">{{ _("Confirm Approve") }}</button>
+			{% endif %}
+		</div>
+		<div id="vm-result" class="alert" style="display:none; margin-top:12px;"></div>
+
+		<script>
+			(function () {
+				var btn = document.getElementById("vm-confirm");
+				var result = document.getElementById("vm-result");
+				btn.addEventListener("click", function () {
+					var reasonBox = document.getElementById("vm-reason");
+					btn.disabled = true;
+					frappe.call({
+						method: "visitormanagement.visitor_management.doctype.walk_in_visitor_request.walk_in_visitor_request.decide_by_token",
+						type: "POST",
+						args: {
+							token: {{ decision_token | tojson }},
+							action: {{ decision | tojson }},
+							rejection_reason: reasonBox ? reasonBox.value : null,
+						},
+						callback: function () {
+							document.getElementById("vm-decision").style.display = "none";
+							result.className = "alert alert-success";
+							result.textContent = {{ decision | tojson }} === "approve"
+								? {{ _("Approved. The visitor pass has been created.") | tojson }}
+								: {{ _("Rejected. Security has been informed.") | tojson }};
+							result.style.display = "block";
+						},
+						error: function () {
+							btn.disabled = false;
+							var msg = "";
+							try {
+								msg = JSON.parse(JSON.parse(arguments[0].responseJSON._server_messages)[0]).message;
+							} catch (e) { msg = {{ _("Something went wrong. Please open the request from your desk.") | tojson }}; }
+							result.className = "alert alert-danger";
+							result.innerHTML = msg;
+							result.style.display = "block";
+						},
+					});
+				});
+			})();
+		</script>
+	{% endif %}
+</div>
+{% endblock %}

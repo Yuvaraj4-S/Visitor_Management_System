@@ -6,6 +6,7 @@ from frappe.utils import get_datetime, getdate, now_datetime, time_diff_in_secon
 
 import re
 
+from visitormanagement.visitor_management.host_checkout import clear_exit_control, exit_hold_message
 from visitormanagement.visitor_management.lifecycle import (
     log_visitor_event,
     sync_contact_trace,
@@ -231,6 +232,12 @@ class SecurityLog(Document):
                 if current_status != 'Checked-In':
                     frappe.throw(f"Visitor {self.visitor_name} must be 'Checked-In' before they can 'Check-Out'. (Current Status: {current_status})")
 
+                # Host check-out control: the visitor did not reach the gate in time after the
+                # host confirmed their exit, so the host must reconfirm first.
+                hold = exit_hold_message(self.visitor_pass)
+                if hold:
+                    frappe.throw(hold, title='Exit On Hold')
+
                 if not self.check_out_date_time:
                     self.check_out_date_time = now
 
@@ -337,6 +344,7 @@ class SecurityLog(Document):
                     'id_card_returned': 1 if self.get('id_card_returned') else 0,
                 },
             )
+            clear_exit_control(self.visitor_pass)
 
         self._record_lifecycle_event()
         sync_contact_trace(self.visitor_pass, self)

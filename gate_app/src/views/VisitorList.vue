@@ -1,14 +1,14 @@
 <template>
 	<div class="space-y-3">
-		<div class="grid grid-cols-4 gap-1 rounded-xl bg-white p-1">
-			<button v-for="t in tabs" :key="t.key" class="rounded-lg py-2 text-xs font-semibold sm:text-sm" :class="tab === t.key ? (t.key === 'time_over' ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white') : t.key === 'time_over' ? 'text-rose-600' : 'text-slate-500'" @click="tab = t.key">
+		<div class="grid grid-cols-5 gap-1 rounded-xl bg-white p-1">
+			<button v-for="t in tabs" :key="t.key" class="rounded-lg py-2 text-xs font-semibold sm:text-sm" :class="tab === t.key ? (isAlertTab(t.key) ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white') : isAlertTab(t.key) ? 'text-rose-600' : 'text-slate-500'" @click="tab = t.key">
 				{{ t.label }} ({{ (lists[t.key] || []).length }})
 			</button>
 		</div>
 		<input v-model.trim="q" class="input" placeholder="Search name, company, host, pass" />
 		<div class="space-y-2">
 			<VisitorCard v-for="v in filtered" :key="v.name" :visitor="v" @open="open" />
-			<p v-if="!filtered.length" class="card text-center text-sm text-slate-400">{{ store.loading ? "Loading…" : tab === "time_over" ? "No visitor has crossed their end time today." : "Nobody here." }}</p>
+			<p v-if="!filtered.length" class="card text-center text-sm text-slate-400">{{ store.loading ? "Loading…" : tab === "time_over" ? "No visitor has crossed their end time today." : tab === "exit_overdue" ? "No exit is on hold." : "Nobody here." }}</p>
 		</div>
 	</div>
 </template>
@@ -27,7 +27,9 @@ const tabs = [
 	{ key: "inside", label: "Inside" },
 	{ key: "left", label: "Left" },
 	{ key: "time_over", label: "Time Over" },
+	{ key: "exit_overdue", label: "Exit Hold" },
 ];
+const isAlertTab = (key) => key === "time_over" || key === "exit_overdue";
 const tab = ref(route.query.tab || "expected");
 const q = ref("");
 const lists = computed(() => store.dashboard || {});

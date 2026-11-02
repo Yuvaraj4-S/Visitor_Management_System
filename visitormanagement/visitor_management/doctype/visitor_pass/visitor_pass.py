@@ -17,6 +17,8 @@ from visitormanagement.visitor_management.lifecycle import (
     ensure_hospitality_request,
     log_visitor_event,
     normalize_visitor_pass,
+    notify_users,
+    security_users,
 )
 from visitormanagement.visitor_management.validators import (
     foreign_document_errors,
@@ -105,6 +107,38 @@ class VisitorPass(Document):
         self._validate_witness_active()
         self._validate_duplicate_pass()
         self._validate_visit_duration()
+        self._validate_host_decision()
+
+    def onload(self):
+        """Everything the form's top buttons need, sent with the document itself, so
+        they show immediately instead of after one extra server call each."""
+        if self.is_new():
+            return
+        from visitormanagement.visitor_management.host_checkout import checkout_control_state
+
+        is_host = _is_pass_host(self)
+        self.set_onload("can_extend_visit_time", bool(is_host and self.docstatus == 1 and self.status in EXTENDABLE_STATUSES))
+        self.set_onload("host_checkout", checkout_control_state(self, is_host))
+        if self.visitor_invitation:
+            self.set_onload("group_workflow", _group_workflow_state(self))
+
+    def _validate_host_decision(self):
+        """Only the host (Person to Visit) approves or rejects a pass waiting for approval.
+        The workflow transition carries the same condition; this guard keeps API / script
+        writes from bypassing it."""
+        if self.is_new() or frappe.flags.in_patch or frappe.flags.in_install:
+            return
+        if self.workflow_state not in ("Approved", "Rejected") or not self.has_value_changed("workflow_state"):
+            return
+        if self.get_db_value("workflow_state") != "Pending Approval":
+            return
+        if not _is_pass_host(self):
+            frappe.throw(
+                _("Only the host ({0}) can approve or reject this visitor pass.").format(
+                    self.person_to_visit or "-"
+                ),
+                frappe.PermissionError,
+            )
 
     # ─────────────────────────────────────────────────────────
     # VISITOR INVITATION → PASS (per-visitor hospitality)
@@ -149,7 +183,7 @@ class VisitorPass(Document):
             self.items_carried = row.items_carried.strip()
 
     def _notify_host_when_pending_approval(self):
-        """Simple approval: System Manager or the mapped host approves. Tell the host
+        """Simple approval: only the host approves. Tell the host
         (bell + email) as soon as the pass is sent for approval."""
         if self.workflow_state != "Pending Approval" or not self.has_value_changed("workflow_state"):
             return
@@ -1257,6 +1291,11 @@ def extend_visit_time(visitor_pass, new_checkout, reason):
     )
     row.db_insert()
     doc.db_set("expected_checkout", new_checkout)
+    # The host changed the plan: a pending check-out confirmation no longer applies.
+    if doc.get("exit_control_status"):
+        from visitormanagement.visitor_management.host_checkout import clear_exit_control
+
+        clear_exit_control(doc.name)
     doc.add_comment(
         "Info",
         _("Visit extended: Expected Check-Out {0} → {1}. Reason: {2}").format(
@@ -1284,20 +1323,7 @@ def extend_visit_time(visitor_pass, new_checkout, reason):
 
 def _notify_security_of_extension(doc, previous_checkout, new_checkout, reason):
     """Bell notification + email to every enabled Security user."""
-    from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
-
-    security_users = frappe.get_all(
-        "Has Role",
-        filters={"role": "Security", "parenttype": "User"},
-        pluck="parent",
-        distinct=True,
-    )
-    users = frappe.get_all(
-        "User",
-        filters={"name": ["in", security_users or [""]], "enabled": 1, "user_type": "System User"},
-        pluck="name",
-    )
-    users = [u for u in users if u not in ("Administrator", "Guest")]
+    users = security_users()
     if not users:
         return
 
@@ -1316,17 +1342,7 @@ def _notify_security_of_extension(doc, previous_checkout, new_checkout, reason):
         f"<li><b>Reason:</b> {esc(reason)}</li>"
         f"</ul>"
     )
-    enqueue_create_notification(
-        users,
-        {
-            "type": "Alert",
-            "document_type": "Visitor Pass",
-            "document_name": doc.name,
-            "subject": subject,
-            "email_content": message,
-            "from_user": frappe.session.user,
-        },
-    )
+    notify_users(users, doc, subject, message)
 
 
 # ─────────────────────────────────────────────────────────
@@ -1362,15 +1378,18 @@ def _allowed_group_action(doc, action):
         return False
 
 
-@frappe.whitelist()
-def get_group_workflow_actions(visitor_pass):
-    """Actions the current user may apply to every pass of this pass's invitation."""
-    doc = frappe.get_doc("Visitor Pass", visitor_pass)
+def _group_workflow_state(doc):
     siblings = _group_siblings(doc)
     if len(siblings) < 2:
         return {"count": len(siblings), "actions": []}
     actions = [a for a in GROUP_WORKFLOW_ACTIONS if _allowed_group_action(doc, a)]
     return {"count": len(siblings), "actions": actions}
+
+
+@frappe.whitelist()
+def get_group_workflow_actions(visitor_pass):
+    """Actions the current user may apply to every pass of this pass's invitation."""
+    return _group_workflow_state(frappe.get_doc("Visitor Pass", visitor_pass))
 
 
 @frappe.whitelist()

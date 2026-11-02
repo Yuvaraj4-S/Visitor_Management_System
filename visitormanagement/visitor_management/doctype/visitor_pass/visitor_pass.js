@@ -82,6 +82,7 @@ frappe.ui.form.on("Visitor Pass", {
 		add_action_buttons(frm);
 		add_hospitality_buttons(frm);
 		add_extend_visit_button(frm);
+		add_host_checkout_buttons(frm);
 		add_group_workflow_buttons(frm);
 		mask_id_proof_on_display(frm);
 	},
@@ -324,6 +325,17 @@ function apply_visitor_pass_ui(frm) {
 // Uses set_df_property("hidden", 1) + refresh_field — the most reliable
 // force-hide in Frappe; toggle_display alone can flicker if the field
 // was already painted before the async settings fetch resolved.
+let _vms_badge_settings_promise = null;
+
+function get_vms_badge_settings() {
+	if (!_vms_badge_settings_promise) {
+		_vms_badge_settings_promise = frappe.db
+			.get_value("VMS Settings", "VMS Settings", ["enable_badge", "badge_required_for"])
+			.then((r) => (r && r.message) || {});
+	}
+	return _vms_badge_settings_promise;
+}
+
 function apply_badge_visibility(frm) {
 	const BADGE_FIELDS = ["badge_number", "badge_colour"];
 	const setHidden = (hide) => {
@@ -335,10 +347,8 @@ function apply_badge_visibility(frm) {
 	};
 	// Hide first so we never flash badge fields on before the fetch resolves.
 	setHidden(true);
-	frappe.db.get_value("VMS Settings", "VMS Settings",
-			["enable_badge", "badge_required_for"])
-		.then((r) => {
-			const s = (r && r.message) || {};
+	get_vms_badge_settings()
+		.then((s) => {
 			// Single-doctype fields come back as strings — "0" is truthy in JS.
 			// Coerce to int with cint to get a real boolean.
 			let show = !!cint(s.enable_badge);
@@ -761,8 +771,8 @@ function get_pass_stage(frm) {
 }
 
 function get_approval_lane() {
-	// Simple approval for every visitor type: System Manager or the mapped host.
-	return __("System Manager or the host (Person to Visit)");
+	// Simple approval for every visitor type: only the host (Person to Visit).
+	return __("The host (Person to Visit)");
 }
 
 function get_pass_stage_color(stage) {
@@ -951,6 +961,12 @@ function lookup_existing_visitor_match(frm, trigger_field) {
 	if (frm.__syncing_mobile_country) {
 		return;
 	}
+	// "Load this data?" is for filling in a new pass. A submitted / cancelled pass is a
+	// record already — correcting a field there (e.g. a mistyped passport number) must
+	// not offer to overwrite it with another visitor's data.
+	if (frm.doc.docstatus !== 0) {
+		return;
+	}
 	if (!frm.doc.visitor_type || !["Supplier", "Customer", "Contractor", "Candidate"].includes(frm.doc.visitor_type)) {
 		return;
 	}
@@ -1047,6 +1063,12 @@ const VISIT_EXTENDABLE_STATUSES = ["Approved", "Items Verified", "Checked-In"];
 function add_extend_visit_button(frm) {
 	if (frm.doc.docstatus !== 1 || !VISIT_EXTENDABLE_STATUSES.includes(frm.doc.status)) return;
 
+	// The server sends this with the document (Visitor Pass.onload): no extra round trip.
+	const preloaded = (frm.doc.__onload || {}).can_extend_visit_time;
+	if (preloaded !== undefined) {
+		if (preloaded) frm.add_custom_button(__("Extend Visit Time"), () => open_extend_visit_dialog(frm));
+		return;
+	}
 	frappe.call({
 		method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.can_extend_visit_time",
 		args: { visitor_pass: frm.doc.name },
@@ -1108,21 +1130,150 @@ function open_extend_visit_dialog(frm) {
 	dialog.show();
 }
 
+// Host check-out control: the host confirms the visitor is leaving; if the visitor does not
+// reach the gate in time, Security holds the exit until the host reconfirms.
+const HOST_CHECKOUT_API = "visitormanagement.visitor_management.host_checkout.";
+
+function add_host_checkout_buttons(frm) {
+	if (frm.is_new() || frm.doc.docstatus !== 1 || frm.doc.status !== "Checked-In") return;
+
+	const show = (state) => {
+		if (!state) return;
+		show_exit_control_banner(frm, state);
+		if (!state.can_confirm) return;
+
+		const label = state.status === "Exit Overdue" ? __("Reconfirm Check-out") : __("Confirm Check-out");
+		frm.add_custom_button(label, () => open_host_checkout_dialog(frm, state, label));
+		if (state.status) {
+			frm.add_custom_button(__("Cancel Check-out"), () => cancel_host_checkout(frm));
+		}
+	};
+
+	// Sent with the document (Visitor Pass.onload): no extra round trip.
+	const preloaded = (frm.doc.__onload || {}).host_checkout;
+	if (preloaded) return show(preloaded);
+	frappe.call({
+		method: HOST_CHECKOUT_API + "get_checkout_control_state",
+		args: { visitor_pass: frm.doc.name },
+		callback: ({ message }) => show(message),
+	});
+}
+
+function show_exit_control_banner(frm, state) {
+	if (state.status === "Awaiting Exit") {
+		frm.dashboard.set_headline_alert(
+			__("Check-out confirmed. The visitor must reach the gate by {0}.", [
+				moment(state.exit_deadline).format("HH:mm"),
+			]),
+			"blue"
+		);
+	} else if (state.status === "Exit Overdue") {
+		frm.dashboard.set_headline_alert(
+			__("Exit overdue: the visitor did not reach the gate. Security is holding the exit until the host reconfirms."),
+			"red"
+		);
+	}
+}
+
+function open_host_checkout_dialog(frm, state, title) {
+	const dialog = new frappe.ui.Dialog({
+		title,
+		fields: [
+			{
+				fieldtype: "HTML",
+				options: `<p class="text-muted">${__(
+					"Security will expect the visitor at the gate within the time below. If they do not arrive, the exit is held until you reconfirm."
+				)}</p>`,
+			},
+			{
+				fieldname: "grace_minutes",
+				fieldtype: "Int",
+				label: __("Minutes to Reach the Gate"),
+				reqd: 1,
+				default: state.grace_minutes,
+				description: __("Between 1 and {0} minutes.", [state.max_grace_minutes]),
+			},
+			{
+				fieldname: "remarks",
+				fieldtype: "Small Text",
+				label: state.status === "Exit Overdue" ? __("Reason for Reconfirming") : __("Message for Security"),
+				reqd: state.status === "Exit Overdue" ? 1 : 0,
+				description: __("Security sees this message."),
+			},
+		],
+		primary_action_label: __("Confirm"),
+		primary_action(values) {
+			frappe.call({
+				method: HOST_CHECKOUT_API + "confirm_host_checkout",
+				args: { visitor_pass: frm.doc.name, grace_minutes: values.grace_minutes, remarks: values.remarks },
+				freeze: true,
+				freeze_message: __("Confirming check-out..."),
+				callback: ({ message }) => {
+					if (!message) return;
+					dialog.hide();
+					frappe.show_alert({ message: __("Check-out confirmed. Security has been notified."), indicator: "green" });
+					frm.reload_doc();
+				},
+			});
+		},
+	});
+	dialog.show();
+}
+
+function cancel_host_checkout(frm) {
+	const dialog = new frappe.ui.Dialog({
+		title: __("Cancel Check-out"),
+		fields: [
+			{
+				fieldtype: "HTML",
+				options: `<p class="text-muted">${__("The visitor is still with you? This cancels the pending check-out confirmation.")}</p>`,
+			},
+			{
+				fieldname: "remarks",
+				fieldtype: "Small Text",
+				label: __("Reason"),
+				reqd: 1,
+				description: __("Security sees this message."),
+			},
+		],
+		primary_action_label: __("Cancel Check-out"),
+		primary_action(values) {
+			frappe.call({
+				method: HOST_CHECKOUT_API + "cancel_host_checkout",
+				args: { visitor_pass: frm.doc.name, remarks: values.remarks },
+				freeze: true,
+				callback: ({ message }) => {
+					if (!message) return;
+					dialog.hide();
+					frappe.show_alert({ message: __("Check-out confirmation cancelled."), indicator: "orange" });
+					frm.reload_doc();
+				},
+			});
+		},
+	});
+	dialog.show();
+}
+
 // Group visit: every visitor of a Visitor Invitation has their own pass. Let the
 // approver move all passes of the invitation that sit in this same stage at once.
 function add_group_workflow_buttons(frm) {
 	if (frm.is_new() || !frm.doc.visitor_invitation) return;
 
+	const show = (message) => {
+		if (!message || !(message.actions || []).length) return;
+		message.actions.forEach((action) => {
+			const label = __("{0} All ({1} visitors)", [__(action), message.count]);
+			frm.add_custom_button(label, () => confirm_group_action(frm, action, message.count), __("Group"));
+		});
+	};
+
+	// Sent with the document (Visitor Pass.onload): no extra round trip.
+	const preloaded = (frm.doc.__onload || {}).group_workflow;
+	if (preloaded) return show(preloaded);
 	frappe.call({
 		method: "visitormanagement.visitor_management.doctype.visitor_pass.visitor_pass.get_group_workflow_actions",
 		args: { visitor_pass: frm.doc.name },
-		callback: ({ message }) => {
-			if (!message || !(message.actions || []).length) return;
-			message.actions.forEach((action) => {
-				const label = __("{0} All ({1} visitors)", [__(action), message.count]);
-				frm.add_custom_button(label, () => confirm_group_action(frm, action, message.count), __("Group"));
-			});
-		},
+		callback: ({ message }) => show(message),
 	});
 }
 

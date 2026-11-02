@@ -55,6 +55,12 @@ const stats = computed(() => [
 		to: "/visitors?tab=time_over",
 		alert: (d.value.stats.time_over_inside || 0) > 0,
 	},
+	{
+		label: "Exit on hold",
+		value: d.value.stats.exit_overdue ?? "–",
+		to: "/visitors?tab=exit_overdue",
+		alert: (d.value.stats.exit_overdue || 0) > 0,
+	},
 ]);
 
 function open(v) {

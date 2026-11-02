@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 
+from visitormanagement.visitor_management.host_checkout import exit_hold_message
 from visitormanagement.visitor_management.multi_day import can_check_in_again, date_range_label, is_valid_on
 
 
@@ -67,6 +68,10 @@ def visitor_checkout(docname):
 
     if doc.status != "Checked-In":
         frappe.throw(_("Visitor is not currently checked in."))
+
+    hold = exit_hold_message(docname)
+    if hold:
+        frappe.throw(hold, title=_("Exit On Hold"))
 
     sl = frappe.new_doc("Security Log")
     sl.visitor_pass = docname

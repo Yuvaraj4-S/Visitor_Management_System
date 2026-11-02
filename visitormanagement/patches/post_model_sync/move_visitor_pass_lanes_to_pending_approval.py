@@ -1,7 +1,7 @@
 import frappe
 
 # The Visitor Pass workflow is now one simple stage: Draft → Submit → Pending Approval
-# → Approve / Reject (System Manager, or the mapped host with the Host Employee role).
+# → Approve / Reject (only the host).
 # Passes still waiting in an old per-role lane move to Pending Approval.
 OLD_LANES = (
 	"Pending System Manager",

@@ -18,6 +18,8 @@
   "qr_scan_required_at_gate",
   "require_item_declaration",
   "block_check_in_without_verification",
+  "enable_host_checkout_control",
+  "exit_grace_minutes",
   "column_break_gate",
   "blacklist_action",
   "gate_list",
@@ -103,6 +105,21 @@
    "fieldname": "block_check_in_without_verification",
    "fieldtype": "Check",
    "label": "Block Check-In Without Verification"
+  },
+  {
+   "default": "1",
+   "description": "The host confirms a visitor's check-out; if the visitor does not reach the gate within the grace time, Security is alerted and the exit is held until the host reconfirms.",
+   "fieldname": "enable_host_checkout_control",
+   "fieldtype": "Check",
+   "label": "Enable Host Check-out Control"
+  },
+  {
+   "default": "15",
+   "depends_on": "enable_host_checkout_control",
+   "description": "Minutes the visitor has to reach the gate after the host confirms check-out.",
+   "fieldname": "exit_grace_minutes",
+   "fieldtype": "Int",
+   "label": "Exit Grace Time (minutes)"
   },
   {
    "fieldname": "column_break_gate",

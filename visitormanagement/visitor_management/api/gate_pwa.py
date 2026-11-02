@@ -16,6 +16,7 @@ from frappe import _
 from frappe.utils import add_to_date, cint, flt, get_datetime, getdate, now_datetime, today
 
 from visitormanagement.visitor_management.api.visitor_gate import _assert_gate_permission
+from visitormanagement.visitor_management.host_checkout import exit_hold_message, latest_host_message, latest_host_messages
 from visitormanagement.visitor_management.multi_day import can_check_in_again, date_range_label, is_valid_on
 from visitormanagement.visitor_management.time_utils import strip_seconds
 from visitormanagement.visitor_management.validators import mask_id_number
@@ -26,6 +27,7 @@ PASS_FIELDS = [
 	"purpose_of_visit", "visit_date", "expected_checkin", "expected_checkout", "status", "badge_number",
 	"badge_colour", "visitor_photo", "actual_checkin", "actual_checkout", "request_channel",
 	"multi_day_pass", "pass_valid_until", "id_card_number", "id_card_returned",
+	"exit_control_status", "exit_deadline",
 ]
 def _pass_fields():
 	"""PASS_FIELDS that exist on this site — newly added columns only appear after
@@ -140,6 +142,20 @@ def get_gate_dashboard():
 	pending = frappe.db.count(WALK_IN_REQUEST, {"status": "Pending Approval"})
 	inside, left = _decorate(inside), _decorate(left)
 	time_over = _time_over_rows(inside, left, now_datetime())
+	# Visitors whose host confirmed check-out but who never reached the gate: exit held.
+	exit_overdue = []
+	if frappe.get_meta("Visitor Pass").has_field("exit_control_status"):
+		exit_overdue = _decorate(
+			frappe.get_all(
+				"Visitor Pass",
+				filters={"docstatus": 1, "status": "Checked-In", "exit_control_status": "Exit Overdue"},
+				fields=_pass_fields(),
+				order_by="exit_deadline asc",
+			)
+		)
+	messages = latest_host_messages([r.name for r in inside + exit_overdue if r.get("exit_control_status")])
+	for r in inside + exit_overdue:
+		r.host_message = messages.get(r.name)
 	return {
 		"stats": {
 			"expected": len(expected),
@@ -148,11 +164,13 @@ def get_gate_dashboard():
 			"pending_requests": pending,
 			"vip_today": sum(1 for r in expected + inside if r.visitor_type == "VIP"),
 			"time_over_inside": sum(1 for r in time_over if r.time_over_state == "Inside"),
+			"exit_overdue": len(exit_overdue),
 		},
 		"expected": _decorate(expected),
 		"inside": inside,
 		"left": left,
 		"time_over": time_over,
+		"exit_overdue": exit_overdue,
 		"badge_legend": [
 			{"visitor_type": t.name, "colour": t.badge_colour, "hex": BADGE_HEX.get(t.badge_colour or "", "#64748b")}
 			for t in _visitor_types()
@@ -223,6 +241,7 @@ def get_visitor_for_checkin(pass_name):
 		}
 	)
 	data["next_action"], data["blocked_reason"] = _next_action(doc)
+	data["host_message"] = latest_host_message(doc.name) if doc.get("exit_control_status") else None
 	# Off = the guard may identify the visitor by typing the Visitor Pass ID instead
 	# of scanning (walk-ins have no QR in hand yet). See Security Log._qr_scan_required.
 	data["qr_scan_required"] = cint(
@@ -235,6 +254,10 @@ def _next_action(doc):
 	if doc.docstatus != 1:
 		return None, _("Pass is not approved yet ({0}).").format(doc.workflow_state or doc.status)
 	if doc.status == "Checked-In":
+		# Host check-out control: held until the host reconfirms.
+		hold = exit_hold_message(doc.name)
+		if hold:
+			return None, hold
 		return "checkout", None
 	if doc.status in ("Approved", "Items Verified") or can_check_in_again(doc):
 		if not is_valid_on(doc):

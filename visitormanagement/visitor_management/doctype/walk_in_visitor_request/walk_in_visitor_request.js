@@ -24,9 +24,9 @@ frappe.ui.form.on("Walk In Visitor Request", {
 
 		// Visitor photos are captured per visitor in the Visitors table (header photo is hidden).
 
-		// Show Approve / Reject buttons for the host or System Manager
+		// Show Approve / Reject buttons for the host only
 		if (frm.doc.status === "Pending Approval" && !frm.is_new()) {
-			// Ask the server — same rule it enforces on approve (host or System Manager).
+			// Ask the server — same rule it enforces on approve (host only).
 			frappe.call({
 				method: "visitormanagement.visitor_management.doctype.walk_in_visitor_request.walk_in_visitor_request.can_current_user_approve",
 				args: { request_name: frm.doc.name },

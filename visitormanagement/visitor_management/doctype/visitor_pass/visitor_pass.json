@@ -123,6 +123,14 @@
   "items_verification_status",
   "actual_checkin",
   "actual_checkout",
+  "section_break_host_checkout",
+  "exit_control_status",
+  "host_checkout_confirmed_on",
+  "host_checkout_confirmed_by",
+  "column_break_host_checkout",
+  "exit_deadline",
+  "host_checkout_reconfirm_count",
+  "host_checkout_confirmations",
   "no_show",
   "current_location",
   "item_verification_status",
@@ -257,6 +265,7 @@
    "options": "Aadhaar\nPAN Card\nPassport\nDriving License"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "id_proof_number",
    "fieldtype": "Data",
    "hidden": 1,
@@ -754,6 +763,64 @@
    "fieldtype": "Datetime",
    "label": "Actual Check-Out",
    "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:doc.exit_control_status || (doc.host_checkout_confirmations || []).length",
+   "fieldname": "section_break_host_checkout",
+   "fieldtype": "Section Break",
+   "label": "Host Check-out Control"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "exit_control_status",
+   "fieldtype": "Select",
+   "label": "Exit Status",
+   "read_only": 1,
+   "options": "\nAwaiting Exit\nExit Overdue",
+   "description": "Set when the host confirms the visitor's check-out. Security cannot check the visitor out while it is Exit Overdue - the host must reconfirm."
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "host_checkout_confirmed_on",
+   "fieldtype": "Datetime",
+   "label": "Host Confirmed On",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "host_checkout_confirmed_by",
+   "fieldtype": "Link",
+   "label": "Host Confirmed By",
+   "read_only": 1,
+   "options": "User"
+  },
+  {
+   "fieldname": "column_break_host_checkout",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "exit_deadline",
+   "fieldtype": "Datetime",
+   "label": "Visitor Must Reach Gate By",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "host_checkout_reconfirm_count",
+   "fieldtype": "Int",
+   "label": "Reconfirmations",
+   "read_only": 1,
+   "default": "0"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "host_checkout_confirmations",
+   "fieldtype": "Table",
+   "label": "Check-out Confirmations",
+   "read_only": 1,
+   "options": "Host Checkout Confirmation"
   },
   {
    "allow_on_submit": 1,

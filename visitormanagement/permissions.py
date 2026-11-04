@@ -170,39 +170,3 @@ def has_visitor_pass_permission(doc, user=None, permission_type=None):
 		return permission_type in _READ_LIKE_PTYPES
 
 	return False
-
-
-# Walk In Visitor Request: the gate (Security) and System Manager work every request; any other
-# user (an Employee) only sees the requests they host or created.
-WALK_IN_FULL_ACCESS_ROLES = ("System Manager", "Security")
-
-
-def _sees_all_walk_in_requests(user):
-	return _is_admin(user) or _has_any_role(set(frappe.get_roles(user)), WALK_IN_FULL_ACCESS_ROLES)
-
-
-def get_walk_in_request_permission_query_conditions(user=None):
-	user = user or frappe.session.user
-	if _sees_all_walk_in_requests(user):
-		return None
-	table = "tabWalk In Visitor Request"
-	conditions = [_owner_condition(table, user)]
-	employee = _employee_for_user(user)
-	if employee:
-		conditions.append(f"`{table}`.`person_to_visit` = {frappe.db.escape(employee)}")
-	return "(" + " or ".join(conditions) + ")"
-
-
-def has_walk_in_request_permission(doc, user=None, permission_type=None):
-	user = user or frappe.session.user
-	if _sees_all_walk_in_requests(user):
-		return True
-	# Read the host / owner from the database: on a form Save the browser sends the document
-	# and could have altered person_to_visit to point at itself.
-	saved = (
-		frappe.db.get_value(doc.doctype, doc.name, ["owner", "person_to_visit"], as_dict=True) if doc.name else None
-	) or frappe._dict(owner=doc.owner, person_to_visit=doc.person_to_visit)
-	if saved.owner == user:
-		return True
-	employee = _employee_for_user(user)
-	return bool(employee and saved.person_to_visit == employee)

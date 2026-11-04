@@ -580,7 +580,8 @@ function syncVisibleLockedField(fieldname, value) {
 					? formatTimeWithoutSeconds(value)
 					: String(value);
 	const hostName = fieldname === "person_to_visit" ? invitationContextState.values?.person_to_visit_name : "";
-	const shownValue = hostName && displayValue !== "-" ? `${displayValue} - ${hostName}` : displayValue;
+	// Show the host by name only; the employee ID is an internal code (fall back to it if no name).
+	const shownValue = hostName && displayValue !== "-" ? hostName : displayValue;
 	const $wrapper = $control.find(".control-input-wrapper");
 	$control.find(".control-input").hide();
 	let $display = $wrapper.find(".vm-locked-display");

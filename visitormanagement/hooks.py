@@ -140,13 +140,11 @@ website_route_rules = [
 permission_query_conditions = {
 	"Visitor Pass": "visitormanagement.permissions.get_visitor_pass_permission_query_conditions",
 	"Hospitality Request": "visitormanagement.permissions.get_hospitality_request_permission_query_conditions",
-	"Walk In Visitor Request": "visitormanagement.permissions.get_walk_in_request_permission_query_conditions",
 }
 
 has_permission = {
 	"Visitor Pass": "visitormanagement.permissions.has_visitor_pass_permission",
 	"Hospitality Request": "visitormanagement.permissions.has_hospitality_request_permission",
-	"Walk In Visitor Request": "visitormanagement.permissions.has_walk_in_request_permission",
 }
 
 # DocType Class

@@ -30,6 +30,10 @@ def execute(filters=None):
     if group_by == "Visitor List":
         return get_list_columns(), get_list_data(passes), None, None, get_summary(passes)
     data = get_data(passes, group_by)
+    if group_by == "Day":
+        # The table lists each visit; the chart still counts people per day.
+        chart_rows = get_data(passes, group_by)
+        return get_columns(group_by), get_day_rows(passes), None, get_chart(chart_rows, group_by), get_summary(passes)
     return get_columns(group_by), data, None, get_chart(data, group_by), get_summary(passes)
 
 
@@ -95,8 +99,11 @@ def get_passes(filters, from_date, to_date):
             vp.actual_checkin,
             vp.actual_checkout,
             COALESCE(NULLIF(vp.id_proof_number, ''), NULLIF(vp.mobile_number, ''),
-                     vp.visitor_full_name) AS person_key
+                     vp.visitor_full_name) AS person_key,
+            wr.parent AS walk_in_request
         FROM `tabVisitor Pass` vp
+        LEFT JOIN `tabWalk In Additional Visitor` wr
+            ON wr.visitor_pass = vp.name AND wr.parenttype = 'Walk In Visitor Request'
         WHERE {" AND ".join(conditions)}
         ORDER BY vp.actual_checkin
         """,
@@ -109,6 +116,47 @@ def _duration_minutes(row):
     if row.actual_checkin and row.actual_checkout and row.actual_checkout >= row.actual_checkin:
         return (row.actual_checkout - row.actual_checkin).total_seconds() / 60
     return None
+
+
+def get_entries(passes):
+    """One entry per visit: a lone visitor is their own entry; passes created from the same
+    multi-visitor walk-in request come through the gate together, so they share one entry."""
+    by_request = {}
+    for r in passes:
+        if r.walk_in_request:
+            by_request.setdefault(r.walk_in_request, []).append(r)
+    entries, seen = [], set()
+    for r in passes:  # passes are ordered by check-in time
+        members = by_request.get(r.walk_in_request) if r.walk_in_request else None
+        if members and len(members) > 1:
+            if r.walk_in_request in seen:
+                continue
+            seen.add(r.walk_in_request)
+        else:
+            members = [r]
+        mins = [m for m in (_duration_minutes(x) for x in members) if m is not None]
+        entries.append({
+            "date": r.actual_checkin.date(),
+            "members": members,
+            "names": ", ".join(dict.fromkeys(x.visitor_name for x in members if x.visitor_name)),
+            "companies": ", ".join(dict.fromkeys(x.company for x in members if x.company)),
+            "total": len(members),
+            "inside": sum(1 for x in members if x.status == "Checked-In"),
+            "avg": round(sum(mins) / len(mins), 1) if mins else 0,
+        })
+    return entries
+
+
+def get_day_rows(passes):
+    """Day view: one line per visit (see get_entries), oldest first."""
+    return [{
+        "group": e["date"],
+        "visitor_names": e["names"],
+        "visitor_companies": e["companies"],
+        "total_visitors": e["total"],
+        "currently_inside": e["inside"],
+        "avg_duration": e["avg"],
+    } for e in get_entries(passes)]
 
 
 def get_data(passes, group_by):
@@ -150,20 +198,23 @@ def get_data(passes, group_by):
 
 def get_list_data(passes):
     rows = []
-    for r in passes:
-        mins = _duration_minutes(r)
+    for e in get_entries(passes):
+        first = e["members"][0]
+        mins = [m for m in (_duration_minutes(x) for x in e["members"]) if m is not None]
         rows.append({
-            "visit_date": r.actual_checkin.date() if r.actual_checkin else None,
-            "visitor_pass": r.visitor_pass,
-            "visitor_name": r.visitor_name,
-            "company": r.company,
-            "visitor_type": r.visitor_type,
-            "host": r.host,
-            "department": r.department,
-            "checkin": r.actual_checkin,
-            "checkout": r.actual_checkout,
-            "duration": round(mins, 1) if mins is not None else None,
-            "status": r.status,
+            "visit_date": e["date"],
+            "visitor_pass": ", ".join(x.visitor_pass for x in e["members"]),
+            "visitor_name": e["names"],
+            "company": e["companies"],
+            "visitor_type": first.visitor_type,
+            "host": first.host,
+            "department": first.department,
+            "checkin": min(x.actual_checkin for x in e["members"]),
+            "checkout": max((x.actual_checkout for x in e["members"] if x.actual_checkout), default=None)
+            if all(x.actual_checkout for x in e["members"]) else None,
+            "duration": round(sum(mins) / len(mins), 1) if mins else None,
+            "status": first.status if len(e["members"]) == 1 else (
+                "Checked-In" if e["inside"] else first.status),
         })
     return rows
 
@@ -171,8 +222,7 @@ def get_list_data(passes):
 def get_list_columns():
     return [
         {"label": _("Date"), "fieldname": "visit_date", "fieldtype": "Date", "width": 100},
-        {"label": _("Visitor Pass"), "fieldname": "visitor_pass", "fieldtype": "Link",
-         "options": "Visitor Pass", "width": 140},
+        {"label": _("Visitor Pass"), "fieldname": "visitor_pass", "fieldtype": "Data", "width": 160},
         {"label": _("Visitor Name"), "fieldname": "visitor_name", "fieldtype": "Data", "width": 170},
         {"label": _("Visitor Company"), "fieldname": "company", "fieldtype": "Data", "width": 170},
         {"label": _("Visitor Type"), "fieldname": "visitor_type", "fieldtype": "Data", "width": 110},
